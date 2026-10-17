@@ -150,6 +150,34 @@ $env:VCPKG_ROOT = 'D:\CPPLibraries\vcpkg'
 
 需要真实窗口时加 `--window`（此时不节流，由 M06 vsync 接管；M06 之前会全速跑）。
 
+## 全新克隆验证
+
+M02 曾因 `.gitignore` 的 `/build/` 把 `build/*.props` 一起忽略而导致克隆后不可构建，
+因此每个模块收尾都做一次克隆验证。本轮同样通过：
+
+```powershell
+git clone --no-hardlinks . "$env:TEMP\fa-clone-m04"
+cd "$env:TEMP\fa-clone-m04"
+$env:VCPKG_ROOT = 'D:\CPPLibraries\vcpkg'
+.\scripts\build.ps1 -Configuration Development      # 含空 vcpkg_installed 的 manifest 安装
+.\build\bin\x64\Development\fa_tests.exe
+.\build\bin\x64\Development\fa_app.exe --frames 60
+```
+
+```text
+fa_tests.exe → All tests passed (14968 assertions in 50 test cases)   exit = 0
+fa_app.exe   → ran 60 frame(s) in 1.004s
+                 fixed steps: 60, dropped: 0
+                 simulated: 1.000s
+               M02+M04 smoke test OK                                  exit = 0
+```
+
+`60 帧 / 1.004 s / 60 步 / 模拟 1.000 s` 是固定步长循环最干净的一条证据：
+一秒墙钟对应一秒模拟，零丢弃。
+
+> 注：克隆到 `%TEMP%` 下会额外出现 `MSB8029`（中间目录位于临时目录），
+> 这是存放位置的副作用，与本仓库配置无关；正常路径下无此警告。
+
 ## 遗留风险
 
 | 风险 | 影响 | 处理 |
