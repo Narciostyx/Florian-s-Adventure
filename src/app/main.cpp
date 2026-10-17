@@ -30,7 +30,16 @@
 #include <fa/platform/FileSystem.hpp>
 #include <fa/platform/Platform.hpp>
 #include <fa/render/IRenderer.hpp>
+#include <fa/render/RenderQueue.hpp>
 #include <fa/render/RenderTypes.hpp>
+#include <fa/scene/CommandBuffer.hpp>
+#include <fa/scene/Components.hpp>
+#include <fa/scene/EntityId.hpp>
+#include <fa/scene/Scene.hpp>
+#include <fa/scene/SceneStack.hpp>
+#include <fa/scene/SpriteExtractor.hpp>
+#include <fa/scene/System.hpp>
+#include <fa/scene/World.hpp>
 #include <fa/time/FrameContext.hpp>
 #include <fa/time/FrameLoop.hpp>
 
@@ -190,6 +199,112 @@ private:
     fa::events::Subscription m_uploadSubscription;
 };
 
+/// \brief Moves one entity along the input axis, so the pipeline has real work to do.
+///
+/// It reads the axis through a borrowed pointer because systems must not own the
+/// input system: the scene forwards the axis once per fixed step.
+class MoveMarkerSystem final : public fa::scene::ISystem {
+public:
+    MoveMarkerSystem(fa::scene::EntityId entity, const fa::core::Vec2& axis, float speed)
+        : m_entity(entity), m_axis(&axis), m_speed(speed) {}
+
+    [[nodiscard]] std::string_view name() const noexcept override { return "MoveMarkerSystem"; }
+
+    void onFixedUpdate(fa::scene::World& world, const fa::time::FrameContext& context,
+                       fa::scene::CommandBuffer& commands) override {
+        static_cast<void>(commands);
+        static_cast<void>(context);
+        fa::scene::Transform* transform = world.tryGet<fa::scene::Transform>(m_entity);
+        if (transform == nullptr) {
+            return;
+        }
+        const float step = m_speed * static_cast<float>(fa::time::kFixedStepSeconds);
+        transform->position += (*m_axis) * step;
+    }
+
+private:
+    fa::scene::EntityId m_entity;
+    const fa::core::Vec2* m_axis = nullptr;
+    float m_speed = 0.0f;
+};
+
+/// \brief The M11 scene: a world of sprite entities driven by the system pipeline.
+///
+/// It replaces the hand-rolled draw list the earlier smoke runs used. The ground grid
+/// and the marker are entities now, a system moves the marker from the input axis, and
+/// the sprite extractor turns the whole world into render queue items - which is the
+/// only bridge between M11 and M06.
+class DemoScene final : public fa::scene::BasicScene {
+public:
+    DemoScene() : BasicScene("demo") {}
+
+    /// \brief Hands the scene the textures its entities draw with.
+    ///
+    /// Only the asset manager can produce these, and it needs a GL context, so the
+    /// scene is configured right before it is pushed.
+    void setTextures(fa::render::TextureHandle ground, fa::render::TextureHandle marker) {
+        m_ground = ground;
+        m_marker = marker;
+    }
+
+    void setMoveAxis(fa::core::Vec2 axis) { m_axis = axis; }
+
+    void onEnter() override {
+        if (m_markerEntity.isValid()) {
+            return;
+        }
+        constexpr int kColumns = 40;
+        constexpr int kRows = 23;
+        const float tile = static_cast<float>(fa::render::kTileSize);
+        for (int row = 0; row < kRows; ++row) {
+            for (int column = 0; column < kColumns; ++column) {
+                const fa::scene::EntityId id = world().create();
+                fa::scene::Transform transform;
+                transform.position = fa::core::Vec2{static_cast<float>(column) * tile,
+                                                     static_cast<float>(row) * tile};
+                static_cast<void>(world().add<fa::scene::Transform>(id, transform));
+
+                fa::scene::Sprite sprite;
+                sprite.texture = m_ground;
+                sprite.size = fa::core::Vec2{tile, tile};
+                sprite.layer = fa::render::RenderLayer::Ground;
+                static_cast<void>(world().add<fa::scene::Sprite>(id, sprite));
+                ++m_groundTiles;
+            }
+        }
+
+        m_markerEntity = world().create();
+        fa::scene::Transform marker;
+        marker.position = fa::core::Vec2{320.0f, 200.0f};
+        static_cast<void>(world().add<fa::scene::Transform>(m_markerEntity, marker));
+
+        fa::scene::Sprite sprite;
+        sprite.texture = m_marker;
+        sprite.size = fa::core::Vec2{8.0f, 8.0f};
+        sprite.tint = fa::core::Color{1.0f, 0.35f, 0.35f, 1.0f};
+        sprite.layer = fa::render::RenderLayer::Actors;
+        static_cast<void>(world().add<fa::scene::Sprite>(m_markerEntity, sprite));
+
+        systems().add(std::make_unique<MoveMarkerSystem>(m_markerEntity, m_axis, 120.0f));
+        systems().add(std::make_unique<fa::scene::SpriteExtractSystem>());
+    }
+
+    /// \brief The marker, so the caller can prove the world really moved.
+    [[nodiscard]] fa::core::Vec2 markerPosition() const {
+        const fa::scene::Transform* transform = world().tryGet<fa::scene::Transform>(m_markerEntity);
+        return transform != nullptr ? transform->position : fa::core::Vec2{};
+    }
+
+    [[nodiscard]] std::size_t groundTiles() const noexcept { return m_groundTiles; }
+
+private:
+    fa::render::TextureHandle m_ground;
+    fa::render::TextureHandle m_marker;
+    fa::scene::EntityId m_markerEntity;
+    fa::core::Vec2 m_axis{};
+    std::size_t m_groundTiles = 0;
+};
+
 /// \brief Temporary sink: counts events and reports the frame timing it observes.
 ///
 /// Stands in for the layers that will own this work later (M03 events, M06 render)
@@ -199,7 +314,9 @@ private:
 ///
 /// M06 is driven in the same hook: one texture is uploaded at startup and every frame
 /// draws a full screen of ground tiles plus a debug overlay, which is a small but real
-/// exercise of batching, sorting, the viewport mapping and the debug helpers.
+/// exercise of batching, sorting, the viewport mapping and the debug helpers. The draw
+/// items themselves come from M11: the scene stack extracts the world into a render
+/// queue and the renderer takes the queue in one submitAll() call.
 class SmokeSink final : public fa::time::IFrameSink {
 public:
     SmokeSink() {
@@ -265,6 +382,24 @@ public:
         if (!groundTexture || !markerTexture) {
             return fa::core::errorStatus(fa::assets::asset_error::kUploadFailed, "a smoke texture stayed unusable");
         }
+
+        const fa::assets::TextureAsset* groundAsset = groundTexture.get();
+        const fa::assets::TextureAsset* markerAsset = markerTexture.get();
+        if (groundAsset == nullptr || markerAsset == nullptr) {
+            return fa::core::errorStatus(fa::assets::asset_error::kUploadFailed, "a smoke texture stayed unusable");
+        }
+
+        // M11 takes over from here: the textures go into a scene, and the scene becomes
+        // the only source of draw items.
+        auto scene = std::make_unique<DemoScene>();
+        scene->setTextures(fa::render::TextureHandle{groundAsset->gpuTexture},
+                           fa::render::TextureHandle{markerAsset->gpuTexture});
+        demoScene = scene.get();
+        const fa::core::Status pushed = stack.push(std::move(scene));
+        if (pushed.isError()) {
+            demoScene = nullptr;
+            return pushed;
+        }
         return fa::core::okStatus();
     }
 
@@ -273,6 +408,11 @@ public:
     /// Handles go first, then the cache (whose destructor releases the GPU textures),
     /// and only then the renderer those textures belong to.
     void shutdownRenderer() {
+        // The scenes go first: their sprites only hold texture handles, but the stack
+        // calls onExit() on the way out, which is where per-scene GPU work would be
+        // released.
+        stack.clear();
+        demoScene = nullptr;
         groundTexture = fa::assets::AssetHandle<fa::assets::TextureAsset>{};
         markerTexture = fa::assets::AssetHandle<fa::assets::TextureAsset>{};
         assets.reset();
@@ -310,6 +450,15 @@ public:
         if (axis.x != 0.0f || axis.y != 0.0f) {
             ++movingSteps;
         }
+        if (demoScene != nullptr) {
+            // A headless run never presses a key, so the marker also gets a slow
+            // scripted drift. It keeps the system pipeline's movement path exercised
+            // in CI, where the input axis stays at zero.
+            const fa::core::Vec2 scripted = axis.x != 0.0f || axis.y != 0.0f ? axis
+                                                                            : fa::core::Vec2{0.35f, 0.2f};
+            demoScene->setMoveAxis(scripted);
+        }
+        stack.fixedUpdate(context);
         if (demo != nullptr) {
             demo->beginTick(context.fixedStepIndex);
         }
@@ -317,6 +466,7 @@ public:
 
     void onVariableUpdate(const fa::time::FrameContext& context) override {
         lastRealDelta = context.realDeltaSeconds;
+        stack.variableUpdate(context);
     }
 
     void onRender(const fa::time::FrameContext&) override {
@@ -343,6 +493,12 @@ public:
     std::unique_ptr<fa::assets::IAssetManager> assets;
     fa::assets::AssetHandle<fa::assets::TextureAsset> groundTexture;
     fa::assets::AssetHandle<fa::assets::TextureAsset> markerTexture;
+    /// Owns the scene graph. Cleared before the renderer goes away: the scenes only
+    /// store texture handles, but their sprites should not outlive the GPU textures.
+    fa::scene::SceneStack stack;
+    DemoScene* demoScene = nullptr;
+    fa::render::RenderQueue renderQueue;
+    std::size_t extractedItems = 0;
     int quitEvents = 0;
     int resizeEvents = 0;
     int renderedFrames = 0;
@@ -362,6 +518,19 @@ public:
         return assets != nullptr ? assets->stats() : fa::assets::AssetStats{};
     }
 
+    /// \brief Scene-side counters, snapshotted before the stack is cleared.
+    fa::scene::SceneStackStats sceneStackStats() const { return stack.stats(); }
+    fa::scene::WorldStats sceneWorldStats() const {
+        return demoScene != nullptr ? demoScene->world().stats() : fa::scene::WorldStats{};
+    }
+    std::size_t sceneGroundTiles() const { return demoScene != nullptr ? demoScene->groundTiles() : 0; }
+    fa::core::Vec2 sceneMarkerPosition() const {
+        return demoScene != nullptr ? demoScene->markerPosition() : fa::core::Vec2{};
+    }
+    std::size_t sceneSystemCount() const {
+        return demoScene != nullptr ? demoScene->systems().size() : 0;
+    }
+
 private:
     /// \brief The whole M06 frame contract: beginFrame, submit, endFrame.
     void renderFrame() {
@@ -379,8 +548,6 @@ private:
         if (ground == nullptr || marker == nullptr || ground->gpuTexture == 0 || marker->gpuTexture == 0) {
             return;
         }
-        const fa::render::TextureHandle groundHandle{ground->gpuTexture};
-        const fa::render::TextureHandle markerHandle{marker->gpuTexture};
 
         if (!cameraReady) {
             // A 40x23 tile plot: wider than the viewport, half a tile taller, so the
@@ -393,38 +560,19 @@ private:
 
         renderer->beginFrame(camera);
 
-        const fa::core::Rect visible = camera.visibleRect();
-        const int firstRow = static_cast<int>(visible.y) / fa::render::kTileSize;
-        const int lastRow = static_cast<int>(visible.y + visible.h) / fa::render::kTileSize;
-        constexpr int kColumns = 40;
-        for (int row = firstRow; row <= lastRow; ++row) {
-            for (int column = 0; column < kColumns; ++column) {
-                fa::render::DrawItem item;
-                item.texture = groundHandle;
-                item.position = fa::core::Vec2{static_cast<float>(column * fa::render::kTileSize),
-                                               static_cast<float>(row * fa::render::kTileSize)};
-                item.size = fa::core::Vec2{static_cast<float>(fa::render::kTileSize),
-                                           static_cast<float>(fa::render::kTileSize)};
-                item.layer = fa::render::RenderLayer::Ground;
-                item.sortY = item.position.y + item.size.y;
-                item.entityId = static_cast<std::uint32_t>(row * kColumns + column + 1);
-                renderer->submit(item);
-            }
-        }
+        // M11 -> M06: the scene stack extracts every layer into one queue (bottom scene
+        // first, so a paused world still shows through a menu), the queue sorts itself,
+        // and the renderer takes the whole batch at once.
+        renderQueue.clear();
+        stack.renderExtract(renderQueue);
+        renderQueue.sort();
+        renderer->submitAll(renderQueue.items());
+        extractedItems = renderQueue.size();
 
         // Mouse position proves the window -> virtual -> world chain: the viewport
         // strips the letterbox, the camera removes its own offset.
         const fa::render::Viewport viewport = renderer->viewport();
         const fa::core::Vec2 cursor = camera.viewportToWorld(viewport.windowToVirtual(lastMouse));
-
-        fa::render::DrawItem markerItem;
-        markerItem.texture = markerHandle;
-        markerItem.position = fa::core::Vec2{cursor.x - 4.0f, cursor.y - 4.0f};
-        markerItem.size = fa::core::Vec2{8.0f, 8.0f};
-        markerItem.tint = fa::core::Color{1.0f, 0.35f, 0.35f, 1.0f};
-        markerItem.layer = fa::render::RenderLayer::Actors;
-        markerItem.sortY = cursor.y;
-        renderer->submit(markerItem);
 
         renderer->drawDebugRect(fa::core::makeRect(cursor.x - 8.0f, cursor.y - 8.0f, 16.0f, 16.0f),
                                 fa::core::Color{1.0f, 1.0f, 0.2f, 1.0f});
@@ -521,6 +669,12 @@ int main(int argc, char** argv) {
     const fa::render::RenderStats renderStats = sink.lastRenderStats();
     const fa::assets::AssetStats assetStats = sink.assetStats();
     const std::size_t catalogEntries = sink.catalog.size();
+    // Scene counters die with the stack, which shutdownRenderer() clears first.
+    const fa::scene::SceneStackStats stackStats = sink.sceneStackStats();
+    const fa::scene::WorldStats worldStats = sink.sceneWorldStats();
+    const fa::core::Vec2 marker = sink.sceneMarkerPosition();
+    const std::size_t systemCount = sink.sceneSystemCount();
+    const std::size_t groundTiles = sink.sceneGroundTiles();
     // The context belongs to the renderer and dies with the window, so it has to go
     // before the platform shuts that window down.
     sink.shutdownRenderer();
@@ -568,6 +722,20 @@ int main(int argc, char** argv) {
                 "%zu live GPU texture(s), %zu failed\n",
                 catalogEntries, assetStats.textureCount, assetStats.placeholderCount, assetStats.cpuBytes,
                 assetStats.liveGpuTextures, assetStats.failedCount);
-    std::printf("M02+M03+M04+M05+M06+M07 smoke test OK\n");
+    std::printf("  m11: %zu scene depth, %zu system(s), %zu live entit(ies) (%llu created / %llu destroyed) over "
+                "%zu component type(s), %zu component(s), %zu extracted item(s)\n",
+                stackStats.depth, systemCount, worldStats.liveEntities,
+                static_cast<unsigned long long>(worldStats.createdTotal),
+                static_cast<unsigned long long>(worldStats.destroyedTotal), worldStats.componentTypes,
+                worldStats.components, sink.extractedItems);
+    std::printf("       stack: %llu push(es), %llu pop(s), %llu replace(s), %llu pause(s), %llu resume(s)\n",
+                static_cast<unsigned long long>(stackStats.pushes),
+                static_cast<unsigned long long>(stackStats.pops),
+                static_cast<unsigned long long>(stackStats.replacements),
+                static_cast<unsigned long long>(stackStats.pauses),
+                static_cast<unsigned long long>(stackStats.resumes));
+    std::printf("       %zu ground tile(s), marker at (%g, %g)\n", groundTiles,
+                static_cast<double>(marker.x), static_cast<double>(marker.y));
+    std::printf("M02+M03+M04+M05+M06+M07+M11 smoke test OK\n");
     return 0;
 }
