@@ -100,10 +100,13 @@ if (auto status = files.writeText(p, text); !status) {
 - 错误信息包含上下文：模块、操作、路径/ID。
 - **异常边界**：全局编译开关是 `/EHsc-`（见 [Directory.Build.props](../../Directory.Build.props)），
   因此绝大多数模块**不能**写 `try/catch`。只有确实要包住第三方库的模块才单独打开 `/EHsc`
-  （目前仅 `fa_platform` 与 `fa_events`，原因分别是文件系统/`<chrono>`），
+  （目前仅 `fa_platform`、`fa_events` 与 `fa_input`，原因分别是文件系统、`<chrono>` 与 `nlohmann/json`），
   且这些模块自己也**不抛异常**——捕获只发生在真正调用第三方 API 的那一层，
   转换后立刻以 `Result`/`Status` 返回。新增模块需要异常边界时，
   在它自己的 `.vcxproj` 里开 `/EHsc`，不要改全局开关。
+- **`nlohmann/json` 必须配 `/EHsc`**：它间接 include `<chrono>`，其 tzdb 段含真实的 `try/catch`，
+  在 `/EHsc-` 下即便只是正常调用 `parse`/`dump` 也会触发 C4530，`/WX` 直接升级成错误。
+  凡是 include 该库的工程都要在 `.vcxproj` 里开 `/EHsc`（详见 [M07 坑 #2](../build/m07-input.md)）。
 
 ## 7. 日志
 
