@@ -1,0 +1,14 @@
+* text=auto
+
+# PowerShell 脚本与 CI 在 Windows 上运行，但仓库内统一 LF，避免跨平台 diff 噪声。
+*.ps1 text eol=lf
+*.yml text eol=lf
+*.md  text eol=lf
+
+# 二进制资源不做换行转换。
+*.png binary
+*.wav binary
+*.ogg binary
+*.ttf binary
+*.lib binary
+*.exe binary

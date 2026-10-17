@@ -1,0 +1,98 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    env:
+      VCPKG_ROOT: C:\vcpkg
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Detect solution
+        id: detect
+        shell: pwsh
+        run: |
+          if (Test-Path 'FloriansAdventure.sln') {
+            'ready=true' >> $env:GITHUB_OUTPUT
+          }
+          else {
+            'ready=false' >> $env:GITHUB_OUTPUT
+            Write-Host 'FloriansAdventure.sln does not exist yet (M00 not applied). Skipping build.'
+          }
+
+      - name: Cache vcpkg
+        if: steps.detect.outputs.ready == 'true'
+        uses: actions/cache@v4
+        with:
+          path: |
+            C:\vcpkg\installed
+            C:\vcpkg\downloads
+          key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}
+          restore-keys: |
+            vcpkg-${{ runner.os }}-
+
+      - name: Setup vcpkg
+        if: steps.detect.outputs.ready == 'true'
+        shell: pwsh
+        run: |
+          if (-not (Test-Path 'C:\vcpkg\vcpkg.exe')) {
+            git clone --depth 1 https://github.com/microsoft/vcpkg.git C:\vcpkg
+            C:\vcpkg\bootstrap-vcpkg.bat -disableMetrics
+          }
+
+      - name: Validate manifest
+        if: steps.detect.outputs.ready == 'true'
+        shell: pwsh
+        run: |
+          if ((Get-Content -Raw 'vcpkg.json') -match 'TODO-REPLACE-WITH-REAL-COMMIT-SHA') {
+            throw 'vcpkg.json still contains the placeholder builtin-baseline.'
+          }
+
+      - name: Build
+        if: steps.detect.outputs.ready == 'true'
+        shell: pwsh
+        run: |
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+          $msbuild = (& $vswhere -latest -products * -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\MSBuild.exe' | Select-Object -First 1)
+          if (-not $msbuild) { throw 'MSBuild.exe not found.' }
+          & $msbuild FloriansAdventure.sln /m /nologo /v:minimal /p:Configuration=Release /p:Platform=x64
+          if ($LASTEXITCODE -ne 0) { throw "Build failed: $LASTEXITCODE" }
+
+      - name: Test
+        if: steps.detect.outputs.ready == 'true'
+        shell: pwsh
+        run: |
+          $exe = 'build\bin\x64\Release\fa_tests.exe'
+          if (-not (Test-Path $exe)) { throw "Test executable missing: $exe" }
+          & $exe
+          if ($LASTEXITCODE -ne 0) { throw "Tests failed: $LASTEXITCODE" }
+
+      - name: Format check
+        shell: pwsh
+        run: |
+          $headers = @(git ls-files '*.hpp' '*.cpp')
+          if ($headers.Count -eq 0) {
+            Write-Host 'No C++ sources yet.'
+            exit 0
+          }
+          pip install clang-format==18.1.8 --quiet
+          $failed = @()
+          foreach ($file in $headers) {
+            $formatted = clang-format $file | Out-String
+            $original = Get-Content -Raw $file
+            if ($formatted.TrimEnd() -ne $original.TrimEnd()) { $failed += $file }
+          }
+          if ($failed.Count -gt 0) {
+            $failed | ForEach-Object { Write-Host "needs formatting: $_" }
+            throw 'Formatting check failed. Run clang-format -i on the listed files.'
+          }
