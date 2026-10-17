@@ -29,6 +29,17 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
     <Import Project="$(SolutionDir)build\Project.props" />
   </ImportGroup>
+  <!-- Binding persistence uses nlohmann/json, which pulls in the MSVC STL's
+       <chrono>; that header contains an inline function with a real try/catch
+       block (get_tzdb_list) that cannot be parsed with unwind semantics off, so
+       the global /EHsc- fails here with C4530. Only this project and fa_events
+       turn /EHsc back on, and no fa_input code throws or catches.
+       See docs/build/m07-input.md. -->
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <ExceptionHandling>Sync</ExceptionHandling>
+    </ClCompile>
+  </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="src\*.cpp" />
   </ItemGroup>

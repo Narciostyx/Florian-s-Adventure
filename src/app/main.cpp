@@ -17,6 +17,7 @@
 #include <fa/core/Version.hpp>
 #include <fa/events/EventBus.hpp>
 #include <fa/events/JobSystem.hpp>
+#include <fa/input/Input.hpp>
 #include <fa/platform/Platform.hpp>
 #include <fa/time/FrameContext.hpp>
 #include <fa/time/FrameLoop.hpp>
@@ -120,11 +121,21 @@ private:
 
 /// \brief Temporary sink: counts events and reports the frame timing it observes.
 ///
-/// Stands in for the layers that will own this work later (M07 input, M03 events,
-/// M06 render) so the loop itself can be verified from the app.
+/// Stands in for the layers that will own this work later (M03 events, M06 render)
+/// so the loop itself can be verified from the app. It also owns the M07 input system
+/// and drives it in the order the module contract requires:
+/// `poll(events)` in onEvents, read actions during the updates, `endFrame()` in onRender.
 class SmokeSink final : public fa::time::IFrameSink {
 public:
+    SmokeSink() {
+        input.addDevice(std::make_unique<fa::input::KeyboardDevice>());
+        input.addDevice(std::make_unique<fa::input::MouseDevice>());
+        input.applyDefaultBindings();
+    }
+
     void onEvents(std::span<const fa::platform::PlatformEvent> events) override {
+        input.poll(events);
+        forwardedEvents += events.size();
         for (const fa::platform::PlatformEvent& event : events) {
             switch (event.type) {
                 case fa::platform::PlatformEventType::Quit:
@@ -143,6 +154,11 @@ public:
     void onFixedUpdate(const fa::time::FrameContext& context) override {
         ++fixedSteps;
         lastTick = context.fixedStepIndex;
+        const fa::core::Vec2 axis = input.moveAxis();
+        lastMoveAxis = axis;
+        if (axis.x != 0.0f || axis.y != 0.0f) {
+            ++movingSteps;
+        }
         if (demo != nullptr) {
             demo->beginTick(context.fixedStepIndex);
         }
@@ -154,17 +170,26 @@ public:
 
     void onRender(const fa::time::FrameContext&) override {
         ++renderedFrames;
+        lastMouse = input.mousePosition();
         if (demo != nullptr) {
             demo->endFrame();
         }
+        input.endFrame();
     }
 
+    /// Declared before `demo` so the input system outlives nothing that needs it and
+    /// construction order stays obvious.
+    fa::input::InputSystem input;
     EventsAndJobsDemo* demo = nullptr;
     int quitEvents = 0;
     int resizeEvents = 0;
     int renderedFrames = 0;
+    std::uint64_t forwardedEvents = 0;
+    std::uint64_t movingSteps = 0;
     std::uint64_t fixedSteps = 0;
     std::uint64_t lastTick = 0;
+    fa::core::Vec2 lastMoveAxis{};
+    fa::core::Vec2 lastMouse{};
     double lastRealDelta = 0.0;
 };
 
@@ -234,6 +259,13 @@ int main(int argc, char** argv) {
     std::printf("  m03: %llu tick event(s) (last tick %llu), %llu upload event(s) worth %d\n",
                 static_cast<unsigned long long>(demo.tickEvents), static_cast<unsigned long long>(demo.lastTick),
                 static_cast<unsigned long long>(demo.uploadEvents), demo.uploadedValue);
-    std::printf("M02+M03+M04 smoke test OK\n");
+    const std::string_view contextName = fa::input::toString(sink.input.activeContext());
+    std::printf("  m07: %llu event(s) forwarded, context %.*s, moving %llu step(s), "
+                "axis (%.2f, %.2f), mouse (%g, %g)\n",
+                static_cast<unsigned long long>(sink.forwardedEvents), static_cast<int>(contextName.size()),
+                contextName.data(), static_cast<unsigned long long>(sink.movingSteps),
+                static_cast<double>(sink.lastMoveAxis.x), static_cast<double>(sink.lastMoveAxis.y),
+                static_cast<double>(sink.lastMouse.x), static_cast<double>(sink.lastMouse.y));
+    std::printf("M02+M03+M04+M07 smoke test OK\n");
     return 0;
 }

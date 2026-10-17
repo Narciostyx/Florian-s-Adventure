@@ -4,6 +4,8 @@
 #include <string>
 #include <string_view>
 
+#include <fa/platform/Scancode.hpp>
+
 namespace fa::platform {
 
 /// \brief Kind of platform event delivered by IPlatform::pumpEvents().
@@ -40,7 +42,12 @@ enum class MouseButton : std::uint8_t {
 struct PlatformEvent {
     PlatformEventType type = PlatformEventType::Quit;
 
-    std::int32_t scancode = 0;
+    /// Physical key, already translated out of the backend's numbering by the
+    /// platform layer. Meaningful only for KeyDown / KeyUp.
+    Scancode scancode = Scancode::Unknown;
+
+    /// Backend keycode; layout dependent and rarely what a binding wants. Kept
+    /// raw (int) on purpose: no other layer should depend on its numbering.
     std::int32_t keycode = 0;
     bool repeat = false;
 
@@ -58,5 +65,13 @@ struct PlatformEvent {
 
 /// \brief Stable, human-readable name of \p type, used by logs and tests.
 std::string_view toString(PlatformEventType type) noexcept;
+
+/// \brief Stable, human-readable name of \p button, used by rebinding persistence.
+/// Never used for display text; UI localizes its own labels.
+std::string_view toString(MouseButton button) noexcept;
+
+/// \brief Inverse of \ref toString(MouseButton). Returns MouseButton::None for text
+/// that does not name a button.
+MouseButton mouseButtonFromName(std::string_view name) noexcept;
 
 }  // namespace fa::platform

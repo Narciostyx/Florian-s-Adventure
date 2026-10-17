@@ -59,6 +59,7 @@
     <ProjectReference Include="$(SolutionDir)src\engine\platform\fa_platform.vcxproj" />
     <ProjectReference Include="$(SolutionDir)src\engine\time\fa_time.vcxproj" />
     <ProjectReference Include="$(SolutionDir)src\engine\events\fa_events.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\input\fa_input.vcxproj" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>

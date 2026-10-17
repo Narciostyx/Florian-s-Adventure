@@ -32,4 +32,32 @@ std::string_view toString(PlatformEventType type) noexcept {
     return "Unknown";
 }
 
+std::string_view toString(MouseButton button) noexcept {
+    switch (button) {
+        case MouseButton::Left:
+            return "Left";
+        case MouseButton::Middle:
+            return "Middle";
+        case MouseButton::Right:
+            return "Right";
+        case MouseButton::X1:
+            return "X1";
+        case MouseButton::X2:
+            return "X2";
+        case MouseButton::None:
+            break;
+    }
+    return "None";
+}
+
+MouseButton mouseButtonFromName(std::string_view name) noexcept {
+    for (const auto candidate : {MouseButton::Left, MouseButton::Middle, MouseButton::Right,
+                                 MouseButton::X1, MouseButton::X2}) {
+        if (toString(candidate) == name) {
+            return candidate;
+        }
+    }
+    return MouseButton::None;
+}
+
 }  // namespace fa::platform

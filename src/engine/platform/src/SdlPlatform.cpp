@@ -31,6 +31,125 @@ MouseButton toMouseButton(std::uint8_t button) {
     }
 }
 
+/// The only place in the engine that knows SDL's scancode numbering. Everything
+/// downstream sees fa::platform::Scancode (docs/modules/07-input.md).
+Scancode toScancode(SDL_Scancode code) {
+    switch (code) {
+        case SDL_SCANCODE_A: return Scancode::A;
+        case SDL_SCANCODE_B: return Scancode::B;
+        case SDL_SCANCODE_C: return Scancode::C;
+        case SDL_SCANCODE_D: return Scancode::D;
+        case SDL_SCANCODE_E: return Scancode::E;
+        case SDL_SCANCODE_F: return Scancode::F;
+        case SDL_SCANCODE_G: return Scancode::G;
+        case SDL_SCANCODE_H: return Scancode::H;
+        case SDL_SCANCODE_I: return Scancode::I;
+        case SDL_SCANCODE_J: return Scancode::J;
+        case SDL_SCANCODE_K: return Scancode::K;
+        case SDL_SCANCODE_L: return Scancode::L;
+        case SDL_SCANCODE_M: return Scancode::M;
+        case SDL_SCANCODE_N: return Scancode::N;
+        case SDL_SCANCODE_O: return Scancode::O;
+        case SDL_SCANCODE_P: return Scancode::P;
+        case SDL_SCANCODE_Q: return Scancode::Q;
+        case SDL_SCANCODE_R: return Scancode::R;
+        case SDL_SCANCODE_S: return Scancode::S;
+        case SDL_SCANCODE_T: return Scancode::T;
+        case SDL_SCANCODE_U: return Scancode::U;
+        case SDL_SCANCODE_V: return Scancode::V;
+        case SDL_SCANCODE_W: return Scancode::W;
+        case SDL_SCANCODE_X: return Scancode::X;
+        case SDL_SCANCODE_Y: return Scancode::Y;
+        case SDL_SCANCODE_Z: return Scancode::Z;
+
+        case SDL_SCANCODE_1: return Scancode::Digit1;
+        case SDL_SCANCODE_2: return Scancode::Digit2;
+        case SDL_SCANCODE_3: return Scancode::Digit3;
+        case SDL_SCANCODE_4: return Scancode::Digit4;
+        case SDL_SCANCODE_5: return Scancode::Digit5;
+        case SDL_SCANCODE_6: return Scancode::Digit6;
+        case SDL_SCANCODE_7: return Scancode::Digit7;
+        case SDL_SCANCODE_8: return Scancode::Digit8;
+        case SDL_SCANCODE_9: return Scancode::Digit9;
+        case SDL_SCANCODE_0: return Scancode::Digit0;
+
+        case SDL_SCANCODE_ESCAPE: return Scancode::Escape;
+        case SDL_SCANCODE_RETURN: return Scancode::Enter;
+        case SDL_SCANCODE_BACKSPACE: return Scancode::Backspace;
+        case SDL_SCANCODE_TAB: return Scancode::Tab;
+        case SDL_SCANCODE_SPACE: return Scancode::Space;
+        case SDL_SCANCODE_MINUS: return Scancode::Minus;
+        case SDL_SCANCODE_EQUALS: return Scancode::Equals;
+        case SDL_SCANCODE_LEFTBRACKET: return Scancode::LeftBracket;
+        case SDL_SCANCODE_RIGHTBRACKET: return Scancode::RightBracket;
+        case SDL_SCANCODE_BACKSLASH: return Scancode::Backslash;
+        case SDL_SCANCODE_SEMICOLON: return Scancode::Semicolon;
+        case SDL_SCANCODE_APOSTROPHE: return Scancode::Apostrophe;
+        case SDL_SCANCODE_GRAVE: return Scancode::Grave;
+        case SDL_SCANCODE_COMMA: return Scancode::Comma;
+        case SDL_SCANCODE_PERIOD: return Scancode::Period;
+        case SDL_SCANCODE_SLASH: return Scancode::Slash;
+        case SDL_SCANCODE_CAPSLOCK: return Scancode::CapsLock;
+
+        case SDL_SCANCODE_F1: return Scancode::F1;
+        case SDL_SCANCODE_F2: return Scancode::F2;
+        case SDL_SCANCODE_F3: return Scancode::F3;
+        case SDL_SCANCODE_F4: return Scancode::F4;
+        case SDL_SCANCODE_F5: return Scancode::F5;
+        case SDL_SCANCODE_F6: return Scancode::F6;
+        case SDL_SCANCODE_F7: return Scancode::F7;
+        case SDL_SCANCODE_F8: return Scancode::F8;
+        case SDL_SCANCODE_F9: return Scancode::F9;
+        case SDL_SCANCODE_F10: return Scancode::F10;
+        case SDL_SCANCODE_F11: return Scancode::F11;
+        case SDL_SCANCODE_F12: return Scancode::F12;
+
+        case SDL_SCANCODE_PRINTSCREEN: return Scancode::PrintScreen;
+        case SDL_SCANCODE_SCROLLLOCK: return Scancode::ScrollLock;
+        case SDL_SCANCODE_PAUSE: return Scancode::Pause;
+        case SDL_SCANCODE_INSERT: return Scancode::Insert;
+        case SDL_SCANCODE_HOME: return Scancode::Home;
+        case SDL_SCANCODE_PAGEUP: return Scancode::PageUp;
+        case SDL_SCANCODE_DELETE: return Scancode::Delete;
+        case SDL_SCANCODE_END: return Scancode::End;
+        case SDL_SCANCODE_PAGEDOWN: return Scancode::PageDown;
+        case SDL_SCANCODE_RIGHT: return Scancode::Right;
+        case SDL_SCANCODE_LEFT: return Scancode::Left;
+        case SDL_SCANCODE_DOWN: return Scancode::Down;
+        case SDL_SCANCODE_UP: return Scancode::Up;
+
+        case SDL_SCANCODE_NUMLOCKCLEAR: return Scancode::NumLock;
+        case SDL_SCANCODE_KP_DIVIDE: return Scancode::KeypadDivide;
+        case SDL_SCANCODE_KP_MULTIPLY: return Scancode::KeypadMultiply;
+        case SDL_SCANCODE_KP_MINUS: return Scancode::KeypadMinus;
+        case SDL_SCANCODE_KP_PLUS: return Scancode::KeypadPlus;
+        case SDL_SCANCODE_KP_ENTER: return Scancode::KeypadEnter;
+        case SDL_SCANCODE_KP_1: return Scancode::Keypad1;
+        case SDL_SCANCODE_KP_2: return Scancode::Keypad2;
+        case SDL_SCANCODE_KP_3: return Scancode::Keypad3;
+        case SDL_SCANCODE_KP_4: return Scancode::Keypad4;
+        case SDL_SCANCODE_KP_5: return Scancode::Keypad5;
+        case SDL_SCANCODE_KP_6: return Scancode::Keypad6;
+        case SDL_SCANCODE_KP_7: return Scancode::Keypad7;
+        case SDL_SCANCODE_KP_8: return Scancode::Keypad8;
+        case SDL_SCANCODE_KP_9: return Scancode::Keypad9;
+        case SDL_SCANCODE_KP_0: return Scancode::Keypad0;
+        case SDL_SCANCODE_KP_PERIOD: return Scancode::KeypadPeriod;
+
+        case SDL_SCANCODE_LCTRL: return Scancode::LeftCtrl;
+        case SDL_SCANCODE_LSHIFT: return Scancode::LeftShift;
+        case SDL_SCANCODE_LALT: return Scancode::LeftAlt;
+        case SDL_SCANCODE_LGUI: return Scancode::LeftGui;
+        case SDL_SCANCODE_RCTRL: return Scancode::RightCtrl;
+        case SDL_SCANCODE_RSHIFT: return Scancode::RightShift;
+        case SDL_SCANCODE_RALT: return Scancode::RightAlt;
+        case SDL_SCANCODE_RGUI: return Scancode::RightGui;
+
+        default: return Scancode::Unknown;
+    }
+}
+
+
 SDL_MessageBoxFlags toMessageBoxFlags(MessageBoxKind kind) {
     switch (kind) {
         case MessageBoxKind::Warning:
@@ -68,7 +187,7 @@ bool translateEvent(const SDL_Event& source, PlatformEvent& out) {
         case SDL_EVENT_KEY_DOWN:
         case SDL_EVENT_KEY_UP:
             out.type = source.type == SDL_EVENT_KEY_DOWN ? PlatformEventType::KeyDown : PlatformEventType::KeyUp;
-            out.scancode = static_cast<std::int32_t>(source.key.scancode);
+            out.scancode = toScancode(source.key.scancode);
             out.keycode = static_cast<std::int32_t>(source.key.key);
             out.repeat = source.key.repeat;
             return true;
