@@ -74,10 +74,15 @@ warning MSB8028: 中间目录包含来自另一个项目的文件...
 
 `x64-windows-static-md` 产出的是 **`SDL3-static.lib`**。手写 `SDL3.lib` 会得到
 `LNK1181`。vcpkg 的 manifest 集成会在注入 include/lib 路径时一并注入库名，
-因此 `fa_platform.vcxproj` 里**不需要也不应该**有 `ItemDefinitionGroup`。
+因此不要在工程里手写 SDL3 的库名。
 
 同理，`Directory.Build.props` 中不要手工拼 `AdditionalIncludeDirectories`，
 让 vcpkg 注入即可。
+
+> **M02 修正**：本条的“完全不需要链接配置”不成立。vcpkg 只注入 `SDL3-static.lib`，
+> 不带它的 Windows 系统库依赖，最终链接目标会报 24 个 `LNK2019`。
+> 现在由 `build/Sdl3.props` 显式补齐系统库，只给产出可执行文件的工程（`fa_app`、`fa_tests`）导入。
+> 详见 [M02 平台层](m02-platform.md) 的坑 2。
 
 ### 5. Catch2 需要异常与 RTTI
 

@@ -1,5 +1,6 @@
-# Build output
-/build/
+# Build output (MSBuild .props/.targets under /build/ ARE tracked)
+/build/bin/
+/build/obj/
 /out/
 /artifacts/
 /install/

@@ -1,6 +1,6 @@
 # 文档索引
 
-Florian's Adventure 的全部设计文档入口。当前状态：设计方案已完成，**M00 构建骨架与 M01 Core 已实现并通过实测**，其余模块处于设计阶段。
+Florian's Adventure 的全部设计文档入口。当前状态：设计方案已完成，**M00 构建骨架、M01 Core、M02 Platform 已实现并通过实测**，其余模块处于设计阶段。
 
 > 两条权威基线：产品与范围见 [ADR-0002](adr/0002-v1-scope-decisions.md)，像素与碰撞度量见 [ADR-0003](adr/0003-tile-and-collision-metrics.md) 与 [像素度量](architecture/pixel-metrics.md)。模块文档与它们冲突时，以 ADR 为准。
 
@@ -34,6 +34,16 @@ Florian's Adventure 的全部设计文档入口。当前状态：设计方案已
 |---|---|
 | [M00 构建骨架](build/m00-skeleton.md) | 目录布局、工程划分、vcpkg 与 CI 设计 |
 | [M00 实测结果](build/m00-fixups.md) | 本机实测通过的配置、踩过的坑与遗留风险 |
+| [M02 平台层・实测](build/m02-platform.md) | SDL3 接口语义、`/EHsc` 适用范围、静态库系统依赖、DPI 与原子写踩坑 |
+
+## 已实现模块
+
+| 模块 | 状态 | 实测 | 关键交付 |
+|---|---|---|---|
+| M01 Core | 已实现 | 22 用例 / 14626 断言 | `Result`/`Status`/`Error`、`Vector2`、`Rect`、`Rng`、断言与日志 |
+| M02 Platform | 已实现 | 30 用例 / 14681 断言 | 窗口、事件泵、文件系统（含原子写）、单调时钟、消息框 |
+
+三配置（Debug / Development / Release × x64）Rebuild 均零警告零错误。
 
 ## 路线图
 
