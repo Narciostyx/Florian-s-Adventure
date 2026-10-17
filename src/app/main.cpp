@@ -4,6 +4,7 @@
 /// Wires M02 (platform), M03 (events/jobs), M04 (frame loop), M06 (render) and
 /// M07 (input) so window, event, timing, drawing and input behave end to end.
 
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -13,11 +14,20 @@
 #include <string_view>
 #include <vector>
 
+#include <fa/assets/AssetCatalog.hpp>
+#include <fa/assets/AssetError.hpp>
+#include <fa/assets/AssetHandle.hpp>
+#include <fa/assets/AssetId.hpp>
+#include <fa/assets/AssetManager.hpp>
+#include <fa/assets/AssetTypes.hpp>
+#include <fa/assets/ImageData.hpp>
+#include <fa/assets/ITextureUploader.hpp>
 #include <fa/core/Result.hpp>
 #include <fa/core/Version.hpp>
 #include <fa/events/EventBus.hpp>
 #include <fa/events/JobSystem.hpp>
 #include <fa/input/Input.hpp>
+#include <fa/platform/FileSystem.hpp>
 #include <fa/platform/Platform.hpp>
 #include <fa/render/IRenderer.hpp>
 #include <fa/render/RenderTypes.hpp>
@@ -51,26 +61,64 @@ void printBanner() {
     std::printf("Florian's Adventure - engine v%.*s\n", static_cast<int>(version.size()), version.data());
 }
 
-/// \brief A 16x16 checkerboard, generated instead of loaded.
+/// \brief The whole M05 catalog for the smoke run: coloured blocks, no image files.
 ///
-/// The smoke run must not depend on asset files, and M05 (asset loading) is not
-/// implemented yet, so the only texture it ever needs is built in memory.
-std::vector<std::uint8_t> makeCheckerboardPixels() {
-    constexpr int kSize = fa::render::kTileSize;
-    constexpr int kCell = kSize / 2;
-    std::vector<std::uint8_t> pixels(static_cast<std::size_t>(kSize) * kSize * 4);
-    for (int y = 0; y < kSize; ++y) {
-        for (int x = 0; x < kSize; ++x) {
-            const bool even = ((x / kCell) + (y / kCell)) % 2 == 0;
-            const std::size_t index = (static_cast<std::size_t>(y) * kSize + static_cast<std::size_t>(x)) * 4;
-            pixels[index + 0] = even ? 74 : 106;
-            pixels[index + 1] = even ? 130 : 94;
-            pixels[index + 2] = even ? 80 : 138;
-            pixels[index + 3] = 255;
+/// Every texture in v1 is generated from `color`/`altColor`, so the run needs no art
+/// on disk; the moment real PNGs arrive the same entries gain a `path` and the
+/// placeholder fields stop being used.
+constexpr std::string_view kCatalogText = R"({
+  "assets": [
+    {"id": "tex.ground.grass", "kind": "texture", "size": [16, 16], "tile": 8,
+     "color": "#4a8250", "altColor": "#5c8a42"},
+    {"id": "tex.ground.soil", "kind": "texture", "size": [16, 16], "tile": 4,
+     "color": "#6b4a2f", "altColor": "#7d5a3a"},
+    {"id": "tex.actor.player", "kind": "texture", "size": [16, 24],
+     "color": "#e8c39e", "altColor": "#c79a74"},
+    {"id": "tex.marker", "kind": "texture", "size": [8, 8], "color": "#ffffff"}
+  ]
+})";
+
+/// \brief Feeds the asset cache's decoded pixels to the renderer.
+///
+/// M05 must not depend on M06, so the cache only knows `ITextureUploader`; this
+/// adapter is the one place where the two meet, and the token it hands out is the
+/// numeric value of the renderer's own handle.
+class AssetUploaderAdapter final : public fa::assets::ITextureUploader {
+public:
+    explicit AssetUploaderAdapter(fa::render::IRenderer& renderer) noexcept : m_renderer(renderer) {}
+
+    std::uint32_t upload(const fa::assets::ImageData& image, std::string_view debugName) override {
+        fa::render::TextureDesc desc;
+        desc.width = image.width;
+        desc.height = image.height;
+        desc.format = image.format == fa::assets::ImageFormat::R8 ? fa::render::TextureFormat::R8
+                                                                 : fa::render::TextureFormat::Rgba8;
+        desc.pixels = image.pixels.empty() ? nullptr : image.pixels.data();
+        desc.rowPitchBytes = static_cast<int>(image.rowPitch());
+        desc.debugName = debugName;
+
+        fa::render::TextureHandle handle;
+        if (m_renderer.createTexture(desc, handle).isError()) {
+            return 0;
+        }
+        m_live.push_back(handle);
+        return handle.value();
+    }
+
+    void release(std::uint32_t token) override {
+        for (std::size_t i = 0; i < m_live.size(); ++i) {
+            if (m_live[i].value() == token) {
+                m_renderer.destroyTexture(m_live[i]);
+                m_live.erase(m_live.begin() + static_cast<std::ptrdiff_t>(i));
+                return;
+            }
         }
     }
-    return pixels;
-}
+
+private:
+    fa::render::IRenderer& m_renderer;
+    std::vector<fa::render::TextureHandle> m_live;
+};
 
 /// \brief Published once per fixed simulation tick.
 struct TickCompleted {
@@ -160,39 +208,77 @@ public:
         input.applyDefaultBindings();
     }
 
-    /// \brief Creates the GL context and the one texture the smoke run draws.
+    /// \brief Creates the GL context the smoke run draws with.
     ///
-    /// \return The failure from initialize() or createTexture(); the caller decides
-    /// whether a headless run may continue without rendering.
+    /// \return The failure from initialize(); the caller decides whether a headless
+    /// run may continue without rendering.
     fa::core::Status initializeRenderer(fa::platform::IPlatform& platform, bool vsync) {
         renderer = fa::render::createRenderer();
 
         fa::render::RendererDesc desc;
         desc.vsync = vsync;
-        fa::core::Status status = renderer->initialize(platform, desc);
+        const fa::core::Status status = renderer->initialize(platform, desc);
         if (status.isError()) {
             renderer.reset();
-            return status;
+        }
+        return status;
+    }
+
+    /// \brief Loads the catalog and uploads the two textures the frame draws.
+    ///
+    /// M05 only caches and uploads; it never talks to the renderer directly, so this
+    /// is where `AssetUploaderAdapter` ties the two modules together.
+    fa::core::Status initializeAssets(fa::platform::IPlatform& platform) {
+        if (renderer == nullptr) {
+            return fa::core::errorStatus(fa::assets::asset_error::kNotInitialized, "no renderer to upload through");
+        }
+        const fa::core::Status catalogStatus = catalog.loadFromText(kCatalogText);
+        if (catalogStatus.isError()) {
+            return catalogStatus;
+        }
+        fileSystem = &platform.files();
+        uploader = std::make_unique<AssetUploaderAdapter>(*renderer);
+
+        fa::assets::AssetManagerDesc desc;
+        desc.fileSystem = fileSystem;
+        desc.catalog = &catalog;
+        desc.uploader = uploader.get();
+        assets = fa::assets::createAssetManager(desc);
+        if (assets == nullptr) {
+            return fa::core::errorStatus(fa::assets::asset_error::kNotInitialized, "asset manager creation failed");
         }
 
-        const std::vector<std::uint8_t> pixels = makeCheckerboardPixels();
-        fa::render::TextureDesc textureDesc;
-        textureDesc.width = fa::render::kTileSize;
-        textureDesc.height = fa::render::kTileSize;
-        textureDesc.pixels = pixels.data();
-        textureDesc.debugName = "smoke-checker";
-        status = renderer->createTexture(textureDesc, checkerTexture);
-        if (status.isError()) {
-            renderer.reset();
-            return status;
+        fa::core::Result<fa::assets::AssetHandle<fa::assets::TextureAsset>> ground =
+            assets->loadTexture(fa::assets::AssetId::fromName("tex.ground.grass"));
+        if (ground.isError()) {
+            return fa::core::errorStatus(ground.error().code, ground.error().message);
+        }
+        groundTexture = std::move(ground).take();
+
+        fa::core::Result<fa::assets::AssetHandle<fa::assets::TextureAsset>> marker =
+            assets->loadTexture(fa::assets::AssetId::fromName("tex.marker"));
+        if (marker.isError()) {
+            return fa::core::errorStatus(marker.error().code, marker.error().message);
+        }
+        markerTexture = std::move(marker).take();
+
+        if (!groundTexture || !markerTexture) {
+            return fa::core::errorStatus(fa::assets::asset_error::kUploadFailed, "a smoke texture stayed unusable");
         }
         return fa::core::okStatus();
     }
 
     /// \brief Drops the renderer, and with it the GL context, before the window closes.
+    ///
+    /// Handles go first, then the cache (whose destructor releases the GPU textures),
+    /// and only then the renderer those textures belong to.
     void shutdownRenderer() {
+        groundTexture = fa::assets::AssetHandle<fa::assets::TextureAsset>{};
+        markerTexture = fa::assets::AssetHandle<fa::assets::TextureAsset>{};
+        assets.reset();
+        uploader.reset();
+        fileSystem = nullptr;
         if (renderer != nullptr) {
-            checkerTexture = fa::render::TextureHandle{};
             renderer->shutdown();
             renderer.reset();
         }
@@ -247,8 +333,16 @@ public:
     /// construction order stays obvious.
     fa::input::InputSystem input;
     EventsAndJobsDemo* demo = nullptr;
+    /// Declared first so it is destroyed last: the cache above releases GPU textures
+    /// through `uploader`, which reaches into the renderer.
     std::unique_ptr<fa::render::IRenderer> renderer;
-    fa::render::TextureHandle checkerTexture{};
+    fa::assets::AssetCatalog catalog;
+    /// Borrowed from the platform, which owns the only file system in the run.
+    fa::platform::IFileSystem* fileSystem = nullptr;
+    std::unique_ptr<AssetUploaderAdapter> uploader;
+    std::unique_ptr<fa::assets::IAssetManager> assets;
+    fa::assets::AssetHandle<fa::assets::TextureAsset> groundTexture;
+    fa::assets::AssetHandle<fa::assets::TextureAsset> markerTexture;
     int quitEvents = 0;
     int resizeEvents = 0;
     int renderedFrames = 0;
@@ -263,12 +357,30 @@ public:
     /// \brief Cost of the most recent frame, for the summary the caller prints.
     const fa::render::RenderStats& lastRenderStats() const { return lastStats; }
 
+    /// \brief Cache counters, snapshotted before the manager is torn down.
+    fa::assets::AssetStats assetStats() const {
+        return assets != nullptr ? assets->stats() : fa::assets::AssetStats{};
+    }
+
 private:
     /// \brief The whole M06 frame contract: beginFrame, submit, endFrame.
     void renderFrame() {
         if (renderer == nullptr || !renderer->isReady()) {
             return;
         }
+
+        // M05 drains finished background loads and uploads their pixels here, on the
+        // thread that owns the GL context.
+        if (assets != nullptr) {
+            assets->update();
+        }
+        const fa::assets::TextureAsset* ground = groundTexture.get();
+        const fa::assets::TextureAsset* marker = markerTexture.get();
+        if (ground == nullptr || marker == nullptr || ground->gpuTexture == 0 || marker->gpuTexture == 0) {
+            return;
+        }
+        const fa::render::TextureHandle groundHandle{ground->gpuTexture};
+        const fa::render::TextureHandle markerHandle{marker->gpuTexture};
 
         if (!cameraReady) {
             // A 40x23 tile plot: wider than the viewport, half a tile taller, so the
@@ -288,7 +400,7 @@ private:
         for (int row = firstRow; row <= lastRow; ++row) {
             for (int column = 0; column < kColumns; ++column) {
                 fa::render::DrawItem item;
-                item.texture = checkerTexture;
+                item.texture = groundHandle;
                 item.position = fa::core::Vec2{static_cast<float>(column * fa::render::kTileSize),
                                                static_cast<float>(row * fa::render::kTileSize)};
                 item.size = fa::core::Vec2{static_cast<float>(fa::render::kTileSize),
@@ -305,14 +417,14 @@ private:
         const fa::render::Viewport viewport = renderer->viewport();
         const fa::core::Vec2 cursor = camera.viewportToWorld(viewport.windowToVirtual(lastMouse));
 
-        fa::render::DrawItem marker;
-        marker.texture = checkerTexture;
-        marker.position = fa::core::Vec2{cursor.x - 4.0f, cursor.y - 4.0f};
-        marker.size = fa::core::Vec2{8.0f, 8.0f};
-        marker.tint = fa::core::Color{1.0f, 0.35f, 0.35f, 1.0f};
-        marker.layer = fa::render::RenderLayer::Actors;
-        marker.sortY = cursor.y;
-        renderer->submit(marker);
+        fa::render::DrawItem markerItem;
+        markerItem.texture = markerHandle;
+        markerItem.position = fa::core::Vec2{cursor.x - 4.0f, cursor.y - 4.0f};
+        markerItem.size = fa::core::Vec2{8.0f, 8.0f};
+        markerItem.tint = fa::core::Color{1.0f, 0.35f, 0.35f, 1.0f};
+        markerItem.layer = fa::render::RenderLayer::Actors;
+        markerItem.sortY = cursor.y;
+        renderer->submit(markerItem);
 
         renderer->drawDebugRect(fa::core::makeRect(cursor.x - 8.0f, cursor.y - 8.0f, 16.0f, 16.0f),
                                 fa::core::Color{1.0f, 1.0f, 0.2f, 1.0f});
@@ -368,6 +480,19 @@ int main(int argc, char** argv) {
             return 1;
         }
         std::printf("  continuing without rendering (hidden run)\n");
+    } else {
+        // The cache needs a renderer to upload through, so it only comes up once the
+        // GL context exists.
+        const fa::core::Status assetStatus = sink.initializeAssets(*platform);
+        if (assetStatus.isError()) {
+            std::printf("asset init failed (%d): %s\n", assetStatus.error().code, assetStatus.error().message.c_str());
+            if (options.visibleWindow) {
+                sink.shutdownRenderer();
+                platform->shutdown();
+                return 1;
+            }
+            std::printf("  continuing without assets (hidden run)\n");
+        }
     }
 
     fa::time::FrameLoopConfig config;
@@ -394,6 +519,8 @@ int main(int argc, char** argv) {
         liveTextures = sink.renderer->liveTextureCount();
     }
     const fa::render::RenderStats renderStats = sink.lastRenderStats();
+    const fa::assets::AssetStats assetStats = sink.assetStats();
+    const std::size_t catalogEntries = sink.catalog.size();
     // The context belongs to the renderer and dies with the window, so it has to go
     // before the platform shuts that window down.
     sink.shutdownRenderer();
@@ -437,6 +564,10 @@ int main(int argc, char** argv) {
                     renderStats.drawCalls, renderStats.quads, renderStats.vertices, renderStats.textureSwitches,
                     renderStats.droppedItems, liveTextures);
     }
-    std::printf("M02+M03+M04+M06+M07 smoke test OK\n");
+    std::printf("  m05: %zu catalog entr(ies), %zu texture(s) cached, %zu placeholder(s), %zu CPU byte(s), "
+                "%zu live GPU texture(s), %zu failed\n",
+                catalogEntries, assetStats.textureCount, assetStats.placeholderCount, assetStats.cpuBytes,
+                assetStats.liveGpuTextures, assetStats.failedCount);
+    std::printf("M02+M03+M04+M05+M06+M07 smoke test OK\n");
     return 0;
 }

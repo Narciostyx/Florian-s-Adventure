@@ -29,12 +29,26 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
     <Import Project="$(SolutionDir)build\Project.props" />
   </ImportGroup>
+  <!-- AssetCatalog.cpp parses with nlohmann/json, whose headers use try/catch
+       internals and do not compile with unwind semantics off (C4530). Only this
+       project turns /EHsc back on; no fa_assets code throws or catches.
+       See docs/build/m05-assets.md. -->
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <ExceptionHandling>Sync</ExceptionHandling>
+    </ClCompile>
+  </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="src\*.cpp" />
   </ItemGroup>
+  <!-- fa_events is referenced for JobSystem only: requestTexture() hands decoding
+       to the pool, and the pointer stays opaque so the cache never links the bus.
+       fa_render is deliberately absent; uploads go through ITextureUploader
+       (docs/architecture/dependency-rules.md). -->
   <ItemGroup>
     <ProjectReference Include="$(SolutionDir)src\engine\core\fa_core.vcxproj" />
     <ProjectReference Include="$(SolutionDir)src\engine\platform\fa_platform.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\events\fa_events.vcxproj" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>
