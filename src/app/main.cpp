@@ -11,9 +11,12 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include <fa/core/Result.hpp>
 #include <fa/core/Version.hpp>
+#include <fa/events/EventBus.hpp>
+#include <fa/events/JobSystem.hpp>
 #include <fa/platform/Platform.hpp>
 #include <fa/time/FrameContext.hpp>
 #include <fa/time/FrameLoop.hpp>
@@ -45,6 +48,76 @@ void printBanner() {
     std::printf("Florian's Adventure - engine v%.*s\n", static_cast<int>(version.size()), version.data());
 }
 
+/// \brief Published once per fixed simulation tick.
+struct TickCompleted {
+    std::uint64_t tick = 0;
+};
+
+/// \brief Published from a job completion, so it reaches handlers on the main thread.
+struct UploadFinished {
+    int value = 0;
+};
+
+/// \brief Minimal end-to-end use of M03 inside the smoke run.
+///
+/// Covers all three delivery paths the engine relies on: a synchronous publish from
+/// the fixed update, work handed to the job pool, and a completion callback that
+/// enqueues an event delivered by the next drain on the main thread.
+class EventsAndJobsDemo final {
+public:
+    EventsAndJobsDemo() {
+        m_tickSubscription = fa::events::Subscription(m_bus, m_bus.subscribe<TickCompleted>([this](const TickCompleted& event) {
+                                  lastTick = event.tick;
+                                  ++tickEvents;
+                              }));
+        m_uploadSubscription = fa::events::Subscription(m_bus, m_bus.subscribe<UploadFinished>([this](const UploadFinished& event) {
+                                    uploadedValue += event.value;
+                                    ++uploadEvents;
+                                }));
+    }
+
+    void beginTick(std::uint64_t tick) {
+        m_bus.publish(TickCompleted{tick});
+        const fa::events::JobHandle handle =
+            m_jobs.submit(fa::events::JobDesc{"smoke-upload", []() { return fa::core::okStatus(); }});
+        m_inFlight.push_back(handle);
+        m_jobs.onComplete(handle, [this, tick](fa::core::Status status) {
+            if (status.isOk()) {
+                m_bus.enqueue(UploadFinished{static_cast<int>(tick)});
+            }
+        });
+    }
+
+    void endFrame() {
+        m_jobs.drainCompletedJobs();
+        m_bus.dispatchQueued();
+    }
+
+    /// \brief Blocks for every submitted job so the run ends with every event delivered.
+    /// \return False when any of those jobs reported an error.
+    bool flush() {
+        bool ok = true;
+        for (const fa::events::JobHandle& handle : m_inFlight) {
+            ok = m_jobs.wait(handle).isOk() && ok;
+        }
+        m_inFlight.clear();
+        endFrame();
+        return ok;
+    }
+
+    std::size_t tickEvents = 0;
+    std::size_t uploadEvents = 0;
+    std::uint64_t lastTick = 0;
+    int uploadedValue = 0;
+
+private:
+    fa::events::EventBus m_bus;
+    fa::events::JobSystem m_jobs{2};
+    std::vector<fa::events::JobHandle> m_inFlight;
+    fa::events::Subscription m_tickSubscription;
+    fa::events::Subscription m_uploadSubscription;
+};
+
 /// \brief Temporary sink: counts events and reports the frame timing it observes.
 ///
 /// Stands in for the layers that will own this work later (M07 input, M03 events,
@@ -70,14 +143,23 @@ public:
     void onFixedUpdate(const fa::time::FrameContext& context) override {
         ++fixedSteps;
         lastTick = context.fixedStepIndex;
+        if (demo != nullptr) {
+            demo->beginTick(context.fixedStepIndex);
+        }
     }
 
     void onVariableUpdate(const fa::time::FrameContext& context) override {
         lastRealDelta = context.realDeltaSeconds;
     }
 
-    void onRender(const fa::time::FrameContext&) override { ++renderedFrames; }
+    void onRender(const fa::time::FrameContext&) override {
+        ++renderedFrames;
+        if (demo != nullptr) {
+            demo->endFrame();
+        }
+    }
 
+    EventsAndJobsDemo* demo = nullptr;
     int quitEvents = 0;
     int resizeEvents = 0;
     int renderedFrames = 0;
@@ -110,7 +192,10 @@ int main(int argc, char** argv) {
     std::printf("window %dx%d px, dpi scale %.2f\n", window.width(), window.height(),
                 static_cast<double>(window.dpiScale()));
 
+    EventsAndJobsDemo demo;
+
     SmokeSink sink;
+    sink.demo = &demo;
     fa::time::FrameLoopConfig config;
     /// A hidden smoke run needs a few frames; a visible window runs until closed.
     config.maxFrames = options.frames > 0 ? static_cast<std::uint64_t>(options.frames)
@@ -124,11 +209,17 @@ int main(int argc, char** argv) {
     const double elapsedSeconds = platform->monotonicSeconds() - startedSeconds;
 
     const fa::time::FixedStepClock& clock = loop.clock();
+    const bool eventsJobsOk = demo.flush();
     platform->shutdown();
 
     if (exitCode != 0) {
         std::printf("frame loop failed (%d): the platform clock is unavailable\n", exitCode);
         return exitCode;
+    }
+
+    if (!eventsJobsOk) {
+        std::printf("events/jobs smoke failed: the final job reported an error\n");
+        return 1;
     }
 
     std::printf("ran %llu frame(s) in %.3fs\n", static_cast<unsigned long long>(loop.frameCount()), elapsedSeconds);
@@ -140,6 +231,9 @@ int main(int argc, char** argv) {
         std::printf("  average: %.1f fps\n", static_cast<double>(sink.renderedFrames) / elapsedSeconds);
     }
     std::printf("  events: quit %d, resize %d\n", sink.quitEvents, sink.resizeEvents);
-    std::printf("M02+M04 smoke test OK\n");
+    std::printf("  m03: %llu tick event(s) (last tick %llu), %llu upload event(s) worth %d\n",
+                static_cast<unsigned long long>(demo.tickEvents), static_cast<unsigned long long>(demo.lastTick),
+                static_cast<unsigned long long>(demo.uploadEvents), demo.uploadedValue);
+    std::printf("M02+M03+M04 smoke test OK\n");
     return 0;
 }
