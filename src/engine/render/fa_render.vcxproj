@@ -40,7 +40,6 @@
   <ItemGroup>
     <ProjectReference Include="$(SolutionDir)src\engine\core\fa_core.vcxproj" />
     <ProjectReference Include="$(SolutionDir)src\engine\platform\fa_platform.vcxproj" />
-    <ProjectReference Include="$(SolutionDir)src\engine\assets\fa_assets.vcxproj" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>
