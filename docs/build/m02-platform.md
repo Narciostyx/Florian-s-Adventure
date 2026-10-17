@@ -218,3 +218,20 @@ foreach ($c in 'Debug','Development','Release') {
 ```
 
 `fa_app` 的参数：`--window` 打开可见窗口，`--frames N` 跑 N 帧后退出（默认隐藏窗口跑 3 帧）。
+
+### 全新克隆验证
+
+仅在现有工作区构建是不够的：仓库里“看起来能编”往往依赖未提交的本地文件。
+本轮的 `.gitignore` 曾把整个 `/build/` 忽略掉，而每个 `.vcxproj` 都 `Import` 了
+`build/Project.props`，也就是说提交后的仓库在全新克隆上是**编不过**的。
+
+现在 `.gitignore` 只忽略 `/build/bin/` 与 `/build/obj/`。验证方式：
+
+```powershell
+git clone --no-hardlinks . $env:TEMP\fa-clone-check
+# 进入克隆目录后执行上面的三配置构建与运行命令
+```
+
+已实测：全新克隆 + 空 `vcpkg_installed` 的 Development 构建成功，`fa_app` 退出码 0，
+`fa_tests` 30 个用例全绿。往 `build/` 下新增共享属性表时，务必确认它**不是**被忽略的路径。
+
