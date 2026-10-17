@@ -30,6 +30,7 @@ enum class LogCategory : std::uint8_t {
     Ai,
     Economy,
     Editor,
+    Events,
     Count,
 };
 

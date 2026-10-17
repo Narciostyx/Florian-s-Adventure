@@ -104,6 +104,8 @@ std::string_view toString(LogCategory category) noexcept {
             return "economy";
         case LogCategory::Editor:
             return "editor";
+        case LogCategory::Events:
+            return "events";
         case LogCategory::Count:
             break;
     }
