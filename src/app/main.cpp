@@ -1,8 +1,8 @@
 /// \file
 /// \brief Composition root: the only translation unit that knows about every engine module.
 ///
-/// Wires M02 (platform) and M04 (frame loop) so window, event and timing behave
-/// end to end. M06 (render) is attached here later.
+/// Wires M02 (platform), M03 (events/jobs), M04 (frame loop), M06 (render) and
+/// M07 (input) so window, event, timing, drawing and input behave end to end.
 
 #include <cstdint>
 #include <cstdio>
@@ -19,6 +19,8 @@
 #include <fa/events/JobSystem.hpp>
 #include <fa/input/Input.hpp>
 #include <fa/platform/Platform.hpp>
+#include <fa/render/IRenderer.hpp>
+#include <fa/render/RenderTypes.hpp>
 #include <fa/time/FrameContext.hpp>
 #include <fa/time/FrameLoop.hpp>
 
@@ -47,6 +49,27 @@ Options parseOptions(int argc, char** argv) {
 void printBanner() {
     const std::string_view version = fa::core::engineVersion();
     std::printf("Florian's Adventure - engine v%.*s\n", static_cast<int>(version.size()), version.data());
+}
+
+/// \brief A 16x16 checkerboard, generated instead of loaded.
+///
+/// The smoke run must not depend on asset files, and M05 (asset loading) is not
+/// implemented yet, so the only texture it ever needs is built in memory.
+std::vector<std::uint8_t> makeCheckerboardPixels() {
+    constexpr int kSize = fa::render::kTileSize;
+    constexpr int kCell = kSize / 2;
+    std::vector<std::uint8_t> pixels(static_cast<std::size_t>(kSize) * kSize * 4);
+    for (int y = 0; y < kSize; ++y) {
+        for (int x = 0; x < kSize; ++x) {
+            const bool even = ((x / kCell) + (y / kCell)) % 2 == 0;
+            const std::size_t index = (static_cast<std::size_t>(y) * kSize + static_cast<std::size_t>(x)) * 4;
+            pixels[index + 0] = even ? 74 : 106;
+            pixels[index + 1] = even ? 130 : 94;
+            pixels[index + 2] = even ? 80 : 138;
+            pixels[index + 3] = 255;
+        }
+    }
+    return pixels;
 }
 
 /// \brief Published once per fixed simulation tick.
@@ -125,12 +148,54 @@ private:
 /// so the loop itself can be verified from the app. It also owns the M07 input system
 /// and drives it in the order the module contract requires:
 /// `poll(events)` in onEvents, read actions during the updates, `endFrame()` in onRender.
+///
+/// M06 is driven in the same hook: one texture is uploaded at startup and every frame
+/// draws a full screen of ground tiles plus a debug overlay, which is a small but real
+/// exercise of batching, sorting, the viewport mapping and the debug helpers.
 class SmokeSink final : public fa::time::IFrameSink {
 public:
     SmokeSink() {
         input.addDevice(std::make_unique<fa::input::KeyboardDevice>());
         input.addDevice(std::make_unique<fa::input::MouseDevice>());
         input.applyDefaultBindings();
+    }
+
+    /// \brief Creates the GL context and the one texture the smoke run draws.
+    ///
+    /// \return The failure from initialize() or createTexture(); the caller decides
+    /// whether a headless run may continue without rendering.
+    fa::core::Status initializeRenderer(fa::platform::IPlatform& platform, bool vsync) {
+        renderer = fa::render::createRenderer();
+
+        fa::render::RendererDesc desc;
+        desc.vsync = vsync;
+        fa::core::Status status = renderer->initialize(platform, desc);
+        if (status.isError()) {
+            renderer.reset();
+            return status;
+        }
+
+        const std::vector<std::uint8_t> pixels = makeCheckerboardPixels();
+        fa::render::TextureDesc textureDesc;
+        textureDesc.width = fa::render::kTileSize;
+        textureDesc.height = fa::render::kTileSize;
+        textureDesc.pixels = pixels.data();
+        textureDesc.debugName = "smoke-checker";
+        status = renderer->createTexture(textureDesc, checkerTexture);
+        if (status.isError()) {
+            renderer.reset();
+            return status;
+        }
+        return fa::core::okStatus();
+    }
+
+    /// \brief Drops the renderer, and with it the GL context, before the window closes.
+    void shutdownRenderer() {
+        if (renderer != nullptr) {
+            checkerTexture = fa::render::TextureHandle{};
+            renderer->shutdown();
+            renderer.reset();
+        }
     }
 
     void onEvents(std::span<const fa::platform::PlatformEvent> events) override {
@@ -174,6 +239,7 @@ public:
         if (demo != nullptr) {
             demo->endFrame();
         }
+        renderFrame();
         input.endFrame();
     }
 
@@ -181,6 +247,8 @@ public:
     /// construction order stays obvious.
     fa::input::InputSystem input;
     EventsAndJobsDemo* demo = nullptr;
+    std::unique_ptr<fa::render::IRenderer> renderer;
+    fa::render::TextureHandle checkerTexture{};
     int quitEvents = 0;
     int resizeEvents = 0;
     int renderedFrames = 0;
@@ -191,6 +259,74 @@ public:
     fa::core::Vec2 lastMoveAxis{};
     fa::core::Vec2 lastMouse{};
     double lastRealDelta = 0.0;
+
+    /// \brief Cost of the most recent frame, for the summary the caller prints.
+    const fa::render::RenderStats& lastRenderStats() const { return lastStats; }
+
+private:
+    /// \brief The whole M06 frame contract: beginFrame, submit, endFrame.
+    void renderFrame() {
+        if (renderer == nullptr || !renderer->isReady()) {
+            return;
+        }
+
+        if (!cameraReady) {
+            // A 40x23 tile plot: wider than the viewport, half a tile taller, so the
+            // vertical clamp actually moves the camera.
+            camera.setBounds(fa::core::makeRect(0.0f, 0.0f, 40.0f * fa::render::kTileSize,
+                                                23.0f * fa::render::kTileSize));
+            cameraReady = true;
+        }
+        camera.setPosition(fa::core::Vec2{320.0f + static_cast<float>(renderedFrames % 5), 200.0f});
+
+        renderer->beginFrame(camera);
+
+        const fa::core::Rect visible = camera.visibleRect();
+        const int firstRow = static_cast<int>(visible.y) / fa::render::kTileSize;
+        const int lastRow = static_cast<int>(visible.y + visible.h) / fa::render::kTileSize;
+        constexpr int kColumns = 40;
+        for (int row = firstRow; row <= lastRow; ++row) {
+            for (int column = 0; column < kColumns; ++column) {
+                fa::render::DrawItem item;
+                item.texture = checkerTexture;
+                item.position = fa::core::Vec2{static_cast<float>(column * fa::render::kTileSize),
+                                               static_cast<float>(row * fa::render::kTileSize)};
+                item.size = fa::core::Vec2{static_cast<float>(fa::render::kTileSize),
+                                           static_cast<float>(fa::render::kTileSize)};
+                item.layer = fa::render::RenderLayer::Ground;
+                item.sortY = item.position.y + item.size.y;
+                item.entityId = static_cast<std::uint32_t>(row * kColumns + column + 1);
+                renderer->submit(item);
+            }
+        }
+
+        // Mouse position proves the window -> virtual -> world chain: the viewport
+        // strips the letterbox, the camera removes its own offset.
+        const fa::render::Viewport viewport = renderer->viewport();
+        const fa::core::Vec2 cursor = camera.viewportToWorld(viewport.windowToVirtual(lastMouse));
+
+        fa::render::DrawItem marker;
+        marker.texture = checkerTexture;
+        marker.position = fa::core::Vec2{cursor.x - 4.0f, cursor.y - 4.0f};
+        marker.size = fa::core::Vec2{8.0f, 8.0f};
+        marker.tint = fa::core::Color{1.0f, 0.35f, 0.35f, 1.0f};
+        marker.layer = fa::render::RenderLayer::Actors;
+        marker.sortY = cursor.y;
+        renderer->submit(marker);
+
+        renderer->drawDebugRect(fa::core::makeRect(cursor.x - 8.0f, cursor.y - 8.0f, 16.0f, 16.0f),
+                                fa::core::Color{1.0f, 1.0f, 0.2f, 1.0f});
+        renderer->drawDebugLine(fa::core::Vec2{cursor.x, cursor.y},
+                                fa::core::Vec2{cursor.x + 24.0f, cursor.y - 16.0f},
+                                fa::core::Color{0.2f, 1.0f, 0.6f, 1.0f});
+
+        renderer->endFrame();
+        lastStats = renderer->stats();
+    }
+
+    fa::render::Camera2D camera;
+    fa::render::RenderStats lastStats;
+    bool cameraReady = false;
 };
 
 }  // namespace
@@ -221,6 +357,19 @@ int main(int argc, char** argv) {
 
     SmokeSink sink;
     sink.demo = &demo;
+
+    // A hidden window may still get a software GL context, but CI images that have
+    // none must not fail the smoke run; a visible run has to be able to draw.
+    const fa::core::Status renderStatus = sink.initializeRenderer(*platform, options.visibleWindow);
+    if (renderStatus.isError()) {
+        std::printf("render init failed (%d): %s\n", renderStatus.error().code, renderStatus.error().message.c_str());
+        if (options.visibleWindow) {
+            platform->shutdown();
+            return 1;
+        }
+        std::printf("  continuing without rendering (hidden run)\n");
+    }
+
     fa::time::FrameLoopConfig config;
     /// A hidden smoke run needs a few frames; a visible window runs until closed.
     config.maxFrames = options.frames > 0 ? static_cast<std::uint64_t>(options.frames)
@@ -235,6 +384,19 @@ int main(int argc, char** argv) {
 
     const fa::time::FixedStepClock& clock = loop.clock();
     const bool eventsJobsOk = demo.flush();
+    // Snapshot what the summary reports: the strings and the stats die with the context.
+    std::string glVersionText;
+    std::string glRendererText;
+    int liveTextures = 0;
+    if (sink.renderer != nullptr) {
+        glVersionText.assign(sink.renderer->glVersion());
+        glRendererText.assign(sink.renderer->glRenderer());
+        liveTextures = sink.renderer->liveTextureCount();
+    }
+    const fa::render::RenderStats renderStats = sink.lastRenderStats();
+    // The context belongs to the renderer and dies with the window, so it has to go
+    // before the platform shuts that window down.
+    sink.shutdownRenderer();
     platform->shutdown();
 
     if (exitCode != 0) {
@@ -266,6 +428,15 @@ int main(int argc, char** argv) {
                 contextName.data(), static_cast<unsigned long long>(sink.movingSteps),
                 static_cast<double>(sink.lastMoveAxis.x), static_cast<double>(sink.lastMoveAxis.y),
                 static_cast<double>(sink.lastMouse.x), static_cast<double>(sink.lastMouse.y));
-    std::printf("M02+M03+M04+M07 smoke test OK\n");
+    if (glVersionText.empty()) {
+        std::printf("  m06: renderer unavailable (no GL context)\n");
+    } else {
+        std::printf("  m06: %s on %s\n", glVersionText.c_str(), glRendererText.c_str());
+        std::printf("       %u draw call(s), %u quad(s), %u vertex/vertices, %u texture switch(es), "
+                    "%u dropped, %d live texture(s)\n",
+                    renderStats.drawCalls, renderStats.quads, renderStats.vertices, renderStats.textureSwitches,
+                    renderStats.droppedItems, liveTextures);
+    }
+    std::printf("M02+M03+M04+M06+M07 smoke test OK\n");
     return 0;
 }

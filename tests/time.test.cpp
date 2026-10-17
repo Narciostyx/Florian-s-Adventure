@@ -106,6 +106,8 @@ public:
     fa::core::Status showMessageBox(fa::platform::MessageBoxKind, std::string_view, std::string_view) override {
         return fa::core::okStatus();
     }
+    /// The loop never renders, so it does not need a graphics backend.
+    fa::platform::IGlContext* glContext() override { return nullptr; }
 
 private:
     FakeWindow m_window;

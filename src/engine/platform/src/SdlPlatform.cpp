@@ -238,6 +238,8 @@ bool translateEvent(const SDL_Event& source, PlatformEvent& out) {
 
 }  // namespace
 
+SdlPlatform::SdlPlatform() : m_glContext(m_window) {}
+
 SdlPlatform::~SdlPlatform() { shutdown(); }
 
 fa::core::Status SdlPlatform::initialize(const WindowDesc& desc) {
@@ -259,6 +261,8 @@ fa::core::Status SdlPlatform::initialize(const WindowDesc& desc) {
 }
 
 void SdlPlatform::shutdown() {
+    // The context is bound to the window, so it has to go first.
+    m_glContext.destroyContext();
     m_window.destroy();
     if (m_initialized) {
         SDL_Quit();
@@ -287,6 +291,8 @@ bool SdlPlatform::quitRequested() const { return m_quitRequested; }
 IWindow& SdlPlatform::window() { return m_window; }
 
 IFileSystem& SdlPlatform::files() { return m_files; }
+
+IGlContext* SdlPlatform::glContext() { return &m_glContext; }
 
 double SdlPlatform::monotonicSeconds() const {
     if (!m_initialized) {

@@ -4,6 +4,7 @@
 
 #include <fa/platform/Platform.hpp>
 
+#include "SdlGlContext.hpp"
 #include "SdlWindow.hpp"
 #include "StdFileSystem.hpp"
 
@@ -16,7 +17,7 @@ namespace fa::platform::detail {
 /// time.
 class SdlPlatform final : public IPlatform {
 public:
-    SdlPlatform() = default;
+    SdlPlatform();
     ~SdlPlatform() override;
 
     SdlPlatform(const SdlPlatform&) = delete;
@@ -28,6 +29,7 @@ public:
     bool quitRequested() const override;
     IWindow& window() override;
     IFileSystem& files() override;
+    IGlContext* glContext() override;
     double monotonicSeconds() const override;
     void sleepSeconds(double seconds) override;
     fa::core::Status showMessageBox(MessageBoxKind kind, std::string_view title,
@@ -35,6 +37,7 @@ public:
 
 private:
     SdlWindow m_window;
+    SdlGlContext m_glContext;
     StdFileSystem m_files;
     bool m_initialized = false;
     bool m_quitRequested = false;

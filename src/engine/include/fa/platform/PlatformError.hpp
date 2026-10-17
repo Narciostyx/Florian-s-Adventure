@@ -28,4 +28,10 @@ inline constexpr int kDirectoryEnumerationFailed = 2006;
 /// \brief Displaying a modal message box failed.
 inline constexpr int kMessageBoxFailed = 2007;
 
+/// \brief The driver refused to create the requested OpenGL context.
+inline constexpr int kGlContextCreationFailed = 2008;
+
+/// \brief This backend has no OpenGL support at all.
+inline constexpr int kGlUnsupported = 2009;
+
 }  // namespace fa::platform::platform_error

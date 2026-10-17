@@ -7,6 +7,7 @@
 
 #include <fa/core/Result.hpp>
 #include <fa/platform/FileSystem.hpp>
+#include <fa/platform/GlContext.hpp>
 #include <fa/platform/PlatformEvent.hpp>
 #include <fa/platform/Window.hpp>
 
@@ -51,6 +52,13 @@ public:
 
     /// \brief The file system implementation owned by this backend.
     virtual IFileSystem& files() = 0;
+
+    /// \brief The OpenGL context bound to the window, or nullptr when this
+    /// backend cannot provide one (a headless or non-graphics build).
+    ///
+    /// The returned pointer stays valid until the backend is destroyed; the
+    /// context inside it is created and destroyed by the caller.
+    virtual IGlContext* glContext() = 0;
 
     /// \brief Monotonic clock reading in seconds.
     ///
