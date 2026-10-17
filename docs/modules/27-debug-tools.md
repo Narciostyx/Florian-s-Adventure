@@ -73,7 +73,7 @@ public:
     virtual ~IDebugTools() = default;
     virtual void registerCommand(ConsoleCommand cmd) = 0;
     virtual void execute(std::string_view line) = 0;
-    virtual void update(ecs::World& world, const time::FrameContext& time) = 0;
+    virtual void update(scene::World& world, const time::FrameContext& time) = 0;
     virtual void draw(ui::IUi& ui, render::IRenderer& renderer, const DebugStats& stats) = 0;
     virtual bool visible() const = 0;
     virtual void setVisible(bool visible) = 0;

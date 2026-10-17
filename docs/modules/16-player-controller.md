@@ -65,11 +65,14 @@ struct Wallet { int gold = 0; };
 ```cpp
 namespace fa::player {
 
-class PlayerSystem : public ecs::ISystem {
+class PlayerSystem : public scene::ISystem {
 public:
     PlayerSystem(input::IInput& input, physics::IPhysicsWorld& physics, anim::IAnimationService& anim);
-    void onFixedUpdate(ecs::World& world, const time::FrameContext& time) override;
-    void onVariableUpdate(ecs::World& world, const time::FrameContext& time) override;
+    std::string_view name() const noexcept override { return "PlayerSystem"; }
+    void onFixedUpdate(scene::World& world, const time::FrameContext& time,
+                       scene::CommandBuffer& commands) override;
+    void onVariableUpdate(scene::World& world, const time::FrameContext& time,
+                          scene::CommandBuffer& commands) override;
 };
 
 struct PlayerIntent {

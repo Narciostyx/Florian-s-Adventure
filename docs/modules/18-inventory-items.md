@@ -68,7 +68,7 @@ public:
     virtual Inventory* playerInventory() = 0;
     virtual Inventory* hotbar() = 0;
     virtual Result<void> transfer(Inventory& from, int fromSlot, Inventory& to, int amount) = 0;
-    virtual Result<void> useItem(Inventory& inv, int slot, ecs::EntityId user) = 0;
+    virtual Result<void> useItem(Inventory& inv, int slot, scene::EntityId user) = 0;
     virtual int selectedHotbarSlot() const = 0;
 };
 

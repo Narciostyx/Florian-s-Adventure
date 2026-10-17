@@ -17,7 +17,7 @@
 | M08 | Audio | L1 | P1 | 音效/音乐播放、总线音量、3D 衰减（2D 模拟） | M01–M05 |
 | M09 | UI & Text | L1 | P1 | 立即模式 UI、布局、字体、HUD/菜单控件 | M01–M06 |
 | M10 | Animation | L1 | P1 | 精灵动画、状态机、帧事件、混合 | M01–M05 |
-| M11 | Scene / World & ECS | L2 | P0 | 场景栈、World、EntityId、SparseSet、System 调度 | M01–M04 |
+| M11 | Scene / World & ECS | L2 | P0 | 场景栈、World、EntityId、SparseSet、System 调度 | M01, M04, M06 |
 | M12 | Tilemap & World | L2 | P1 | 瓦片地图、图层、地图查询、地图加载 | M05–M11 |
 | M13 | Physics & Collision | L2 | P0 | AABB/圆形碰撞、瓦片碰撞、移动求解、查询 | M01–M11 |
 | M14 | Serialization & Save | L2 | P1 | JSON 序列化、存档槽、版本迁移、原子写入 | M01–M05, M11 |
@@ -88,6 +88,7 @@ flowchart TB
   M09 --> M06
   M10 --> M05
   M11 --> M04
+  M11 --> M06
   M12 --> M11
   M13 --> M11
   M14 --> M11
@@ -139,7 +140,7 @@ flowchart TB
 
 - **M15** 只提供内容定义与查询；不实现玩法规则。
 - **M16–M25** 通过 ECS 组件、事件和窄接口协作；禁止互相 `#include` 具体实现类。
-- **M25** 是玩法层的高层协调者；场景切换通过 M11 的 `SceneManager`，不直接操作窗口。
+- **M25** 是玩法层的高层协调者；场景切换通过 M11 的 `SceneStack`，不直接操作窗口。
 
 ### L4 工具
 

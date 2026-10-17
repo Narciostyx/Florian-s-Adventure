@@ -82,7 +82,7 @@ public:
     virtual ~IEconomyService() = default;
     virtual Result<void> buy(ContentId shop, ContentId item, int count, inventory::Inventory& inv) = 0;
     virtual Result<void> sell(ContentId item, int count, inventory::Inventory& inv) = 0;
-    virtual Result<void> craft(ContentId recipe, inventory::Inventory& inv, ecs::EntityId station) = 0;
+    virtual Result<void> craft(ContentId recipe, inventory::Inventory& inv, scene::EntityId station) = 0;
     virtual void ship(ItemStack stack) = 0;
     virtual int gold() const = 0;
 };

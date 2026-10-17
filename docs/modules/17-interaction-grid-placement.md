@@ -38,7 +38,7 @@
 struct GridTarget {
     glm::ivec2 cell;
     world::TileId tile;
-    ecs::EntityId entity; // 可选
+    scene::EntityId entity; // 可选
     float distance;      // 世界单位
     bool valid = false;
 };
@@ -46,7 +46,7 @@ struct GridTarget {
 enum class ToolKind { None, Hoe, WateringCan, Axe, Pickaxe, Sword, Seed, Placeable };
 
 struct InteractionRequest {
-    ecs::EntityId actor;
+    scene::EntityId actor;
     GridTarget target;
     ToolKind tool;
     ContentId item; // 可为空
@@ -72,9 +72,9 @@ namespace fa::interaction {
 class IInteractionService {
 public:
     virtual ~IInteractionService() = default;
-    virtual GridTarget pickTarget(ecs::World& world, glm::vec2 cursorWorld, Facing facing) const = 0;
+    virtual GridTarget pickTarget(scene::World& world, glm::vec2 cursorWorld, Facing facing) const = 0;
     virtual bool canInteract(const GridTarget& target, ToolKind tool) const = 0;
-    virtual Result<void> interact(ecs::World& world, const InteractionRequest& request) = 0;
+    virtual Result<void> interact(scene::World& world, const InteractionRequest& request) = 0;
     virtual void drawPreview(render::IRenderer& renderer, const GridTarget& target) const = 0;
 };
 

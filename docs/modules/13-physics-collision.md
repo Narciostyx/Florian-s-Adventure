@@ -85,8 +85,8 @@ class IPhysicsWorld {
 public:
     virtual ~IPhysicsWorld() = default;
     virtual void rebuildStatic(const world::ITilemap& map) = 0;
-    virtual MoveResult move(ecs::EntityId entity, glm::vec2 delta, CollisionLayer mask) = 0;
-    virtual std::vector<ecs::EntityId> overlap(const Aabb& area, CollisionLayer mask) const = 0;
+    virtual MoveResult move(scene::EntityId entity, glm::vec2 delta, CollisionLayer mask) = 0;
+    virtual std::vector<scene::EntityId> overlap(const Aabb& area, CollisionLayer mask) const = 0;
     virtual std::optional<RayHit> raycast(glm::vec2 origin, glm::vec2 dir, float maxDist, CollisionLayer mask) const = 0;
     virtual void debugDraw(render::IRenderer& renderer) const = 0;
 };
@@ -99,6 +99,13 @@ public:
 - 依赖 M01（数学）、M03（触发器事件）、M11（`World`/`Transform`）、M12（瓦片静态碰撞）、M06（调试绘制）。
 - 被 M16/M20/M21 使用；它们只调用查询与 `move`，不直接修改位置。
 - 不反向依赖玩法；攻击判定由 M20 发起查询。
+
+> **M11 已实现**（见 [M11 场景与 ECS](11-scene-world-ecs.md)）：`fa::scene::World`、`fa::scene::EntityId`（索引 + 代际，销毁后旧句柄自动失效）、`fa::scene::Transform`（`position`/`scale`/`rotation`）、`fa::scene::CommandBuffer` 都已可用。
+> 本模块落地时应当：
+> 1. 定义 `Collider`/`Body` 组件（纯数据），用 `world.each<Transform, Collider>()` 迭代；
+> 2. 把自己注册成一个 `fa::scene::ISystem`，`onFixedUpdate` 里改 `Transform::position`——**位置只由物理写**，其他系统只读，避免两处同时改；
+> 3. 需要建/删实体（例如生成碎片）时走 `CommandBuffer`，不要在迭代里直接 `world.create()`。
+> 脚部盒 10×6 的度量见 [ADR-0003](../adr/0003-tile-and-collision-metrics.md)。
 
 ## 6. 扩展点
 

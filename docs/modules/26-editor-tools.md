@@ -66,7 +66,7 @@ public:
     virtual ~IEditor() = default;
     virtual void toggle() = 0;
     virtual bool active() const = 0;
-    virtual void update(ecs::World& world, input::IInput& input) = 0;
+    virtual void update(scene::World& world, input::IInput& input) = 0;
     virtual void draw(ui::IUi& ui, render::IRenderer& renderer) = 0;
     virtual Result<void> saveMap(std::string_view path) = 0;
     virtual Result<void> loadMap(std::string_view path) = 0;

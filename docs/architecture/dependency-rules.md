@@ -47,6 +47,8 @@
 ### L2
 
 - M11 是通用 ECS/场景容器；不得 include 任何 `fa/game/...`。
+- M11 只依赖 M01（基础类型）、M04（`FrameContext`）、M06（`DrawItem`/`TextureHandle`/`RenderQueue`）。**不依赖 M05**：`Sprite` 只存裸 `TextureHandle`，纹理保活归加载方，避免把资源系统的异步加载与 `/EHsc` 拖进每个使用 ECS 的模块。
+- M11 的提取接口产出**纯数据** `RenderQueue`，不接收 `IRenderer&`——这样渲染提取的测试不需要 GL 上下文。
 - M12 只负责地图数据、图层与查询；耕地/作物规则属于 M19。
 - M13 只负责几何与碰撞求解；伤害/交互判定属于 M20/M17。
 - M14 只负责序列化机制与存档槽；具体组件的读写由组件/玩法模块注册。

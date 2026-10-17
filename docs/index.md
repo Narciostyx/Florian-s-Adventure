@@ -1,6 +1,6 @@
 # 文档索引
 
-Florian's Adventure 的全部设计文档入口。当前状态：设计方案已完成，**M00 构建骨架、M01 Core、M02 Platform、M03 Events & Jobs、M04 Time & Frame Loop、M05 Asset Pipeline、M06 Rendering、M07 Input 已实现并通过实测**，其余模块处于设计阶段。
+Florian's Adventure 的全部设计文档入口。当前状态：设计方案已完成，**M00 构建骨架、M01 Core、M02 Platform、M03 Events & Jobs、M04 Time & Frame Loop、M05 Asset Pipeline、M06 Rendering、M07 Input、M11 Scene / World & ECS 已实现并通过实测**，其余模块处于设计阶段。
 
 > **要继续开发，先读 [计划完成情况](plan-status.md)** —— 它记录每个模块的状态、已有接口面、遗留风险与下一步建议，是新对话接手任务的唯一入口。
 
@@ -44,6 +44,7 @@ Florian's Adventure 的全部设计文档入口。当前状态：设计方案已
 | [M05 资源管线・实测](build/m05-assets.md) | `friend` 与命名空间约束、占位降级语义、`/EHsc` 结论、异步等待用时间不用次数、错误码分段纠错 |
 | [M06 渲染・实测](build/m06-render.md) | 自研 GL 函数表、`IGlContext` 归属、隐藏窗口上下文实测、整数缩放与排序语义 |
 | [M07 输入・实测](build/m07-input.md) | `ActionId` 名字派生、上下文即独立 ActionMap、`asKeyboard()` 替代下行转型、`/EHsc` 结论修正 |
+| [M11 场景与 ECS・实测](build/m11-scene-ecs.md) | `[[nodiscard]]` 与 C4834 连锁、`each` 需 const 重载、占位符句柄与代际溢出、测试不得读已销毁场景、统计快照时机 |
 
 ## 已实现模块
 
@@ -56,9 +57,10 @@ Florian's Adventure 的全部设计文档入口。当前状态：设计方案已
 | M05 Asset Pipeline | 已实现 | 215 用例 / 17092 断言 | `AssetId`/`AssetHandle`/`AssetCatalog`、异步加载 + 帧线程上传、色块占位降级、`ITextureUploader` 反向桥 |
 | M06 Rendering | 已实现 | 154 用例 / 16780 断言 | `IRenderer` + `RenderQueue` + `Camera2D` + `Viewport`、自研 42 项 GL 函数表、精灵批处理与调试绘制 |
 | M07 Input | 已实现 | 112 用例 / 16598 断言 | `ActionId` + `Binding` + 每上下文 `ActionMap`、上下文栈、`IInput` 窄接口、JSON 键位持久化 |
+| M11 Scene / World & ECS | 已实现 | 293 用例 / 17378 断言 | `World` + `EntityId` 代际句柄 + `SparseSet` + `CommandBuffer`、`SystemPipeline` 三钩子调度、`SceneStack` 栈式场景、`SpriteExtractor` 纯数据提取 |
 
-各模块按 ID 排序，实际落地顺序为 M01 → M02 → M04 → M03 → M07 → M06 → M05，因此「完成时累计」栏不是单调递增的；
-当前总计 **215 用例 / 17092 断言**。逐模块状态与下一步建议见 [计划完成情况](plan-status.md)。
+各模块按 ID 排序，实际落地顺序为 M01 → M02 → M04 → M03 → M07 → M06 → M05 → M11，因此「完成时累计」栏不是单调递增的；
+当前总计 **293 用例 / 17378 断言**。逐模块状态与下一步建议见 [计划完成情况](plan-status.md)。
 
 三配置（Debug / Development / Release × x64）Rebuild 均零警告零错误。
 

@@ -52,7 +52,7 @@ struct Health {
 struct Damage {
     int amount = 0;
     DamageType type = DamageType::Physical;
-    ecs::EntityId source;
+    scene::EntityId source;
     glm::vec2 knockback{0.0f};
 };
 
@@ -70,7 +70,7 @@ struct Projectile {
     float lifetime;
     int damage;
     CollisionLayer targetMask;
-    ecs::EntityId owner;
+    scene::EntityId owner;
 };
 ```
 
@@ -108,10 +108,10 @@ namespace fa::combat {
 class ICombatService {
 public:
     virtual ~ICombatService() = default;
-    virtual void applyDamage(ecs::World& world, ecs::EntityId target, const Damage& damage) = 0;
-    virtual ecs::EntityId spawnProjectile(ecs::World& world, const ProjectileDesc& desc) = 0;
-    virtual void spawnAttack(ecs::World& world, ecs::EntityId owner, const AttackHitbox& hitbox) = 0;
-    virtual void applyStatus(ecs::World& world, ecs::EntityId target, const StatusEffect& effect) = 0;
+    virtual void applyDamage(scene::World& world, scene::EntityId target, const Damage& damage) = 0;
+    virtual scene::EntityId spawnProjectile(scene::World& world, const ProjectileDesc& desc) = 0;
+    virtual void spawnAttack(scene::World& world, scene::EntityId owner, const AttackHitbox& hitbox) = 0;
+    virtual void applyStatus(scene::World& world, scene::EntityId target, const StatusEffect& effect) = 0;
 };
 
 } // namespace fa::combat

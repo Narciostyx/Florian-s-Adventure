@@ -73,7 +73,7 @@ namespace fa::narrative {
 class IDialogueService {
 public:
     virtual ~IDialogueService() = default;
-    virtual Result<void> start(ContentId dialogue, ecs::EntityId speaker) = 0;
+    virtual Result<void> start(ContentId dialogue, scene::EntityId speaker) = 0;
     virtual void advance() = 0;
     virtual void choose(int index) = 0;
     virtual bool active() const = 0;

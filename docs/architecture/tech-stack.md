@@ -89,29 +89,27 @@
 
 ```text
 FloriansAdventure.sln
-├─ src/engine/core/FA.Core.vcxproj              -> FA::Core
-├─ src/engine/platform/FA.Platform.vcxproj      -> FA::Platform
-├─ src/engine/events/FA.Events.vcxproj          -> FA::Events
-├─ src/engine/time/FA.Time.vcxproj              -> FA::Time
-├─ src/engine/assets/FA.Assets.vcxproj          -> FA::Assets
-├─ src/engine/render/FA.Render.vcxproj          -> FA::Render
-├─ src/engine/input/FA.Input.vcxproj            -> FA::Input
-├─ src/engine/audio/FA.Audio.vcxproj            -> FA::Audio
-├─ src/engine/ui/FA.UI.vcxproj                  -> FA::UI
-├─ src/engine/animation/FA.Animation.vcxproj    -> FA::Animation
-├─ src/engine/ecs/FA.ECS.vcxproj                -> FA::ECS
-├─ src/engine/tilemap/FA.Tilemap.vcxproj        -> FA::Tilemap
-├─ src/engine/physics/FA.Physics.vcxproj        -> FA::Physics
-├─ src/engine/save/FA.Save.vcxproj              -> FA::Save
-├─ src/game/...                                 -> FA::Game.*
-├─ src/app/FloriansAdventure.vcxproj            -> 可执行文件
-├─ tests/FA.Tests.vcxproj                       -> Catch2 测试
+├─ src/engine/core/fa_core.vcxproj              -> fa_core
+├─ src/engine/platform/fa_platform.vcxproj      -> fa_platform
+├─ src/engine/events/fa_events.vcxproj          -> fa_events
+├─ src/engine/time/fa_time.vcxproj              -> fa_time
+├─ src/engine/assets/fa_assets.vcxproj          -> fa_assets
+├─ src/engine/render/fa_render.vcxproj          -> fa_render
+├─ src/engine/input/fa_input.vcxproj            -> fa_input
+├─ src/engine/scene/fa_scene.vcxproj            -> fa_scene
+├─ （待建）src/engine/{audio,ui,animation,tilemap,physics,save}/
+├─ （待建）src/game/...                          -> 玩法模块（M15–M25）
+├─ src/app/fa_app.vcxproj                       -> 可执行文件
+├─ tests/fa_tests.vcxproj                       -> Catch2 测试
 └─ tools/                                       -> 资源导入/校验（可选 C++ 或脚本）
 ```
 
 - 每个模块一个静态库；`src/app` 是唯一可执行目标。
-- 项目引用（ProjectReference）表达真实依赖；不靠“全仓库 include 路径”偷懒。
-- 公共头：`src/<layer>/<module>/include/fa/<module>/...`；私有源：`src/<layer>/<module>/src/...`。
+- 工程名统一小写下划线（`fa_scene`、`fa_render`），不叫 `FA.ECS` 那种点分大写名。
+- 项目引用（ProjectReference）表达真实依赖；不靠「全仓库 include 路径」偷懒。
+- 公共头集中在 `src/engine/include/fa/<module>/...`，私有源在 `src/engine/<module>/src/...`。
+  这样一个模块的公共头只有一处，且 `#include "fa/scene/World.hpp"` 的形式与磁盘布局一一对应。
+- 各工程的 `ClCompile` 用通配符 `src\*.cpp`，新增源文件**不需要**改 `.vcxproj`；新增工程才需要改 `.sln`。
 
 ## 6. 资源与内容流水线
 
