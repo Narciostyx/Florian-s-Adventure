@@ -107,6 +107,10 @@ if (auto status = files.writeText(p, text); !status) {
 - **`nlohmann/json` 必须配 `/EHsc`**：它间接 include `<chrono>`，其 tzdb 段含真实的 `try/catch`，
   在 `/EHsc-` 下即便只是正常调用 `parse`/`dump` 也会触发 C4530，`/WX` 直接升级成错误。
   凡是 include 该库的工程都要在 `.vcxproj` 里开 `/EHsc`（详见 [M07 坑 #2](../build/m07-input.md)）。
+- **只用 SDL3 / OpenGL 本身不需要 `/EHsc`**：`fa_render` 既不 include `nlohmann/json` 也不 include
+  任何会拉进 `<chrono>` 的头（GL 入口点全部是运行期解析的函数指针），因此在全局 `/EHsc-` 下正常编译。
+  判断标准不是「模块听起来高不高级」，而是**include 图里有没有 `<chrono>`**
+  （详见 [M06 交付内容](../build/m06-render.md)）。
 
 ## 7. 日志
 

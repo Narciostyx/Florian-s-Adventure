@@ -41,6 +41,8 @@
 风险
 
 - SDL3 + OpenGL 上下文创建在 Windows 上需要验证（WGL、glad 加载顺序）。
+  已在 [M06 实测](../build/m06-render.md) 中验证：SDL3 的 `SDL_GL_CreateContext` 在可见与隐藏窗口上
+  都能拿到 4.1 Core 上下文；引擎未使用 glad，改为自研 42 项 GL 函数表，因此不存在 glad 加载顺序问题。
 - vcpkg 三配置（Debug/Release）与静态运行库的组合容易出现链接错误。
 
 ## Phase B：能走能撞

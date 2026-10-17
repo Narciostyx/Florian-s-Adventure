@@ -10,7 +10,7 @@
 | 包管理 | vcpkg manifest | `vcpkg.json` + `builtin-baseline` 固定版本 |
 | 平台 | Windows 10/11 x64 | v1 只支持 Windows；平台层保留移植空间 |
 | 窗口/输入/音频 | SDL3 | 通过 M02 封装；仅 M02 直接 include |
-| 图形 | OpenGL 4.1 Core + glad | 通过 M06 封装；仅 M06 直接调用 |
+| 图形 | OpenGL 4.1 Core（自研 42 项函数表，不引 glad） | 通过 M06 封装；仅 M06 直接解析 GL 入口点，`SDL_GL_*` 仅 M02 的 `SdlGlContext` 使用 |
 | 数学 | glm | 公开头可用；向量/矩阵/插值 |
 | 图像 | stb_image / stb_image_write | 仅资源导入与调试截图使用 |
 | JSON | nlohmann/json | 内容与存档；启用无异常解析路径 |

@@ -6,7 +6,7 @@
 
 1. **依赖只能指向下层**：L4 → L3 → L2 → L1 → L0；同层只能通过接口或事件通信。
 2. **引擎不知道玩法**：`src/engine/` 不得 include `fa/game/...`。
-3. **玩法不碰底层 API**：玩法层不得直接 include SDL3/OpenGL/glad；通过 M02/M06/M07 的接口工作。
+3. **玩法不碰底层 API**：玩法层不得直接 include SDL3/OpenGL；通过 M02/M06/M07 的接口工作。
 4. **只有一个 composition root**：`src/app/` 可以同时看到引擎与玩法的具体类型；其他模块只能看到接口。
 5. **公共头不泄漏第三方类型**：公开头文件不得暴露 SDL/GL/ImGui 类型；第三方类型只出现在实现文件或适配层。
 6. **数据向下，事件向上**：下层提供数据与能力；上层通过事件通知下层“发生了什么”，而不是让下层回调上层具体类。
@@ -36,7 +36,7 @@
 ### L1
 
 - M05 是资源访问唯一入口；其他模块不得直接 `std::ifstream` 读取游戏资源（平台配置文件除外）。
-- M06 是唯一直接调用 OpenGL 的模块；对外提供 `Renderer`、`SpriteBatch`、`RenderQueue`、`TextureHandle`。
+- M06 是唯一直接调用 OpenGL 的模块（GL 上下文由 M02 的 `IGlContext` 提供）；对外提供 `IRenderer`、`RenderQueue`、`Camera2D`、`Viewport`、`TextureHandle`。批处理是实现细节，不是对外类型。
 - M07 不包含玩法键位；只提供动作名到物理输入的映射。
 - M08 不查询 ECS；只消费 `AudioCommand` 队列。
 - M09 不依赖具体场景；通过 `UiBinding` 与回调工作。
