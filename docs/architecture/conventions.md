@@ -3,6 +3,11 @@
 ## 1. 语言与注释
 
 - 代码标识符、注释、提交信息使用**英文**；面向玩家的文本与设计文档使用**中文**（后续接本地化）。
+- **源码文件里只允许 Doxygen 注释**（`//!`、`///`、`\file`、`\brief`、`\param`、`\return`、`\note` 等）。
+- 遇到的问题、踩坑过程、设计权衡、修复记录**一律写进 `docs/build/` 或模块文档**，不写进源码；
+  源码注释只描述接口契约与“为什么这样设计”，不承载临时性的排障叙述。
+- 工程文件（`.vcxproj`/`.props`）里同样不写解释性注释，理由同上——Git 历史的提交信息与
+  `docs/build/` 才是解释这些配置的地方。
 - 注释解释“为什么”，不解释“是什么”；公共接口必须有简短文档注释。
 - 不提交被注释掉的死代码；用 Git 历史保留。
 
@@ -79,6 +84,16 @@ Result<TextureHandle> loadTexture(std::string_view path);
 ```
 
 - 可恢复错误返回 `Result<T>`；禁止用异常跨模块传播。
+- 没有返回值但可能失败的操作返回 `fa::core::Status`（即 `Result<Unit>`）。仓库**不提供**
+  `Result<void>`，因为 `void` 无法满足 `Result` 的值语义；所有调用点因此写法统一：
+
+```cpp
+fa::core::Status writeText(std::string_view path, std::string_view content);
+
+if (auto status = files.writeText(p, text); !status) {
+    return status;                     // 直接向上传递
+}
+```
 - 不可恢复错误使用 `FA_ASSERT`（Debug）或 `FA_FATAL`（所有配置）。
 - 不使用 `std::exit`/`abort` 处理可恢复错误；只在 fatal handler 中使用。
 - 错误信息包含上下文：模块、操作、路径/ID。
@@ -96,7 +111,19 @@ Result<TextureHandle> loadTexture(std::string_view path);
 | Fatal | 即将终止 |
 
 - 使用 `FA_LOG_INFO(category, message)` 等宏；不在热路径拼接字符串。
-- 分类：`Core`、`Platform`、`Render`、`Asset`、`Input`、`Audio`、`UI`、`Ecs`、`Physics`、`Save`、`Content`、`Game`、`AI`、`Editor`。
+- 分类与 `fa::core::LogCategory` 一一对应，增删需同步 `Log.hpp` 与本表：
+
+| 分类 | 归属模块 | 分类 | 归属模块 |
+|---|---|---|---|
+| `Core` | M01 Core | `Ecs` | M11 |
+| `Platform` | M02 | `Tilemap` | M12 |
+| `Time` | M04 | `Physics` | M13 |
+| `Asset` | M05 | `Save` | M14 |
+| `Render` | M06 | `Content` | M15 |
+| `Input` | M07 | `Gameplay` | M16–M20、M25 |
+| `Audio` | M08 | `Ai` | M21 |
+| `Ui` | M09 | `Economy` | M24 |
+| `Animation` | M10 | `Editor` | M26、M27 |
 - Release 默认 `Info`；可通过命令行/配置文件调整。
 - 日志输出到控制台与文件；文件按大小轮转，保留最近 3 个。
 

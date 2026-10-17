@@ -20,7 +20,7 @@ using namespace fa::core;
 
 namespace {
 
-// Two tags so StrongId's type safety can be exercised without inventing real game ids.
+/// \brief Two tags so StrongId's type safety can be exercised without inventing real game ids.
 struct ItemTag;
 struct NpcTag;
 
@@ -231,7 +231,7 @@ TEST_CASE("StrongId is zero-invalid and hashable", "[core][ids]") {
     REQUIRE(carrot.isValid());
     REQUIRE(carrot == TestItemId(42U));
     REQUIRE(carrot != none);
-    // The point of StrongId: same integer, different tag, still distinct types.
+    /// \brief The point of StrongId: same integer, different tag, still distinct types.
     REQUIRE(carrot.value() == abigail.value());
 
     std::unordered_map<TestItemId, int> lookup;

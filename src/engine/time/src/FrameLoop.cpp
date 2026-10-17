@@ -1,5 +1,5 @@
-// fa_time - M00 placeholder translation unit.
-// Fixed-step frame loop (60 Hz, max 5 catch-up steps) lands with M04.
+/// fa_time - M00 placeholder translation unit.
+/// Fixed-step frame loop (60 Hz, max 5 catch-up steps) lands with M04.
 
 namespace fa::time {
 

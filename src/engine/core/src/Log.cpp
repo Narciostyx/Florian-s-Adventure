@@ -15,8 +15,8 @@ ILogSink* g_sinks[kMaxSinks] = {};
 std::size_t g_sinkCount = 0;
 LogLevel g_minimumLevel = LogLevel::Info;
 
-// Always-on fallback so a log call before the platform layer registers its sinks
-// is still visible instead of vanishing.
+/// \brief Always-on fallback so a log call before the platform layer registers its
+/// sinks is still visible instead of vanishing.
 class StderrSink final : public ILogSink {
 public:
     void write(LogLevel level, LogCategory category, std::string_view message) override {
@@ -32,9 +32,10 @@ StderrSink g_stderrSink;
 
 bool isSameSink(ILogSink* a, ILogSink* b) noexcept { return a == b; }
 
-// Registers the fallback sink exactly once, on the first log call. A static
-// initialiser would run before other translation units' statics and could be
-// observed as "no sinks" by an early log.
+/// \brief Registers the fallback sink exactly once, on the first log call.
+///
+/// \note A static initialiser would run before other translation units' statics
+/// and could be observed as "no sinks" by an early log.
 void ensureStderrSink() {
     static const bool registered = []() {
         addLogSink(&g_stderrSink);

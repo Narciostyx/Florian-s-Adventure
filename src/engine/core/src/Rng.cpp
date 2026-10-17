@@ -26,8 +26,8 @@ void Rng::seed(std::uint64_t seedValue, std::uint64_t stream) noexcept {
 }
 
 void Rng::restore(std::uint64_t stateValue, std::uint64_t increment) noexcept {
-    // The increment must stay odd; a corrupted save must not silently break the
-    // period guarantee, so force the low bit rather than trusting the input.
+    /// \note The increment must stay odd; a corrupted save must not silently break
+    /// the period guarantee, so force the low bit rather than trusting the input.
     m_state = stateValue;
     m_increment = increment | 1U;
 }
@@ -41,8 +41,9 @@ std::uint32_t Rng::nextU32() noexcept {
 }
 
 std::uint32_t Rng::bounded(std::uint32_t bound) noexcept {
-    // A zero bound is a degenerate but legitimate gameplay case (empty candidate
-    // list), so it returns 0 instead of asserting: Debug and Release must agree.
+    /// \note A zero bound is a degenerate but legitimate gameplay case (empty
+    /// candidate list), so it returns 0 instead of asserting: Debug and Release
+    /// must agree.
     if (bound == 0) {
         return 0;
     }
@@ -56,8 +57,8 @@ std::uint32_t Rng::bounded(std::uint32_t bound) noexcept {
 }
 
 int Rng::range(int minInclusive, int maxExclusive) noexcept {
-    // Empty or inverted spans collapse to minInclusive; see bounded() for why this
-    // is not an assertion failure.
+    /// \note Empty or inverted spans collapse to minInclusive; see bounded() for
+    /// why this is not an assertion failure.
     if (maxExclusive <= minInclusive) {
         return minInclusive;
     }

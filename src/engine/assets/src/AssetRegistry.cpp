@@ -1,5 +1,5 @@
-// fa_assets - M00 placeholder translation unit.
-// Asset registry and content pipeline land with M05.
+/// fa_assets - M00 placeholder translation unit.
+/// Asset registry and content pipeline land with M05.
 
 #include <cstddef>
 

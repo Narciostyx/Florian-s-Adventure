@@ -7,14 +7,14 @@ namespace fa::core {
 inline constexpr float kPi = 3.14159265358979323846f;
 inline constexpr float kTau = 2.0f * kPi;
 
-// World units are logical pixels (docs/architecture/pixel-metrics.md), y points
-// down, so `y + h` is always "lower on screen".
+/// World units are logical pixels (docs/architecture/pixel-metrics.md), y points
+/// down, so `y + h` is always "lower on screen".
 using Vec2 = glm::vec2;
 using Color = glm::vec4;  // normalized rgba in [0, 1]
 
-// Axis-aligned rectangle stored as top-left corner + size. Deliberately not a
-// glm::vec4: `rect.w` / `rect.h` carries meaning that `rect.z` / `rect.w` does not,
-// and collision code reads it constantly. See docs/adr/0004-core-math-and-result-shape.md.
+/// Axis-aligned rectangle stored as top-left corner + size. Deliberately not a
+/// glm::vec4: `rect.w` / `rect.h` carries meaning that `rect.z` / `rect.w` does not,
+/// and collision code reads it constantly. See docs/adr/0004-core-math-and-result-shape.md.
 struct Rect {
     float x = 0.0f;
     float y = 0.0f;
@@ -37,8 +37,8 @@ constexpr Vec2 center(const Rect& r) noexcept { return Vec2{r.x + r.w * 0.5f, r.
 
 constexpr bool isEmpty(const Rect& r) noexcept { return r.w <= 0.0f || r.h <= 0.0f; }
 
-// Half-open on both axes: touching edges do not overlap. That is what tile and
-// trigger queries want, and it makes `rectOverlaps(a, a)` trivially true.
+/// Half-open on both axes: touching edges do not overlap. That is what tile and
+/// trigger queries want, and it makes `rectOverlaps(a, a)` trivially true.
 constexpr bool rectOverlaps(const Rect& a, const Rect& b) noexcept {
     return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 }
@@ -52,7 +52,7 @@ constexpr bool rectContainsRect(const Rect& outer, const Rect& inner) noexcept {
            inner.y + inner.h <= outer.y + outer.h;
 }
 
-// Empty Rect (w == h == 0) when the inputs do not overlap.
+/// Empty Rect (w == h == 0) when the inputs do not overlap.
 constexpr Rect intersect(const Rect& a, const Rect& b) noexcept {
     const float x0 = a.x > b.x ? a.x : b.x;
     const float y0 = a.y > b.y ? a.y : b.y;
@@ -83,8 +83,8 @@ constexpr float clampf(float value, float lo, float hi) noexcept { return value 
 
 constexpr float clamp01(float value) noexcept { return clampf(value, 0.0f, 1.0f); }
 
-// Moves `current` toward `target` by at most `maxDelta`. Frame-rate independent
-// for velocity/damping code where a plain lerp would drift with dt.
+/// Moves `current` toward `target` by at most `maxDelta`. Frame-rate independent
+/// for velocity/damping code where a plain lerp would drift with dt.
 inline float approach(float current, float target, float maxDelta) noexcept {
     const float delta = target - current;
     if (delta > maxDelta) {
@@ -96,8 +96,8 @@ inline float approach(float current, float target, float maxDelta) noexcept {
     return target;
 }
 
-// Pixel-art note: snap only at draw time (camera transform), never in simulation
-// state, or sub-pixel movement speed becomes impossible.
+/// Pixel-art note: snap only at draw time (camera transform), never in simulation
+/// state, or sub-pixel movement speed becomes impossible.
 inline float snapToPixel(float value) noexcept {
     return static_cast<float>(static_cast<int>(value < 0.0f ? value - 0.5f : value + 0.5f));
 }

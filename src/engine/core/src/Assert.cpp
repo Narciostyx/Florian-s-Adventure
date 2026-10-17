@@ -22,8 +22,8 @@ FatalHandler g_fatalHandler = &defaultFatalHandler;
 void setFatalHandler(FatalHandler handler) noexcept { g_fatalHandler = handler != nullptr ? handler : &defaultFatalHandler; }
 
 [[noreturn]] void fatal(std::string_view message) {
-    // Log first: a custom handler may show a dialog, and we still want the
-    // message in the log file for the post-mortem.
+    /// \note Log first: a custom handler may show a dialog, and we still want the
+    /// message in the log file for the post-mortem.
     log(LogCategory::Core, LogLevel::Fatal, message);
     flushLogs();
     g_fatalHandler(message);

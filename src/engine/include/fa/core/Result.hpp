@@ -8,17 +8,17 @@
 
 namespace fa::core {
 
-// Marker for "succeeded with no value". C++20 has no Result<void>, exceptions are
-// disabled, so an explicit empty type keeps every call site uniform:
-//     Status status = doThing();
-//     if (!status) { return status.error(); }
+/// Marker for "succeeded with no value". C++20 has no Result<void>, exceptions are
+/// disabled, so an explicit empty type keeps every call site uniform:
+///     Status status = doThing();
+///     if (!status) { return status.error(); }
 struct Unit {};
 
-// Value-or-Error without exceptions. `T` only needs to be movable; it is stored in
-// a std::optional so no default constructor is required.
-//
-// Note: `value()` and `error()` assert on the wrong state instead of throwing -
-// check `isOk()` or the bool conversion first.
+/// Value-or-Error without exceptions. `T` only needs to be movable; it is stored in
+/// a std::optional so no default constructor is required.
+///
+/// Note: `value()` and `error()` assert on the wrong state instead of throwing -
+/// check `isOk()` or the bool conversion first.
 template <typename T>
 class [[nodiscard]] Result {
 public:
@@ -56,7 +56,7 @@ public:
 
     T valueOr(T fallback) const { return isOk() ? *m_value : std::move(fallback); }
 
-    // Discards the value, keeping only success/failure. `T` need not be copyable.
+    /// Discards the value, keeping only success/failure. `T` need not be copyable.
     Result<Unit> ignoreValue() const {
         if (isOk()) {
             return Result<Unit>::ok(Unit{});

@@ -6,16 +6,16 @@
 
 namespace fa::core {
 
-// Error codes are plain integers, not an enum class, so gameplay modules can add
-// their own ranges without editing this file (see docs/modules/01-core-foundation.md
-// section 6). Reserved ranges:
-//     1000-1999  Core
-//     2000-2999  Platform
-//     3000-3999  Assets
-//     4000-4999  Render / Input / Audio / UI
-//     5000-5999  Ecs / Physics
-//     6000-6999  Save / Content
-//     7000-7999  Gameplay
+/// Error codes are plain integers, not an enum class, so gameplay modules can add
+/// their own ranges without editing this file (see docs/modules/01-core-foundation.md
+/// section 6). Reserved ranges:
+///     1000-1999  Core
+///     2000-2999  Platform
+///     3000-3999  Assets
+///     4000-4999  Render / Input / Audio / UI
+///     5000-5999  Ecs / Physics
+///     6000-6999  Save / Content
+///     7000-7999  Gameplay
 namespace error_code {
 
 inline constexpr int kUnknown = 1000;
@@ -30,8 +30,8 @@ inline constexpr int kAssertionFailed = 1008;
 
 }  // namespace error_code
 
-// Recoverable failure description. Exactly one `Error` is carried by a failed
-// Result; successful values never allocate an Error.
+/// Recoverable failure description. Exactly one `Error` is carried by a failed
+/// Result; successful values never allocate an Error.
 struct Error {
     int code = error_code::kUnknown;
     std::string message;

@@ -6,9 +6,9 @@
 
 namespace fa::core {
 
-// Typed wrapper so two ids with the same underlying integer can never be swapped
-// by accident (`ItemId` vs `NpcId`). Zero means "none / invalid"; every module
-// reserves 0 for that and starts real ids at 1.
+/// Typed wrapper so two ids with the same underlying integer can never be swapped
+/// by accident (`ItemId` vs `NpcId`). Zero means "none / invalid"; every module
+/// reserves 0 for that and starts real ids at 1.
 template <typename Tag, typename T = std::uint32_t>
 class StrongId {
 public:
@@ -34,8 +34,8 @@ private:
 
 }  // namespace fa::core
 
-// Lets StrongId key an unordered_map. Declared for our own type only, which is
-// the one legal way to extend std.
+/// Lets StrongId key an unordered_map. Declared for our own type only, which is
+/// the one legal way to extend std.
 namespace std {
 
 template <typename Tag, typename T>

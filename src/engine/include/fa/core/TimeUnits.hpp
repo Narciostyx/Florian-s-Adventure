@@ -4,9 +4,9 @@
 
 namespace fa::core {
 
-// Seconds and Milliseconds are distinct types on purpose: the frame loop, combat
-// timers and save intervals all deal in time, and mixing units silently is the
-// classic source of "why is this 1000x too fast".
+/// Seconds and Milliseconds are distinct types on purpose: the frame loop, combat
+/// timers and save intervals all deal in time, and mixing units silently is the
+/// classic source of "why is this 1000x too fast".
 struct Milliseconds;
 
 struct Seconds {
@@ -27,8 +27,8 @@ constexpr Seconds Milliseconds::toSeconds() const noexcept { return Seconds{valu
 constexpr Seconds seconds(double value) noexcept { return Seconds{value}; }
 constexpr Milliseconds milliseconds(double value) noexcept { return Milliseconds{value}; }
 
-// One-shot countdown. `tick` returns true exactly once, on the update where the
-// timer reaches zero, so callers do not need "already fired" flags.
+/// One-shot countdown. `tick` returns true exactly once, on the update where the
+/// timer reaches zero, so callers do not need "already fired" flags.
 class Countdown {
 public:
     constexpr Countdown() noexcept = default;
@@ -44,8 +44,8 @@ public:
     constexpr bool isRunning() const noexcept { return m_running; }
     constexpr Seconds remaining() const noexcept { return m_remaining; }
 
-    // 1 at start, 0 when expired. Returns 1 for a zero-length countdown so
-    // progress bars do not divide by zero.
+    /// 1 at start, 0 when expired. Returns 1 for a zero-length countdown so
+    /// progress bars do not divide by zero.
     constexpr double progress(double totalDuration) const noexcept {
         if (totalDuration <= 0.0) {
             return 1.0;
