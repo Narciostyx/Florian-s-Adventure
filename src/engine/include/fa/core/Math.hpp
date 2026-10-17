@@ -10,7 +10,9 @@ inline constexpr float kTau = 2.0f * kPi;
 /// World units are logical pixels (docs/architecture/pixel-metrics.md), y points
 /// down, so `y + h` is always "lower on screen".
 using Vec2 = glm::vec2;
-using Color = glm::vec4;  // normalized rgba in [0, 1]
+
+/// Normalized rgba in `[0, 1]`; not premultiplied.
+using Color = glm::vec4;
 
 /// Axis-aligned rectangle stored as top-left corner + size. Deliberately not a
 /// glm::vec4: `rect.w` / `rect.h` carries meaning that `rect.z` / `rect.w` does not,

@@ -4,10 +4,11 @@
 
 - 代码标识符、注释、提交信息使用**英文**；面向玩家的文本与设计文档使用**中文**（后续接本地化）。
 - **源码文件里只允许 Doxygen 注释**（`//!`、`///`、`\file`、`\brief`、`\param`、`\return`、`\note` 等）。
+- 唯一例外是命名空间收尾标记 `}  // namespace fa::core`：它是工具锚点而非叙述性注释，全仓库统一保留。
 - 遇到的问题、踩坑过程、设计权衡、修复记录**一律写进 `docs/build/` 或模块文档**，不写进源码；
   源码注释只描述接口契约与“为什么这样设计”，不承载临时性的排障叙述。
-- 工程文件（`.vcxproj`/`.props`）里同样不写解释性注释，理由同上——Git 历史的提交信息与
-  `docs/build/` 才是解释这些配置的地方。
+- 工程文件（`.vcxproj`/`.props`）可以保留**指向文档的简短说明**（例如“为什么这个开关必要”的一句话），
+  但排障过程、失败日志与结论一律写进 `docs/build/`。
 - 注释解释“为什么”，不解释“是什么”；公共接口必须有简短文档注释。
 - 不提交被注释掉的死代码；用 Git 历史保留。
 
@@ -16,7 +17,7 @@
 | 类别 | 规则 | 示例 |
 |---|---|---|
 | 类型/类/结构/枚举 | PascalCase | `AssetManager`、`CropState` |
-| 函数/方法 | PascalCase | `loadTexture`、`fixedUpdate` |
+| 函数/方法 | camelCase | `loadTexture`、`fixedUpdate` |
 | 局部变量/参数 | camelCase | `frameDelta`、`entityId` |
 | 私有成员 | `m_` + camelCase | `m_allocator`、`m_isLoaded` |
 | 静态/全局常量 | `k` + PascalCase | `kFixedDelta`、`kMaxEntities` |
