@@ -1,6 +1,6 @@
 # 文档索引
 
-Florian's Adventure 的全部设计文档入口。当前状态：设计方案已完成，**M00 构建骨架、M01 Core、M02 Platform、M04 Time & Frame Loop 已实现并通过实测**，其余模块处于设计阶段。
+Florian's Adventure 的全部设计文档入口。当前状态：设计方案已完成，**M00 构建骨架、M01 Core、M02 Platform、M03 Events & Jobs、M04 Time & Frame Loop 已实现并通过实测**，其余模块处于设计阶段。
 
 > 两条权威基线：产品与范围见 [ADR-0002](adr/0002-v1-scope-decisions.md)，像素与碰撞度量见 [ADR-0003](adr/0003-tile-and-collision-metrics.md) 与 [像素度量](architecture/pixel-metrics.md)。模块文档与它们冲突时，以 ADR 为准。
 
@@ -35,15 +35,20 @@ Florian's Adventure 的全部设计文档入口。当前状态：设计方案已
 | [M00 构建骨架](build/m00-skeleton.md) | 目录布局、工程划分、vcpkg 与 CI 设计 |
 | [M00 实测结果](build/m00-fixups.md) | 本机实测通过的配置、踩过的坑与遗留风险 |
 | [M02 平台层・实测](build/m02-platform.md) | SDL3 接口语义、`/EHsc` 适用范围、静态库系统依赖、DPI 与原子写踩坑 |
+| [M03 事件与作业・实测](build/m03-events-jobs.md) | 无 RTTI 类型键、分发快照语义、队列派发波次上限、`wait()` 全屏障与完成队列竞态 |
 | [M04 帧循环・实测](build/m04-frame-loop.md) | 固定步累加、防死亡螺旋、暂停/缩放语义、浮点边界与断言路径踩坑 |
 
 ## 已实现模块
 
-| 模块 | 状态 | 实测（累计） | 关键交付 |
+| 模块 | 状态 | 实测（完成时累计） | 关键交付 |
 |---|---|---|---|
 | M01 Core | 已实现 | 22 用例 / 14626 断言 | `Result`/`Status`/`Error`、`Vector2`、`Rect`、`Rng`、断言与日志 |
 | M02 Platform | 已实现 | 30 用例 / 14681 断言 | 窗口、事件泵、文件系统（含原子写）、单调时钟、消息框 |
+| M03 Events & Jobs | 已实现 | 76 用例 / 16154 断言 | `EventBus` + RAII `Subscription`、`JobSystem` 线程池与 `parallelFor` |
 | M04 Time & Frame Loop | 已实现 | 50 用例 / 14968 断言 | 固定步时钟、`FrameContext`、时间域暂停/缩放、`FrameLoop` |
+
+各模块按 ID 排序，实际落地顺序为 M01 → M02 → M04 → M03，因此「完成时累计」栏不是单调递增的；
+当前总计 **76 用例 / 16154 断言**。
 
 三配置（Debug / Development / Release × x64）Rebuild 均零警告零错误。
 

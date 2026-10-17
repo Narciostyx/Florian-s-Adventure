@@ -98,7 +98,12 @@ if (auto status = files.writeText(p, text); !status) {
 - 不可恢复错误使用 `FA_ASSERT`（Debug）或 `FA_FATAL`（所有配置）。
 - 不使用 `std::exit`/`abort` 处理可恢复错误；只在 fatal handler 中使用。
 - 错误信息包含上下文：模块、操作、路径/ID。
-- 第三方异常在边界捕获，转换为 `Error`。
+- **异常边界**：全局编译开关是 `/EHsc-`（见 [Directory.Build.props](../../Directory.Build.props)），
+  因此绝大多数模块**不能**写 `try/catch`。只有确实要包住第三方库的模块才单独打开 `/EHsc`
+  （目前仅 `fa_platform` 与 `fa_events`，原因分别是文件系统/`<chrono>`），
+  且这些模块自己也**不抛异常**——捕获只发生在真正调用第三方 API 的那一层，
+  转换后立刻以 `Result`/`Status` 返回。新增模块需要异常边界时，
+  在它自己的 `.vcxproj` 里开 `/EHsc`，不要改全局开关。
 
 ## 7. 日志
 
@@ -125,6 +130,7 @@ if (auto status = files.writeText(p, text); !status) {
 | `Audio` | M08 | `Ai` | M21 |
 | `Ui` | M09 | `Economy` | M24 |
 | `Animation` | M10 | `Editor` | M26、M27 |
+| `Events` | M03 | — | — |
 - Release 默认 `Info`；可通过命令行/配置文件调整。
 - 日志输出到控制台与文件；文件按大小轮转，保留最近 3 个。
 
