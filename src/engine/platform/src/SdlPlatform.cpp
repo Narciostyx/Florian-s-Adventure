@@ -1,5 +1,6 @@
 #include "SdlPlatform.hpp"
 
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <memory>
@@ -173,6 +174,15 @@ double SdlPlatform::monotonicSeconds() const {
         return 0.0;
     }
     return static_cast<double>(SDL_GetTicksNS()) / 1'000'000'000.0;
+}
+
+void SdlPlatform::sleepSeconds(double seconds) {
+    if (!std::isfinite(seconds) || seconds <= 0.0) {
+        return;
+    }
+    constexpr double kMaxSleepSeconds = 1.0;
+    const double clamped = seconds > kMaxSleepSeconds ? kMaxSleepSeconds : seconds;
+    SDL_DelayNS(static_cast<Uint64>(clamped * 1'000'000'000.0));
 }
 
 fa::core::Status SdlPlatform::showMessageBox(MessageBoxKind kind, std::string_view title,

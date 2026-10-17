@@ -58,6 +58,13 @@ public:
     /// initialized.
     virtual double monotonicSeconds() const = 0;
 
+    /// \brief Suspends the calling thread for \p seconds.
+    ///
+    /// Lives here so frame pacing never pulls `<thread>` — and therefore exception
+    /// unwinding — into modules that would otherwise stay exception-free. Values
+    /// that are zero, negative or not finite return immediately.
+    virtual void sleepSeconds(double seconds) = 0;
+
     /// \brief Shows a modal message box, or falls back to stderr when that fails.
     virtual fa::core::Status showMessageBox(MessageBoxKind kind, std::string_view title,
                                             std::string_view message) = 0;
