@@ -1,11 +1,14 @@
 # 文档索引
 
-Florian's Adventure 的全部设计文档入口。当前状态：设计方案已完成，**M00 构建骨架、M01 Core、M02 Platform、M03 Events & Jobs、M04 Time & Frame Loop、M06 Rendering、M07 Input 已实现并通过实测**，其余模块处于设计阶段。
+Florian's Adventure 的全部设计文档入口。当前状态：设计方案已完成，**M00 构建骨架、M01 Core、M02 Platform、M03 Events & Jobs、M04 Time & Frame Loop、M05 Asset Pipeline、M06 Rendering、M07 Input 已实现并通过实测**，其余模块处于设计阶段。
+
+> **要继续开发，先读 [计划完成情况](plan-status.md)** —— 它记录每个模块的状态、已有接口面、遗留风险与下一步建议，是新对话接手任务的唯一入口。
 
 > 两条权威基线：产品与范围见 [ADR-0002](adr/0002-v1-scope-decisions.md)，像素与碰撞度量见 [ADR-0003](adr/0003-tile-and-collision-metrics.md) 与 [像素度量](architecture/pixel-metrics.md)。模块文档与它们冲突时，以 ADR 为准。
 
 ## 建议阅读顺序
 
+0. [计划完成情况](plan-status.md) —— 什么已经做完、接口面在哪、下一步做什么。
 1. [愿景与设计支柱](architecture/vision-and-pillars.md) —— 这个游戏是什么，不做什么。
 2. [架构总览](architecture/overview-design.md) —— 分层、主循环、时间、坐标、ECS、线程与存档边界。
 3. [模块地图](architecture/module-map.md) —— 28 个模块的职责与依赖图。
@@ -26,6 +29,7 @@ Florian's Adventure 的全部设计文档入口。当前状态：设计方案已
 | [依赖规则](architecture/dependency-rules.md) | 分层矩阵、同层通信、composition root、include 规则 |
 | [技术栈](architecture/tech-stack.md) | C++20、编译选项、vcpkg、资源流水线、测试、CI |
 | [编码与内容规范](architecture/conventions.md) | 命名、目录、错误处理、日志、ECS 约定、JSON 规范、Git 提交 |
+| [美术资源策略](architecture/art-policy.md) | 色块占位规格、颜色约定、真实美术的接入方式 |
 | [像素度量](architecture/pixel-metrics.md) | 虚拟分辨率、瓦片、精灵锚点、碰撞盒、排序与缩放 |
 
 ## 构建与实测
@@ -37,6 +41,7 @@ Florian's Adventure 的全部设计文档入口。当前状态：设计方案已
 | [M02 平台层・实测](build/m02-platform.md) | SDL3 接口语义、`/EHsc` 适用范围、静态库系统依赖、DPI 与原子写踩坑 |
 | [M03 事件与作业・实测](build/m03-events-jobs.md) | 无 RTTI 类型键、分发快照语义、队列派发波次上限、`wait()` 全屏障与完成队列竞态 |
 | [M04 帧循环・实测](build/m04-frame-loop.md) | 固定步累加、防死亡螺旋、暂停/缩放语义、浮点边界与断言路径踩坑 |
+| [M05 资源管线・实测](build/m05-assets.md) | `friend` 与命名空间约束、占位降级语义、`/EHsc` 结论、异步等待用时间不用次数、错误码分段纠错 |
 | [M06 渲染・实测](build/m06-render.md) | 自研 GL 函数表、`IGlContext` 归属、隐藏窗口上下文实测、整数缩放与排序语义 |
 | [M07 输入・实测](build/m07-input.md) | `ActionId` 名字派生、上下文即独立 ActionMap、`asKeyboard()` 替代下行转型、`/EHsc` 结论修正 |
 
@@ -48,11 +53,12 @@ Florian's Adventure 的全部设计文档入口。当前状态：设计方案已
 | M02 Platform | 已实现 | 30 用例 / 14681 断言 | 窗口、事件泵、文件系统（含原子写）、单调时钟、消息框 |
 | M03 Events & Jobs | 已实现 | 76 用例 / 16154 断言 | `EventBus` + RAII `Subscription`、`JobSystem` 线程池与 `parallelFor` |
 | M04 Time & Frame Loop | 已实现 | 50 用例 / 14968 断言 | 固定步时钟、`FrameContext`、时间域暂停/缩放、`FrameLoop` |
+| M05 Asset Pipeline | 已实现 | 215 用例 / 17092 断言 | `AssetId`/`AssetHandle`/`AssetCatalog`、异步加载 + 帧线程上传、色块占位降级、`ITextureUploader` 反向桥 |
 | M06 Rendering | 已实现 | 154 用例 / 16780 断言 | `IRenderer` + `RenderQueue` + `Camera2D` + `Viewport`、自研 42 项 GL 函数表、精灵批处理与调试绘制 |
 | M07 Input | 已实现 | 112 用例 / 16598 断言 | `ActionId` + `Binding` + 每上下文 `ActionMap`、上下文栈、`IInput` 窄接口、JSON 键位持久化 |
 
-各模块按 ID 排序，实际落地顺序为 M01 → M02 → M04 → M03 → M07 → M06，因此「完成时累计」栏不是单调递增的；
-当前总计 **154 用例 / 16780 断言**。
+各模块按 ID 排序，实际落地顺序为 M01 → M02 → M04 → M03 → M07 → M06 → M05，因此「完成时累计」栏不是单调递增的；
+当前总计 **215 用例 / 17092 断言**。逐模块状态与下一步建议见 [计划完成情况](plan-status.md)。
 
 三配置（Debug / Development / Release × x64）Rebuild 均零警告零错误。
 

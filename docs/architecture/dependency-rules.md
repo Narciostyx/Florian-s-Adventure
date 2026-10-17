@@ -35,7 +35,9 @@
 
 ### L1
 
-- M05 是资源访问唯一入口；其他模块不得直接 `std::ifstream` 读取游戏资源（平台配置文件除外）。
+- M05 是资源访问唯一入口；其他模块不得直接 `std::ifstream` 读取游戏资源（平台配置文件除外）。对外提供 `AssetId`、`AssetHandle`、`IAssetManager`、`AssetCatalog`。
+- M05 与 M06 **双向都不依赖**：M05 只经反向接口 `ITextureUploader` 拿到一个不透明 `std::uint32_t` token，由 composition root 适配成 `render::TextureHandle`。这条桥必须在 app 里接，不得为了让 M05 能建纹理而让它 include `fa/render/...`。
+- M05 的资源缺失一律降级为色块占位并返回成功（见 [美术资源策略](art-policy.md)）；只有「id 未声明」「占位尺寸非法」「上传被拒」是错误。
 - M06 是唯一直接调用 OpenGL 的模块（GL 上下文由 M02 的 `IGlContext` 提供）；对外提供 `IRenderer`、`RenderQueue`、`Camera2D`、`Viewport`、`TextureHandle`。批处理是实现细节，不是对外类型。
 - M07 不包含玩法键位；只提供动作名到物理输入的映射。
 - M08 不查询 ECS；只消费 `AudioCommand` 队列。

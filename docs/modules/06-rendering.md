@@ -48,7 +48,7 @@
 | 文件 | 内容 |
 |---|---|
 | `RenderConstants.hpp` | `kVirtualWidth = 640`、`kVirtualHeight = 360`、`kTileSize = 16`、`kDefaultMaxQuads = 4096`、`kMaxTextures = 4096`、`kMaxTextureSize = 16384` |
-| `RenderError.hpp` | `render_error` 5000–5005：`kGlFunctionMissing`、`kShaderCompileFailed`、`kShaderLinkFailed`、`kTextureCreationFailed`、`kNotInitialized`、`kUnknownTexture` |
+| `RenderError.hpp` | `render_error` 4000–4005（[Error.hpp](../../src/engine/include/fa/core/Error.hpp) 划给 Render/Input/Audio/UI 的区间）：`kGlFunctionMissing`、`kShaderCompileFailed`、`kShaderLinkFailed`、`kTextureCreationFailed`、`kNotInitialized`、`kUnknownTexture` |
 | `RenderTypes.hpp` | `TextureHandle`、`TextureFormat`、`bytesPerPixel`、`TextureDesc`、`RenderLayer`、`DrawItem`、`depthKey`、`drawsBefore`、`RenderStats` |
 | `Viewport.hpp` | `Viewport`（`fit`、`drawableWidth/Height`、`isEmpty`、`windowRect`、`windowToVirtual`、`virtualToWindow`、`operator==`） |
 | `Camera2D.hpp` | `Camera2D`（位置/边界/可见矩形/坐标转换/`snapped`/`projection`） |
@@ -71,7 +71,7 @@
 | `src/engine/render/src/GlRenderer.cpp` | `GlRenderer final : IRenderer`，唯一实现；`createRenderer()` 定义于此 |
 | `src/engine/platform/src/SdlGlContext.hpp` / `.cpp` | `IGlContext` 的 SDL 实现，全仓库唯一 `SDL_GL_*` 使用者 |
 
-`fa_render.vcxproj`（GUID `{C0DE0005-…0005}`）引用 `fa_core`、`fa_platform`、`fa_assets`，并链接 `opengl32.lib`。
+`fa_render.vcxproj`（GUID `{C0DE0005-…0005}`）只引用 `fa_core` 与 `fa_platform`，并链接 `opengl32.lib`；它**不引用** `fa_assets`，纹理上传经 `ITextureUploader` 由 app 侧适配器桥接。
 `ClCompile` 是 `src\*.cpp` 通配，新增实现文件无需改工程。
 **`fa_render` 不需要 `/EHsc`**：它不 include `nlohmann/json`，也不 include 任何会拉进 `<chrono>` 的头。
 

@@ -74,7 +74,7 @@ GitHub 的 Windows runner 走的是另一套图形栈。
 | 文件 | 内容 |
 |---|---|
 | `RenderConstants.hpp` | `kVirtualWidth = 640`、`kVirtualHeight = 360`、`kTileSize = 16`、`kDefaultMaxQuads = 4096`、`kMaxTextures = 4096`、`kMaxTextureSize = 16384` |
-| `RenderError.hpp` | `render_error` 5000–5005 |
+| `RenderError.hpp` | `render_error` 4000–4005（M06 初版误用 5000–5005，与 Ecs/Physics 区间冲突，M05 期间一并改正） |
 | `RenderTypes.hpp` | `TextureHandle`、`TextureFormat`、`bytesPerPixel`、`TextureDesc`、`RenderLayer`、`DrawItem`、`depthKey`、`drawsBefore`、`RenderStats` |
 | `Viewport.hpp` | `Viewport`：整数缩放 + letterbox + 双向坐标换算 |
 | `Camera2D.hpp` | `Camera2D`：只平移、边界夹取、正交投影矩阵 |
@@ -112,7 +112,7 @@ GitHub 的 Windows runner 走的是另一套图形栈。
 | `src/app/main.cpp` | `SmokeSink` 集成渲染器与 `m06:` 行 |
 
 `fa_app.vcxproj` 在 M00 骨架期就已经引用了 `fa_render`，本轮无需改动。
-`fa_render` 只引用 `fa_core` + `fa_platform` + `fa_assets`，**不引用任何上层模块**。
+`fa_render` 只引用 `fa_core` + `fa_platform`，**不引用任何上层模块**，也不引用 `fa_assets`（纹理上传由 app 的 `ITextureUploader` 适配器桥接）。
 它**不需要 `/EHsc`**：不 include `nlohmann/json`，也就不会拉进 `<chrono>`。
 
 ### 删除

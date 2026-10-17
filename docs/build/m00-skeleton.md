@@ -47,7 +47,6 @@ graph TD
   assets --> platform
   render --> core
   render --> platform
-  render --> assets
   input --> core
   input --> platform
   tests[fa_tests 可执行] --> core
@@ -65,13 +64,15 @@ graph TD
 | `fa_core` | `C0DE0001-0001-4F00-9A00-000000000001` | StaticLibrary | `src/engine/core/src` | — |
 | `fa_platform` | `C0DE0002-0002-4F00-9A00-000000000002` | StaticLibrary | `src/engine/platform/src` | fa_core |
 | `fa_time` | `C0DE0003-0003-4F00-9A00-000000000003` | StaticLibrary | `src/engine/time/src` | fa_core |
-| `fa_assets` | `C0DE0004-0004-4F00-9A00-000000000004` | StaticLibrary | `src/engine/assets/src` | fa_core, fa_platform |
-| `fa_render` | `C0DE0005-0005-4F00-9A00-000000000005` | StaticLibrary | `src/engine/render/src` | fa_core, fa_platform, fa_assets |
+| `fa_assets` | `C0DE0004-0004-4F00-9A00-000000000004` | StaticLibrary | `src/engine/assets/src` | fa_core, fa_platform, fa_events |
+| `fa_render` | `C0DE0005-0005-4F00-9A00-000000000005` | StaticLibrary | `src/engine/render/src` | fa_core, fa_platform |
 | `fa_input` | `C0DE0006-0006-4F00-9A00-000000000006` | StaticLibrary | `src/engine/input/src` | fa_core, fa_platform |
 | `fa_app` | `C0DE00A0-00A0-4F00-9A00-00000000 00A0` | Application | `src/app` | 以上全部 |
 | `fa_tests` | `C0DE00FE-00FE-4F00-9A00-0000000000FE` | Application | `tests` | fa_core, fa_time + Catch2 |
 
 > `fa_app` 的 GUID 写作 `C0DE00A0-00A0-4F00-9A00-0000000000A0`（上表因排版断了空格，以这行为准）。
+
+> **M05 期间的修正**：`fa_assets` 增加 `fa_events` 引用（异步解码走 `JobSystem`）；`fa_render` 原本带了一条指向 `fa_assets` 的引用，实际没有任何源文件用到，已删除——M05 与 M06 因此编译期互不依赖，纹理上传经 `ITextureUploader` 反向接口在 `fa_app` 桥接。上表已是修正后的状态。
 
 固定 GUID：C++ 项目类型 `{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}`，解决方案文件夹 `{2150E333-8FDC-42A3-9474-1A3956D46DE8}`。
 
@@ -200,7 +201,7 @@ EndGlobal
 | fa_core | `src/engine/core/src/Version.cpp` |
 | fa_platform | `src/engine/platform/src/Platform.cpp` |
 | fa_time | `src/engine/time/src/FrameLoop.cpp` |
-| fa_assets | `src/engine/assets/src/AssetRegistry.cpp` |
+| fa_assets | `src/engine/assets/src/AssetRegistry.cpp`（M05 已删除，改由 `AssetManager.cpp` 等 5 个源文件承担） |
 | fa_render | `src/engine/render/src/Renderer.cpp` |
 | fa_input | `src/engine/input/src/InputSystem.cpp` |
 | fa_app | `src/app/main.cpp`（`int main()`，调用 M02 初始化后立即退出） |
