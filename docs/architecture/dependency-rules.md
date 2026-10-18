@@ -68,6 +68,7 @@
 - M15 只依赖 M01/M05，**不依赖 M11/M12/M16/M17**：内容定义只存 `ContentId`/值/`AssetId`，
   文件读取归 M05/composition root；数据库只做解析、合并、引用校验与查询。
 - M17 只依赖 M01/M11/M12/M13，**不依赖 M15/M16/M09/`fa_assets`/`fa_events`/`fa_input`**：内容 ID 暂用不透明 `payload`，工具通过 `IToolHandler` 注册，事件记录在 `events()`，输入来源由 M16 提供。放置占用用独立的 `PlacementGrid`，不直接改瓦片或碰撞体。
+- M18 只依赖 M01（`Result`）与 M15（`ContentId`/`ItemDef`），**不依赖 M11 的实现**（只 include `EntityId` 值类型头）、M09/M12/M13/M17/`fa_assets`：物品只存 `ContentId`/数量/耐久，`ContentDatabase` 是借用指针；使用效果通过 `IItemUseHandler` 注册，消耗由 handler 自己完成；事件记录在 `events()`，由组装根决定是否发 M03。
 - M25 可以协调多个玩法模块，但只通过它们的公开接口/事件；不得直接改对方内部状态。
 
 ### L4

@@ -69,6 +69,7 @@
     <ProjectReference Include="$(SolutionDir)src\engine\player\fa_player.vcxproj" />
     <ProjectReference Include="$(SolutionDir)src\engine\content\fa_content.vcxproj" />
     <ProjectReference Include="$(SolutionDir)src\engine\ui\fa_ui.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\inventory\fa_inventory.vcxproj" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>

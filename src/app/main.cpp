@@ -33,6 +33,14 @@
 #include <fa/interaction/InteractionService.hpp>
 #include <fa/interaction/PlacementGrid.hpp>
 #include <fa/interaction/ToolHandler.hpp>
+#include <fa/inventory/Equipment.hpp>
+#include <fa/inventory/Hotbar.hpp>
+#include <fa/inventory/Inventory.hpp>
+#include <fa/inventory/InventoryError.hpp>
+#include <fa/inventory/ItemStack.hpp>
+#include <fa/inventory/ItemUseHandler.hpp>
+#include <fa/inventory/ItemUseService.hpp>
+#include <fa/inventory/PlayerInventory.hpp>
 #include <fa/physics/Collider.hpp>
 #include <fa/physics/CollisionLayer.hpp>
 #include <fa/physics/PhysicsSystem.hpp>
@@ -122,7 +130,9 @@ constexpr std::string_view kContentText = R"({
     {"id": "item.turnip", "display_name": "Turnip", "category": "crop",
      "max_stack": 99, "sell_price": 35, "tags": ["crop", "spring"]},
     {"id": "item.turnip_soup", "display_name": "Turnip Soup", "category": "food",
-     "max_stack": 10, "sell_price": 120}
+     "max_stack": 10, "sell_price": 120},
+    {"id": "item.hoe", "display_name": "Hoe", "category": "tool",
+     "max_stack": 1, "sell_price": 0, "tags": ["tool"]}
   ],
   "crops": [
     {"id": "crop.turnip", "seed_item": "item.turnip_seed", "harvest_item": "item.turnip",
@@ -293,6 +303,40 @@ public:
     std::size_t uses = 0;
     std::uint32_t lastPayload = 0;
     fa::tilemap::TileCoord lastCell{};
+};
+
+/// \brief Counters for the one M18 sequence the smoke run performs.
+struct InventoryDemoStats {
+    int backpackItems = 0;
+    int backpackSlots = 0;
+    int hotbarItems = 0;
+    int selected = 0;
+    bool toolEquipped = false;
+    fa::content::ContentId toolId;
+    int soupUses = 0;
+    std::size_t inventoryEvents = 0;
+    std::size_t useEvents = 0;
+};
+
+/// \brief Consumes one food item and records the use.
+///
+/// M18 deliberately does not know what "food" does beyond the category string; a
+/// real M19/M20 handler would restore health, play a sound, etc. The handler owns
+/// consumption so the service can stay neutral.
+class ConsumableUseHandler final : public fa::inventory::IItemUseHandler {
+public:
+    [[nodiscard]] bool handles(const fa::content::ItemDef& item) const noexcept override {
+        return item.category == "food";
+    }
+
+    [[nodiscard]] fa::core::Status use(fa::inventory::ItemUseContext& context) override {
+        ++uses;
+        last = context.item.id;
+        return context.inventory.removeAt(context.slot, 1).ignoreValue();
+    }
+
+    int uses = 0;
+    fa::content::ContentId last;
 };
 
 /// \brief The demo world: a tile map with a solid wall, a trigger, and one body.
@@ -798,6 +842,91 @@ public:
         return fa::core::okStatus();
     }
 
+    /// \brief Builds the player containers and runs the one M18 demo sequence.
+    ///
+    /// The sequence exercises stacking (120 seeds become 99 + 21), quick transfer to
+    /// the hotbar, equipping a tool, selection changes and one food use. It is
+    /// deliberately data-only: no world entity is resolved, so the synthetic
+    /// `EntityId` is just recorded in the use event.
+    fa::core::Status initializeInventory() {
+        playerInventory = std::make_unique<fa::inventory::PlayerInventory>(20, 10, &content);
+        itemUse = std::make_unique<fa::inventory::ItemUseService>(content);
+        consumable = std::make_unique<ConsumableUseHandler>();
+        itemUse->registerHandler(*consumable);
+
+        const auto add = [this](std::string_view name, int count) -> fa::core::Status {
+            const auto result = playerInventory->backpack().add(
+                fa::inventory::ItemStack{fa::content::ContentId::fromName(name), count, -1});
+            if (result.isError()) {
+                return fa::core::Status::err(result.error());
+            }
+            if (result.value() != 0) {
+                return fa::core::errorStatus(fa::inventory::inventory_error::kInventoryFull,
+                                             "the demo backpack is too small");
+            }
+            return fa::core::okStatus();
+        };
+
+        if (const fa::core::Status status = add("item.turnip_seed", 120); status.isError()) {
+            return status;
+        }
+        if (const fa::core::Status status = add("item.turnip", 5); status.isError()) {
+            return status;
+        }
+        if (const fa::core::Status status = add("item.turnip_soup", 3); status.isError()) {
+            return status;
+        }
+        if (const fa::core::Status status = add("item.hoe", 1); status.isError()) {
+            return status;
+        }
+
+        // Slot 1 holds the 21 seeds that overflowed the first stack; slot 3 holds
+        // soup and slot 4 the hoe after the earlier adds.
+        if (const auto moved = playerInventory->moveToHotbar(1, -1); moved.isError()) {
+            return fa::core::Status::err(moved.error());
+        }
+        if (const auto moved = playerInventory->moveToHotbar(3, 1); moved.isError()) {
+            return fa::core::Status::err(moved.error());
+        }
+
+        auto hoe = playerInventory->backpack().takeAt(4);
+        if (hoe.isError()) {
+            return fa::core::Status::err(hoe.error());
+        }
+        if (const auto equipped =
+                playerInventory->equipment().equip(fa::inventory::EquipmentSlot::Tool, hoe.value());
+            equipped.isError()) {
+            return fa::core::Status::err(equipped.error());
+        }
+
+        static_cast<void>(playerInventory->hotbar().select(0));
+        static_cast<void>(playerInventory->hotbar().cycle(1));
+        static_cast<void>(playerInventory->hotbar().cycle(-1));
+
+        const fa::scene::EntityId player{1u, 1u};
+        if (const fa::core::Status used =
+                itemUse->use(playerInventory->hotbar().inventory(), 1, player);
+            used.isError()) {
+            return used;
+        }
+
+        const fa::inventory::Inventory& backpack = playerInventory->backpack();
+        const fa::inventory::Inventory& hotbar = playerInventory->hotbar().inventory();
+        const fa::inventory::ItemStack& tool =
+            playerInventory->equipment().at(fa::inventory::EquipmentSlot::Tool);
+
+        inventoryDemo.backpackItems = backpack.totalItems();
+        inventoryDemo.backpackSlots = backpack.usedSlots();
+        inventoryDemo.hotbarItems = hotbar.totalItems();
+        inventoryDemo.selected = playerInventory->hotbar().selected();
+        inventoryDemo.toolEquipped = !tool.empty();
+        inventoryDemo.toolId = tool.id;
+        inventoryDemo.soupUses = consumable->uses;
+        inventoryDemo.inventoryEvents = backpack.events().size() + hotbar.events().size();
+        inventoryDemo.useEvents = itemUse->events().size();
+        return fa::core::okStatus();
+    }
+
     /// \brief Uploads the built-in font atlas and the 1x1 white quad texture.
     ///
     /// M09 owns no GL objects: the composition root creates both textures and hands
@@ -954,6 +1083,13 @@ public:
     float sliderValue = 2.0f;
     std::size_t uiItems = 0;
     std::size_t uiPresses = 0;
+    /// M18 containers outlive the renderer; `content` is declared before them, so
+    /// they are destroyed first and never keep a dangling database pointer.
+    std::unique_ptr<fa::inventory::PlayerInventory> playerInventory;
+    /// The handler must outlive the service that stores a non-owning pointer to it.
+    std::unique_ptr<ConsumableUseHandler> consumable;
+    std::unique_ptr<fa::inventory::ItemUseService> itemUse;
+    InventoryDemoStats inventoryDemo;
     int quitEvents = 0;
     int resizeEvents = 0;
     int renderedFrames = 0;
@@ -1003,6 +1139,7 @@ public:
     fa::player::PlayerAnimationParams scenePlayerAnimation() const {
         return demoScene != nullptr ? demoScene->playerAnimation() : fa::player::PlayerAnimationParams{};
     }
+    InventoryDemoStats sceneInventoryStats() const { return inventoryDemo; }
     float scenePlayerStamina() const { return demoScene != nullptr ? demoScene->playerStamina() : 0.0f; }
     fa::physics::PhysicsStats scenePhysicsStats() const {
         return demoScene != nullptr ? demoScene->physicsStats() : fa::physics::PhysicsStats{};
@@ -1042,7 +1179,7 @@ private:
 
         const fa::ui::UiTheme& theme = ui->theme();
         if (showHud) {
-            const fa::core::Rect panel = fa::core::makeRect(8.0f, 8.0f, 236.0f, 52.0f);
+            const fa::core::Rect panel = fa::core::makeRect(8.0f, 8.0f, 236.0f, 62.0f);
             ui->panel(panel, theme.panel);
             ui->border(panel, theme.panelBorder);
 
@@ -1064,6 +1201,19 @@ private:
             std::snprintf(info, sizeof(info), "MARKER %d %d", static_cast<int>(marker.x),
                           static_cast<int>(marker.y));
             ui->text(info, fa::core::makeRect(14.0f, 46.0f, 180.0f, 7.0f), label);
+
+            if (playerInventory != nullptr) {
+                const fa::inventory::ItemStack& selected = playerInventory->hotbar().selectedStack();
+                const fa::content::ItemDef* selectedDef =
+                    selected.empty() ? nullptr : content.item(selected.id);
+                char hotbarText[64]{};
+                std::snprintf(hotbarText, sizeof(hotbarText), "SLOT %d/%d  %s x%d",
+                              playerInventory->hotbar().selected() + 1,
+                              playerInventory->hotbar().inventory().slotCount(),
+                              selectedDef != nullptr ? selectedDef->displayName.c_str() : "EMPTY",
+                              selected.count);
+                ui->text(hotbarText, fa::core::makeRect(14.0f, 58.0f, 220.0f, 7.0f), label);
+            }
         }
 
         if (ui->button(fa::ui::UiId::fromName("pause"), "PAUSE", fa::core::makeRect(254.0f, 8.0f, 96.0f, 16.0f))
@@ -1192,6 +1342,14 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    const fa::core::Status inventoryStatus = sink.initializeInventory();
+    if (inventoryStatus.isError()) {
+        std::printf("inventory init failed (%d): %s\n", inventoryStatus.error().code,
+                    inventoryStatus.error().message.c_str());
+        platform->shutdown();
+        return 1;
+    }
+
     // A hidden window may still get a software GL context, but CI images that have
     // none must not fail the smoke run; a visible run has to be able to draw.
     const fa::core::Status renderStatus = sink.initializeRenderer(*platform, options.visibleWindow);
@@ -1279,6 +1437,7 @@ int main(int argc, char** argv) {
     const std::size_t uiPresses = sink.uiPressCount();
     const bool hudVisible = sink.uiHudVisible();
     const float uiSlider = sink.uiSliderValue();
+    const InventoryDemoStats inventoryStats = sink.sceneInventoryStats();
     // The context belongs to the renderer and dies with the window, so it has to go
     // before the platform shuts that window down.
     sink.shutdownRenderer();
@@ -1395,6 +1554,12 @@ int main(int argc, char** argv) {
                 interactionStats.placements, interactionStats.events, interactionStats.occupiedCells,
                 interactionStats.previewBefore ? "valid" : "invalid",
                 interactionStats.previewAfter ? "valid" : "invalid");
-    std::printf("M02+M03+M04+M05+M06+M07+M09+M11+M12+M13+M15+M16+M17 smoke test OK\n");
+    const char* toolName = inventoryStats.toolEquipped ? inventoryStats.toolId.name().c_str() : "none";
+    std::printf("  m18: backpack %d item(s) in %d slot(s), hotbar %d item(s), selected %d, tool %s, "
+                "soup uses %d, %zu inventory event(s), %zu use event(s)\n",
+                inventoryStats.backpackItems, inventoryStats.backpackSlots, inventoryStats.hotbarItems,
+                inventoryStats.selected, toolName, inventoryStats.soupUses, inventoryStats.inventoryEvents,
+                inventoryStats.useEvents);
+    std::printf("M02+M03+M04+M05+M06+M07+M09+M11+M12+M13+M15+M16+M17+M18 smoke test OK\n");
     return 0;
 }

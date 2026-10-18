@@ -1,6 +1,6 @@
 # 文档索引
 
-Florian's Adventure 的全部设计文档入口。当前状态：设计方案已完成，**M00 构建骨架、M01 Core、M02 Platform、M03 Events & Jobs、M04 Time & Frame Loop、M05 Asset Pipeline、M06 Rendering、M07 Input、M09 UI & Text、M11 Scene / World & ECS、M12 Tilemap & World、M13 Physics & Collision、M15 Content Database、M16 Player Controller、M17 Interaction & Grid Placement 已实现并通过实测**，其余模块处于设计阶段。
+Florian's Adventure 的全部设计文档入口。当前状态：设计方案已完成，**M00 构建骨架、M01 Core、M02 Platform、M03 Events & Jobs、M04 Time & Frame Loop、M05 Asset Pipeline、M06 Rendering、M07 Input、M09 UI & Text、M11 Scene / World & ECS、M12 Tilemap & World、M13 Physics & Collision、M15 Content Database、M16 Player Controller、M17 Interaction & Grid Placement、M18 Inventory & Items 已实现并通过实测**，其余模块处于设计阶段。
 
 > **要继续开发，先读 [计划完成情况](plan-status.md)** —— 它记录每个模块的状态、已有接口面、遗留风险与下一步建议，是新对话接手任务的唯一入口。
 
@@ -49,6 +49,7 @@ Florian's Adventure 的全部设计文档入口。当前状态：设计方案已
 | [M12 瓦片地图・实测](build/m12-tilemap.md) | `Tilemap` 值类型与 `ISolidTiles` 适配器、walkable 反向逻辑、JSON 无异常读取、视锥裁剪的边界、自动瓦片快照 |
 | [M13 物理与碰撞・实测](build/m13-physics-collision.md) | `std::unordered_map` 触发 C4530、负方向扫掠符号写反、半开区间吃掉边界、掩码必须双向、系统借用派生成员导致的悬空 |
 | [M17 交互与格子放置・实测](build/m17-interaction-grid.md) | `payload` 取代内容 ID、`canInteract` 需要 actor、`cellsAlong` 的 NaN/负数、放置校验顺序、占用与碰撞两套权威 |
+| [M18 背包与物品・实测](build/m18-inventory-items.md) | 内容驱动堆叠、原子移除、耐久分栈、快捷栏/装备、使用分发、事件记录与 `/EHsc` 结论 |
 | [M16 玩家控制器・实测](build/m16-player-controller.md) | 输入适配与控制器拆分、只写 `Velocity`、动作锁、闪避速度平台、无敌窗口、测试顺序踩坑 |
 | [M15 内容数据库・实测](build/m15-content-database.md) | ID 前缀/哈希、季节掩码、错误收集与重试、非事务加载、`std::span` 与指针稳定性、`/EHsc` 结论 |
 
@@ -70,9 +71,10 @@ Florian's Adventure 的全部设计文档入口。当前状态：设计方案已
 | M15 Content Database | 已实现 | 390 用例 / 18421 断言 | `ContentId` + `ItemDef`/`CropDef`/`RecipeDef`/`EnemyDef`/`LootTableDef`、季节掩码、JSON 多文档合并、前缀/重复/必填/数值校验、四类引用完整性、全量错误收集、按 ID/标签/类别查询 |
 | M16 Player Controller | 已实现 | 379 用例 / 18243 断言 | `PlayerController` 走/跑/加速度/斜向归一化、朝向主导轴、状态机与动作锁、耐力/闪避/无敌窗口、`PlayerSystem` 输入适配、`PlayerActionRequest` 记录、动画参数 |
 | M17 Interaction & Grid Placement | 已实现 | 365 用例 / 18136 断言 | `InteractionService` 目标选择（实体优先/朝向/距离/视线）、`Interactable` 组件、`IToolHandler` 分发、`PlacementGrid` 多格占用、`PlacementPreview`、交互/放置事件记录 |
+| M18 Inventory & Items | 已实现 | 428 用例 / 18820 断言 | `ItemStack` + 内容驱动堆叠、`Inventory` 固定槽位与原子移除/交换/拆分/合并/转移、`Hotbar` 选中与消耗、`Equipment` Tool/Weapon、`IItemUseHandler` 分发、`PlayerInventory` 快速转移 |
 
-各模块按 ID 排序，实际落地顺序为 M01 → M02 → M04 → M03 → M07 → M06 → M05 → M11 → M13 → M12 → M17 → M16 → M15 → M09，因此「完成时累计」栏不是单调递增的；
-当前总计 **406 用例 / 18532 断言**。逐模块状态与下一步建议见 [计划完成情况](plan-status.md)。
+各模块按 ID 排序，实际落地顺序为 M01 → M02 → M04 → M03 → M07 → M06 → M05 → M11 → M13 → M12 → M17 → M16 → M15 → M09 → M18，因此「完成时累计」栏不是单调递增的；
+当前总计 **428 用例 / 18820 断言**。逐模块状态与下一步建议见 [计划完成情况](plan-status.md)。
 
 三配置（Debug / Development / Release × x64）Rebuild 均零警告零错误。
 

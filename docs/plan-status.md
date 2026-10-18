@@ -2,9 +2,10 @@
 
 **这份文档是「继续任务」的唯一入口。** 新开一个对话继续开发时，先读这里，再读对应的模块文档与构建记录，不需要重新翻历史。
 
-- 最后更新：M09 UI & Text 交付完成（实现 + 文档回写）
-- 当前总体：**28 个模块中 15 个已实现**（M00–M07 + M09 + M11 + M12 + M13 + M15 + M16 + M17），其余处于设计完成、尚未编码
-- 当前可运行内容：窗口 + 主循环 + 事件/作业 + 输入 + 渲染 + 资源缓存 + **ECS 世界与场景栈** + **AABB 碰撞与查询** + **瓦片地图与图层提取** + **交互目标选择与格子放置** + **玩家移动/朝向/耐力/闪避** + **带引用校验的内容数据库** + **内置位图字体与即时模式 HUD/控件**；画面是**全部色块占位**，40×23 地图（920 格、143 实心、16 可耕地）由 M12 提取，标记由 M16 驱动、M13 求解并停在 x=344，M17 在标记旁选目标、调用一次工具并占一个放置格，M15 加载物品/作物/配方/敌人/掉落表，M09 每帧绘制 HUD、耐力条、按钮、复选框与滑条，但还没有完整玩法
+- 最后更新：M18 Inventory & Items 交付完成（实现 + 文档回写）
+- 下一步：M08 Audio（用户已选择；后端方案与实施计划见 [交接文档](build/m08-audio.md)）
+- 当前总体：**28 个模块中 16 个已实现**（M00–M07 + M09 + M11 + M12 + M13 + M15 + M16 + M17 + M18），其余处于设计完成、尚未编码
+- 当前可运行内容：窗口 + 主循环 + 事件/作业 + 输入 + 渲染 + 资源缓存 + **ECS 世界与场景栈** + **AABB 碰撞与查询** + **瓦片地图与图层提取** + **交互目标选择与格子放置** + **玩家移动/朝向/耐力/闪避** + **带引用校验的内容数据库** + **内置位图字体与即时模式 HUD/控件** + **物品堆叠/背包/快捷栏/装备/使用分发**；画面是**全部色块占位**，40×23 地图（920 格、143 实心、16 可耕地）由 M12 提取，标记由 M16 驱动、M13 求解并停在 x=344，M17 在标记旁选目标、调用一次工具并占一个放置格，M15 加载物品/作物/配方/敌人/掉落表，M18 堆叠 120 个种子、转移 21 个到快捷栏、装备锄头并使用一份汤，M09 每帧绘制 HUD、耐力条、按钮、复选框、滑条与热键栏文本，但还没有完整玩法
 
 ## 1. 长期有效的规约
 
@@ -45,7 +46,7 @@
 
 ## 3. 模块状态
 
-### 已实现（15 个）
+### 已实现（16 个）
 
 | 模块 | 名称 | 用例（新增） | 关键交付 | 文档 |
 |---|---|---|---|---|
@@ -64,11 +65,13 @@
 | M15 | Content Database | 11 | `ContentId` + `ItemDef`/`CropDef`/`RecipeDef`/`EnemyDef`/`LootTableDef`、季节掩码、JSON 多文档合并、前缀/重复/必填/数值校验、四类引用完整性、全量错误收集、按 ID/标签/类别查询 | [设计](modules/15-content-database.md) · [实测](build/m15-content-database.md) |
 | M16 | Player Controller | 14 | `PlayerController` 走/跑/加速度/斜向归一化、朝向主导轴、状态机与动作锁、耐力/闪避/无敌窗口、`PlayerSystem` 输入适配、`PlayerActionRequest` 记录、动画参数 | [设计](modules/16-player-controller.md) · [实测](build/m16-player-controller.md) |
 | M17 | Interaction & Grid Placement | 15 | `InteractionService` 目标选择（实体优先/朝向/距离/视线）、`Interactable` 组件、`IToolHandler` 分发、`PlacementGrid` 多格占用、`PlacementPreview`、交互/放置事件记录 | [设计](modules/17-interaction-grid-placement.md) · [实测](build/m17-interaction-grid.md) |
+| M18 | Inventory & Items | 22 | `ItemStack` + 内容驱动堆叠、`Inventory` 固定槽位与原子移除/交换/拆分/合并/转移、`Hotbar` 选中与消耗、`Equipment` Tool/Weapon、`IItemUseHandler` 分发、`PlayerInventory` 快速转移 | [设计](modules/18-inventory-items.md) · [实测](build/m18-inventory-items.md) |
 
-实际落地顺序是 M01 → M02 → M04 → M03 → M07 → M06 → M05 → M11 → M13 → M12 → M17 → M16 → M15 → M09，所以上表顺序与时间顺序不同。
+实际落地顺序是 M01 → M02 → M04 → M03 → M07 → M06 → M05 → M11 → M13 → M12 → M17 → M16 → M15 → M09 → M18，所以上表顺序与时间顺序不同。
 M12 排在 M13 之后，是因为它要适配 M13 的 `ISolidTiles`；M17 排在 M12 之后，因为它要用地图做目标与放置校验；
 M16 把输入、物理和 M17 的交互请求串起来；M15 是 P0，后续 M18/M19/M24 都靠它；
-M09 最后落地，补上了此前「任何文字都画不出来」的空白，并为 M18/M23/M25 的界面做准备。
+M09 补上了此前「任何文字都画不出来」的空白；M18 接着把 M15 的物品定义变成可堆叠、可转移、可使用的容器状态，
+并在 HUD 里显示选中的快捷栏物品。
 
 M05 交付时还顺带清理了一处历史遗留：`fa_render.vcxproj` 里有一条指向 `fa_assets` 的 `ProjectReference`，但没有任何源文件用它，已删除。**M05 与 M06 现在编译期互不依赖**——上传走 `ITextureUploader` 反向接口，由 `fa_app` 适配。
 
@@ -106,32 +109,36 @@ M09 只引用 `fa_core` 与 `fa_render`，**不引用 `fa_assets`、`fa_input`�
 文字与四边形都产出纯数据 `DrawItem`，所以 `fa_ui` 不需要 GL、资源或输入模块，也**不需要 `/EHsc`**
 （见 [构建记录](build/m09-ui-and-text.md) §5 第 10 条）。
 
+M18 只引用 `fa_core` 与 `fa_content`，**不引用 `fa_assets`、`fa_render`、`fa_input`、`fa_interaction`**；
+只 include `fa/scene/EntityId.hpp`（纯值头），不链接 `fa_scene`。物品只存 `ContentId`/数量/耐久，
+不存 `ItemDef*`；`ContentDatabase` 是借用指针，生命周期由组装根保证。handler 注册表用 `std::vector`
+线性查找，所以 `fa_inventory` 也**不需要 `/EHsc`**（见 [构建记录](build/m18-inventory-items.md) §5 第 10 条）。
+
 **验收快照**（测试三配置一致；冒烟三配置都是 exit 0。固定步数由墙钟累积，并行负载下可能明显多于 60，不要逐字比对帧数或 y 坐标；x 坐标才是稳定断言）：
 
 ```text
-fa_tests.exe → All tests passed (18532 assertions in 406 test cases)
+fa_tests.exe → All tests passed (18820 assertions in 428 test cases)
+             "[inventory]" → 288 assertions in 22 test cases
+             "~[inventory]" → 18532 assertions in 406 test cases
              "[ui]"       → 111 assertions in 16 test cases
-             "~[ui]"      → 18421 assertions in 390 test cases
              "[content]"  → 178 assertions in 11 test cases
-             "~[content]" → 18243 assertions in 379 test cases
              "[player]"   → 107 assertions in 14 test cases
-fa_app.exe --frames 60 → M02+M03+M04+M05+M06+M07+M09+M11+M12+M13+M15+M16+M17 smoke test OK
+fa_app.exe --frames 60 → M02+M03+M04+M05+M06+M07+M09+M11+M12+M13+M15+M16+M17+M18 smoke test OK
 ```
 
-### 未实现（13 个）
+### 未实现（12 个）
 
 | 模块 | 名称 | 优先级 | 依赖是否已就绪 | 备注 |
 |---|---|---|---|---|
 | M08 | Audio | P1 | 需要 M05 ✅ | 需要 SDL_mixer 或自研混音；首个真正的新增第三方依赖点 |
 | M10 | Animation | P1 | 需要 M05 ✅、M06 ✅ | 剪辑/混合/状态机边界；`revision` 已为它准备 |
 | M14 | Serialization & Save | P1 | 需要 M11 ✅ | 多槽存档、游戏时间每 12 小时自动存档 |
-| M18 | Inventory & Items | P1 | 需要 M15 ✅、M09 ✅ | |
 | M19 | Farming & World Objects | P1 | 需要 M12 ✅、M17 ✅、M22 | 作物、耕地、温室 |
-| M20 | Combat | P1 | 需要 M13 ✅、M16 ✅、M18 | 含耐力与闪避（ADR-0002） |
+| M20 | Combat | P1 | 需要 M13 ✅、M16 ✅、M18 ✅ | 含耐力与闪避（ADR-0002） |
 | M21 | AI | P1 | 需要 M11 ✅、M13 ✅ | |
 | M22 | Calendar / Weather / Lighting | P1 | 需要 M04 ✅、M06 ✅ | 季节驱动 M19/M21 行为差异 |
 | M23 | NPC / Dialogue / Quests | P2 | 需要 M09 ✅、M15 ✅ | |
-| M24 | Economy / Crafting / Shops | P2 | 需要 M15 ✅、M18 | 星露谷式加工链 |
+| M24 | Economy / Crafting / Shops | P2 | 需要 M15 ✅、M18 ✅ | 星露谷式加工链 |
 | M25 | Game Flow | P1 | 需要 M11 ✅、M09 ✅、M14 | 场景栈、菜单流 |
 | M26 | Editor Tools | P2 | 需要 M05 ✅、M06 ✅ | |
 | M27 | Debug Tools | P1 | 需要 M06 ✅ | `AssetStats` 已为它的资源面板准备 |
@@ -152,6 +159,12 @@ fa_app.exe --frames 60 → M02+M03+M04+M05+M06+M07+M09+M11+M12+M13+M15+M16+M17 s
 | 输入 | `IInput`、`ActionId`、`ActionMap`、上下文栈 | `fa/input/` |
 | 文字绘制 | `buildBuiltinFont`、`glyphFor`、`measureText`、`drawText`、`FontAtlas`、`TextStyle`、`TextMetrics`、`TextAlign` | `fa/ui/Font.hpp`、`fa/ui/Text.hpp` |
 | 即时模式 UI | `UiContext`（`beginFrame`/`panel`/`border`/`progressBar`/`text`/`button`/`checkbox`/`slider`/`submit`）、`UiId`、`UiInputState`、`UiResult`、`UiTheme` | `fa/ui/Ui.hpp` |
+| 物品栈 | `ItemStack`（`ContentId`/`count`/`durability`） | `fa/inventory/ItemStack.hpp` |
+| 背包容器 | `Inventory`（`add`/`remove`/`removeAt`/`takeAt`/`swap`/`split`/`merge`/`transferTo`/`restore`）、`InventoryEvent`、`InventoryStats` | `fa/inventory/Inventory.hpp` |
+| 快捷栏 / 装备 | `Hotbar`（`select`/`cycle`/`consumeSelected`）、`Equipment`（`Tool`/`Weapon`） | `fa/inventory/Hotbar.hpp`、`fa/inventory/Equipment.hpp` |
+| 物品使用 | `IItemUseHandler`、`ItemUseContext`、`ItemUseService`、`ItemUseEvent` | `fa/inventory/ItemUseHandler.hpp`、`fa/inventory/ItemUseService.hpp` |
+| 玩家容器 | `PlayerInventory`（`backpack`/`hotbar`/`equipment`/`moveToHotbar`/`moveToBackpack`） | `fa/inventory/PlayerInventory.hpp` |
+| 背包错误码 | `inventory_error::*`（7019–7030） | `fa/inventory/InventoryError.hpp` |
 | 实体与组件（**L2，玩法都用它**） | `World`、`EntityId`、`CommandBuffer`、`Transform`、`Sprite` | `fa/scene/` |
 | 系统调度 | `ISystem`、`SystemPipeline`（`onFixedUpdate`/`onVariableUpdate`/`onRenderExtract`） | `fa/scene/System.hpp` |
 | 场景 | `IScene`、`BasicScene`、`SceneStack` | `fa/scene/` |
@@ -203,6 +216,12 @@ fa_app.exe --frames 60 → M02+M03+M04+M05+M06+M07+M09+M11+M12+M13+M15+M16+M17 s
 | UI 按 `sortY` 排序 | 重叠窗口的绘制顺序由屏幕 y 决定，不是提交顺序 | M09 |
 | UI 无布局组/裁剪/滚动 | 复杂面板要手算矩形，超出面板仍会绘制 | M09 / M18 / M26 |
 | UI 不自动切输入上下文 | 打开 UI 时玩法输入仍生效，需调用方屏蔽 | M09 / M25 |
+| 耐久只参与分栈不参与移除 | `remove(id,count)` 会合并不同耐久的计数，返回耐久取自首槽 | M18 / M20 |
+| 使用不自动消耗 | handler 忘记 `removeAt` 会无限使用 | M18 / M19 / M20 |
+| 商店交易不原子 | M24 需要保证扣钱与给物品同时成功 | M18 / M24 |
+| 无重量/容量/分类限制 | 任何物品可进任何容器；Tool 槽可以放食物 | M18 / M19 |
+| `ContentDatabase` 生命周期 | 容器存借用指针，内容库先销毁会让 `maxStackFor`/use 悬空 | M18 |
+| 背包事件只记录不发布 | M03 接线由组装根决定；UI 需要自己清事件 | M18 / M03 |
 | 无渲染目标 / 后处理 | 做不了光照、屏幕扭曲 | M22 需要时再加 `RenderPass` |
 | 单一混合模式 | 预乘 alpha、加色做不了 | M06（分批断点已留好） |
 | 资源全是占位 | 看不到真实画面 | 真实美术后置，见 [art-policy](architecture/art-policy.md) |
@@ -252,9 +271,11 @@ fa_app.exe --frames 60 → M02+M03+M04+M05+M06+M07+M09+M11+M12+M13+M15+M16+M17 s
 
 ## 6. 下一步建议
 
+> **下一步模块由用户选择**；下表只列依赖已就绪的候选，不再默认推荐。
+
 | 候选 | 理由 | 风险 |
 |---|---|---|
-| **M18 Inventory & Items**（推荐） | M15 ✅ 与 M09 ✅ 都已就绪：可以把物品定义、堆叠、装备、使用与背包网格接到 HUD/控件上，这是下一条能产生可见玩法的路径 | 堆叠/装备/掉落规则要一次定清；背包网格需要 M09 后续补布局组与滚动区 |
+| M20 Combat | M13 ✅、M16 ✅、M18 ✅ 都已就绪：装备/消耗品、耐力/闪避、碰撞与伤害判定可以接起来 | 伤害/死亡/掉落/受击状态要一次定清 |
 | M22 Calendar / Weather / Lighting | M19 的前置；M12 的 `MapAmbient` 已为光照/室内外准备；M09 已能显示日期/时间/季节 | 日历/季节/天气规则与光照叠加需要设计 |
 | M10 Animation | 依赖 M05 ✅ + M06 ✅ 已就绪；M16 已经产出 `PlayerAnimationParams`，正好接上 | 剪辑/混合/状态机边界要一次想清楚 |
 | M14 Serialization & Save | 依赖 M11 ✅；多槽 + 每游戏日 12 小时自动存档的需求已定 | 需要先决定「存世界快照还是存场景描述」 |
