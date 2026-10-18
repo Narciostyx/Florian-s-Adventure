@@ -181,6 +181,6 @@ foreach ($cfg in @('Debug','Development','Release')) {
 3. 大地图全量载入；128×128×3 层可接受，更大需要分块。
 4. 自动瓦片编辑后必须重新烘焙。
 5. 传送点只是数据；场景切换由 M25 消费。
-6. JSON 图层是扁平数组，大图不适合手写。
+6. JSON 图层是扁平数组，大图不适合手写；M26 已提供 `saveTilemapToJson()` 与编辑器。
 7. 纹理名到句柄的绑定由 composition root 完成，地图不会自动加载图集。
 8. 地图仍无昼夜/光照叠加；M22 消费 `MapAmbient` 后才能看到效果。

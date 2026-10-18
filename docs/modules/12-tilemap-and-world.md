@@ -132,6 +132,7 @@ TileExtractStats extractTiles(const Tilemap& map, render::RenderQueue& queue,
 class TilemapExtractSystem final : public scene::ISystem { ... };
 
 core::Result<Tilemap> loadTilemapFromJson(std::string_view json);
+std::string saveTilemapToJson(const Tilemap& map);
 
 struct AutotileRule {
     TileId base;
@@ -214,9 +215,9 @@ std::size_t bakeAutotiles(Tilemap& map, int layerIndex, const AutotileRule& rule
 
 ```text
 src/engine/include/fa/tilemap/   TileId, TileDef, Tilemap, TilemapExtract,
-                                 TilemapLoader, Autotile, TilemapError
+                                 TilemapLoader, TilemapWriter, Autotile, TilemapError
 src/engine/tilemap/src/          Tilemap.cpp, TilemapExtract.cpp,
-                                 TilemapLoader.cpp, Autotile.cpp
+                                 TilemapLoader.cpp, TilemapWriter.cpp, Autotile.cpp
 ```
 
 测试：`tests/tilemap.test.cpp`，17 个用例 / 275 条断言，覆盖：
@@ -241,7 +242,8 @@ src/engine/tilemap/src/          Tilemap.cpp, TilemapExtract.cpp,
 - 新增自动瓦片规则：`AutotileRule` 是数据，未来可替换为策略对象（47 变体 / Wang）。
 - 大地图分块：`Tilemap` 可以增加 chunk 管理，`tileAt` / `extractTiles` 接口不变。
 - Tiled 导入：`loadTilemapFromJson` 可以作为一个独立 loader，运行时格式保持稳定。
-- M26 编辑器：直接编辑 `TileLayer::tiles` 与 `TileDef`，保存为同一 JSON。
+- M26 编辑器：直接编辑 `TileLayer::tiles` 与 `TileDef`，用 `saveTilemapToJson`
+  保存为同一 JSON；往返由 `tests/editor.test.cpp` 覆盖。
 
 ## 9. 风险与开放问题
 
@@ -250,7 +252,7 @@ src/engine/tilemap/src/          Tilemap.cpp, TilemapExtract.cpp,
 - 全量载入内存：128×128×3 层可接受；更大需要分块。
 - 自动瓦片在编辑后必须重新烘焙，运行时不自动重算。
 - 传送点目前只是数据查询；真正切场景由 M25 消费。
-- JSON 的图层数据是扁平数组，手写大图不便；M26 或导入器应负责生成。
+- JSON 的图层数据是扁平数组，手写大图不便；M26 编辑器或导入器负责生成。
 - `kVirtualHeight = 360` 仍是 22.5 格；演示地图取 23 行，相机夹取会裁掉底部
   半格。更大的地图要么按 23 行布局，要么改 `640×352`（M10/M12）。
 - 纹理绑定按名称由 composition root 完成；地图 JSON 不会自动加载纹理。

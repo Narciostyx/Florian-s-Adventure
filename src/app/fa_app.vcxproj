@@ -62,6 +62,7 @@
     <ProjectReference Include="$(SolutionDir)src\engine\world\fa_world.vcxproj" />
     <ProjectReference Include="$(SolutionDir)src\engine\farming\fa_farming.vcxproj" />
     <ProjectReference Include="$(SolutionDir)src\engine\ai\fa_ai.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\editor\fa_editor.vcxproj" Condition="'$(Configuration)' != 'Release'" />
     <ProjectReference Include="$(SolutionDir)src\engine\input\fa_input.vcxproj" />
     <ProjectReference Include="$(SolutionDir)src\engine\events\fa_events.vcxproj" />
   </ItemGroup>

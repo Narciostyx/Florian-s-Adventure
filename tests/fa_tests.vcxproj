@@ -76,6 +76,7 @@
     <ClCompile Include="world.test.cpp" />
     <ClCompile Include="farming.test.cpp" />
     <ClCompile Include="ai.test.cpp" />
+    <ClCompile Include="editor.test.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="$(SolutionDir)src\engine\core\fa_core.vcxproj" />
@@ -101,6 +102,7 @@
     <ProjectReference Include="$(SolutionDir)src\engine\world\fa_world.vcxproj" />
     <ProjectReference Include="$(SolutionDir)src\engine\farming\fa_farming.vcxproj" />
     <ProjectReference Include="$(SolutionDir)src\engine\ai\fa_ai.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\editor\fa_editor.vcxproj" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>

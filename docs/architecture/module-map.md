@@ -113,7 +113,9 @@ flowchart TB
   M23 --> M15
   M24 --> M18
   M25 --> M14
-  M26 --> M15
+ M26 --> M09
+ M26 --> M12
+ M26 --> M15
  M27 --> M09
  M27 --> M13
 ```
@@ -179,6 +181,9 @@ flowchart TB
 
 ### L4 工具
 
+- **M26** 是叶子工具，只在 Debug/Development 链接；v1 只编辑 `Tilemap` 并用
+  M09 画面板，不反向依赖玩法模块。`FA_ENABLE_EDITOR` 与非 Release 的
+  `ProjectReference` 双重保证发布构建不链接。
 - **M26/M27** 只读或受控修改运行时数据；发布构建可完全剔除。
 - **M27** 只引用 `fa_core`、`fa_platform`、`fa_render`、`fa_scene`、`fa_physics`、`fa_ui`；
   命令由 composition root 注册，`DebugStats` 由 app 填充，实体检查器只做值快照。

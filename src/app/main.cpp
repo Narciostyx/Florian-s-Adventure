@@ -46,6 +46,9 @@
 #include <fa/content/ContentDatabase.hpp>
 #include <fa/ai/AiService.hpp>
 #include <fa/ai/AiTypes.hpp>
+#if defined(FA_ENABLE_EDITOR)
+#include <fa/editor/EditorOverlay.hpp>
+#endif
 #include <fa/events/EventBus.hpp>
 #include <fa/events/JobSystem.hpp>
 #include <fa/farming/FarmingService.hpp>
@@ -96,6 +99,7 @@
 #include <fa/scene/World.hpp>
 #include <fa/tilemap/Tilemap.hpp>
 #include <fa/tilemap/TilemapExtract.hpp>
+#include <fa/tilemap/TilemapLoader.hpp>
 #include <fa/time/FrameContext.hpp>
 #include <fa/time/FrameLoop.hpp>
 #include <fa/ui/Font.hpp>
@@ -340,6 +344,27 @@ struct AiDemoStats {
     std::size_t pathNodes = 0;
     fa::ai::AiStats stats;
 };
+
+#if defined(FA_ENABLE_EDITOR)
+/// \brief Snapshot of the M26 editor and its save/load round-trip.
+struct EditorDemoStats {
+    bool active = false;
+    fa::editor::EditorTool tool = fa::editor::EditorTool::Brush;
+    int layer = 0;
+    unsigned brush = 0;
+    std::size_t undoDepth = 0;
+    std::size_t redoDepth = 0;
+    std::size_t previewCells = 0;
+    std::uint64_t commands = 0;
+    std::uint64_t undos = 0;
+    std::uint64_t redos = 0;
+    bool dirty = false;
+    bool saveOk = false;
+    bool loadOk = false;
+    int mapWidth = 0;
+    int mapHeight = 0;
+};
+#endif
 
 /// \brief Records the one generic tool call the smoke run dispatches.
 ///
@@ -587,6 +612,12 @@ public:
     }
 
     [[nodiscard]] std::size_t groundTiles() const noexcept { return m_map.cellCount(); }
+
+    /// \brief M26 edits the same map the runtime extracts.
+    [[nodiscard]] fa::tilemap::Tilemap& editableMap() noexcept { return m_map; }
+    [[nodiscard]] fa::core::Rect mapTileRect(fa::tilemap::TileCoord cell) const noexcept {
+        return m_map.tileRect(cell);
+    }
 
     [[nodiscard]] fa::tilemap::TilemapStats tilemapStats() const noexcept { return m_map.stats(); }
 
@@ -1365,8 +1396,55 @@ public:
             demoScene = nullptr;
             return pushed;
         }
+
+#if defined(FA_ENABLE_EDITOR)
+        editor = std::make_unique<fa::editor::EditorOverlay>(demoScene->editableMap());
+        runEditorDemo();
+#endif
         return fa::core::okStatus();
     }
+
+#if defined(FA_ENABLE_EDITOR)
+    /// \brief Saves the live map through M26 and proves the runtime loader reads it.
+    void runEditorDemo() {
+        editorDemo = EditorDemoStats{};
+        if (editor == nullptr || fileSystem == nullptr) {
+            return;
+        }
+        static_cast<void>(fileSystem->createDirectories("saves"));
+        const std::string text = editor->mapText();
+        const fa::core::Status saved = fileSystem->writeTextAtomic("saves/editor-map.json", text);
+        editorDemo.saveOk = saved.isOk();
+        const fa::core::Result<fa::tilemap::Tilemap> loaded =
+            fa::tilemap::loadTilemapFromJson(text);
+        editorDemo.loadOk = loaded.isOk() && loaded.value().width() == demoScene->editableMap().width() &&
+                            loaded.value().height() == demoScene->editableMap().height();
+    }
+
+    /// \brief Saves the current editor map to the editor slot.
+    void saveEditorMap() {
+        if (editor == nullptr || fileSystem == nullptr) {
+            return;
+        }
+        static_cast<void>(fileSystem->createDirectories("saves"));
+        editorDemo.saveOk =
+            fileSystem->writeTextAtomic("saves/editor-map.json", editor->mapText()).isOk();
+    }
+
+    /// \brief Reads the editor slot and validates it with the runtime loader.
+    void loadEditorMap() {
+        if (editor == nullptr || fileSystem == nullptr) {
+            return;
+        }
+        const fa::core::Result<std::string> text = fileSystem->readText("saves/editor-map.json");
+        if (text.isError()) {
+            editorDemo.loadOk = false;
+            return;
+        }
+        const fa::core::Result<fa::tilemap::Tilemap> loaded = fa::tilemap::loadTilemapFromJson(text.value());
+        editorDemo.loadOk = loaded.isOk();
+    }
+#endif
 
     /// \brief Builds the player containers and runs the one M18 demo sequence.
     ///
@@ -1835,6 +1913,10 @@ public:
     /// Handles go first, then the cache (whose destructor releases the GPU textures),
     /// and only then the renderer those textures belong to.
     void shutdownRenderer() {
+#if defined(FA_ENABLE_EDITOR)
+        // M26 borrows the scene's map; drop it before the stack destroys that map.
+        editor.reset();
+#endif
         // The scenes go first: their sprites only hold texture handles, but the stack
         // calls onExit() on the way out, which is where per-scene GPU work would be
         // released.
@@ -1874,6 +1956,62 @@ public:
     }
 
     void onEvents(std::span<const fa::platform::PlatformEvent> events) override {
+#if defined(FA_ENABLE_EDITOR)
+        for (const fa::platform::PlatformEvent& event : events) {
+            if (event.type != fa::platform::PlatformEventType::KeyDown) {
+                continue;
+            }
+            if (event.scancode == fa::platform::Scancode::F2) {
+                if (editor != nullptr) {
+                    editor->toggle();
+                }
+                continue;
+            }
+            if (editor == nullptr || !editor->active()) {
+                continue;
+            }
+            switch (event.scancode) {
+                case fa::platform::Scancode::Digit1:
+                    editor->setTool(fa::editor::EditorTool::Brush);
+                    break;
+                case fa::platform::Scancode::Digit2:
+                    editor->setTool(fa::editor::EditorTool::Rect);
+                    break;
+                case fa::platform::Scancode::Digit3:
+                    editor->setTool(fa::editor::EditorTool::Fill);
+                    break;
+                case fa::platform::Scancode::Digit4:
+                    editor->setTool(fa::editor::EditorTool::Erase);
+                    break;
+                case fa::platform::Scancode::Digit5:
+                    editor->setTool(fa::editor::EditorTool::Picker);
+                    break;
+                case fa::platform::Scancode::LeftBracket:
+                    editor->setLayer(editor->stats().layer - 1);
+                    break;
+                case fa::platform::Scancode::RightBracket:
+                    editor->setLayer(editor->stats().layer + 1);
+                    break;
+                case fa::platform::Scancode::Z:
+                    editor->undo();
+                    break;
+                case fa::platform::Scancode::Y:
+                    editor->redo();
+                    break;
+                case fa::platform::Scancode::S:
+                    saveEditorMap();
+                    break;
+                case fa::platform::Scancode::L:
+                    loadEditorMap();
+                    break;
+                case fa::platform::Scancode::Escape:
+                    editor->setActive(false);
+                    break;
+                default:
+                    break;
+            }
+        }
+#endif
 #if defined(FA_ENABLE_DEBUG_TOOLS)
         /// The console swallows text/keys while it is open; everything else still
         /// reaches M07, so closing the console restores gameplay input exactly.
@@ -1985,6 +2123,11 @@ public:
     /// store texture handles, but their sprites should not outlive the GPU textures.
     fa::scene::SceneStack stack;
     DemoScene* demoScene = nullptr;
+#if defined(FA_ENABLE_EDITOR)
+    /// \brief Declared after `stack` so it is destroyed before the scene's map.
+    std::unique_ptr<fa::editor::EditorOverlay> editor;
+    EditorDemoStats editorDemo;
+#endif
     fa::render::RenderQueue renderQueue;
     std::size_t extractedItems = 0;
     /// M09 holds only borrowed handles; `uiFont` is declared before `ui` so the
@@ -2085,6 +2228,28 @@ public:
     AiDemoStats sceneAiStats() const {
         return demoScene != nullptr ? demoScene->aiDemoStats() : AiDemoStats{};
     }
+#if defined(FA_ENABLE_EDITOR)
+    EditorDemoStats sceneEditorStats() const {
+        EditorDemoStats result = editorDemo;
+        if (editor != nullptr) {
+            const fa::editor::EditorStats stats = editor->stats();
+            result.active = stats.active;
+            result.tool = stats.tool;
+            result.layer = stats.layer;
+            result.brush = stats.brush.value;
+            result.undoDepth = stats.undoDepth;
+            result.redoDepth = stats.redoDepth;
+            result.previewCells = stats.previewCells;
+            result.commands = stats.commands;
+            result.undos = stats.undos;
+            result.redos = stats.redos;
+            result.dirty = stats.dirty;
+            result.mapWidth = stats.mapWidth;
+            result.mapHeight = stats.mapHeight;
+        }
+        return result;
+    }
+#endif
     fa::audio::AudioStats audioStats() const {
         return audioEngine != nullptr ? audioEngine->stats() : fa::audio::AudioStats{};
     }
@@ -2178,6 +2343,11 @@ private:
             debugTools->draw(*ui, camera.visibleRect());
         }
 #endif
+#if defined(FA_ENABLE_EDITOR)
+        if (editor != nullptr) {
+            editor->draw(*ui);
+        }
+#endif
         uiItems = ui->itemCount();
         ui->submit(renderQueue);
     }
@@ -2229,6 +2399,20 @@ private:
         if (demoScene != nullptr) {
             demoScene->setCursorWorld(cursor);
         }
+#if defined(FA_ENABLE_EDITOR)
+        if (editor != nullptr) {
+            fa::editor::EditorFrameInput editorInput;
+            editorInput.cursorWorld = cursor;
+            editorInput.cursorScreen = camera.worldToViewport(cursor);
+            if (fa::input::MouseDevice* mouse = input.mouse(); mouse != nullptr) {
+                editorInput.primaryDown = mouse->held(fa::platform::MouseButton::Left);
+                editorInput.primaryPressed = mouse->pressed(fa::platform::MouseButton::Left);
+                editorInput.primaryReleased = mouse->released(fa::platform::MouseButton::Left);
+                editorInput.secondaryPressed = mouse->pressed(fa::platform::MouseButton::Right);
+            }
+            editor->update(editorInput);
+        }
+#endif
 
         // M09 appends its HUD and widget quads after the world; the queue sort puts
         // them on RenderLayer::UI, so they draw last. Debug shapes go straight to the
@@ -2317,6 +2501,19 @@ private:
                 renderer->drawDebugRect(targetRect, demoScene->interactionTargetColor());
             }
         }
+#if defined(FA_ENABLE_EDITOR)
+        if (editor != nullptr && editor->active() && demoScene != nullptr) {
+            const fa::tilemap::TileCoord hover = editor->hover();
+            if (demoScene->editableMap().contains(hover.x, hover.y)) {
+                renderer->drawDebugRect(demoScene->mapTileRect(hover),
+                                        fa::core::Color{1.0f, 0.85f, 0.2f, 1.0f}, 2.0f);
+            }
+            for (const fa::tilemap::TileCoord& cell : editor->previewCells()) {
+                renderer->drawDebugRect(demoScene->mapTileRect(cell),
+                                        fa::core::Color{0.3f, 0.8f, 1.0f, 0.8f});
+            }
+        }
+#endif
 
 #if defined(FA_ENABLE_DEBUG_TOOLS)
         /// F5 toggles collision boxes. M13 produces the shapes, M27 adapts them to
@@ -2491,6 +2688,9 @@ int main(int argc, char** argv) {
     const CombatDemoStats combatStats = sink.sceneCombatStats();
     const FarmingDemoStats farmingStats = sink.sceneFarmingStats();
     const AiDemoStats aiStats = sink.sceneAiStats();
+#if defined(FA_ENABLE_EDITOR)
+    const EditorDemoStats editorStats = sink.sceneEditorStats();
+#endif
     const fa::audio::AudioStats audioStats = sink.audioStats();
     const SaveDemoStats saveDemo = sink.saveDemoStats();
     const CalendarDemoStats calendarStats = sink.calendarStats();
@@ -2705,8 +2905,20 @@ int main(int argc, char** argv) {
                 static_cast<unsigned long long>(calendarStats.hours),
                 static_cast<unsigned long long>(calendarStats.seasons),
                 static_cast<unsigned long long>(calendarStats.weatherChanges), calendarStats.events);
+#if defined(FA_ENABLE_EDITOR)
+    const std::string_view editorToolName = fa::editor::toString(editorStats.tool);
+    std::printf("  m26: %s, tool %.*s, layer %d, brush %u, undo %zu / redo %zu, "
+                "%llu command(s), dirty %s, map %dx%d, save %s, load %s\n",
+                editorStats.active ? "active" : "off", static_cast<int>(editorToolName.size()),
+                editorToolName.data(), editorStats.layer, editorStats.brush, editorStats.undoDepth,
+                editorStats.redoDepth, static_cast<unsigned long long>(editorStats.commands),
+                editorStats.dirty ? "yes" : "no", editorStats.mapWidth, editorStats.mapHeight,
+                editorStats.saveOk ? "ok" : "fail", editorStats.loadOk ? "ok" : "fail");
+#else
+    std::printf("  m26: disabled (release build)\n");
+#endif
 #if defined(FA_ENABLE_DEBUG_TOOLS)
-    std::printf("M02+M03+M04+M05+M06+M07+M08+M09+M10+M11+M12+M13+M14+M15+M16+M17+M18+M19+M20+M21+M22+M27 smoke test OK\n");
+    std::printf("M02+M03+M04+M05+M06+M07+M08+M09+M10+M11+M12+M13+M14+M15+M16+M17+M18+M19+M20+M21+M22+M26+M27 smoke test OK\n");
 #else
     std::printf("M02+M03+M04+M05+M06+M07+M08+M09+M10+M11+M12+M13+M14+M15+M16+M17+M18+M19+M20+M21+M22 smoke test OK\n");
 #endif

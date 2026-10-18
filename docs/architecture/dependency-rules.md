@@ -99,6 +99,9 @@
 - 调试/编辑器工具可以读取运行时数据，但写入必须通过受控接口。
 - 发布构建必须能通过 `FA_ENABLE_EDITOR=0` / `FA_ENABLE_DEBUG_TOOLS=0` 完全剔除。
 - 玩法不得依赖 M26/M27；调试代码通过接口注册，不能成为玩法逻辑的一部分。
+- M26 是叶子工具，依赖 M06/M09/M12：`MapEditor` 直接改 `Tilemap`，`EditorOverlay`
+  用 M09 画面板，保存复用 M12 的 `saveTilemapToJson()`。它不链接平台层，
+  保存/加载由 composition root 用 M02 完成；发布构建不链接。
 - M27 只引用 `fa_core`、`fa_platform`、`fa_render`、`fa_scene`、`fa_physics`、`fa_ui`，
   **不依赖任何玩法模块**：控制台命令由 composition root 注册，`DebugStats` 由 app 填充，
   实体检查器只产出值快照。`DebugInspector.cpp` include `fa/scene/World.hpp`（`<unordered_map>`），
