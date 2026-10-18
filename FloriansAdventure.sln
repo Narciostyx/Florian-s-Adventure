@@ -18,6 +18,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "fa_events", "src\engine\eve
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "fa_scene", "src\engine\scene\fa_scene.vcxproj", "{C0DE0008-0008-4F00-9A00-000000000008}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "fa_physics", "src\engine\physics\fa_physics.vcxproj", "{C0DE0009-0009-4F00-9A00-000000000009}"
+EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "fa_app", "src\app\fa_app.vcxproj", "{C0DE00A0-00A0-4F00-9A00-0000000000A0}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "fa_tests", "tests\fa_tests.vcxproj", "{C0DE00FE-00FE-4F00-9A00-0000000000FE}"
@@ -77,6 +79,12 @@ Global
 		{C0DE0008-0008-4F00-9A00-000000000008}.Development|x64.Build.0 = Development|x64
 		{C0DE0008-0008-4F00-9A00-000000000008}.Release|x64.ActiveCfg = Release|x64
 		{C0DE0008-0008-4F00-9A00-000000000008}.Release|x64.Build.0 = Release|x64
+		{C0DE0009-0009-4F00-9A00-000000000009}.Debug|x64.ActiveCfg = Debug|x64
+		{C0DE0009-0009-4F00-9A00-000000000009}.Debug|x64.Build.0 = Debug|x64
+		{C0DE0009-0009-4F00-9A00-000000000009}.Development|x64.ActiveCfg = Development|x64
+		{C0DE0009-0009-4F00-9A00-000000000009}.Development|x64.Build.0 = Development|x64
+		{C0DE0009-0009-4F00-9A00-000000000009}.Release|x64.ActiveCfg = Release|x64
+		{C0DE0009-0009-4F00-9A00-000000000009}.Release|x64.Build.0 = Release|x64
 		{C0DE00A0-00A0-4F00-9A00-0000000000A0}.Debug|x64.ActiveCfg = Debug|x64
 		{C0DE00A0-00A0-4F00-9A00-0000000000A0}.Debug|x64.Build.0 = Debug|x64
 		{C0DE00A0-00A0-4F00-9A00-0000000000A0}.Development|x64.ActiveCfg = Development|x64

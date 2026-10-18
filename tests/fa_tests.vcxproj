@@ -63,6 +63,7 @@
     <ProjectReference Include="$(SolutionDir)src\engine\assets\fa_assets.vcxproj" />
     <ProjectReference Include="$(SolutionDir)src\engine\render\fa_render.vcxproj" />
     <ProjectReference Include="$(SolutionDir)src\engine\scene\fa_scene.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\physics\fa_physics.vcxproj" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>

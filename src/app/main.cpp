@@ -9,6 +9,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <memory>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -27,6 +28,11 @@
 #include <fa/events/EventBus.hpp>
 #include <fa/events/JobSystem.hpp>
 #include <fa/input/Input.hpp>
+#include <fa/physics/Collider.hpp>
+#include <fa/physics/CollisionLayer.hpp>
+#include <fa/physics/PhysicsSystem.hpp>
+#include <fa/physics/PhysicsWorld.hpp>
+#include <fa/physics/TileCollision.hpp>
 #include <fa/platform/FileSystem.hpp>
 #include <fa/platform/Platform.hpp>
 #include <fa/render/IRenderer.hpp>
@@ -199,44 +205,29 @@ private:
     fa::events::Subscription m_uploadSubscription;
 };
 
-/// \brief Moves one entity along the input axis, so the pipeline has real work to do.
+/// \brief The demo world: a tile map with a solid wall, a trigger, and one body.
 ///
-/// It reads the axis through a borrowed pointer because systems must not own the
-/// input system: the scene forwards the axis once per fixed step.
-class MoveMarkerSystem final : public fa::scene::ISystem {
-public:
-    MoveMarkerSystem(fa::scene::EntityId entity, const fa::core::Vec2& axis, float speed)
-        : m_entity(entity), m_axis(&axis), m_speed(speed) {}
-
-    [[nodiscard]] std::string_view name() const noexcept override { return "MoveMarkerSystem"; }
-
-    void onFixedUpdate(fa::scene::World& world, const fa::time::FrameContext& context,
-                       fa::scene::CommandBuffer& commands) override {
-        static_cast<void>(commands);
-        static_cast<void>(context);
-        fa::scene::Transform* transform = world.tryGet<fa::scene::Transform>(m_entity);
-        if (transform == nullptr) {
-            return;
-        }
-        const float step = m_speed * static_cast<float>(fa::time::kFixedStepSeconds);
-        transform->position += (*m_axis) * step;
-    }
-
-private:
-    fa::scene::EntityId m_entity;
-    const fa::core::Vec2* m_axis = nullptr;
-    float m_speed = 0.0f;
-};
-
-/// \brief The M11 scene: a world of sprite entities driven by the system pipeline.
-///
-/// It replaces the hand-rolled draw list the earlier smoke runs used. The ground grid
-/// and the marker are entities now, a system moves the marker from the input axis, and
-/// the sprite extractor turns the whole world into render queue items - which is the
-/// only bridge between M11 and M06.
+/// This is the smallest scene that shows M11 and M13 working together. The ground and
+/// the marker are entities, the marker's motion comes from `PhysicsSystem` integrating
+/// a `Velocity`, and a wall column stops it part way across the plot - so the smoke run
+/// proves the solver rather than just that a number changed. A trigger volume on the
+/// path reports one enter and one leave.
 class DemoScene final : public fa::scene::BasicScene {
 public:
-    DemoScene() : BasicScene("demo") {}
+    static constexpr int kColumns = 40;
+    static constexpr int kRows = 23;
+    /// \brief Column of the one-tile wall the marker drives into.
+    static constexpr int kWallColumn = 22;
+    static constexpr float kMarkerSpeed = 120.0f;
+    static constexpr float kMarkerSize = 8.0f;
+
+    DemoScene() : BasicScene("demo") {
+        m_tiles.resize(kColumns, kRows, static_cast<float>(fa::render::kTileSize));
+        for (int row = 0; row < kRows; ++row) {
+            static_cast<void>(m_tiles.setSolid(kWallColumn, row, true));
+        }
+        m_tiles.setBorderSolid(true);
+    }
 
     /// \brief Hands the scene the textures its entities draw with.
     ///
@@ -247,14 +238,66 @@ public:
         m_marker = marker;
     }
 
-    void setMoveAxis(fa::core::Vec2 axis) { m_axis = axis; }
+    /// \brief Turns the input axis into the marker's velocity.
+    ///
+    /// The scene owns the intent, `PhysicsWorld` is the only writer of position. That
+    /// split is what lets M16 replace this method later without touching the solver.
+    void setMoveAxis(fa::core::Vec2 axis) {
+        fa::physics::Velocity* velocity = world().tryGet<fa::physics::Velocity>(m_markerEntity);
+        if (velocity != nullptr) {
+            velocity->linear = fa::core::Vec2{axis.x * kMarkerSpeed, axis.y * kMarkerSpeed};
+        }
+    }
 
     void onEnter() override {
-        if (m_markerEntity.isValid()) {
-            return;
+        if (!m_built) {
+            buildWorld();
+            m_built = true;
         }
-        constexpr int kColumns = 40;
-        constexpr int kRows = 23;
+        auto physics = std::make_unique<fa::physics::PhysicsSystem>(&m_tiles, 64.0f);
+        m_physics = physics.get();
+        systems().add(std::move(physics));
+        systems().add(std::make_unique<fa::scene::SpriteExtractSystem>());
+    }
+
+    void onExit() override {
+        // The physics system borrows `m_tiles`, so it has to die before the grid does.
+        systems().clear();
+        m_physics = nullptr;
+    }
+
+    /// \brief The marker, so the caller can prove the world really moved.
+    [[nodiscard]] fa::core::Vec2 markerPosition() const {
+        const fa::scene::Transform* transform = world().tryGet<fa::scene::Transform>(m_markerEntity);
+        return transform != nullptr ? transform->position : fa::core::Vec2{};
+    }
+
+    [[nodiscard]] std::size_t groundTiles() const noexcept { return m_groundTiles; }
+
+    [[nodiscard]] std::size_t solidTiles() const noexcept { return m_tiles.solidCount(); }
+
+    [[nodiscard]] fa::physics::PhysicsStats physicsStats() const {
+        return m_physics != nullptr ? m_physics->physics().stats() : fa::physics::PhysicsStats{};
+    }
+
+    /// \brief Distance from the marker to the wall straight ahead, or -1 on no hit.
+    ///
+    /// A real ray query rather than a coordinate subtraction: this is the path arrows
+    /// and melee reach will take.
+    [[nodiscard]] float probeDistance() const {
+        if (m_physics == nullptr) {
+            return -1.0f;
+        }
+        const fa::core::Vec2 position = markerPosition();
+        const fa::core::Vec2 origin{position.x + kMarkerSize * 0.5f, position.y + kMarkerSize * 0.5f};
+        const std::optional<fa::physics::RayHit> hit =
+            m_physics->physics().raycast(world(), origin, fa::core::Vec2{1.0f, 0.0f}, 100.0f,
+                                         fa::physics::maskOf(fa::physics::CollisionLayer::World));
+        return hit.has_value() ? hit->distance : -1.0f;
+    }
+
+private:
+    void buildWorld() {
         const float tile = static_cast<float>(fa::render::kTileSize);
         for (int row = 0; row < kRows; ++row) {
             for (int column = 0; column < kColumns; ++column) {
@@ -268,6 +311,9 @@ public:
                 sprite.texture = m_ground;
                 sprite.size = fa::core::Vec2{tile, tile};
                 sprite.layer = fa::render::RenderLayer::Ground;
+                // Solid cells get a darker tint, so the wall is visible and not only felt.
+                sprite.tint = m_tiles.isSolid(column, row) ? fa::core::Color{0.35f, 0.4f, 0.55f, 1.0f}
+                                                           : fa::core::Color{1.0f, 1.0f, 1.0f, 1.0f};
                 static_cast<void>(world().add<fa::scene::Sprite>(id, sprite));
                 ++m_groundTiles;
             }
@@ -280,29 +326,43 @@ public:
 
         fa::scene::Sprite sprite;
         sprite.texture = m_marker;
-        sprite.size = fa::core::Vec2{8.0f, 8.0f};
+        sprite.size = fa::core::Vec2{kMarkerSize, kMarkerSize};
         sprite.tint = fa::core::Color{1.0f, 0.35f, 0.35f, 1.0f};
         sprite.layer = fa::render::RenderLayer::Actors;
         static_cast<void>(world().add<fa::scene::Sprite>(m_markerEntity, sprite));
 
-        systems().add(std::make_unique<MoveMarkerSystem>(m_markerEntity, m_axis, 120.0f));
-        systems().add(std::make_unique<fa::scene::SpriteExtractSystem>());
+        fa::physics::Collider body;
+        body.size = fa::core::Vec2{kMarkerSize, kMarkerSize};
+        body.layer = fa::physics::CollisionLayer::Player;
+        body.mask =
+            fa::physics::maskOf(fa::physics::CollisionLayer::World) | fa::physics::CollisionLayer::Trigger;
+        static_cast<void>(world().add<fa::physics::Collider>(m_markerEntity, body));
+        static_cast<void>(world().add<fa::physics::Velocity>(m_markerEntity, fa::physics::Velocity{}));
+
+        // A trigger volume on the marker's path, tall enough that the marker cannot slip
+        // around it, so both entering and leaving are observed in the same run.
+        const fa::scene::EntityId trigger = world().create();
+        fa::scene::Transform triggerTransform;
+        triggerTransform.position = fa::core::Vec2{330.0f, 196.0f};
+        static_cast<void>(world().add<fa::scene::Transform>(trigger, triggerTransform));
+
+        fa::physics::Collider volume;
+        volume.size = fa::core::Vec2{8.0f, 40.0f};
+        volume.layer = fa::physics::CollisionLayer::Trigger;
+        volume.mask = fa::physics::maskOf(fa::physics::CollisionLayer::Player);
+        volume.isTrigger = true;
+        static_cast<void>(world().add<fa::physics::Collider>(trigger, volume));
     }
 
-    /// \brief The marker, so the caller can prove the world really moved.
-    [[nodiscard]] fa::core::Vec2 markerPosition() const {
-        const fa::scene::Transform* transform = world().tryGet<fa::scene::Transform>(m_markerEntity);
-        return transform != nullptr ? transform->position : fa::core::Vec2{};
-    }
-
-    [[nodiscard]] std::size_t groundTiles() const noexcept { return m_groundTiles; }
-
-private:
     fa::render::TextureHandle m_ground;
     fa::render::TextureHandle m_marker;
+    /// Declared before the systems are created so it outlives them: `PhysicsSystem`
+    /// borrows the grid, and `onExit` clears the pipeline before this member dies.
+    fa::physics::TileGrid m_tiles;
     fa::scene::EntityId m_markerEntity;
-    fa::core::Vec2 m_axis{};
+    fa::physics::PhysicsSystem* m_physics = nullptr;
     std::size_t m_groundTiles = 0;
+    bool m_built = false;
 };
 
 /// \brief Temporary sink: counts events and reports the frame timing it observes.
@@ -524,6 +584,11 @@ public:
         return demoScene != nullptr ? demoScene->world().stats() : fa::scene::WorldStats{};
     }
     std::size_t sceneGroundTiles() const { return demoScene != nullptr ? demoScene->groundTiles() : 0; }
+    std::size_t sceneSolidTiles() const { return demoScene != nullptr ? demoScene->solidTiles() : 0; }
+    fa::physics::PhysicsStats scenePhysicsStats() const {
+        return demoScene != nullptr ? demoScene->physicsStats() : fa::physics::PhysicsStats{};
+    }
+    float sceneProbeDistance() const { return demoScene != nullptr ? demoScene->probeDistance() : -1.0f; }
     fa::core::Vec2 sceneMarkerPosition() const {
         return demoScene != nullptr ? demoScene->markerPosition() : fa::core::Vec2{};
     }
@@ -675,6 +740,10 @@ int main(int argc, char** argv) {
     const fa::core::Vec2 marker = sink.sceneMarkerPosition();
     const std::size_t systemCount = sink.sceneSystemCount();
     const std::size_t groundTiles = sink.sceneGroundTiles();
+    const std::size_t solidTiles = sink.sceneSolidTiles();
+    // Probe first: the ray is a real query and its counter belongs in the summary.
+    const float probeDistance = sink.sceneProbeDistance();
+    const fa::physics::PhysicsStats physicsStats = sink.scenePhysicsStats();
     // The context belongs to the renderer and dies with the window, so it has to go
     // before the platform shuts that window down.
     sink.shutdownRenderer();
@@ -734,8 +803,22 @@ int main(int argc, char** argv) {
                 static_cast<unsigned long long>(stackStats.replacements),
                 static_cast<unsigned long long>(stackStats.pauses),
                 static_cast<unsigned long long>(stackStats.resumes));
-    std::printf("       %zu ground tile(s), marker at (%g, %g)\n", groundTiles,
+    std::printf("       %zu ground tile(s), %zu solid, marker at (%g, %g)\n", groundTiles, solidTiles,
                 static_cast<double>(marker.x), static_cast<double>(marker.y));
-    std::printf("M02+M03+M04+M05+M06+M07+M11 smoke test OK\n");
+    std::printf("  m13: %zu collider(s), %zu trigger, %llu move(s), %llu blocked, %zu cell(s) "
+                "(worst bucket %zu)\n",
+                physicsStats.bodies, physicsStats.triggerBodies,
+                static_cast<unsigned long long>(physicsStats.moves),
+                static_cast<unsigned long long>(physicsStats.blockedMoves), physicsStats.cells,
+                physicsStats.maxCellOccupancy);
+    std::printf("       %llu step(s), %llu overlap quer(ies), %llu ray(s), %llu trigger begin(s) / "
+                "%llu end(s), %zu event(s) last step\n",
+                static_cast<unsigned long long>(physicsStats.steps),
+                static_cast<unsigned long long>(physicsStats.overlapQueries),
+                static_cast<unsigned long long>(physicsStats.rayQueries),
+                static_cast<unsigned long long>(physicsStats.triggerBegins),
+                static_cast<unsigned long long>(physicsStats.triggerEnds), physicsStats.triggerEvents);
+    std::printf("       nearest wall straight ahead: %g px\n", static_cast<double>(probeDistance));
+    std::printf("M02+M03+M04+M05+M06+M07+M11+M13 smoke test OK\n");
     return 0;
 }
