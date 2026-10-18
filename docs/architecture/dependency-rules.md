@@ -49,8 +49,12 @@
 - M11 是通用 ECS/场景容器；不得 include 任何 `fa/game/...`。
 - M11 只依赖 M01（基础类型）、M04（`FrameContext`）、M06（`DrawItem`/`TextureHandle`/`RenderQueue`）。**不依赖 M05**：`Sprite` 只存裸 `TextureHandle`，纹理保活归加载方，避免把资源系统的异步加载与 `/EHsc` 拖进每个使用 ECS 的模块。
 - M11 的提取接口产出**纯数据** `RenderQueue`，不接收 `IRenderer&`——这样渲染提取的测试不需要 GL 上下文。
-- M12 只负责地图数据、图层与查询；耕地/作物规则属于 M19。
+- M13 只依赖 M01（`Rect`/`Vec2`）、M04（`FrameContext`）、M11（`World`/`Transform`/`EntityId`/`ISystem`）。**不依赖 M12**：静态地形只通过单方法接口 `ISolidTiles`（`tileSize`/`isSolid`）借用，M12 落地时实现该接口即可，地图模块因此可以反过来依赖物理而不成环。
+- M13 **不依赖 M06**：调试绘制产出 `DebugShape` 列表而不是接收 `IRenderer&`；`fa_render` 只在 `fa_scene` 的 `ISystem` 头里间接出现，`fa_physics.vcxproj` 也没有 `fa_render` 的 ProjectReference。
+- M13 **不依赖 M03、M05**：触发器事件按步记录在 `triggerEvents()`，由组装根决定是否发布到事件总线；碰撞体不含任何资源句柄。
+- M13 是唯一写入 `Transform::position` 的模块（通过 `PhysicsWorld::move`/`step`）；其余模块只写 `Velocity` 或只读位置。
 - M13 只负责几何与碰撞求解；伤害/交互判定属于 M20/M17。
+- M12 只负责地图数据、图层与查询；耕地/作物规则属于 M19。
 - M14 只负责序列化机制与存档槽；具体组件的读写由组件/玩法模块注册。
 
 ### L3

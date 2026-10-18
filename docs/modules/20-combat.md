@@ -62,14 +62,14 @@ struct AttackHitbox {
     float activeFrom; // 动画时间
     float activeTo;
     int damage;
-    CollisionLayer targetMask;
+    CollisionMask targetMask;   // M13 的 mask 是位集合，不是单个层
 };
 
 struct Projectile {
     glm::vec2 velocity;
     float lifetime;
     int damage;
-    CollisionLayer targetMask;
+    CollisionMask targetMask;
     scene::EntityId owner;
 };
 ```
@@ -120,6 +120,13 @@ public:
 ## 5. 依赖关系
 
 - 依赖 M03（事件）、M06（特效绘制）、M11（ECS）、M13（查询/射线）、M15（武器/敌人/掉落定义）、M18（掉落入包）。
+
+> **M13 已实现**（见 [M13 物理与碰撞](13-physics-collision.md)）。伤害判定直接复用查询，不要自己遍历实体算盒子：
+> - 近战：`PhysicsWorld::overlap(world, reach, maskOf(CollisionLayer::Enemy))`，`reach` 用 24×20 判定盒；
+> - 箭矢：`PhysicsWorld::raycast(world, origin, direction, range, maskOf(CollisionLayer::Enemy))`，
+>   返回 `RayHit{entity, point, normal, distance}`；瓦片也会命中（`hitTile == true`），所以箭会撞墙；
+> - 击退：`PhysicsWorld::move(world, target, KnockbackDelta)` 或临时写 `Velocity`，**不要**直接改 `Transform::position`；
+> - 攻击盒的 `targetMask` 是 `CollisionMask`（位集合）。
 - 不依赖 M21；M21 通过 `ICombatService` 发起攻击。
 - M16 只发布 `AttackRequested`，由 M20 执行。
 

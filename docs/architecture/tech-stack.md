@@ -97,6 +97,7 @@ FloriansAdventure.sln
 ├─ src/engine/render/fa_render.vcxproj          -> fa_render
 ├─ src/engine/input/fa_input.vcxproj            -> fa_input
 ├─ src/engine/scene/fa_scene.vcxproj            -> fa_scene
+├─ src/engine/physics/fa_physics.vcxproj        -> fa_physics
 ├─ （待建）src/engine/{audio,ui,animation,tilemap,physics,save}/
 ├─ （待建）src/game/...                          -> 玩法模块（M15–M25）
 ├─ src/app/fa_app.vcxproj                       -> 可执行文件

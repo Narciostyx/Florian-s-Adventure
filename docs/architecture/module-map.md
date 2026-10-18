@@ -18,8 +18,8 @@
 | M09 | UI & Text | L1 | P1 | 立即模式 UI、布局、字体、HUD/菜单控件 | M01–M06 |
 | M10 | Animation | L1 | P1 | 精灵动画、状态机、帧事件、混合 | M01–M05 |
 | M11 | Scene / World & ECS | L2 | P0 | 场景栈、World、EntityId、SparseSet、System 调度 | M01, M04, M06 |
-| M12 | Tilemap & World | L2 | P1 | 瓦片地图、图层、地图查询、地图加载 | M05–M11 |
-| M13 | Physics & Collision | L2 | P0 | AABB/圆形碰撞、瓦片碰撞、移动求解、查询 | M01–M11 |
+| M12 | Tilemap & World | L2 | P1 | 瓦片地图、图层、地图查询、地图加载 | M05, M11, M13 |
+| M13 | Physics & Collision | L2 | P0 | AABB 碰撞、瓦片碰撞、移动求解、空间查询、触发器 | M01, M04, M11 |
 | M14 | Serialization & Save | L2 | P1 | JSON 序列化、存档槽、版本迁移、原子写入 | M01–M05, M11 |
 | M15 | Content Database | L3 | P0 | 物品/作物/敌人/配方等内容定义与校验 | M01–M05 |
 | M16 | Player Controller | L3 | P1 | 玩家移动、朝向、交互输入、状态切换 | M07, M11, M13 |

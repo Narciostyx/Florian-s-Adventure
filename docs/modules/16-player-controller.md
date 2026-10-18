@@ -58,16 +58,18 @@ struct Wallet { int gold = 0; };
 - 闪避：`Dodge` 动作 → 48px / 0.25s 位移曲线，0.05–0.20s 无敌，0.5s 冷却，消耗 25 耐力。
 - 攻击：`LightAttack` 15 耐力、`HeavyAttack` 25 耐力，由 M20 校验与扣除。
 - 耐力不足时动作被拒绝并触发一次反馈事件（不排队）。
-- 角色锚点为脚底中心；精灵 16×24，碰撞盒 10×6。
+- 精灵 16×24，`Transform::position` 为**精灵左上角**；脚部碰撞盒 10×6，`Collider::offset` 为 `{3, 18}`（见 [ADR-0003](../adr/0003-tile-and-collision-metrics.md)）。
 
 ## 4. 公共接口草案
 
 ```cpp
 namespace fa::player {
 
+/// M13 已实现：`PhysicsWorld` 是具体类，不存 `World&`，每次调用显式传世
+/// 界。控制器只写 `Velocity`，位置由 `PhysicsSystem` 写。
 class PlayerSystem : public scene::ISystem {
 public:
-    PlayerSystem(input::IInput& input, physics::IPhysicsWorld& physics, anim::IAnimationService& anim);
+    PlayerSystem(input::IInput& input, physics::PhysicsWorld& physics, anim::IAnimationService& anim);
     std::string_view name() const noexcept override { return "PlayerSystem"; }
     void onFixedUpdate(scene::World& world, const time::FrameContext& time,
                        scene::CommandBuffer& commands) override;
@@ -91,6 +93,15 @@ struct PlayerIntent {
 - 依赖 M07（输入）、M10（动画）、M11（ECS）、M13（物理）、M15（物品/工具定义）。
 - 不直接依赖 M17/M18/M19/M20；通过事件（`UseToolRequested`、`AttackRequested`、`InteractRequested`）解耦。
 - 相机跟随使用 M06 的 `Camera2D`，不持有渲染器。
+
+> **M13 已实现**（见 [M13 物理与碰撞](13-physics-collision.md)）。本模块落地时应当：
+> 1. 玩家实体挂 `fa::physics::Collider`，直接复用 `fa::physics::kPlayerFeetCollider`
+>    （10×6，offset `{3, 18}`，相对精灵左上角）；
+> 2. `PlayerSystem` 只写 `fa::physics::Velocity::linear`（走 90 / 跑 150，斜向归一化），
+>    **不要**自己加 `Transform::position`——位置由 `PhysicsSystem` 写；
+> 3. 闪避用 `PhysicsWorld::move(world, player, DodgeDirection * 48.0f)` 一帧推完，
+>    或在其上做 0.25s 的速度曲线；无敌窗口是 M20 的状态，不是物理的；
+> 4. `PhysicsSystem` 必须排在 `PlayerSystem` 之后，否则动作晚一帧生效。
 
 ## 6. 扩展点
 

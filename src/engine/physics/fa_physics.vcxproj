@@ -42,16 +42,15 @@
     </ClCompile>
   </ItemDefinitionGroup>
   <!-- fa_core for Rect/Vec2, fa_scene for World/Transform/EntityId and ISystem.
-       fa_time and fa_render are listed because ISystem's hooks name FrameContext and
-       RenderQueue, so their headers are part of this project's public surface even
-       though no physics source calls into them. No fa_assets, no fa_events: trigger
-       overlap is recorded in a per-step list and the composition root decides whether
-       to publish it, which keeps physics testable without a bus
+       No fa_render edge: physics produces plain rectangles and ids and never names a
+       render type, so `fa_render` only shows up transitively through `fa_scene`'s
+       `ISystem` header. No fa_assets and no fa_events either: trigger overlap is
+       recorded in a per-step list and the composition root decides whether to publish
+       it, which keeps physics testable without a bus
        (docs/modules/13-physics-collision.md section 5). -->
   <ItemGroup>
     <ProjectReference Include="$(SolutionDir)src\engine\core\fa_core.vcxproj" />
     <ProjectReference Include="$(SolutionDir)src\engine\time\fa_time.vcxproj" />
-    <ProjectReference Include="$(SolutionDir)src\engine\render\fa_render.vcxproj" />
     <ProjectReference Include="$(SolutionDir)src\engine\scene\fa_scene.vcxproj" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

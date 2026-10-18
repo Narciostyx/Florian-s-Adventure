@@ -538,5 +538,5 @@ M02+M03+M04+M05+M06+M07+M11 smoke test OK
 | 无场景过渡（淡入淡出、异步加载） | 切场景是硬切 | `SceneStack` 已有 `replace`；过渡效果归 M25 |
 | 场景与存档的关系未定 | 存世界快照还是存场景描述 | 由 M14 决定；`World` 没有 `save`/`load` 正是为了把选择留给它 |
 | `kMaxDepth = 16` 是硬上限 | 深层叠加会失败 | 返回 `kSceneStackOverflow` 而不是悄悄崩；16 层远超实际需要 |
-| 无空间分区 / 查询索引 | 邻近查询（碰撞、AI 感知）要线性扫 | M13/M21 需要时加空间哈希，挂在自己的模块里 |
+| ~~无空间分区 / 查询索引~~ | 已由 M13 补齐：`SpatialHash` + `PhysicsWorld::overlap`/`overlapCircle`/`raycast` | 已解决（M13） |
 | `Sprite::entityOverride` 是 `uint32_t` | 与 `EntityId` 的 64 位身份不一致 | 它只用于调试与稳定排序，不参与实体查找 |
