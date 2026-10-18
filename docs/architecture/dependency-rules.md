@@ -100,7 +100,10 @@
   `Inventory` 移动物品；商店是本地 `ShopDatabase`。金币由服务持有，尚未接
   `player::Wallet`；`onDayChanged()` 由组装根调用。`fa_economy` 因
   nlohmann/json 单独打开 `/EHsc`。
-- M25 可以协调多个玩法模块，但只通过它们的公开接口/事件；不得直接改对方内部状态。
+- M25 依赖 M01/M14/M22/M23/M24：`GameFlow` 只持有这些服务的公开指针，按状态机顺序调用
+  `ISaveService`、`WorldCalendar::skipToNextDay`、`EconomyService::onDayChanged` 与
+  `NarrativeService::onDayChanged`；世界重建、存档构建/应用、暂停 UI 通过 composition root
+  回调完成，**不得直接改对方内部状态**。`fa_flow` 不需要 `/EHsc`。
 
 ### L4
 

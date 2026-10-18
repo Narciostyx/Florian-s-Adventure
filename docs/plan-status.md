@@ -4,10 +4,10 @@
 
 > 需要逐项完善程序时，先看 [已知限制与后续改进汇总](known-limitations.md)：它把各模块的限制和跨模块风险集中成一份清单。
 
-- 最后更新：M24 Economy / Crafting / Shops 交付完成（实现 + 三配置实测 + 文档回写）
-- 下一步：**等待用户选择下一个模块**（M24 已完成；候选见 §6）
-- 当前总体：**28 个模块中 27 个已实现**（M00–M10 + M11 + M12 + M13 + M14 + M15 + M16 + M17 + M18 + M19 + M20 + M21 + M22 + M23 + M24 + M26 + M27），其余处于设计完成、尚未编码
-- 当前可运行内容：窗口 + 主循环 + 事件/作业 + 输入 + 渲染 + 资源缓存 + **ECS 世界与场景栈** + **AABB 碰撞与查询** + **瓦片地图与图层提取** + **交互目标选择与格子放置** + **玩家移动/朝向/耐力/闪避** + **带引用校验的内容数据库** + **内置位图字体与即时模式 HUD/控件** + **物品堆叠/背包/快捷栏/装备/使用分发** + **PCM16 软件混音与总线音量** + **调试控制台/统计覆盖层/日志窗口/实体检查器/物理调试** + **JSON 存档槽/原子写/`.bak` 恢复/迁移** + **帧动画/循环/事件/四向状态机** + **伤害/攻击窗口/投射物/状态/死亡事件**；画面是**全部色块占位**，40×23 地图（920 格、143 实心、16 可耕地）由 M12 提取，标记由 M16 驱动、M13 求解并停在 x=344，M17 在标记旁选目标、调用一次工具并占一个放置格，M15 加载物品/作物/配方/敌人/掉落表，M18 堆叠 120 个种子、转移 21 个到快捷栏、装备锄头并使用一份汤，M09 每帧绘制 HUD、耐力条、按钮、复选框、滑条与热键栏文本，M08 生成 440 Hz/220 Hz 占位 PCM、播放 one-shot 与循环、设置总线音量并在 2 帧后淡出 one-shot，M27 在 Debug/Development 提供 F3 统计、F4 日志、F5 物理调试与控制台（`teleport`/`give`/`entities`/`save`/`load`/`slots`），M14 每轮 smoke 写 `saves/autosave.json` 并读回版本/场景/实体/标记/耐力摘要，M10 在固定步推进一个 4 帧草地动画并在 frame 0/2 触发 `step` 事件，M20 用两个 dummy 跑通两次近战、投射物与中毒并击杀一个 dummy，M19 在 (4,8) 跑通锄地 → 播种 → 浇水 → 5 天成熟 → 收获，并在 (7,11) 温室与 (6,9) 室外验证冬季规则，M21 用一个紫色 agent 追击静止假人、攻击一次并在丢失目标后返回出生点，M22 用 0.01 s/game-minute 的快速时钟跑出 06:00 → 07:40、计算环境光并在 Weather 层绘制暗化层与两个占位点光，M23 用一个 NPC 跑通对话分支、接任务、收集完成、送礼与每日上限，并在底部对话框留下可交互选项，M24 用玩家背包跑通买种子、卖萝卜、做汤、出货与次日结算（金币显示在 HUD），M26 在 Debug/Development 提供 F2 瓦片编辑器、撤销/重做与 JSON 保存/加载（Release 不链接），但还没有完整玩法
+- 最后更新：M25 Game Flow 交付完成（实现 + 三配置实测 + 文档回写）
+- 下一步：**全部 28 个模块已实现；进入垂直切片与打磨阶段**（见 §6）
+- 当前总体：**28 个模块全部已实现**（M00–M27）
+- 当前可运行内容：窗口 + 主循环 + 事件/作业 + 输入 + 渲染 + 资源缓存 + **ECS 世界与场景栈** + **AABB 碰撞与查询** + **瓦片地图与图层提取** + **交互目标选择与格子放置** + **玩家移动/朝向/耐力/闪避** + **带引用校验的内容数据库** + **内置位图字体与即时模式 HUD/控件** + **物品堆叠/背包/快捷栏/装备/使用分发** + **PCM16 软件混音与总线音量** + **调试控制台/统计覆盖层/日志窗口/实体检查器/物理调试** + **JSON 存档槽/原子写/`.bak` 恢复/迁移** + **帧动画/循环/事件/四向状态机** + **伤害/攻击窗口/投射物/状态/死亡事件**；画面是**全部色块占位**，40×23 地图（920 格、143 实心、16 可耕地）由 M12 提取，标记由 M16 驱动、M13 求解并停在 x=344，M17 在标记旁选目标、调用一次工具并占一个放置格，M15 加载物品/作物/配方/敌人/掉落表，M18 堆叠 120 个种子、转移 21 个到快捷栏、装备锄头并使用一份汤，M09 每帧绘制 HUD、耐力条、按钮、复选框、滑条与热键栏文本，M08 生成 440 Hz/220 Hz 占位 PCM、播放 one-shot 与循环、设置总线音量并在 2 帧后淡出 one-shot，M27 在 Debug/Development 提供 F3 统计、F4 日志、F5 物理调试与控制台（`teleport`/`give`/`entities`/`save`/`load`/`slots`），M14 每轮 smoke 写 `saves/autosave.json` 并读回版本/场景/实体/标记/耐力摘要，M10 在固定步推进一个 4 帧草地动画并在 frame 0/2 触发 `step` 事件，M20 用两个 dummy 跑通两次近战、投射物与中毒并击杀一个 dummy，M19 在 (4,8) 跑通锄地 → 播种 → 浇水 → 5 天成熟 → 收获，并在 (7,11) 温室与 (6,9) 室外验证冬季规则，M21 用一个紫色 agent 追击静止假人、攻击一次并在丢失目标后返回出生点，M22 用 0.01 s/game-minute 的快速时钟跑出 06:00 → 07:40、计算环境光并在 Weather 层绘制暗化层与两个占位点光，M23 用一个 NPC 跑通对话分支、接任务、收集完成、送礼与每日上限，并在底部对话框留下可交互选项，M24 用玩家背包跑通买种子、卖萝卜、做汤、出货与次日结算（金币显示在 HUD），M25 用脚本跑通新游戏 → 暂停 → 保存 → 日终 → 死亡 → 复活 → 主菜单 → 读档 → 退出（菜单 UI 仍缺），M26 在 Debug/Development 提供 F2 瓦片编辑器、撤销/重做与 JSON 保存/加载（Release 不链接），但还没有完整玩法
 
 ## 0. 上下文快满时的交接（强制）
 
@@ -63,11 +63,11 @@
 
 ## 3. 模块状态
 
-### 已实现（27 个）
+### 已实现（28 个）
 
 | 模块 | 名称 | 用例（新增） | 关键交付 | 文档 |
 |---|---|---|---|---|
-| M00 | Build & Dependency Infrastructure | — | `.sln` + 8 个 `.vcxproj`、`vcpkg.json`、`Directory.Build.props`、`scripts/build.ps1`、CI | [设计](modules/00-build-infrastructure.md) · [实测](build/m00-skeleton.md) · [踩坑](build/m00-fixups.md) |
+| M00 | Build & Dependency Infrastructure | — | `.sln` + 27 个引擎 `.vcxproj` + app/tests、`vcpkg.json`、`Directory.Build.props`、`scripts/build.ps1`、CI | [设计](modules/00-build-infrastructure.md) · [实测](build/m00-skeleton.md) · [踩坑](build/m00-fixups.md) |
 | M01 | Core Foundation | 22 | `Result`/`Status`/`Error`、`Vector2`、`Rect`、`Rng`、断言与日志 | [设计](modules/01-core-foundation.md) |
 | M02 | Platform Layer | 8 | 窗口、事件泵、`IFileSystem`（含原子写）、单调时钟、消息框、`IGlContext` | [设计](modules/02-platform-layer.md) · [实测](build/m02-platform.md) |
 | M03 | Events & Jobs | 26 | `EventBus` + RAII `Subscription`、`JobSystem` 线程池与 `parallelFor` | [设计](modules/03-events-and-jobs.md) · [实测](build/m03-events-jobs.md) |
@@ -92,10 +92,11 @@
 | M22 | Calendar / Weather / Lighting | 22 | `Season`/`Weather`/`GameDate`/`WorldClock`、0–24 时刻与跨日/季/年、`HourChanged`/`DayChanged`/`SeasonChanged`/`WeatherChanged`、按季节权重随机天气与 RNG 状态保存、自动浇水/生长倍率、环境光曲线与室内外、`LightSet` 点光与线性衰减采样 | [设计](modules/22-calendar-weather-lighting.md) · [实测](build/m22-calendar-weather-lighting.md) |
 | M23 | NPC / Dialogue / Quests | 10 | `NarrativeDatabase` + `NarrativeService`、NPC/对话图/任务 JSON、白名单条件与动作、每日好感/送礼、事件驱动任务进度与物品奖励、底部对话框与 Digit1–3 选择 | [设计](modules/23-npc-dialogue-quests.md) · [实测](build/m23-npc-dialogue-quests.md) |
 | M24 | Economy / Crafting / Shops | 10 | `EconomyService` + `ShopDatabase`、钱包、买卖原子性、每日限购、M15 配方加工任务、出货箱次日结算、经济事件/统计 | [设计](modules/24-economy-crafting-shops.md) · [实测](build/m24-economy-crafting-shops.md) |
+| M25 | Game Flow | 6 | `GameFlow`/`IGameFlow`、`AppState` 状态机、新游戏/读档、暂停/对话、日终结算、自动存档、死亡/复活、退出、7400 错误段 | [设计](modules/25-game-flow.md) · [实测](build/m25-game-flow.md) |
 | M26 | Editor Tools | 10 | `MapEditor` + `EditorHistory` + `EditorOverlay`、Brush/Rect/Fill/Erase/Picker、命令差分 undo/redo、M12 `saveTilemapToJson()`、M09 状态面板、F2/1–5/`[`/`]`/Z/Y/S/L 快捷键；Release 不链接 | [设计](modules/26-editor-tools.md) · [实测](build/m26-editor-tools.md) |
 | M27 | Debug Tools | 11 | `DebugConsole` 命令/引号/历史、`CVarRegistry` 四种类型与 save/load、`DebugLogSink` 环形日志、`DebugStats`、实体快照、`UiContext` 覆盖层、M13 `DebugShape` 适配、F3/F4/F5/控制台事件路由；Release 不链接 | [设计](modules/27-debug-tools.md) · [实测](build/m27-debug-tools.md) |
 
-实际落地顺序是 M01 → M02 → M04 → M03 → M07 → M06 → M05 → M11 → M13 → M12 → M17 → M16 → M15 → M09 → M18 → M08 → M27 → M14 → M10 → M20 → M22 → M19 → M21 → M26 → M23 → M24，所以上表顺序与时间顺序不同。
+实际落地顺序是 M01 → M02 → M04 → M03 → M07 → M06 → M05 → M11 → M13 → M12 → M17 → M16 → M15 → M09 → M18 → M08 → M27 → M14 → M10 → M20 → M22 → M19 → M21 → M26 → M23 → M24 → M25，所以上表顺序与时间顺序不同。
 M12 排在 M13 之后，是因为它要适配 M13 的 `ISolidTiles`；M17 排在 M12 之后，因为它要用地图做目标与放置校验；
 M16 把输入、物理和 M17 的交互请求串起来；M15 是 P0，后续 M18/M19/M24 都靠它；
 M09 补上了此前「任何文字都画不出来」的空白；M18 接着把 M15 的物品定义变成可堆叠、可转移、可使用的容器状态，
@@ -174,7 +175,7 @@ M18 只引用 `fa_core` 与 `fa_content`，**不引用 `fa_assets`、`fa_render`
 **验收快照**（测试三配置一致；冒烟三配置都是 exit 0。固定步数由墙钟累积，并行负载下可能明显多于 60，不要逐字比对帧数或 y 坐标；x 坐标才是稳定断言）：
 
 ```text
-fa_tests.exe → All tests passed (28935 assertions in 469 test cases)
+fa_tests.exe → All tests passed (29909 assertions in 536 test cases)
              "[anim]"     → 59 assertions in 4 test cases
              "[audio]"    → 9808 assertions in 12 test cases
              "[combat]"   → 50 assertions in 7 test cases
@@ -190,11 +191,12 @@ fa_tests.exe → All tests passed (28935 assertions in 469 test cases)
              "[editor]"   → 310 assertions in 10 test cases
              "[narrative]" → 74 assertions in 10 test cases
              "[economy]"  → 90 assertions in 10 test cases
+             "[flow]"     → 118 assertions in 6 test cases
 fa_app.exe --frames 60 (Debug/Development)
              → m08: 1 voice(s), 2 played, 1 stopped, 0 dropped, 48000 Hz, 2 channel(s)
              → m10: 60 update(s), frame 1/4, 5 event(s), last step@0, looping
-             → m14: slot autosave, v1, scene demo, day 1, 1.00s, 7 entities,
-                    marker (344, 242.792), stamina 100.0, 1 slot(s), backup no
+             → m14: slot autosave, v1, scene demo, day 1, 1.00s, 10 entities,
+                    marker (344, 242.792), stamina 100.0, 2 slot(s), backup no
              → m19: 3 tilled, 2 crop(s), 0 harvestable, 1 dead;
                     3 till(s)/7 water(s)/3 plant(s)/1 harvest(s), 1 item(s),
                     stage 3 (ready), greenhouse ok, winter wilt ok, seed 2, 19 event(s)
@@ -204,18 +206,24 @@ fa_app.exe --frames 60 (Debug/Development)
                     9–10 perception(s), 9–10 target(s), 2 path(s), 38 move(s),
                     1 attack(s), 4 state change(s)
              → m22: year 1 spring day 1 07:39–07:40, sunny -> sunny, ambient 0.91–0.92,
-                    auto-water no, growth x1.00, 0 day(s)/1 hour(s)/0 season(s),
-                    0 weather change(s), 1 event(s)
+                    auto-water no, growth x1.00, 1 day(s)/2 hour(s)/0 season(s),
+                    1 weather change(s), 1 event(s)
              → m23: active, node greet, 2 choice(s), affinity 4, quest completed,
                     seed 4, 2 dialogue(s) [1 ended], 4 node(s), 1 choice(s),
                     1 gift(s), 12 event(s)
              → m24: gold 170 (+60 settled), seed 102, turnip 1, soup 2,
                     buy/sell/craft/collect/ship ok; 1 bought / 1 sold / 1 crafted /
                     1 shipped, 30 spent / 100 earned, 8 event(s)
+             → m25: quit, slot slot1, day 1, 1.50s, dirty no;
+                    1 new / 1 load(s) (0 failed) / 1 save(s) / 2 autosave(s),
+                    1 day end(s), 1 pause(s)/1 resume(s), 1 death(s)/1 respawn(s),
+                    1 menu return(s), 1 quit(s), 10 transition(s), 20 event(s);
+                    new ok, pause ok, save ok, day ok, over ok, respawn ok,
+                    menu ok, load ok, quit ok
              → m27: 26 console command(s), 0 cvar(s), F3 stats / F4 log / ` console
              → m26: off, tool brush, layer 0, brush 0, undo 0 / redo 0,
                     0 command(s), dirty no, map 40x23, save ok, load ok
-             → M02+M03+M04+M05+M06+M07+M08+M09+M10+M11+M12+M13+M14+M15+M16+M17+M18+M19+M20+M21+M22+M23+M24+M26+M27 smoke test OK
+             → M02+M03+M04+M05+M06+M07+M08+M09+M10+M11+M12+M13+M14+M15+M16+M17+M18+M19+M20+M21+M22+M23+M24+M25+M26+M27 smoke test OK
 fa_app.exe --frames 60 (Release)
              → m10: 60 update(s), frame 1/4, 5 event(s), last step@0, looping
              → m14: slot autosave, v1, scene demo, day 1, 1.00s, 7 entities, ...
@@ -225,20 +233,21 @@ fa_app.exe --frames 60 (Release)
              → m22: year 1 spring day 1 07:40, sunny -> sunny, ambient 0.92, ...
              → m23: active, node greet, 2 choice(s), affinity 4, quest completed, ...
              → m24: gold 170 (+60 settled), seed 102, turnip 1, soup 2, ...
+             → m25: quit, slot slot1, day 1, 1.50s, dirty no; 1 new / 1 load(s) /
+                    1 save(s) / 2 autosave(s), 1 day end(s), ...; all ok
              → m27: disabled (release build)
              → m26: disabled (release build)
-             → M02+M03+M04+M05+M06+M07+M08+M09+M10+M11+M12+M13+M14+M15+M16+M17+M18+M19+M20+M21+M22+M23+M24 smoke test OK
+             → M02+M03+M04+M05+M06+M07+M08+M09+M10+M11+M12+M13+M14+M15+M16+M17+M18+M19+M20+M21+M22+M23+M24+M25 smoke test OK
 ```
 
-### 未实现（1 个）
+### 未实现（0 个）
 
-| 模块 | 名称 | 优先级 | 依赖是否已就绪 | 备注 |
-|---|---|---|---|---|
-| M25 | Game Flow | P1 | 需要 M11 ✅、M09 ✅、M14 ✅、M23 ✅、M24 ✅ | 场景栈、菜单流、新游戏/读档 |
+全部 28 个模块均已实现。剩余工作集中在 §5 的接线与 §6 的垂直切片/打磨项，
+不再有“待编码模块”。
 
-## 4. 已有的接口面（下一个模块可以直接用）
+## 4. 已有的接口面（垂直切片/补丁可以直接用）
 
-写新模块前先看这里，避免重复造轮子或造出冲突的抽象：
+写后续补丁前先看这里，避免重复造轮子或造出冲突的抽象：
 
 | 你需要的 | 现成的 | 位置 |
 |---|---|---|
@@ -263,6 +272,8 @@ fa_app.exe --frames 60 (Release)
 | 存档服务 | `ISaveService`、`SaveService`（save/load/apply/listSlots/deleteSlot/registerMigration） | `fa/save/SaveService.hpp` |
 | 组件序列化 | `IComponentSerializer`、`ComponentSerializerRegistry` | `fa/save/ComponentSerializer.hpp` |
 | 存档错误码 | `save_error::*`（6100–6107） | `fa/save/SaveError.hpp` |
+| 应用流程 | `GameFlow`、`IGameFlow`、`AppState`、`GameSession`、`FlowEvent`/`FlowStats`、`manualSlotName` | `fa/flow/GameFlow.hpp`、`fa/flow/FlowTypes.hpp` |
+| 流程错误码 | `flow_error::*`（7400–7410） | `fa/flow/FlowTypes.hpp` |
 | 动画片段 | `AnimationClip`、`AnimationFrame`、`Direction`、`directionFromVector` | `fa/anim/AnimationClip.hpp` |
 | 动画播放 | `Animator`、`AnimationEvent`、`AnimationService`、`IAnimationService` | `fa/anim/Animator.hpp`、`fa/anim/AnimationService.hpp` |
 | 动画状态机 | `AnimationStateMachine`、`AnimationParams`、`DirectionalClips`、`AnimationTransition` | `fa/anim/AnimationStateMachine.hpp` |
@@ -312,7 +323,7 @@ fa_app.exe --frames 60 (Release)
 错误码分段（`Error.hpp`，加新码前先看自己该在哪个段）：
 1000–1999 Core、2000–2999 Platform、3000–3999 Assets、**4000–4999 Render/Input/Audio/UI**、
 **5000–5999 Scene（5000–5007）/ Physics（5008–5012）/ Tilemap（5013–5022）**、**6000–6999 Save/Content（M15 6000–6008）**、
-**7000–7999 Gameplay（M17 7000–7012 / M16 7013–7018）**。
+**7000–7999 Gameplay（M17 7000–7012 / M16 7013–7018 / M18–M24 7019–7313 / M25 7400–7410）**。
 
 > 玩法模块（M15–M25）**不要**自己再造一套实体/组件管理：加组件就 `world.add<MyComponent>(id, ...)`，
 > 每帧逻辑就写一个 `ISystem` 挂到 `systems().add(...)`。反向依赖（`fa_scene` include `fa/game/...`）是硬禁止。
@@ -359,15 +370,15 @@ fa_app.exe --frames 60 (Release)
 | 攻击窗口仍由 app 手动触发 | 没有把 M10 动画事件自动接到 M20 | M10 / M20 |
 | 矩形 hitbox 不随朝向旋转 | 扇形/朝向判定未实现 | M20 |
 | 击退直接 move | 没有受击硬直/速度衰减，墙边可能夹住 | M20 / M13 |
-| 死亡不销毁/不掷掉落 | 需要 M15/M18/M25 接线 | M20 / M15 / M18 / M25 |
+| 死亡不销毁/不掷掉落 | M25 提供 GameOver/复活，但死亡清理、掉落与惩罚仍未接线 | M20 / M15 / M18 / M25 |
 | 状态同类刷新不叠加 | DoT 为整数 tick，低 dps 有延迟 | M20 |
 | 投射物每步 raycast+move | 大量投射物需要对象池/批量查询 | M20 |
-| 没有现成的 World/Inventory serializer | app 只保存摘要字段，真实读档还需要各模块注册 | M14 / M19 / M20 / M25 |
+| 没有现成的 World/Inventory serializer | M25 提供保存回调，但 app 仍只保存摘要字段，真实读档还需要各模块注册 | M14 / M19 / M20 / M25 |
 | `.bak` 只有一份 | 连续两次写坏仍可能丢失 | M14 |
 | 没有 CRC/压缩/加密 | 磁盘位翻转检测不到；大存档体积大 | M14 后续 |
 | 存档 JSON 深拷贝 | 大存档有分配开销 | M14（不在每帧热路径） |
-| 读档应用时机未定 | 资源未加载时直接应用实体引用会悬空 | M14 / M25 |
-| 自动存档调度未接 | 每 12 游戏小时与安全状态判定还没有调用方 | M25 / M22 |
+| 读档应用时机未定 | M25 已定义 `LoadHandler` 时机；app 目前只恢复日历，实体引用仍需资源加载后再应用 | M14 / M25 |
+| 自动存档调度未接 | M25 已按天/退出调度；每 12 游戏小时与安全状态判定仍未实现 | M25 / M22 |
 | 无渲染目标 / 后处理 | 做不了光照、屏幕扭曲 | M22 需要时再加 `RenderPass` |
 | 单一混合模式 | 预乘 alpha、加色做不了 | M06（分批断点已留好） |
 | 资源全是占位 | 看不到真实画面 | 真实美术后置，见 [art-policy](architecture/art-policy.md) |
@@ -384,7 +395,7 @@ fa_app.exe --frames 60 (Release)
 | `Tilemap::stats()` 全量遍历 | 每帧调用会拖慢大图 | M12 / M27（只在面板刷新时调） |
 | 自动瓦片是烘焙的 | 编辑瓦片后必须重新烘焙，运行时不会自动重算 | M12 / M26 |
 | 地图全量载入内存 | 128×128×3 层可接受；更大需要分块 | M12 |
-| 传送点只是数据 | 没有切场景逻辑 | M25 消费 `portalAt` |
+| 传送点只是数据 | M25 尚未提供 `SceneStack` 切换回调；app 仍未消费 `portalAt` | M25 |
 | 地图纹理绑定靠调用方 | JSON 的 `texture` 不会自动加载；composition root 必须 `setTileTexture` | M12 / M26 |
 | M17 的 `payload` 是临时内容 ID | M15 已实现，接线时统一替换，避免两套 ID | M15 / M17 |
 | 放置占用与实体碰撞是两套数据 | 放置成功但没创建碰撞体会导致“看得见、能穿过” | M19（放置后创建碰撞体） |
@@ -414,7 +425,7 @@ fa_app.exe --frames 60 (Release)
 | 场景与世界如何存档未定 | 存世界快照还是存场景描述 | M14 |
 | 无场景过渡效果 | 切场景是硬切 | M25 |
 | 无实体原型 → 世界规模 | 单场景 1e3 量级；10 万实体缓存局部性差 | M15 已实现；prefab 落地后再评估 |
-| 日历没有 26:00 强制睡眠 | 只提供 `skipToNextDay()`，晕倒/结算规则缺失 | M25 |
+| 日历没有 26:00 强制睡眠 | M25 提供 `endDay()`，但没有 26:00 自动触发、晕倒与惩罚规则 | M25 |
 | 天气只有日粒度 | 没有连续天气/预报准确率/区域差异 | M22 后续 |
 | 环境光是近似暗化 | 不是乘法光照；没有法线、阴影、彩色光通道 | M22 / M06 后续 |
 | 点光无遮挡/加法混合 | 只是半透明 quad，墙后也会亮 | M22 / M06 后续 |
@@ -440,29 +451,32 @@ fa_app.exe --frames 60 (Release)
 | Release 不链接编辑器 | 需要 `FA_ENABLE_EDITOR` 与非 Release 引用 | 构建约定 |
 | 叙事定义没有进 M15 | M23 自带 `NarrativeDatabase`，物品引用只校验前缀 | M15 / M23 |
 | 叙事没有存档 | 好感度/任务/flags 还不能写入 `SaveArchive` | M14 / M23 / M25 |
-| 对话不暂停玩法 | 只路由数字键/Enter，玩家仍可移动 | M07 / M23 / M25 |
+| 对话不暂停玩法 | M25 有 Dialogue 状态并暂停时钟，但 app 尚未在对话开始时调用 `enterDialogue()` | M07 / M23 / M25 |
 | 没有 NPC 日程 | M22 的 `HourChanged` 与 M21 尚未接到 M23 | M21 / M23 / M25 |
 | 任务奖励不是事务 | 背包满时物品可能丢失，任务仍完成 | M18 / M23 / M24 |
 | `Deliver` 不消耗物品 | 收集/送达只按事件推进，不检查背包 | M18 / M23 |
 | 金币奖励没有走 M24 | M23 只记录金币事件；M24 钱包尚未被任务调用 | M23 / M24 |
 | 没有任务日志/本地化 | 文本单字符串，无滚动日志、无翻译 | M09 / M23 |
 | 商店/配方表没有进 M15 | M24 自带 `ShopDatabase`；配方仍来自 M15，商店未跨表 | M15 / M24 |
-| 金币没有统一钱包 | M24 持有 `int m_gold`，尚未写回 `player::Wallet` | M18 / M24 / M25 |
+| 金币没有统一钱包 | M24 持有 `int m_gold`，尚未写回 `player::Wallet` | M18 / M24 |
 | 没有商店 UI/季节库存 | 只有服务与脚本演示；库存/价格不随季节重建 | M09 / M22 / M24 |
 | 加工站是字符串 | 没有设备实体、燃料、队列上限或多输出 | M11 / M24 |
-| 经济没有存档 | 金币/库存剩余/加工任务/出货 pending 不能保存 | M14 / M24 / M25 |
-| 日终结算未接 M22 | `onDayChanged()` 目前由 app 手动调用 | M22 / M24 / M25 |
+| 经济没有存档 | M25 的保存回调不写经济段；金币/库存/加工任务/出货 pending 仍不能保存 | M14 / M24 / M25 |
+| 日终结算未接 M22 | M25 `endDay()` 已按“推进时钟 → M24 → M23 → 自动存档”编排；app 还没有睡眠/26:00 触发 | M22 / M24 / M25 |
 
 ## 6. 下一步建议
 
-> **下一步模块由用户选择**；下表只列依赖已就绪的候选，不再默认推荐。
+> **全部 28 个模块已实现。** 下一步不是继续选模块，而是把现有能力接成可玩的垂直切片并打磨。
 
-| 候选 | 理由 | 风险 |
+| 方向 | 理由 | 主要风险 |
 |---|---|---|
-| M25 Game Flow | M11 ✅、M09 ✅、M14 ✅、M23 ✅、M24 ✅ 已就绪；新游戏/读档/暂停/场景切换是最后一个模块 | 任务重建、钱包归属与存档迁移需要一次定清 |
+| 垂直切片接线 | 主菜单/暂停/存档 UI、场景切换、完整存档应用、26:00 睡眠与死亡流程 | 钱包、任务、农田、AI 的存档格式需要一次定清 |
+| 内容与手感 | 真实美术/音频、数值平衡、对话/商店/任务面板、相机跟随 | 内容量与时序；像素风一致性 |
+| 工程收尾 | 全新克隆 CI、三配置回归、性能基线、存档迁移链 | 第三方依赖与 CI runner 差异 |
 
-**M24 已完成。后续实现哪个模块由用户选择；选定后先向用户确认，再按既有节奏推进：**
-**模块文档 → 实现 → 测试 → app 集成 → 三配置验证 → 全新克隆验证 → 回写文档 → 更新本文件 → 提交**。
+**本轮交付的 M25 只负责流程编排；菜单 UI、世界重建与完整存档应用仍需组装根接线。**
+后续每项改动仍按既有节奏推进：
+**设计/确认 → 实现 → 测试 → app 集成 → 三配置验证 → 全新克隆验证 → 回写文档 → 更新本文件 → 提交**。
 
 ## 7. 维护方式
 

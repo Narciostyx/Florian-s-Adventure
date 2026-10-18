@@ -4,9 +4,11 @@
 |---|---|
 | 层 | L3 |
 | 优先级 | P1 |
-| 状态 | 设计完成 |
-| 依赖 | M00–M24 |
+| 状态 | 已实现 |
+| 依赖 | M00–M24（实际链接 `fa_core`、`fa_save`、`fa_world`、`fa_economy`、`fa_narrative`） |
 | 被依赖 | M26、M27 |
+
+> 实测与踩坑：[构建记录](../build/m25-game-flow.md)
 
 ## 1. 目的
 
@@ -57,8 +59,10 @@ struct GameSession {
 ```
 
 - 状态转换集中在一个函数中，便于审查与调试。
-- `Dialogue` 是 `Playing` 的子状态（玩法暂停、UI 活跃），也可用输入上下文实现。
-- 所有场景切换在帧末执行，避免在系统更新中销毁当前世界。
+- `Dialogue` 是独立的 `AppState`（玩法/时钟暂停、UI 活跃）；v1 用
+  `enterDialogue()`/`exitDialogue()` 切换，后续也可映射为输入上下文。
+- 设计约束：场景切换应在帧末执行，避免在系统更新中销毁当前世界；
+  v1 尚未提供切换回调。
 
 ## 4. 公共接口草案
 
@@ -68,22 +72,30 @@ namespace fa::flow {
 class IGameFlow {
 public:
     virtual ~IGameFlow() = default;
-    virtual Result<void> startNewGame(std::string_view slot) = 0;
-    virtual Result<void> loadGame(std::string_view slot) = 0;
-    virtual Result<void> saveGame() = 0;
+    virtual core::Status startNewGame(std::string_view slot) = 0;
+    virtual core::Status loadGame(std::string_view slot) = 0;
+    virtual core::Status saveGame() = 0;
     virtual void requestPause(bool paused) = 0;
-    virtual void endDay() = 0;
+    virtual core::Status endDay() = 0;
     virtual void requestQuit() = 0;
-    virtual AppState state() const = 0;
+    [[nodiscard]] virtual AppState state() const noexcept = 0;
+    [[nodiscard]] virtual const GameSession& session() const noexcept = 0;
 };
 
 } // namespace fa::flow
 ```
 
+`endDay()` 需要把 M14/M22/M23/M24 的失败报告给调用方，因此返回 `core::Status`
+而不是设计草案里的 `void`；`session()` 让菜单和调试面板读取槽位与脏标记。
+
 ## 5. 依赖关系
 
-- 依赖 M04（时间暂停）、M09（菜单）、M11（场景栈）、M14（存档）、M22（日终）、M23（任务重建）、M24（结算）。
+- 设计依赖 M04（时间暂停）、M09（菜单）、M11（场景栈）、M14（存档）、M22（日终）、
+  M23（任务重建）、M24（结算）；v1 实际链接 `fa_core`、`fa_save`、`fa_world`、
+  `fa_economy`、`fa_narrative`。
 - 它是 composition root 之外的第二个“编排者”；只调用接口，不实现玩法。
+  菜单/输入上下文、世界重建、存档应用通过回调交给组装根，`fa_flow` 不直接
+  include 这些模块的实现。
 - 不依赖 M26/M27；调试工具通过命令调用 `IGameFlow`。
 
 ## 6. 扩展点
@@ -97,9 +109,33 @@ public:
 
 P1，Phase E。先实现主菜单→新游戏→暂停→保存→退出；再实现日终结算、死亡、读档。验收：完整循环可跑通；读档后状态一致；日终自动存档不丢数据。
 
+**v1 状态：已完成。** 状态机、新游戏/读档、暂停/对话、日终结算、死亡/复活、自动存档与退出均落地；app smoke 按“新游戏 → 暂停 → 保存 → 日终 → 死亡 → 复活 → 主菜单 → 读档 → 退出”跑通。菜单/暂停界面仍由后续 UI 接线。
+
 ## 8. 风险与开放问题
 
 - 全局状态机容易膨胀为“上帝对象”；严格限制为编排，不写规则。
 - 日终结算涉及多个模块，失败时需要回滚或至少保证存档一致性。
 - 暂停与输入上下文的重复控制需要统一。
 - 死亡惩罚与复活规则为产品决策。
+
+**v1 落地结论**：`GameFlow` 只持有 M14/M22/M23/M24 的公开接口指针，世界重建、
+存档内容构建与存档应用通过 composition root 回调完成，因此没有把玩法规则吸进
+流程层。日终结算同步执行：推进时钟 → M24 结算 → M23 重置每日上限 → 自动存档；
+若自动存档失败，日期推进已发生且不回滚，调用方会收到错误状态。
+
+## 9. 实际落地（v1）
+
+- `fa/flow/FlowTypes.hpp`：`AppState`、`GameSession`、`FlowEvent`/`FlowStats`、
+  7400 错误段、`autosave`/`slot1..3` 槽位约定。
+- `fa/flow/GameFlow.hpp` + `src/GameFlow.cpp`：`IGameFlow` 与 `GameFlow`；
+  状态转换集中在 `transition()`，非法转换返回 `flow_error::kInvalidTransition`。
+- 回调：`NewGameHandler`（重建世界/初始物品）、`SaveBuilder`（填 `SaveContext`）、
+  `LoadHandler`（应用 `SaveFile`）、`PauseHandler`（暂停 UI/输入上下文）。
+- 日终：`endDay()` 调用 `WorldCalendar::skipToNextDay()`、`EconomyService::onDayChanged()`、
+  `NarrativeService::onDayChanged()`，再按 `autosaveIntervalDays` 写 `autosave`；
+  `onDayChanged()` 供外部日变化（如 26:00 强制睡眠）复用同一结算路径。
+- 自动存档：按天间隔与“退出时若脏则写自动槽”两种触发；手动保存使用当前会话槽。
+- 暂停：`Playing` 以外的状态统一暂停 M22 时钟；`Dialogue`/`GameOver`/`Paused`
+  之间不会误开玩法。
+- 已知缺口：没有主菜单/暂停菜单 UI；app 尚未把 `SceneStack` 切场景、输入上下文、
+  完整世界/背包/叙事/经济存档接到回调上；26:00 强制睡眠与死亡惩罚仍是产品规则。

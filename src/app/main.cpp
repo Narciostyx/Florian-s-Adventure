@@ -46,6 +46,7 @@
 #include <fa/content/ContentDatabase.hpp>
 #include <fa/economy/EconomyService.hpp>
 #include <fa/economy/ShopDatabase.hpp>
+#include <fa/flow/GameFlow.hpp>
 #include <fa/ai/AiService.hpp>
 #include <fa/ai/AiTypes.hpp>
 #if defined(FA_ENABLE_EDITOR)
@@ -397,6 +398,20 @@ struct EconomyDemoStats {
     int turnips = 0;
     int soups = 0;
     fa::economy::EconomyStats stats;
+};
+
+/// \brief Snapshot of the scripted M25 application-flow sequence.
+struct FlowDemoStats {
+    bool newGameOk = false;
+    bool pauseOk = false;
+    bool saveOk = false;
+    bool dayEndOk = false;
+    bool gameOverOk = false;
+    bool respawnOk = false;
+    bool menuOk = false;
+    bool loadOk = false;
+    bool quitOk = false;
+    fa::flow::FlowStats stats;
 };
 
 /// \brief Snapshot of the scripted M23 dialogue/quest sequence.
@@ -1797,16 +1812,13 @@ public:
     }
 
     /// \brief Builds a snapshot of the current demo state and writes one slot.
-    fa::core::Status saveToSlot(std::string_view slot) {
-        if (saveService == nullptr) {
-            return fa::core::errorStatus(fa::save::save_error::kIoFailure, "save service is not initialized");
-        }
-
-        fa::save::SaveContext context;
-        context.slotName = std::string(slot);
+    /// \brief Fills the shared M14/M25 save context from the live demo.
+    fa::core::Status fillSaveContext(fa::save::SaveContext& context) {
         context.sceneId = "demo";
-        context.inGameDay = 1;
-        context.playSeconds = static_cast<double>(fixedSteps) / 60.0;
+        context.inGameDay = calendar != nullptr ? calendar->date().day : 1;
+        context.playSeconds = flow != nullptr && !flow->session().slot.empty()
+                                  ? flow->session().playSeconds
+                                  : static_cast<double>(fixedSteps) / 60.0;
 
         const fa::scene::WorldStats world = sceneWorldStats();
         context.world.setInt("entities", static_cast<int>(world.liveEntities));
@@ -1818,7 +1830,60 @@ public:
             context.inventories.setInt("hotbarItems", playerInventory->hotbar().inventory().totalItems());
             context.inventories.setInt("selected", playerInventory->hotbar().selected());
         }
+        if (calendar != nullptr) {
+            context.world.setInt("dateYear", calendar->date().year);
+            context.world.setInt("dateSeason", static_cast<int>(calendar->season()));
+            context.world.setInt("dateDay", calendar->date().day);
+            context.world.setFloat("timeOfDay", calendar->timeOfDay());
+            context.world.setInt("weatherToday", static_cast<int>(calendar->today()));
+            context.world.setInt("weatherTomorrow", static_cast<int>(calendar->tomorrow()));
+        }
+        return fa::core::okStatus();
+    }
+
+    /// \brief Writes one slot using the shared builder.
+    fa::core::Status saveToSlot(std::string_view slot) {
+        if (saveService == nullptr) {
+            return fa::core::errorStatus(fa::save::save_error::kIoFailure, "save service is not initialized");
+        }
+        fa::save::SaveContext context;
+        if (const fa::core::Status built = fillSaveContext(context); built.isError()) {
+            return built;
+        }
+        context.slotName = std::string(slot);
         return saveService->save(slot, context);
+    }
+
+    /// \brief Restores the calendar section written by fillSaveContext().
+    fa::core::Status applySaveFile(const fa::save::SaveFile& file) {
+        if (calendar == nullptr) {
+            return fa::core::okStatus();
+        }
+        int year = calendar->date().year;
+        int season = static_cast<int>(calendar->season());
+        int day = calendar->date().day;
+        float timeOfDay = calendar->timeOfDay();
+        int today = static_cast<int>(calendar->today());
+        int tomorrow = static_cast<int>(calendar->tomorrow());
+        static_cast<void>(file.world.getInt("dateYear", year));
+        static_cast<void>(file.world.getInt("dateSeason", season));
+        static_cast<void>(file.world.getInt("dateDay", day));
+        static_cast<void>(file.world.getFloat("timeOfDay", timeOfDay));
+        static_cast<void>(file.world.getInt("weatherToday", today));
+        static_cast<void>(file.world.getInt("weatherTomorrow", tomorrow));
+
+        fa::world::GameDate date;
+        date.year = year > 0 ? year : 1;
+        const int seasonCount = static_cast<int>(fa::world::Season::Count);
+        date.season = static_cast<fa::world::Season>(season >= 0 && season < seasonCount ? season : 0);
+        date.day = day > 0 ? day : 1;
+        const int weatherCount = static_cast<int>(fa::world::Weather::Count);
+        const fa::world::Weather weatherToday =
+            static_cast<fa::world::Weather>(today >= 0 && today < weatherCount ? today : 0);
+        const fa::world::Weather weatherTomorrow =
+            static_cast<fa::world::Weather>(tomorrow >= 0 && tomorrow < weatherCount ? tomorrow : 0);
+        calendar->restore(date, timeOfDay, weatherToday, weatherTomorrow);
+        return fa::core::okStatus();
     }
 
     /// \brief Loads one slot; the caller decides whether to apply it to the scene.
@@ -1869,6 +1934,51 @@ public:
     void shutdownSave() { saveService.reset(); }
 
     [[nodiscard]] SaveDemoStats saveDemoStats() const { return saveDemo; }
+
+    /// \brief Creates the M25 state machine over the live demo services.
+    void initializeFlow() {
+        fa::narrative::NarrativeService* narrativeService =
+            demoScene != nullptr ? &demoScene->narrative() : nullptr;
+        flow = std::make_unique<fa::flow::GameFlow>(saveService.get(), calendar.get(),
+                                                    economy.get(), narrativeService);
+        flow->setSaveBuilder([this](fa::save::SaveContext& context) {
+            return fillSaveContext(context);
+        });
+        flow->setLoadHandler([this](const fa::save::SaveFile& file) {
+            return applySaveFile(file);
+        });
+        flow->setAutosaveIntervalDays(1);
+        flow->setAutosaveOnQuit(true);
+    }
+
+    /// \brief Walks new game, pause, save, day end, death, menu, load and quit.
+    void runFlowDemo() {
+        flowDemo = FlowDemoStats{};
+        if (flow == nullptr) {
+            return;
+        }
+
+        flowDemo.newGameOk = flow->startNewGame("slot1").isOk();
+        flow->update(1.5);
+        flow->requestPause(true);
+        const bool paused = flow->state() == fa::flow::AppState::Paused;
+        flow->requestPause(false);
+        flowDemo.pauseOk = paused && flow->state() == fa::flow::AppState::Playing;
+        flowDemo.saveOk = flow->saveGame().isOk();
+        flowDemo.dayEndOk = flow->endDay().isOk();
+        flowDemo.gameOverOk = flow->requestGameOver("smoke").isOk();
+        flowDemo.respawnOk = flow->respawn().isOk();
+        flowDemo.menuOk = flow->enterMainMenu().isOk();
+        flowDemo.loadOk = flow->loadGame("slot1").isOk();
+        flow->markDirty();
+        flow->requestQuit();
+        flowDemo.quitOk = flow->state() == fa::flow::AppState::Quit;
+        flowDemo.stats = flow->stats();
+    }
+
+    void shutdownFlow() { flow.reset(); }
+
+    [[nodiscard]] FlowDemoStats flowDemoStats() const { return flowDemo; }
 
     /// \brief Opens the platform audio device and starts the scripted M08 voices.
     ///
@@ -2404,6 +2514,9 @@ public:
     std::unique_ptr<fa::world::WorldCalendar> calendar;
     fa::world::LightSet lights;
     std::uint64_t calendarEvents = 0;
+    /// \brief M25 state machine; declared after its borrowed services.
+    std::unique_ptr<fa::flow::GameFlow> flow;
+    FlowDemoStats flowDemo;
 #if defined(FA_ENABLE_DEBUG_TOOLS)
     /// \brief M27 facade; absent in Release because the project reference is absent.
     std::unique_ptr<fa::debug::DebugTools> debugTools;
@@ -2918,6 +3031,8 @@ int main(int argc, char** argv) {
         }
     }
 
+    sink.initializeFlow();
+
     fa::time::FrameLoopConfig config;
     /// A hidden smoke run needs a few frames; a visible window runs until closed.
     config.maxFrames = options.frames > 0 ? static_cast<std::uint64_t>(options.frames)
@@ -2934,6 +3049,8 @@ int main(int argc, char** argv) {
     const bool eventsJobsOk = demo.flush();
     /// M14 runs after the scene has lived for the whole smoke run.
     sink.runSaveDemo();
+    /// M25 exercises the application flow once the demo state is complete.
+    sink.runFlowDemo();
     // Snapshot what the summary reports: the strings and the stats die with the context.
     std::string glVersionText;
     std::string glRendererText;
@@ -2977,6 +3094,7 @@ int main(int argc, char** argv) {
     const FarmingDemoStats farmingStats = sink.sceneFarmingStats();
     const AiDemoStats aiStats = sink.sceneAiStats();
     const NarrativeDemoStats narrativeStats = sink.sceneNarrativeStats();
+    const FlowDemoStats flowStats = sink.flowDemoStats();
 #if defined(FA_ENABLE_EDITOR)
     const EditorDemoStats editorStats = sink.sceneEditorStats();
 #endif
@@ -2988,6 +3106,7 @@ int main(int argc, char** argv) {
     const std::size_t debugCvars = sink.debugCVarCount();
     sink.shutdownDebug();
 #endif
+    sink.shutdownFlow();
     sink.shutdownSave();
     sink.shutdownCalendar();
     /// Audio and the GL context both belong to the platform window, so they go
@@ -3221,6 +3340,35 @@ int main(int argc, char** argv) {
                 static_cast<unsigned long long>(economyStats.stats.crafted),
                 static_cast<unsigned long long>(economyStats.stats.shipped), economyStats.stats.goldSpent,
                 economyStats.stats.goldEarned, economyStats.stats.events);
+    const std::string_view flowStateName = fa::flow::toString(flowStats.stats.state);
+    std::printf("  m25: %.*s, slot %s, day %d, %.2fs, dirty %s; "
+                "%llu new / %llu load(s) (%llu failed) / %llu save(s) / %llu autosave(s), "
+                "%llu day end(s), %llu pause(s)/%llu resume(s), %llu death(s)/%llu respawn(s), "
+                "%llu menu return(s), %llu quit(s), %llu transition(s), %zu event(s); "
+                "new %s, pause %s, save %s, day %s, over %s, respawn %s, menu %s, load %s, quit %s\n",
+                static_cast<int>(flowStateName.size()), flowStateName.data(),
+                flowStats.stats.slot.empty() ? "-" : flowStats.stats.slot.c_str(),
+                flowStats.stats.day, flowStats.stats.playSeconds,
+                flowStats.stats.dirty ? "yes" : "no",
+                static_cast<unsigned long long>(flowStats.stats.newGames),
+                static_cast<unsigned long long>(flowStats.stats.loads),
+                static_cast<unsigned long long>(flowStats.stats.loadFailures),
+                static_cast<unsigned long long>(flowStats.stats.saves),
+                static_cast<unsigned long long>(flowStats.stats.autosaves),
+                static_cast<unsigned long long>(flowStats.stats.dayEnds),
+                static_cast<unsigned long long>(flowStats.stats.pauses),
+                static_cast<unsigned long long>(flowStats.stats.resumes),
+                static_cast<unsigned long long>(flowStats.stats.deaths),
+                static_cast<unsigned long long>(flowStats.stats.respawns),
+                static_cast<unsigned long long>(flowStats.stats.menuReturns),
+                static_cast<unsigned long long>(flowStats.stats.quitRequests),
+                static_cast<unsigned long long>(flowStats.stats.transitions),
+                flowStats.stats.events,
+                flowStats.newGameOk ? "ok" : "fail", flowStats.pauseOk ? "ok" : "fail",
+                flowStats.saveOk ? "ok" : "fail", flowStats.dayEndOk ? "ok" : "fail",
+                flowStats.gameOverOk ? "ok" : "fail", flowStats.respawnOk ? "ok" : "fail",
+                flowStats.menuOk ? "ok" : "fail", flowStats.loadOk ? "ok" : "fail",
+                flowStats.quitOk ? "ok" : "fail");
 #if defined(FA_ENABLE_EDITOR)
     const std::string_view editorToolName = fa::editor::toString(editorStats.tool);
     std::printf("  m26: %s, tool %.*s, layer %d, brush %u, undo %zu / redo %zu, "
@@ -3234,9 +3382,9 @@ int main(int argc, char** argv) {
     std::printf("  m26: disabled (release build)\n");
 #endif
 #if defined(FA_ENABLE_DEBUG_TOOLS)
-    std::printf("M02+M03+M04+M05+M06+M07+M08+M09+M10+M11+M12+M13+M14+M15+M16+M17+M18+M19+M20+M21+M22+M23+M24+M26+M27 smoke test OK\n");
+    std::printf("M02+M03+M04+M05+M06+M07+M08+M09+M10+M11+M12+M13+M14+M15+M16+M17+M18+M19+M20+M21+M22+M23+M24+M25+M26+M27 smoke test OK\n");
 #else
-    std::printf("M02+M03+M04+M05+M06+M07+M08+M09+M10+M11+M12+M13+M14+M15+M16+M17+M18+M19+M20+M21+M22+M23+M24 smoke test OK\n");
+    std::printf("M02+M03+M04+M05+M06+M07+M08+M09+M10+M11+M12+M13+M14+M15+M16+M17+M18+M19+M20+M21+M22+M23+M24+M25 smoke test OK\n");
 #endif
     return 0;
 }

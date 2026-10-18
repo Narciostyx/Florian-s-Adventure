@@ -54,6 +54,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "fa_narrative", "src\engine\
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "fa_economy", "src\engine\economy\fa_economy.vcxproj", "{C0DE001A-001A-4F00-9A00-00000000001A}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "fa_flow", "src\engine\flow\fa_flow.vcxproj", "{C0DE001B-001B-4F00-9A00-00000000001B}"
+EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "fa_app", "src\app\fa_app.vcxproj", "{C0DE00A0-00A0-4F00-9A00-0000000000A0}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "fa_tests", "tests\fa_tests.vcxproj", "{C0DE00FE-00FE-4F00-9A00-0000000000FE}"
@@ -221,6 +223,12 @@ Global
 		{C0DE001A-001A-4F00-9A00-00000000001A}.Development|x64.Build.0 = Development|x64
 		{C0DE001A-001A-4F00-9A00-00000000001A}.Release|x64.ActiveCfg = Release|x64
 		{C0DE001A-001A-4F00-9A00-00000000001A}.Release|x64.Build.0 = Release|x64
+		{C0DE001B-001B-4F00-9A00-00000000001B}.Debug|x64.ActiveCfg = Debug|x64
+		{C0DE001B-001B-4F00-9A00-00000000001B}.Debug|x64.Build.0 = Debug|x64
+		{C0DE001B-001B-4F00-9A00-00000000001B}.Development|x64.ActiveCfg = Development|x64
+		{C0DE001B-001B-4F00-9A00-00000000001B}.Development|x64.Build.0 = Development|x64
+		{C0DE001B-001B-4F00-9A00-00000000001B}.Release|x64.ActiveCfg = Release|x64
+		{C0DE001B-001B-4F00-9A00-00000000001B}.Release|x64.Build.0 = Release|x64
 		{C0DE00A0-00A0-4F00-9A00-0000000000A0}.Debug|x64.ActiveCfg = Debug|x64
 		{C0DE00A0-00A0-4F00-9A00-0000000000A0}.Debug|x64.Build.0 = Debug|x64
 		{C0DE00A0-00A0-4F00-9A00-0000000000A0}.Development|x64.ActiveCfg = Development|x64

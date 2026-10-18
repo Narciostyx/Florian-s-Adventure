@@ -29,9 +29,9 @@
 | M20 | Combat | L3 | P1 | 生命/伤害、攻击判定、受击、死亡、投射物、状态 | M01、M11、M13、M16 |
 | M21 | AI | L3 | P1 | 敌人状态机、感知、寻路、行为决策 | M11–M13, M20 |
 | M22 | Calendar / Weather / Lighting | L3 | P1 | 日历、季节、天气、环境光与昼夜 | M01（事件/绘制由组装根接 M03/M06/M11） |
-| M23 | NPC / Dialogue / Quests | L3 | P2 | NPC、对话、任务、关系与标记 | M11–M15, M25 |
-| M24 | Economy / Crafting / Shops | L3 | P2 | 金钱、商店、配方、制作、价格 | M15, M18, M23 |
-| M25 | Game Flow | L3 | P1 | 新游戏、读档、存档、场景切换、暂停、退出 | M11, M14, M22–M24 |
+| M23 | NPC / Dialogue / Quests | L3 | P2 | NPC、对话、任务、关系与标记 | M11–M15 |
+| M24 | Economy / Crafting / Shops | L3 | P2 | 金钱、商店、配方、制作、价格 | M15, M18 |
+| M25 | Game Flow | L3 | P1 | 新游戏、读档、存档、场景切换、暂停、退出 | M01, M14, M22–M24 |
 | M26 | Editor Tools | L4 | P2 | 地图/内容编辑、实时调参、保存到 JSON | M05–M13, M15 |
 | M27 | Debug Tools | L4 | P1 | 调试绘制、控制台、性能面板、ECS 检查器 | M01–M02、M06、M09、M11、M13 |
 
@@ -113,6 +113,9 @@ flowchart TB
   M23 --> M15
   M24 --> M18
   M25 --> M14
+  M25 --> M22
+  M25 --> M23
+  M25 --> M24
  M26 --> M09
  M26 --> M12
  M26 --> M15
