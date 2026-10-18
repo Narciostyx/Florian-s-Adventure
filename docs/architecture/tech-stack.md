@@ -98,8 +98,19 @@ FloriansAdventure.sln
 ├─ src/engine/input/fa_input.vcxproj            -> fa_input
 ├─ src/engine/scene/fa_scene.vcxproj            -> fa_scene
 ├─ src/engine/physics/fa_physics.vcxproj        -> fa_physics
-├─ （待建）src/engine/{audio,ui,animation,tilemap,physics,save}/
-├─ （待建）src/game/...                          -> 玩法模块（M15–M25）
+├─ src/engine/tilemap/fa_tilemap.vcxproj        -> fa_tilemap
+├─ src/engine/interaction/fa_interaction.vcxproj-> fa_interaction
+├─ src/engine/player/fa_player.vcxproj          -> fa_player
+├─ src/engine/content/fa_content.vcxproj        -> fa_content
+├─ src/engine/ui/fa_ui.vcxproj                  -> fa_ui
+├─ src/engine/inventory/fa_inventory.vcxproj    -> fa_inventory
+├─ src/engine/audio/fa_audio.vcxproj            -> fa_audio
+├─ src/engine/debug/fa_debug.vcxproj            -> fa_debug（仅非 Release 由 app 引用）
+├─ src/engine/save/fa_save.vcxproj              -> fa_save
+├─ src/engine/anim/fa_anim.vcxproj              -> fa_anim
+├─ src/engine/combat/fa_combat.vcxproj          -> fa_combat
+├─ src/engine/world/fa_world.vcxproj            -> fa_world
+├─ （待建）src/game/...                          -> 玩法模块（M19/M21/M23–M26）
 ├─ src/app/fa_app.vcxproj                       -> 可执行文件
 ├─ tests/fa_tests.vcxproj                       -> Catch2 测试
 └─ tools/                                       -> 资源导入/校验（可选 C++ 或脚本）
@@ -110,7 +121,7 @@ FloriansAdventure.sln
 - 项目引用（ProjectReference）表达真实依赖；不靠「全仓库 include 路径」偷懒。
 - 公共头集中在 `src/engine/include/fa/<module>/...`，私有源在 `src/engine/<module>/src/...`。
   这样一个模块的公共头只有一处，且 `#include "fa/scene/World.hpp"` 的形式与磁盘布局一一对应。
-- 各工程的 `ClCompile` 用通配符 `src\*.cpp`，新增源文件**不需要**改 `.vcxproj`；新增工程才需要改 `.sln`。
+- 各工程的 `ClCompile` / `ClInclude` **显式列出文件**，不使用 `src\*.cpp` 通配符。VS2026 会对项目项定义里的通配符发出警告，并可能造成 IDE 行为不稳定；新增源文件时要同时改对应的 `.vcxproj`，新增工程才需要改 `.sln`。
 
 ## 6. 资源与内容流水线
 

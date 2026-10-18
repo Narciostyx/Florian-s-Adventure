@@ -39,8 +39,20 @@
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="src\*.cpp" />
-    <ClInclude Include="..\include\fa\assets\*.hpp" />
+    <ClCompile Include="src\AssetCatalog.cpp" />
+    <ClCompile Include="src\AssetId.cpp" />
+    <ClCompile Include="src\AssetManager.cpp" />
+    <ClCompile Include="src\AssetTypes.cpp" />
+    <ClCompile Include="src\ImageData.cpp" />
+    <ClInclude Include="..\include\fa\assets\AssetCatalog.hpp" />
+    <ClInclude Include="..\include\fa\assets\AssetError.hpp" />
+    <ClInclude Include="..\include\fa\assets\AssetHandle.hpp" />
+    <ClInclude Include="..\include\fa\assets\AssetId.hpp" />
+    <ClInclude Include="..\include\fa\assets\AssetManager.hpp" />
+    <ClInclude Include="..\include\fa\assets\AssetTypes.hpp" />
+    <ClInclude Include="..\include\fa\assets\IImageDecoder.hpp" />
+    <ClInclude Include="..\include\fa\assets\ImageData.hpp" />
+    <ClInclude Include="..\include\fa\assets\ITextureUploader.hpp" />
   </ItemGroup>
   <!-- fa_events is referenced for JobSystem only: requestTexture() hands decoding
        to the pool, and the pointer stays opaque so the cache never links the bus.

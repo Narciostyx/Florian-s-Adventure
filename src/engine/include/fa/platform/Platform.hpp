@@ -6,6 +6,7 @@
 #include <vector>
 
 #include <fa/core/Result.hpp>
+#include <fa/platform/AudioDevice.hpp>
 #include <fa/platform/FileSystem.hpp>
 #include <fa/platform/GlContext.hpp>
 #include <fa/platform/PlatformEvent.hpp>
@@ -59,6 +60,13 @@ public:
     /// The returned pointer stays valid until the backend is destroyed; the
     /// context inside it is created and destroyed by the caller.
     virtual IGlContext* glContext() = 0;
+
+    /// \brief The audio output device owned by this backend, or nullptr when the
+    /// backend cannot provide one.
+    ///
+    /// The pointer stays valid until the backend is destroyed. Opening the
+    /// device is the caller's job and may fail without failing the platform.
+    virtual IAudioDevice* audio() = 0;
 
     /// \brief Monotonic clock reading in seconds.
     ///

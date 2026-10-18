@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Development|x64">
+      <Configuration>Development</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>17.0</VCProjectVersion>
+    <ProjectGuid>{C0DE0011-0011-4F00-9A00-000000000011}</ProjectGuid>
+    <RootNamespace>fa_debug</RootNamespace>
+    <Keyword>Win32Proj</Keyword>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="$(SolutionDir)build\Project.props" />
+  </ImportGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <!-- The inspector includes fa/scene/World.hpp, which pulls in
+           <unordered_map>; the debug library takes /EHsc rather than splitting
+           that header. See docs/build/m27-debug-tools.md. -->
+      <ExceptionHandling>Sync</ExceptionHandling>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="src\DebugConsole.cpp" />
+    <ClCompile Include="src\DebugCVar.cpp" />
+    <ClCompile Include="src\DebugDraw.cpp" />
+    <ClCompile Include="src\DebugInspector.cpp" />
+    <ClCompile Include="src\DebugLog.cpp" />
+    <ClCompile Include="src\DebugOverlay.cpp" />
+    <ClCompile Include="src\DebugStats.cpp" />
+    <ClCompile Include="src\DebugTools.cpp" />
+    <ClInclude Include="..\include\fa\debug\DebugConsole.hpp" />
+    <ClInclude Include="..\include\fa\debug\DebugCVar.hpp" />
+    <ClInclude Include="..\include\fa\debug\DebugDraw.hpp" />
+    <ClInclude Include="..\include\fa\debug\DebugInspector.hpp" />
+    <ClInclude Include="..\include\fa\debug\DebugLog.hpp" />
+    <ClInclude Include="..\include\fa\debug\DebugOverlay.hpp" />
+    <ClInclude Include="..\include\fa\debug\DebugStats.hpp" />
+    <ClInclude Include="..\include\fa\debug\DebugTools.hpp" />
+  </ItemGroup>
+  <!-- L4 tools may read every lower layer, but still expose only their own data.
+       The app only references this project outside Release. -->
+  <ItemGroup>
+    <ProjectReference Include="$(SolutionDir)src\engine\core\fa_core.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\platform\fa_platform.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\render\fa_render.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\scene\fa_scene.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\physics\fa_physics.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\ui\fa_ui.vcxproj" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>

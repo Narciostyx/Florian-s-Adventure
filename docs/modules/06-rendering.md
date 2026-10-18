@@ -72,7 +72,7 @@
 | `src/engine/platform/src/SdlGlContext.hpp` / `.cpp` | `IGlContext` 的 SDL 实现，全仓库唯一 `SDL_GL_*` 使用者 |
 
 `fa_render.vcxproj`（GUID `{C0DE0005-…0005}`）只引用 `fa_core` 与 `fa_platform`，并链接 `opengl32.lib`；它**不引用** `fa_assets`，纹理上传经 `ITextureUploader` 由 app 侧适配器桥接。
-`ClCompile` 是 `src\*.cpp` 通配，新增实现文件无需改工程。
+工程显式列出源文件与公共头（VS2026 不再使用通配符）；新增实现文件时要同时改 `.vcxproj`。
 **`fa_render` 不需要 `/EHsc`**：它不 include `nlohmann/json`，也不 include 任何会拉进 `<chrono>` 的头。
 
 同轮的辅助改动：

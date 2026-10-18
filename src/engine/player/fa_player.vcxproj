@@ -30,8 +30,13 @@
     <Import Project="$(SolutionDir)build\Project.props" />
   </ImportGroup>
   <ItemGroup>
-    <ClCompile Include="src\*.cpp" />
-    <ClInclude Include="..\include\fa\player\*.hpp" />
+    <ClCompile Include="src\PlayerController.cpp" />
+    <ClCompile Include="src\PlayerSystem.cpp" />
+    <ClCompile Include="src\PlayerTypes.cpp" />
+    <ClInclude Include="..\include\fa\player\PlayerController.hpp" />
+    <ClInclude Include="..\include\fa\player\PlayerError.hpp" />
+    <ClInclude Include="..\include\fa\player\PlayerSystem.hpp" />
+    <ClInclude Include="..\include\fa\player\PlayerTypes.hpp" />
   </ItemGroup>
   <!-- PlayerSystem.cpp includes fa/input/Input.hpp, which pulls <unordered_map>
        through ActionMap; those headers contain try/catch internals and need /EHsc.

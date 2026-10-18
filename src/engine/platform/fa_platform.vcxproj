@@ -35,8 +35,21 @@
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="src\*.cpp" />
-    <ClInclude Include="..\include\fa\platform\*.hpp" />
+    <ClCompile Include="src\PlatformEvent.cpp" />
+    <ClCompile Include="src\Scancode.cpp" />
+    <ClCompile Include="src\SdlAudioDevice.cpp" />
+    <ClCompile Include="src\SdlGlContext.cpp" />
+    <ClCompile Include="src\SdlPlatform.cpp" />
+    <ClCompile Include="src\SdlWindow.cpp" />
+    <ClCompile Include="src\StdFileSystem.cpp" />
+    <ClInclude Include="..\include\fa\platform\AudioDevice.hpp" />
+    <ClInclude Include="..\include\fa\platform\FileSystem.hpp" />
+    <ClInclude Include="..\include\fa\platform\GlContext.hpp" />
+    <ClInclude Include="..\include\fa\platform\Platform.hpp" />
+    <ClInclude Include="..\include\fa\platform\PlatformError.hpp" />
+    <ClInclude Include="..\include\fa\platform\PlatformEvent.hpp" />
+    <ClInclude Include="..\include\fa\platform\Scancode.hpp" />
+    <ClInclude Include="..\include\fa\platform\Window.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="$(SolutionDir)src\engine\core\fa_core.vcxproj" />

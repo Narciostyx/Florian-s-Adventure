@@ -41,8 +41,18 @@
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="src\*.cpp" />
-    <ClInclude Include="..\include\fa\input\*.hpp" />
+    <ClCompile Include="src\Action.cpp" />
+    <ClCompile Include="src\ActionMap.cpp" />
+    <ClCompile Include="src\Binding.cpp" />
+    <ClCompile Include="src\InputContext.cpp" />
+    <ClCompile Include="src\InputDevice.cpp" />
+    <ClCompile Include="src\InputSystem.cpp" />
+    <ClInclude Include="..\include\fa\input\Action.hpp" />
+    <ClInclude Include="..\include\fa\input\ActionMap.hpp" />
+    <ClInclude Include="..\include\fa\input\Binding.hpp" />
+    <ClInclude Include="..\include\fa\input\Input.hpp" />
+    <ClInclude Include="..\include\fa\input\InputContext.hpp" />
+    <ClInclude Include="..\include\fa\input\InputDevice.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="$(SolutionDir)src\engine\core\fa_core.vcxproj" />

@@ -46,7 +46,7 @@
 | `FrameLoop.hpp` | `IFrameSink`、`FrameLoopConfig`、`IFrameLoop`、`FrameLoop` |
 
 私有实现 `src/engine/time/src/`：`TimeDomain.cpp`、`FixedStepClock.cpp`、`TimeService.cpp`、`FrameLoop.cpp`。
-工程用 `src\*.cpp` 通配，新增实现文件无需改 `.vcxproj`。
+工程显式列出源文件与公共头（VS2026 不再使用通配符）；新增实现文件时要同时改 `.vcxproj`。
 
 ## 4. 核心概念与数据结构
 

@@ -4,9 +4,11 @@
 |---|---|
 | 层 | L3 |
 | 优先级 | P1 |
-| 状态 | 设计完成 |
-| 依赖 | M00–M21 |
+| 状态 | 已实现 |
+| 依赖 | M00–M21（实际只链接 `fa_core`） |
 | 被依赖 | M19、M23、M24、M25、M26 |
+
+> 实测与踩坑：[构建记录](../build/m22-calendar-weather-lighting.md)
 
 ## 1. 目的
 
@@ -64,7 +66,60 @@ struct WorldClock {
 - 天气在每天开始时确定；`WeatherChanged` 在 `DayChanged` 之前发布。
 - 光照只影响表现，不影响玩法判定（除特定怪物生成，可后续）。
 
-## 4. 公共接口草案
+## 4. 公共接口
+
+实际落地是具体类 `fa::world::WorldCalendar`（不是 `IWorldClock` 接口）：
+
+```cpp
+namespace fa::world {
+
+class WorldCalendar {
+public:
+    explicit WorldCalendar(std::uint64_t weatherSeed = core::Rng::kDefaultSeed);
+    void reset(std::uint64_t weatherSeed = core::Rng::kDefaultSeed);
+    void advance(float realDeltaSeconds);
+    void skipToNextDay();
+
+    void setPaused(bool paused) noexcept;
+    const WorldClock& clock() const noexcept;
+    const GameDate& date() const noexcept;
+    Season season() const noexcept;
+    float timeOfDay() const noexcept;
+    int hour() const noexcept;
+    int minute() const noexcept;
+    bool isNight() const noexcept;
+
+    Weather today() const noexcept;
+    Weather tomorrow() const noexcept;
+    bool isRaining() const noexcept;
+    bool isStormy() const noexcept;
+    bool isSnowing() const noexcept;
+    bool autoWatersCrops() const noexcept;
+    float cropGrowthMultiplier() const noexcept;
+
+    core::Color ambientColor(bool indoor = false) const noexcept;
+    float ambientIntensity(bool indoor = false) const noexcept;
+    AmbientLight ambientLight(bool indoor = false) const noexcept;
+
+    std::span<const CalendarEvent> events() const noexcept;
+    void clearEvents() noexcept;
+    CalendarStats stats() const noexcept;
+
+    void restore(const GameDate& date, float timeOfDay, Weather today, Weather tomorrow);
+    void setRealSecondsPerGameMinute(float seconds) noexcept;
+    std::uint64_t weatherState() const noexcept;
+    std::uint64_t weatherIncrement() const noexcept;
+    void restoreWeather(std::uint64_t state, std::uint64_t increment) noexcept;
+};
+
+} // namespace fa::world
+```
+
+草案里的 `IWorldClock` 没有再引入：目前只有一个实现，接口层没有收益；
+`update(const FrameContext&)` 也改成 `advance(realSeconds)`，由组装根决定
+用真实帧时间还是固定步时间推进。
+
+早期草案（未采用，保留作设计记录）：
 
 ```cpp
 namespace fa::world {
@@ -85,7 +140,10 @@ public:
 
 ## 5. 依赖关系
 
-- 依赖 M03（事件）、M04（时间）、M06（光照绘制）、M11（光照实体/系统）、M15（天气/季节配置）。
+- 设计上依赖 M03（事件）、M04（时间）、M06（光照绘制）、M11（光照实体/系统）、M15（天气/季节配置）。
+- **实际落地只链接 `fa_core`**：`WorldCalendar` 是纯逻辑，事件是内部
+  `std::vector`，光照是纯数据；M03/M06 的接入由组装根完成，避免 `fa_world`
+  反向依赖上层。
 - 不依赖 M19；通过事件让 M19 自行处理生长与浇水。
 - M25 负责睡眠/结算流程；M22 提供 `skipToNextDay`。
 
@@ -96,9 +154,20 @@ public:
 - 新增光照模型（彩色点光、闪烁、遮罩贴图）。
 - 新增时间流速道具/区域（室内时间暂停）。
 
-## 7. 实现阶段
+## 7. 实现落地
 
-P1，Phase C/E。先实现日期/时刻/事件；再实现天气与光照。验收：20 分钟一天、28 天一季；雨天自动浇水；夜晚变暗且灯光可见。
+P1，Phase C/E，已完成：
+
+- `fa/world/Calendar.hpp` + `src/Calendar.cpp`：日期/季节/时刻推进、事件、
+  天气权重、天气效果查询、环境光曲线、天气 RNG 状态保存。
+- `fa/world/Lighting.hpp` + `src/Lighting.cpp`：`AmbientLight`、`PointLight`、
+  `LightSet` 句柄列表与线性衰减采样。
+- `tests/world.test.cpp`：22 用例 / 122 断言。
+- app：快速时钟 + 每帧 `advance`；Weather 层的整屏暗化与两个占位点光；
+  摘要 `m22:` 行与 smoke OK 的 `+M22`。
+
+验收：默认 0.7 s/game-minute；28 天一季；雨天/风暴自动浇水；夜晚
+`ambientIntensity` 约 0.18，点光在暗化层之后绘制。
 
 ## 8. 风险与开放问题
 

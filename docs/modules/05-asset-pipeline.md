@@ -6,7 +6,7 @@
 | 优先级 | P0 |
 | 状态 | 已实现 |
 | 依赖 | M00、M01、M02、M03 |
-| 被依赖 | M06、M08、M10、M12、M14、M15、M26 |
+| 被依赖 | M06、M12、M14、M15、M26 |
 | 实现记录 | [M05 资源管线：实现说明、实测结果与遗留风险](../build/m05-assets.md) |
 
 ## 1. 目的
@@ -35,7 +35,8 @@
 - 内容语义与校验（M15）：JSON 文本原样交出，解析与合法性归内容模块。
 - 存档文件（M14）。
 - 资源编辑器 UI（M26）。
-- 音频片段（M08）：v1 只缓存 `Texture` 与 `JsonText` 两种种类。
+- 音频片段：v1 只缓存 `Texture` 与 `JsonText` 两种种类；音频 PCM 由 M08 自己的
+  `AudioClip` 承载，后续解码器再接入 M05。
 
 ## 3. 交付的文件
 
@@ -67,7 +68,7 @@
 
 | 文件 | 改动 |
 |---|---|
-| `src/engine/assets/fa_assets.vcxproj` | `ExceptionHandling=Sync`（`/EHsc`）；新增 `fa_events` 引用；`ClCompile` 已是通配符，新增源文件无需改工程 |
+| `src/engine/assets/fa_assets.vcxproj` | `ExceptionHandling=Sync`（`/EHsc`）；新增 `fa_events` 引用；源文件显式列出（VS2026 不再使用通配符） |
 | `tests/fa_tests.vcxproj` | 新增 `fa_assets` 引用 |
 | `src/app/fa_app.vcxproj` | M00 骨架期已引用 `fa_assets`，本轮无需改动 |
 

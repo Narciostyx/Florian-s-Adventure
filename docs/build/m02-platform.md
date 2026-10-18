@@ -53,7 +53,8 @@ Development 一致。
 | `StdFileSystem.hpp/.cpp` | `std::filesystem` + 二进制 iostream 的文件系统 |
 | `PlatformEvent.cpp` | `toString()` 实现 |
 
-`fa_platform.vcxproj` 用 `src\*.cpp` 通配，新增实现文件不需要改工程。
+`fa_platform.vcxproj` 当时用 `src\*.cpp` 通配，新增实现文件不需要改工程。M08 交付时
+所有工程已改为显式文件列表，避免 VS2026 的通配符警告；现在新增源文件要同时改 `.vcxproj`。
 
 ### 测试（`tests/platform.test.cpp`）
 

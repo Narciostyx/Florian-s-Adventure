@@ -40,9 +40,14 @@
 - M05 的资源缺失一律降级为色块占位并返回成功（见 [美术资源策略](art-policy.md)）；只有「id 未声明」「占位尺寸非法」「上传被拒」是错误。
 - M06 是唯一直接调用 OpenGL 的模块（GL 上下文由 M02 的 `IGlContext` 提供）；对外提供 `IRenderer`、`RenderQueue`、`Camera2D`、`Viewport`、`TextureHandle`。批处理是实现细节，不是对外类型。
 - M07 不包含玩法键位；只提供动作名到物理输入的映射。
-- M08 不查询 ECS；只消费 `AudioCommand` 队列。
+- M08 只依赖 M01 与 M02（`IAudioDevice`），**不依赖 M05/M06/M11**：`AudioClip` 由 M08 定义，v1 没有解码器；
+  主线程只压 `AudioCommand` 队列，混音器只在音频线程被访问，`AudioStats` 由原子快照发布，因此 `fa_audio`
+  不需要 `/EHsc`。
 - M09 只依赖 M01 与 M06 的 `RenderQueue`/`DrawItem`/`TextureHandle`，**不依赖 M05/M07/M11**：字体与 1×1 白纹理以裸句柄传入，鼠标快照由调用方每帧提供，控件只读写调用方传入的值。文字与四边形都产出纯数据 `DrawItem`，因此 `fa_ui` 不需要 GL、资源或输入模块，也不需要 `/EHsc`。
 - M10 不决定动画切换；只播放/混合调用方指定的动画。
+  它只依赖 M01（`Rect`/`Vec2`）与 M06（`render::TextureHandle`），**不依赖 M05/M11**：
+  clip 只存裸句柄，纹理保活归加载方；`Animator` 是纯数据，ECS 调度由 composition root / M11 负责。
+  没有 JSON/`<chrono>`/`<unordered_map>`，所以 `fa_anim` 不需要 `/EHsc`。
 
 ### L2
 
@@ -57,6 +62,9 @@
 - M12 只依赖 M01（数学/`Result`）、M06（`DrawItem`/`TextureHandle`/`RenderQueue`）、M11（`ISystem`/`World`）与 M13（`ISolidTiles`）。**不依赖 M05/`fa_assets`**：`TileDef` 只存裸 `render::TextureHandle`，JSON 里的纹理名由 composition root 解析后绑定；地图 JSON 解析使用 nlohmann/json，因此 `fa_tilemap` 单独打开 `/EHsc`。
 - M12 只负责地图数据、图层与查询；耕地/作物规则属于 M19。`Tilemap` 是可拷贝/可移动的值类型，物理桥是独立的非 owning `TilemapSolids`；提取接口产出纯数据 `RenderQueue`，不接收 `IRenderer&`。
 - M14 只负责序列化机制与存档槽；具体组件的读写由组件/玩法模块注册。
+  它只依赖 M01（`Result`/数学/版本）、M02（`IFileSystem`）与 M11（`scene::World`，仅 serializer 接口），
+  **不依赖 M05/M06/M09/M12/M15**。`SaveArchive` 用 PIMPL 把 `nlohmann::json` 关在 cpp 里，
+  `fa_save` 因此单独打开 `/EHsc`；公共头仍不含第三方类型。
 
 ### L3
 
@@ -69,6 +77,12 @@
   文件读取归 M05/composition root；数据库只做解析、合并、引用校验与查询。
 - M17 只依赖 M01/M11/M12/M13，**不依赖 M15/M16/M09/`fa_assets`/`fa_events`/`fa_input`**：内容 ID 暂用不透明 `payload`，工具通过 `IToolHandler` 注册，事件记录在 `events()`，输入来源由 M16 提供。放置占用用独立的 `PlacementGrid`，不直接改瓦片或碰撞体。
 - M18 只依赖 M01（`Result`）与 M15（`ContentId`/`ItemDef`），**不依赖 M11 的实现**（只 include `EntityId` 值类型头）、M09/M12/M13/M17/`fa_assets`：物品只存 `ContentId`/数量/耐久，`ContentDatabase` 是借用指针；使用效果通过 `IItemUseHandler` 注册，消耗由 handler 自己完成；事件记录在 `events()`，由组装根决定是否发 M03。
+- M20 只依赖 M01/M11/M13/M16，**不依赖 M15/M18/M03/M06/M09/M10**：伤害只读写 `player::Health`，
+  无敌复用 `PlayerController::isInvulnerable`，攻击/投射物/状态只操作 ECS 组件；掉落用
+  `LootSource` 字符串事件交给组装根，表现由 app 消费事件。`fa_combat` 因此不需要 `/EHsc`。
+- M22 只依赖 M01（数学/`Rng`/`Color`），**不依赖 M03/M04/M06/M11/M14/M15**：日历/天气是纯逻辑，
+  事件记录在 `events()`、由组装根转发；光照是纯数据，暗化层与点光由 app 提交到
+  `RenderLayer::Weather`；天气 RNG 状态由 M14 在存档层保存。`fa_world` 因此不需要 `/EHsc`。
 - M25 可以协调多个玩法模块，但只通过它们的公开接口/事件；不得直接改对方内部状态。
 
 ### L4
@@ -76,6 +90,10 @@
 - 调试/编辑器工具可以读取运行时数据，但写入必须通过受控接口。
 - 发布构建必须能通过 `FA_ENABLE_EDITOR=0` / `FA_ENABLE_DEBUG_TOOLS=0` 完全剔除。
 - 玩法不得依赖 M26/M27；调试代码通过接口注册，不能成为玩法逻辑的一部分。
+- M27 只引用 `fa_core`、`fa_platform`、`fa_render`、`fa_scene`、`fa_physics`、`fa_ui`，
+  **不依赖任何玩法模块**：控制台命令由 composition root 注册，`DebugStats` 由 app 填充，
+  实体检查器只产出值快照。`DebugInspector.cpp` include `fa/scene/World.hpp`（`<unordered_map>`），
+  所以 `fa_debug` 单独打开 `/EHsc`；`fa_app` 的 ProjectReference 只在非 Release 配置存在。
 
 ## 4. 同层通信的三种方式
 

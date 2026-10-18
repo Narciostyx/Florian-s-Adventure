@@ -2,10 +2,10 @@
 
 **这份文档是「继续任务」的唯一入口。** 新开一个对话继续开发时，先读这里，再读对应的模块文档与构建记录，不需要重新翻历史。
 
-- 最后更新：M18 Inventory & Items 交付完成（实现 + 文档回写）
-- 下一步：M08 Audio（用户已选择；后端方案与实施计划见 [交接文档](build/m08-audio.md)）
-- 当前总体：**28 个模块中 16 个已实现**（M00–M07 + M09 + M11 + M12 + M13 + M15 + M16 + M17 + M18），其余处于设计完成、尚未编码
-- 当前可运行内容：窗口 + 主循环 + 事件/作业 + 输入 + 渲染 + 资源缓存 + **ECS 世界与场景栈** + **AABB 碰撞与查询** + **瓦片地图与图层提取** + **交互目标选择与格子放置** + **玩家移动/朝向/耐力/闪避** + **带引用校验的内容数据库** + **内置位图字体与即时模式 HUD/控件** + **物品堆叠/背包/快捷栏/装备/使用分发**；画面是**全部色块占位**，40×23 地图（920 格、143 实心、16 可耕地）由 M12 提取，标记由 M16 驱动、M13 求解并停在 x=344，M17 在标记旁选目标、调用一次工具并占一个放置格，M15 加载物品/作物/配方/敌人/掉落表，M18 堆叠 120 个种子、转移 21 个到快捷栏、装备锄头并使用一份汤，M09 每帧绘制 HUD、耐力条、按钮、复选框、滑条与热键栏文本，但还没有完整玩法
+- 最后更新：M22 Calendar / Weather / Lighting 交付完成（实现 + 三配置实测 + 文档回写）
+- 下一步：**等待用户选择下一个模块**（M22 已完成；候选见 §6）
+- 当前总体：**28 个模块中 22 个已实现**（M00–M10 + M11 + M12 + M13 + M14 + M15 + M16 + M17 + M18 + M20 + M22 + M27），其余处于设计完成、尚未编码
+- 当前可运行内容：窗口 + 主循环 + 事件/作业 + 输入 + 渲染 + 资源缓存 + **ECS 世界与场景栈** + **AABB 碰撞与查询** + **瓦片地图与图层提取** + **交互目标选择与格子放置** + **玩家移动/朝向/耐力/闪避** + **带引用校验的内容数据库** + **内置位图字体与即时模式 HUD/控件** + **物品堆叠/背包/快捷栏/装备/使用分发** + **PCM16 软件混音与总线音量** + **调试控制台/统计覆盖层/日志窗口/实体检查器/物理调试** + **JSON 存档槽/原子写/`.bak` 恢复/迁移** + **帧动画/循环/事件/四向状态机** + **伤害/攻击窗口/投射物/状态/死亡事件**；画面是**全部色块占位**，40×23 地图（920 格、143 实心、16 可耕地）由 M12 提取，标记由 M16 驱动、M13 求解并停在 x=344，M17 在标记旁选目标、调用一次工具并占一个放置格，M15 加载物品/作物/配方/敌人/掉落表，M18 堆叠 120 个种子、转移 21 个到快捷栏、装备锄头并使用一份汤，M09 每帧绘制 HUD、耐力条、按钮、复选框、滑条与热键栏文本，M08 生成 440 Hz/220 Hz 占位 PCM、播放 one-shot 与循环、设置总线音量并在 2 帧后淡出 one-shot，M27 在 Debug/Development 提供 F3 统计、F4 日志、F5 物理调试与控制台（`teleport`/`give`/`entities`/`save`/`load`/`slots`），M14 每轮 smoke 写 `saves/autosave.json` 并读回版本/场景/实体/标记/耐力摘要，M10 在固定步推进一个 4 帧草地动画并在 frame 0/2 触发 `step` 事件，M20 用两个 dummy 跑通两次近战、投射物与中毒并击杀一个 dummy，M22 用 0.01 s/game-minute 的快速时钟跑出 06:00 → 07:40、计算环境光并在 Weather 层绘制暗化层与两个占位点光，但还没有完整玩法
 
 ## 1. 长期有效的规约
 
@@ -46,7 +46,7 @@
 
 ## 3. 模块状态
 
-### 已实现（16 个）
+### 已实现（22 个）
 
 | 模块 | 名称 | 用例（新增） | 关键交付 | 文档 |
 |---|---|---|---|---|
@@ -58,20 +58,55 @@
 | M05 | Asset Pipeline | 61 | `AssetId`/`AssetHandle`、`AssetCatalog`、异步加载 + 帧线程上传、占位降级、`ITextureUploader` 反向桥 | [设计](modules/05-asset-pipeline.md) · [实测](build/m05-assets.md) |
 | M06 | Rendering | 42 | `IRenderer` + `RenderQueue` + `Camera2D` + `Viewport`、自研 42 项 GL 函数表、精灵批处理、调试绘制 | [设计](modules/06-rendering.md) · [实测](build/m06-render.md) |
 | M07 | Input | 36 | `ActionId` + `Binding` + 每上下文 `ActionMap`、上下文栈、`IInput` 窄接口、JSON 键位持久化 | [设计](modules/07-input.md) · [实测](build/m07-input.md) |
+| M08 | Audio | 12 | `AudioClip` PCM16、32 voice 软件混音、Master/SFX/Music/Ambience 总线、pan/loop/fade/pitch、距离衰减、无锁 SPSC 命令队列、SDL3 `IAudioDevice` 回调、原子统计 | [设计](modules/08-audio.md) · [实测](build/m08-audio.md) · [ADR](adr/0005-audio-backend.md) |
 | M09 | UI & Text | 16 | 内置 3×5 ASCII 位图字体、字形回退、测量/换行/对齐、投影/描边、立即模式面板/按钮/复选框/滑条/进度条、`RenderLayer::UI` 与主题 | [设计](modules/09-ui-and-text.md) · [实测](build/m09-ui-and-text.md) |
+| M10 | Animation | 4 | `AnimationClip` 帧/时长/事件、`Animator` 纯数据、`AnimationService` 循环/完成/跨帧事件、四向 `Direction`、`AnimationStateMachine` 条件转换与方向变体 | [设计](modules/10-animation.md) · [实测](build/m10-animation.md) |
 | M11 | Scene / World & ECS | 78 | `World` + `EntityId` 代际句柄 + `SparseSet` + `CommandBuffer`、`SystemPipeline` 三钩子调度、`SceneStack` 栈式场景、`SpriteExtractor` 纯数据提取 | [设计](modules/11-scene-world-ecs.md) · [实测](build/m11-scene-ecs.md) |
 | M12 | Tilemap & World | 17 | `Tilemap` + `TileId`/`TileCoord`/`TileBounds` + 多图层 + 瓦片属性、`worldToGrid`/`gridToWorld`/`queryArea`/`portalAt`、JSON 地图加载、4 邻接自动瓦片、`extractTiles` 视锥裁剪、`TilemapSolids` 物理适配器 | [设计](modules/12-tilemap-and-world.md) · [实测](build/m12-tilemap.md) |
 | M13 | Physics & Collision | 40 | `Collider` + `CollisionLayer` 双向掩码、`SpatialHash` 宽相、`TileGrid` 静态碰撞、轴分离 + ≤4px 子步求解、`overlap`/`overlapCircle`/`raycast`、触发器进出事件 | [设计](modules/13-physics-collision.md) · [实测](build/m13-physics-collision.md) |
+| M14 | Serialization & Save | 7 | `SaveArchive` JSON 值树（隐藏 nlohmann）、`SaveMetadata`/`SaveContext`/`SaveFile`、`SaveService` 多槽/原子写/`.bak` 恢复/迁移链、`ComponentSerializerRegistry` | [设计](modules/14-serialization-save.md) · [实测](build/m14-serialization-save.md) |
 | M15 | Content Database | 11 | `ContentId` + `ItemDef`/`CropDef`/`RecipeDef`/`EnemyDef`/`LootTableDef`、季节掩码、JSON 多文档合并、前缀/重复/必填/数值校验、四类引用完整性、全量错误收集、按 ID/标签/类别查询 | [设计](modules/15-content-database.md) · [实测](build/m15-content-database.md) |
 | M16 | Player Controller | 14 | `PlayerController` 走/跑/加速度/斜向归一化、朝向主导轴、状态机与动作锁、耐力/闪避/无敌窗口、`PlayerSystem` 输入适配、`PlayerActionRequest` 记录、动画参数 | [设计](modules/16-player-controller.md) · [实测](build/m16-player-controller.md) |
 | M17 | Interaction & Grid Placement | 15 | `InteractionService` 目标选择（实体优先/朝向/距离/视线）、`Interactable` 组件、`IToolHandler` 分发、`PlacementGrid` 多格占用、`PlacementPreview`、交互/放置事件记录 | [设计](modules/17-interaction-grid-placement.md) · [实测](build/m17-interaction-grid.md) |
 | M18 | Inventory & Items | 22 | `ItemStack` + 内容驱动堆叠、`Inventory` 固定槽位与原子移除/交换/拆分/合并/转移、`Hotbar` 选中与消耗、`Equipment` Tool/Weapon、`IItemUseHandler` 分发、`PlayerInventory` 快速转移 | [设计](modules/18-inventory-items.md) · [实测](build/m18-inventory-items.md) |
+| M20 | Combat | 7 | `Damage`/`Health` 结算、M16 闪避无敌、攻击窗口与单实例去重、投射物 raycast/move、击退、Poison/Burn/Slow、四类事件与 `CombatStats` | [设计](modules/20-combat.md) · [实测](build/m20-combat.md) |
+| M22 | Calendar / Weather / Lighting | 22 | `Season`/`Weather`/`GameDate`/`WorldClock`、0–24 时刻与跨日/季/年、`HourChanged`/`DayChanged`/`SeasonChanged`/`WeatherChanged`、按季节权重随机天气与 RNG 状态保存、自动浇水/生长倍率、环境光曲线与室内外、`LightSet` 点光与线性衰减采样 | [设计](modules/22-calendar-weather-lighting.md) · [实测](build/m22-calendar-weather-lighting.md) |
+| M27 | Debug Tools | 11 | `DebugConsole` 命令/引号/历史、`CVarRegistry` 四种类型与 save/load、`DebugLogSink` 环形日志、`DebugStats`、实体快照、`UiContext` 覆盖层、M13 `DebugShape` 适配、F3/F4/F5/控制台事件路由；Release 不链接 | [设计](modules/27-debug-tools.md) · [实测](build/m27-debug-tools.md) |
 
-实际落地顺序是 M01 → M02 → M04 → M03 → M07 → M06 → M05 → M11 → M13 → M12 → M17 → M16 → M15 → M09 → M18，所以上表顺序与时间顺序不同。
+实际落地顺序是 M01 → M02 → M04 → M03 → M07 → M06 → M05 → M11 → M13 → M12 → M17 → M16 → M15 → M09 → M18 → M08 → M27 → M14 → M10 → M20 → M22，所以上表顺序与时间顺序不同。
 M12 排在 M13 之后，是因为它要适配 M13 的 `ISolidTiles`；M17 排在 M12 之后，因为它要用地图做目标与放置校验；
 M16 把输入、物理和 M17 的交互请求串起来；M15 是 P0，后续 M18/M19/M24 都靠它；
 M09 补上了此前「任何文字都画不出来」的空白；M18 接着把 M15 的物品定义变成可堆叠、可转移、可使用的容器状态，
-并在 HUD 里显示选中的快捷栏物品。
+并在 HUD 里显示选中的快捷栏物品；M08 最后补上音频，用 SDL3 设备回调 + 自研软件混音验证
+one-shot、循环、总线音量与淡出，不引入 SDL_mixer。
+
+M22 保持更窄的依赖：`fa_world` **只引用 `fa_core`**。日历/天气是纯逻辑，事件是内部
+`vector`，光照是纯数据；组装根负责把 `advance()` 接到帧循环、把事件转发给玩法模块、
+在 Weather 层画暗化层与点光，因此 `fa_world` **不需要 `/EHsc`**（见
+[构建记录](build/m22-calendar-weather-lighting.md) §1、§3）。
+
+M08 保持窄依赖：`fa_audio` 只引用 `fa_core` 与 `fa_platform`，**不引用 `fa_assets`、`fa_render`、`fa_scene`**，
+`AudioClip` 由 M08 自己定义；命令队列是唯一的跨线程入口，统计通过原子快照发布，所以 `fa_audio` **不需要 `/EHsc`**
+（见 [构建记录](build/m08-audio.md) §3 第 8 条）。
+
+M27 是 L4 工具，按设计读取所有下层，但**不反向依赖任何玩法模块**：命令由 app 注册，
+`DebugStats` 由 app 填充，实体检查器只做值快照。`fa_debug` 因为 include `fa/scene/World.hpp`
+（`<unordered_map>`）需要 `/EHsc`；`fa_app` 只在 `Configuration != Release` 时引用它，
+Release 可执行文件不含调试代码（见 [构建记录](build/m27-debug-tools.md) §3 第 4、6 条）。
+
+M14 只引用 `fa_core`、`fa_platform`、`fa_scene`，**不依赖 M05/M06/M09/M12/M15**；
+`SaveArchive` 用 PIMPL 把 `nlohmann::json` 关在 cpp 里，公共头不泄漏第三方类型，
+`fa_save` 因此单独打开 `/EHsc`。玩法组件通过 `IComponentSerializer` 注册，不反向依赖存档实现
+（见 [构建记录](build/m14-serialization-save.md) §3 第 6 条）。
+
+M10 只引用 `fa_core` 与 `fa_render`，**不依赖 M05/M11**：`AnimationClip` 只存裸
+`render::TextureHandle`，`Animator` 是纯数据，ECS 调度由 composition root 负责；
+没有 JSON/`<chrono>`/`<unordered_map>`，所以 `fa_anim` 不需要 `/EHsc`
+（见 [构建记录](build/m10-animation.md) §3 第 6 条）。
+
+M20 只引用 `fa_core`、`fa_scene`、`fa_physics`、`fa_player`，**不依赖 M15/M18**：
+掉落表以字符串 id 事件交给组装根，M20 不 include 内容库/背包；伤害/攻击/投射物/状态
+都只读写 ECS 组件，表现由 app/M06/M10 消费事件（见 [构建记录](build/m20-combat.md) §3 第 9 条）。
 
 M05 交付时还顺带清理了一处历史遗留：`fa_render.vcxproj` 里有一条指向 `fa_assets` 的 `ProjectReference`，但没有任何源文件用它，已删除。**M05 与 M06 现在编译期互不依赖**——上传走 `ITextureUploader` 反向接口，由 `fa_app` 适配。
 
@@ -117,31 +152,48 @@ M18 只引用 `fa_core` 与 `fa_content`，**不引用 `fa_assets`、`fa_render`
 **验收快照**（测试三配置一致；冒烟三配置都是 exit 0。固定步数由墙钟累积，并行负载下可能明显多于 60，不要逐字比对帧数或 y 坐标；x 坐标才是稳定断言）：
 
 ```text
-fa_tests.exe → All tests passed (18820 assertions in 428 test cases)
+fa_tests.exe → All tests passed (28935 assertions in 469 test cases)
+             "[anim]"     → 59 assertions in 4 test cases
+             "[audio]"    → 9808 assertions in 12 test cases
+             "[combat]"   → 50 assertions in 7 test cases
+             "[debug]"    → 118 assertions in 12 test cases
+             "[save]"     → 82 assertions in 7 test cases
              "[inventory]" → 288 assertions in 22 test cases
-             "~[inventory]" → 18532 assertions in 406 test cases
              "[ui]"       → 111 assertions in 16 test cases
              "[content]"  → 178 assertions in 11 test cases
              "[player]"   → 107 assertions in 14 test cases
-fa_app.exe --frames 60 → M02+M03+M04+M05+M06+M07+M09+M11+M12+M13+M15+M16+M17+M18 smoke test OK
+             "[world]"    → 122 assertions in 22 test cases
+fa_app.exe --frames 60 (Debug/Development)
+             → m08: 1 voice(s), 2 played, 1 stopped, 0 dropped, 48000 Hz, 2 channel(s)
+             → m10: 60 update(s), frame 1/4, 5 event(s), last step@0, looping
+             → m14: slot autosave, v1, scene demo, day 1, 1.00s, 7 entities,
+                    marker (344, 242.792), stamina 100.0, 1 slot(s), backup no
+             → m20: 2 attack(s), 4 hit(s), 46 damage, 1 kill(s),
+                    1 projectile(s)/1 hit(s)/0 wall hit(s), 1 status tick(s), 9 event(s)
+             → m22: year 1 spring day 1 07:39–07:40, sunny -> sunny, ambient 0.91–0.92,
+                    auto-water no, growth x1.00, 0 day(s)/1 hour(s)/0 season(s),
+                    0 weather change(s), 1 event(s)
+             → m27: 26 console command(s), 0 cvar(s), F3 stats / F4 log / ` console
+             → M02+M03+M04+M05+M06+M07+M08+M09+M10+M11+M12+M13+M14+M15+M16+M17+M18+M20+M22+M27 smoke test OK
+fa_app.exe --frames 60 (Release)
+             → m10: 60 update(s), frame 1/4, 5 event(s), last step@0, looping
+             → m14: slot autosave, v1, scene demo, day 1, 1.00s, 7 entities, ...
+             → m20: 2 attack(s), 4 hit(s), 46 damage, 1 kill(s), ...
+             → m22: year 1 spring day 1 07:40, sunny -> sunny, ambient 0.92, ...
+             → m27: disabled (release build)
+             → M02+M03+M04+M05+M06+M07+M08+M09+M10+M11+M12+M13+M14+M15+M16+M17+M18+M20+M22 smoke test OK
 ```
 
-### 未实现（12 个）
+### 未实现（6 个）
 
 | 模块 | 名称 | 优先级 | 依赖是否已就绪 | 备注 |
 |---|---|---|---|---|
-| M08 | Audio | P1 | 需要 M05 ✅ | 需要 SDL_mixer 或自研混音；首个真正的新增第三方依赖点 |
-| M10 | Animation | P1 | 需要 M05 ✅、M06 ✅ | 剪辑/混合/状态机边界；`revision` 已为它准备 |
-| M14 | Serialization & Save | P1 | 需要 M11 ✅ | 多槽存档、游戏时间每 12 小时自动存档 |
-| M19 | Farming & World Objects | P1 | 需要 M12 ✅、M17 ✅、M22 | 作物、耕地、温室 |
-| M20 | Combat | P1 | 需要 M13 ✅、M16 ✅、M18 ✅ | 含耐力与闪避（ADR-0002） |
-| M21 | AI | P1 | 需要 M11 ✅、M13 ✅ | |
-| M22 | Calendar / Weather / Lighting | P1 | 需要 M04 ✅、M06 ✅ | 季节驱动 M19/M21 行为差异 |
+| M19 | Farming & World Objects | P1 | 需要 M12 ✅、M17 ✅、M22 ✅ | 作物、耕地、温室 |
+| M21 | AI | P1 | 需要 M11 ✅、M13 ✅、M20 ✅ | 可消费 M22 事件做日程/夜行怪 |
 | M23 | NPC / Dialogue / Quests | P2 | 需要 M09 ✅、M15 ✅ | |
 | M24 | Economy / Crafting / Shops | P2 | 需要 M15 ✅、M18 ✅ | 星露谷式加工链 |
 | M25 | Game Flow | P1 | 需要 M11 ✅、M09 ✅、M14 | 场景栈、菜单流 |
 | M26 | Editor Tools | P2 | 需要 M05 ✅、M06 ✅ | |
-| M27 | Debug Tools | P1 | 需要 M06 ✅ | `AssetStats` 已为它的资源面板准备 |
 
 ## 4. 已有的接口面（下一个模块可以直接用）
 
@@ -152,6 +204,29 @@ fa_app.exe --frames 60 → M02+M03+M04+M05+M06+M07+M09+M11+M12+M13+M15+M16+M17+M
 | 错误返回 | `core::Result<T>` / `core::Status` / `errorStatus(code, msg)` | `fa/core/Result.hpp`、`fa/core/Error.hpp` |
 | 数学 | `Vec2`、`Rect`、`Rng` | `fa/core/` |
 | 窗口 / 文件 / 时钟 | `IPlatform`、`IFileSystem`、`IGlContext` | `fa/platform/` |
+| 音频设备 | `IAudioDevice`、`AudioCallback`（`platform.audio()`） | `fa/platform/AudioDevice.hpp` |
+| 音频片段 | `AudioClip`（PCM16、`frameCount`/`durationSeconds`）、`makeTone`/`makeSilence` | `fa/audio/AudioClip.hpp` |
+| 软件混音 | `AudioMixer`（`add`/`stop`/`setBusVolume`/`setListener`/`mix`/`stats`） | `fa/audio/AudioMixer.hpp` |
+| 音频引擎 | `AudioEngine`（`initialize`/`shutdown`/`play`/`stop`/`setBusVolume`/`setListener`/`update`/`stats`） | `fa/audio/AudioEngine.hpp` |
+| 音频参数 | `AudioBus`、`SoundDesc`、`SoundHandle`、`AudioStats`、`kMaxVoices` | `fa/audio/AudioTypes.hpp` |
+| 无锁队列 | `SpscQueue<T, Capacity>` | `fa/audio/SpscQueue.hpp` |
+| 调试控制台 | `DebugConsole`、`ConsoleCommand`、`splitCommandLine`、`trimCommandLine` | `fa/debug/DebugConsole.hpp` |
+| CVar | `CVarRegistry`、`CVarValue`、`CVarInfo`、`CVarType` | `fa/debug/DebugCVar.hpp` |
+| 调试日志 | `DebugLogSink`、`DebugLogLine`、`formatLogLine` | `fa/debug/DebugLog.hpp` |
+| 调试统计 | `DebugStats`、`formatStats` | `fa/debug/DebugStats.hpp` |
+| 实体检查 | `inspectWorld`、`EntityInspection`、`formatInspection` | `fa/debug/DebugInspector.hpp` |
+| 调试覆盖层/门面 | `DebugOverlay`、`DebugTools`、`DebugOverlayState` | `fa/debug/DebugOverlay.hpp`、`fa/debug/DebugTools.hpp` |
+| 物理调试绘制 | `drawPhysicsShapes` | `fa/debug/DebugDraw.hpp` |
+| 存档值树 | `SaveArchive`（object/array/parse/child/set*/get*/dump） | `fa/save/SaveArchive.hpp` |
+| 存档类型 | `SaveMetadata`、`SaveContext`、`SaveFile`、`kSaveVersion`、`kSaveMagic` | `fa/save/SaveTypes.hpp` |
+| 存档服务 | `ISaveService`、`SaveService`（save/load/apply/listSlots/deleteSlot/registerMigration） | `fa/save/SaveService.hpp` |
+| 组件序列化 | `IComponentSerializer`、`ComponentSerializerRegistry` | `fa/save/ComponentSerializer.hpp` |
+| 存档错误码 | `save_error::*`（6100–6107） | `fa/save/SaveError.hpp` |
+| 动画片段 | `AnimationClip`、`AnimationFrame`、`Direction`、`directionFromVector` | `fa/anim/AnimationClip.hpp` |
+| 动画播放 | `Animator`、`AnimationEvent`、`AnimationService`、`IAnimationService` | `fa/anim/Animator.hpp`、`fa/anim/AnimationService.hpp` |
+| 动画状态机 | `AnimationStateMachine`、`AnimationParams`、`DirectionalClips`、`AnimationTransition` | `fa/anim/AnimationStateMachine.hpp` |
+| 战斗判定 | `CombatService`、`ICombatService`、`applyDamage`/`spawnAttack`/`spawnProjectile`/`applyStatus`/`update` | `fa/combat/CombatService.hpp` |
+| 战斗数据 | `Damage`、`AttackHitbox`、`Projectile`、`StatusEffect`、`LootSource`、四类事件、`CombatStats` | `fa/combat/CombatTypes.hpp` |
 | 事件 / 线程池 | `EventBus`、`Subscription`、`JobSystem`、`parallelFor` | `fa/events/` |
 | 主循环 | `FrameLoop`、`FrameContext` | `fa/time/` |
 | 资源 | `IAssetManager`、`AssetHandle<T>`、`AssetId`、`AssetCatalog` | `fa/assets/` |
@@ -222,6 +297,37 @@ fa_app.exe --frames 60 → M02+M03+M04+M05+M06+M07+M09+M11+M12+M13+M15+M16+M17+M
 | 无重量/容量/分类限制 | 任何物品可进任何容器；Tool 槽可以放食物 | M18 / M19 |
 | `ContentDatabase` 生命周期 | 容器存借用指针，内容库先销毁会让 `maxStackFor`/use 悬空 | M18 |
 | 背包事件只记录不发布 | M03 接线由组装根决定；UI 需要自己清事件 | M18 / M03 |
+| 无音频解码器 | 现在放一个 WAV/OGG 进去也读不出来；只有代码生成的 PCM | M05 注册 `IAudioDecoder` 后接 `AudioClip` |
+| 音频整段常驻 / 无流式 | 长音乐全部占内存，切换曲目有加载尖峰 | M08（后续 `MusicStream`） |
+| 固定 48 kHz / 1–2 声道 | 其他设备格式依赖 SDL 流转换；多声道不做 | M08（需要时扩展 `IAudioDevice`） |
+| `play()` 句柄早于执行 | 返回非零不代表 voice 一定存活；淘汰/队列满只计数 | M08（需要反馈时加事件） |
+| 音频统计是回调快照 | 主线程读到的 active/played 可能落后一帧 | M08 / M27（面板刷新时读即可） |
+| 距离衰减是简单反比 | 不是物理正确的 3D 衰减；只适合 2D 近似 | M08 / M22 |
+| 无总线 DSP / 低通 / 混响 | 环境音、室内外过滤做不了 | M08 扩展点 / M22 |
+| CI 可能没有音频设备 | `SDL_OpenAudioDeviceStream` 失败时静默降级 | M08 已非致命（与 GL 相同） |
+| 调试代码泄漏到发布构建 | Release 可执行文件包含控制台/CVar/覆盖层 | M27（条件 ProjectReference + `FA_ENABLE_DEBUG_TOOLS` 守卫） |
+| 控制台只支持 ASCII | CJK 输入会拆成多个 `?` | M27 / M09 |
+| 调试命令绕过玩法规则 | `teleport`/`give` 不受约束，只用于开发期 | M27 |
+| 日志自旋锁高频烧 CPU | 大量日志时会占用一个核心 | M27（开发期可接受） |
+| 覆盖层固定像素布局 | 非 640×360 时面板可能重叠 | M27 / M09 |
+| 实体检查器只读且上限 64 | 不能搜索/编辑/销毁实体 | M27 |
+| 无 ImGui / 时间控制 / 纹理查看 | 复杂面板与暂停单步仍缺 | M27 后续 |
+| 无动画混合 | 上下半身/武器叠加/平滑过渡做不了 | M10 后续 |
+| 方向切换重启 clip | 走/跑切换可能有相位跳变 | M10（v1 取舍） |
+| 事件只有字符串 | 攻击窗口/特效需要结构化参数 | M10 / M20 |
+| 无动画资源格式 | clip 由代码构建，真实数据驱动缺 loader | M10 / M05 / M26 |
+| 攻击窗口仍由 app 手动触发 | 没有把 M10 动画事件自动接到 M20 | M10 / M20 |
+| 矩形 hitbox 不随朝向旋转 | 扇形/朝向判定未实现 | M20 |
+| 击退直接 move | 没有受击硬直/速度衰减，墙边可能夹住 | M20 / M13 |
+| 死亡不销毁/不掷掉落 | 需要 M15/M18/M25 接线 | M20 / M15 / M18 / M25 |
+| 状态同类刷新不叠加 | DoT 为整数 tick，低 dps 有延迟 | M20 |
+| 投射物每步 raycast+move | 大量投射物需要对象池/批量查询 | M20 |
+| 没有现成的 World/Inventory serializer | app 只保存摘要字段，真实读档还需要各模块注册 | M14 / M19 / M20 / M25 |
+| `.bak` 只有一份 | 连续两次写坏仍可能丢失 | M14 |
+| 没有 CRC/压缩/加密 | 磁盘位翻转检测不到；大存档体积大 | M14 后续 |
+| 存档 JSON 深拷贝 | 大存档有分配开销 | M14（不在每帧热路径） |
+| 读档应用时机未定 | 资源未加载时直接应用实体引用会悬空 | M14 / M25 |
+| 自动存档调度未接 | 每 12 游戏小时与安全状态判定还没有调用方 | M25 / M22 |
 | 无渲染目标 / 后处理 | 做不了光照、屏幕扭曲 | M22 需要时再加 `RenderPass` |
 | 单一混合模式 | 预乘 alpha、加色做不了 | M06（分批断点已留好） |
 | 资源全是占位 | 看不到真实画面 | 真实美术后置，见 [art-policy](architecture/art-policy.md) |
@@ -268,6 +374,12 @@ fa_app.exe --frames 60 → M02+M03+M04+M05+M06+M07+M09+M11+M12+M13+M15+M16+M17+M
 | 场景与世界如何存档未定 | 存世界快照还是存场景描述 | M14 |
 | 无场景过渡效果 | 切场景是硬切 | M25 |
 | 无实体原型 → 世界规模 | 单场景 1e3 量级；10 万实体缓存局部性差 | M15 已实现；prefab 落地后再评估 |
+| 日历没有 26:00 强制睡眠 | 只提供 `skipToNextDay()`，晕倒/结算规则缺失 | M25 |
+| 天气只有日粒度 | 没有连续天气/预报准确率/区域差异 | M22 后续 |
+| 环境光是近似暗化 | 不是乘法光照；没有法线、阴影、彩色光通道 | M22 / M06 后续 |
+| 点光无遮挡/加法混合 | 只是半透明 quad，墙后也会亮 | M22 / M06 后续 |
+| 天气效果只提供查询 | 粒子/音效/室内外过滤要 app、M08、M12 接线 | M22 / M08 / M12 |
+| 天气 RNG 需手动存档 | 只保存 `today/tomorrow` 会让读档后的下一次掷点漂移 | M14 / M22（已暴露 `weatherState`） |
 
 ## 6. 下一步建议
 
@@ -275,13 +387,13 @@ fa_app.exe --frames 60 → M02+M03+M04+M05+M06+M07+M09+M11+M12+M13+M15+M16+M17+M
 
 | 候选 | 理由 | 风险 |
 |---|---|---|
-| M20 Combat | M13 ✅、M16 ✅、M18 ✅ 都已就绪：装备/消耗品、耐力/闪避、碰撞与伤害判定可以接起来 | 伤害/死亡/掉落/受击状态要一次定清 |
-| M22 Calendar / Weather / Lighting | M19 的前置；M12 的 `MapAmbient` 已为光照/室内外准备；M09 已能显示日期/时间/季节 | 日历/季节/天气规则与光照叠加需要设计 |
-| M10 Animation | 依赖 M05 ✅ + M06 ✅ 已就绪；M16 已经产出 `PlayerAnimationParams`，正好接上 | 剪辑/混合/状态机边界要一次想清楚 |
-| M14 Serialization & Save | 依赖 M11 ✅；多槽 + 每游戏日 12 小时自动存档的需求已定 | 需要先决定「存世界快照还是存场景描述」 |
-| M08 Audio | 独立性高，接口窄（`AudioCommand` 队列） | 需要首个新增音频第三方依赖，要先做一次 ADR |
+| M21 AI | M11/M13/M16/M20 ✅；可用 M22 的事件与光照做日程/夜行怪 | 感知、寻路与行为树需要一次定清 |
+| M19 Farming & World Objects | M12 ✅、M17 ✅、M22 ✅；`autoWatersCrops`/`cropGrowthMultiplier` 已就绪 | 作物状态机与季节/天气组合需要平衡 |
+| M23 NPC / Dialogue / Quests | M09 ✅、M15 ✅、M08 ✅ 已就绪；可以把对话、任务与音效接起来 | 对话数据结构与任务状态机要一次定清 |
+| M24 Economy / Crafting / Shops | M15 ✅、M18 ✅ 已就绪；加工链与星露谷式商店是下一个内容驱动点 | 交易原子性与价格规则要定 |
 
-选定后按既有节奏推进：**模块文档 → 实现 → 测试 → app 集成 → 三配置验证 → 全新克隆验证 → 回写文档 → 更新本文件 → 提交**。
+**M22 已完成。后续实现哪个模块由用户选择；选定后先向用户确认，再按既有节奏推进：**
+**模块文档 → 实现 → 测试 → app 集成 → 三配置验证 → 全新克隆验证 → 回写文档 → 更新本文件 → 提交**。
 
 ## 7. 维护方式
 

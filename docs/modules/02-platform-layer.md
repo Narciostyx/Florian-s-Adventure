@@ -18,12 +18,13 @@
 
 **负责**
 
-- 初始化/关闭 SDL3 子系统（视频、事件、游戏手柄）。
+- 初始化/关闭 SDL3 子系统（视频、事件、游戏手柄；音频子系统按需惰性初始化）。
 - 窗口创建、标题、尺寸、全屏、DPI、原生句柄。
 - 事件泵：把 SDL 事件转换为引擎 `PlatformEvent`。
 - 文件系统：存在性、目录判断、文本/二进制读写、原子写、建目录、枚举、删除。
 - 高精度单调时钟（供 M04 使用）。
 - 模态消息框（启动失败等场景）。
+- 音频设备：通过 `IAudioDevice` 打开默认播放设备并在 SDL 音频线程提供 PCM 回调。
 - 平台错误转换为 `fa::core::Error`（错误码段 2000–2999）。
 
 **不负责**
@@ -32,7 +33,7 @@
 - OpenGL 上下文创建与 GL 调用（M06）。M02 只交出 `nativeHandle()`。
 - 资源缓存与解码（M05）。
 - 线程池（M03）。
-- 音频设备打开（M08；当前只初始化 SDL 子系统，不建流）。
+- 音频混音、总线、声像、循环与淘汰（M08）；M02 只打开设备并提供回调接口。
 - 存档语义（M14 用 `writeTextAtomic` 实现多槽与自动存档）。
 
 ## 3. 交付的文件
@@ -41,14 +42,16 @@
 
 | 文件 | 内容 |
 |---|---|
-| `PlatformError.hpp` | 命名空间 `platform_error`，8 个错误码 |
+| `PlatformError.hpp` | 命名空间 `platform_error`，9 个错误码（含 `kAudioInitFailed`） |
 | `PlatformEvent.hpp` | `PlatformEventType`、`MouseButton`、`PlatformEvent`、`toString()` |
 | `Window.hpp` | `WindowDesc`、`IWindow` |
 | `FileSystem.hpp` | `IFileSystem` |
+| `AudioDevice.hpp` | `AudioCallback`、`IAudioDevice` |
+| `GlContext.hpp` | `GlContextDesc`、`IGlContext` |
 | `Platform.hpp` | `MessageBoxKind`、`IPlatform`、`createPlatform()` |
 
-私有实现 `src/engine/platform/src/`：`SdlPlatform`、`SdlWindow`、`StdFileSystem`、`PlatformEvent.cpp`。
-工程用 `src\*.cpp` 通配，新增实现文件无需改 `.vcxproj`。
+私有实现 `src/engine/platform/src/`：`SdlPlatform`、`SdlWindow`、`StdFileSystem`、`SdlGlContext`、`SdlAudioDevice`、`PlatformEvent.cpp`。
+工程显式列出 `src\...cpp` 与公共头（VS2026 不再使用通配符，见 [技术栈](../architecture/tech-stack.md)）；新增实现文件时要同时改 `.vcxproj`。
 
 ## 4. 核心概念与数据结构
 
@@ -97,6 +100,14 @@ struct PlatformEvent {
 
 路径一律 UTF-8 `std::string`；Windows 宽字符转换在实现内部完成，不依赖进程 ANSI 代码页。
 
+### 音频设备
+
+`IAudioDevice` 是本层对 M08 暴露的唯一音频入口。`SdlAudioDevice` 用
+`SDL_OpenAudioDeviceStream` 打开默认播放设备，固定请求 48 kHz / 16-bit / 单或双声道，
+在 SDL 音频线程里调用 `AudioCallback`。设备打开失败返回 `kAudioInitFailed`，调用方
+（M08/组装根）可以像 GL 失败一样继续运行。SDL 类型只出现在 `SdlAudioDevice.hpp` 这个
+私有头里；公共头不含 SDL。
+
 ## 5. 公共接口
 
 ```cpp
@@ -138,6 +149,8 @@ public:
     virtual bool quitRequested() const = 0;
     virtual IWindow& window() = 0;
     virtual IFileSystem& files() = 0;
+    virtual IGlContext* glContext() = 0;
+    virtual IAudioDevice* audio() = 0;
     virtual double monotonicSeconds() const = 0;
     virtual fa::core::Status showMessageBox(MessageBoxKind kind, std::string_view title,
                                             std::string_view message) = 0;

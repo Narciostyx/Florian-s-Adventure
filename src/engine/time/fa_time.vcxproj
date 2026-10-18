@@ -30,8 +30,15 @@
     <Import Project="$(SolutionDir)build\Project.props" />
   </ImportGroup>
   <ItemGroup>
-    <ClCompile Include="src\*.cpp" />
-    <ClInclude Include="..\include\fa\time\*.hpp" />
+    <ClCompile Include="src\FixedStepClock.cpp" />
+    <ClCompile Include="src\FrameLoop.cpp" />
+    <ClCompile Include="src\TimeDomain.cpp" />
+    <ClCompile Include="src\TimeService.cpp" />
+    <ClInclude Include="..\include\fa\time\FixedStepClock.hpp" />
+    <ClInclude Include="..\include\fa\time\FrameContext.hpp" />
+    <ClInclude Include="..\include\fa\time\FrameLoop.hpp" />
+    <ClInclude Include="..\include\fa\time\TimeDomain.hpp" />
+    <ClInclude Include="..\include\fa\time\TimeService.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="$(SolutionDir)src\engine\core\fa_core.vcxproj" />

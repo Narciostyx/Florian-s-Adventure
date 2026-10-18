@@ -30,8 +30,13 @@
     <Import Project="$(SolutionDir)build\Project.props" />
   </ImportGroup>
   <ItemGroup>
-    <ClCompile Include="src\*.cpp" />
-    <ClInclude Include="..\include\fa\content\*.hpp" />
+    <ClCompile Include="src\ContentDatabase.cpp" />
+    <ClCompile Include="src\ContentId.cpp" />
+    <ClCompile Include="src\ContentTypes.cpp" />
+    <ClInclude Include="..\include\fa\content\ContentDatabase.hpp" />
+    <ClInclude Include="..\include\fa\content\ContentError.hpp" />
+    <ClInclude Include="..\include\fa\content\ContentId.hpp" />
+    <ClInclude Include="..\include\fa\content\ContentTypes.hpp" />
   </ItemGroup>
   <!-- ContentDatabase.cpp parses with nlohmann/json, whose headers contain
        try/catch internals that do not compile with unwind semantics off (C4530).

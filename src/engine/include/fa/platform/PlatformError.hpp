@@ -34,4 +34,7 @@ inline constexpr int kGlContextCreationFailed = 2008;
 /// \brief This backend has no OpenGL support at all.
 inline constexpr int kGlUnsupported = 2009;
 
+/// \brief The audio subsystem or the default playback device could not be opened.
+inline constexpr int kAudioInitFailed = 2010;
+
 }  // namespace fa::platform::platform_error

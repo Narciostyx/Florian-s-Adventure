@@ -1,144 +1,141 @@
-# M08 Audio —— 构建记录 / 交接计划
+# M08 Audio —— 构建记录 / 实测
 
-对应模块文档：[08-audio.md](../modules/08-audio.md)
+对应模块文档：[08-audio.md](../modules/08-audio.md) · 决策：[ADR-0005](../adr/0005-audio-backend.md)
 
-> **状态：尚未编码。** 本文件是中断交接：新对话读完
-> [计划完成情况](../plan-status.md) 后按本文件继续 M08。
+> **状态：已实现并三配置实测通过。** 后端为 SDL3 `SDL_OpenAudioDeviceStream` +
+> `SDL_AudioStreamCallback` + M08 自研软件混音。没有引入 SDL_mixer。
 
-## 1. 结论：后端选择
-
-优先使用 **SDL3 自带音频 + M08 自研软件混音器**，不引入 SDL_mixer。
-
-理由：
-
-- SDL3 已经是 M02 的既有依赖（`vcpkg.json` 里的 `sdl3`），不新增第三方库，符合
-  「不引入新依赖除非必要」的长期规约。
-- SDL3 提供 `SDL_OpenAudioDeviceStream` + `SDL_AudioStreamCallback`，设备打开、格式转换
-  和音频线程都由 SDL 管理；混音、总线、声像、循环与淘汰规则仍由 M08 实现。
-- SDL_mixer 会带来第二套音频依赖与格式/解码约束，v1 只有 2D PCM 音效，收益不足。
-
-需要新增一个 ADR（`docs/adr/0005-audio-backend.md`），记录「SDL3 audio + 自研混音、
-不引入 SDL_mixer」以及备选方案。
-
-### SDL3 API 事实（已在本机头文件确认）
-
-- 头文件：`vcpkg_installed/x64-windows-static-md/x64-windows-static-md/include/SDL3/SDL_audio.h`
-- `SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, callback, userdata)`
-  返回 `SDL_AudioStream*`；`SDL_DestroyAudioStream()` 关闭。
-- 回调类型：`void (SDLCALL *SDL_AudioStreamCallback)(void* userdata, SDL_AudioStream* stream,
-  int additional_amount, int total_amount)`；在回调里生成/推入 PCM。
-- 常用格式：`SDL_AUDIO_S16`（16-bit 有符号，交错）；`SDL_AUDIO_F32` 也可。
-- `SDL_ResumeAudioStreamDevice(stream)` 开始播放；`SDL_PauseAudioStreamDevice()` 暂停。
-
-## 2. 跨模块改动
+## 1. 实际落地
 
 ### M02 Platform
 
-新增 `IAudioDevice` + SDL 实现（与 `IGlContext` 一样，初始化失败不致命）：
+新增：
 
-```cpp
-namespace fa::platform {
-using AudioCallback = void (*)(void* user, std::int16_t* output, int frames);
-
-class IAudioDevice {
-public:
-    virtual ~IAudioDevice() = default;
-    virtual core::Status initialize(int sampleRate, int channels, AudioCallback callback, void* user) = 0;
-    virtual void shutdown() = 0;
-    virtual bool isOpen() const noexcept = 0;
-    virtual int sampleRate() const noexcept = 0;
-    virtual int channels() const noexcept = 0;
-};
-}
-```
-
-- 文件：`src/engine/include/fa/platform/AudioDevice.hpp`、`src/engine/platform/src/SdlAudioDevice.cpp`。
-- 固定 48 kHz、2 声道、`SDL_AUDIO_S16`；`initialize()` 打开 `SDL_OpenAudioDeviceStream`，
-  回调里直接调用 M08 的 mixer（通过 `void* user`），把 `additional_amount` 字节的 PCM
-  通过 `SDL_PutAudioStreamData` 推回 stream。
-- 失败返回 `platform_error::kAudioInitFailed`（新增 2000 段错误码）；隐藏/CI 运行继续无音频。
-- `fa_platform` 已经有 SDL3；不需要新链接库。
+- `src/engine/include/fa/platform/AudioDevice.hpp`
+  - `platform::AudioCallback = void (*)(void* user, std::int16_t* output, int frames)`
+  - `platform::IAudioDevice`：`initialize` / `shutdown` / `isOpen` / `sampleRate` / `channels`
+- `src/engine/platform/src/SdlAudioDevice.hpp/.cpp`
+  - `initialize()` 先 `SDL_InitSubSystem(SDL_INIT_AUDIO)`，再
+    `SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, callback, this)`。
+  - 请求 `48 kHz`、`SDL_AUDIO_S16`、单/双声道；打开后设备默认暂停，必须
+    `SDL_ResumeAudioStreamDevice()`。
+  - SDL 回调参数 `additional_amount` 是**字节数**，不是帧数；实现按
+    `additionalAmount / (sizeof(int16_t) * channels)` 换算，并按 2048 帧一块
+    调用上层回调后 `SDL_PutAudioStreamData()`，回调内不分配。
+- `IPlatform::audio()` 返回 `IAudioDevice*`；`SdlPlatform` 持有 `SdlAudioDevice`，
+  `shutdown()` 先停音频流再 `SDL_Quit()`。
+- `platform_error::kAudioInitFailed = 2010`。
+- `tests/time.test.cpp` 的 `FakePlatform` 增加 `audio()` 空实现（新增纯虚函数）。
 
 ### M08 Audio
 
-文件：
+新增文件：
 
-- `src/engine/include/fa/audio/AudioTypes.hpp`（`AudioBus`、`SoundDesc`、`SoundHandle`、`AudioStats`）
-- `src/engine/include/fa/audio/AudioClip.hpp`（PCM16、采样率、声道、帧数）
-- `src/engine/include/fa/audio/SpscQueue.hpp`（无锁单生产者/单消费者命令队列）
-- `src/engine/include/fa/audio/AudioMixer.hpp`（纯软件混音，不依赖设备）
-- `src/engine/include/fa/audio/AudioEngine.hpp`（实现 `IAudio`，连接 `IAudioDevice`）
-- `src/engine/audio/src/*.cpp`
-- `src/engine/audio/fa_audio.vcxproj`（GUID `{C0DE0010-0010-4F00-9A00-000000000010}`）
-- `tests/audio.test.cpp`（`[audio]`）
+| 文件 | 职责 |
+|---|---|
+| `fa/audio/AudioTypes.hpp` | `AudioBus`、`SoundDesc`、`SoundHandle`、`AudioStats`、`kMaxVoices = 32` |
+| `fa/audio/AudioClip.hpp` + `src/AudioClip.cpp` | PCM16、帧数/时长校验、`makeTone` / `makeSilence` |
+| `fa/audio/SpscQueue.hpp` | 有界无锁单生产者/单消费者队列（move-only、满时计数） |
+| `fa/audio/AudioMixer.hpp` + `src/AudioMixer.cpp` | 纯软件混音、总线、pan、循环、淡入淡出、pitch、32 voice 淘汰 |
+| `fa/audio/AudioEngine.hpp` + `src/AudioEngine.cpp` | 命令桥、`IAudioDevice` 适配、原子统计发布 |
+| `src/engine/audio/fa_audio.vcxproj` | GUID `{C0DE0010-...}`，只引用 `fa_core` + `fa_platform` |
+| `tests/audio.test.cpp` | `[audio]` 12 用例 / 9808 断言 |
 
-API 草案：
+### 关键实现选择
 
-```cpp
-enum class AudioBus { Master, SFX, Music, Ambience, Count };
-struct SoundDesc { AudioBus bus; float volume; float pitch; float pan; bool loop; };
-using SoundHandle = std::uint32_t; // 0 无效
+- **主线程 → 音频线程**：`play` / `stop` / `setBusVolume` / `setListener` 只压
+  `SpscQueue<Command, 256>`；音频回调先 drain 命令，再 `mix()`，最后把
+  `AudioMixer::stats()` 写入 `AudioEngine` 的原子字段。
+- **`stats()` 线程安全**：主线程只读原子快照；`update()` 在设备未打开时本地 drain
+  命令，便于无设备测试。
+- **句柄**：`AudioEngine` 在主线程预分配非零 `SoundHandle`，命令携带它进入音频线程；
+  队列满时 `play` 返回 0。句柄在音频线程真正执行前就返回，因此被 voice 淘汰时
+  调用方不会收到额外通知（统计里计数）。
+- **pan**：线性、中心不衰减：`pan > 0` 时左增益 `1 - pan`，`pan < 0` 时右增益
+  `1 + pan`，中心左右都是 1。
+- **音高/重采样**：`step = clip.sampleRate / mixer.sampleRate * pitch`，逐帧线性插值。
+- **循环与结束**：循环 voice 在越过 clip 长度时取模回绕；非循环 voice 在混完最后一帧
+  后立即释放 `shared_ptr` 并计入 `finished`。
+- **淡入/淡出**：淡入按 `framesPlayed / fadeFrames`；`stop(fade)` 记录
+  `fadeOutStartGain`（当时的淡入增益），之后按 `startGain * (1 - progress)` 衰减，
+  避免淡入与淡出重复相乘。
+- **距离衰减**：仅当 `SoundDesc::spatial` 且 `setListener(..., true)` 时生效，
+  `gain *= 256 / (256 + distance)`；默认关闭。
+- **淘汰**：voice 满时先找 priority 最低、再找当前音量最低的 voice；新声音更高才替换，
+  否则丢弃并计入 `dropped`。
 
-class AudioMixer {
-public:
-    SoundHandle add(std::shared_ptr<const AudioClip> clip, const SoundDesc& desc);
-    void stop(SoundHandle handle, float fadeSeconds = 0.0f);
-    void setBusVolume(AudioBus bus, float volume);
-    void setListener(core::Vec2 position, bool enabled);
-    void mix(std::span<std::int16_t> output); // frames = samples / channels
-    AudioStats stats() const;
-};
+### app 集成
 
-class AudioEngine {
-public:
-    core::Status initialize(platform::IAudioDevice& device);
-    void shutdown();
-    SoundHandle play(std::shared_ptr<const AudioClip> clip, const SoundDesc& desc);
-    void stop(SoundHandle, float fadeSeconds = 0.0f);
-    void setBusVolume(AudioBus, float);
-    void setListener(core::Vec2);
-    void update(); // 主线程回收/提交
-};
+`SmokeSink` 新增：
+
+- `initializeAudio()`：`platform.audio()` → `AudioEngine::initialize()`；失败打印
+  `audio init failed` 并继续（与 GL 一样非致命）。
+- 生成 `0.25 s 440 Hz` 正弦 + `0.1 s` 静音作为 one-shot，`0.5 s 220 Hz` 正弦作为
+  loop；Master = 0.8、SFX = 0.7；one-shot 在渲染 2 帧后 `stop(..., 0.05 s)`。
+- `onRender()` 每帧调用 `update()`；退出时先 `shutdownAudio()` 再关平台。
+- 摘要新增 `m08: voices, played, stopped, dropped, sampleRate, channels, mixedFrames`；
+  smoke OK 行插入 `+M08`（M07 之后）。
+
+### 工程文件：去掉通配符
+
+VS2026 打开解决方案时会提示「VC 项目不支持项目项定义中使用的通配符」。M08 交付时把
+全部 18 个 `.vcxproj` 的 `src\*.cpp` / `*.cpp` / `..\include\fa\<module>\*.hpp` 展开成
+显式文件列表，警告消失。**新增源文件或公共头时，要同时把它们加入对应的 `.vcxproj`**；
+新增工程仍然只需要改 `.sln`。
+
+## 2. 测试
+
+`[audio]` 覆盖：
+
+- `AudioClip`：空 clip、声道不整除、非法采样率、`makeTone` / `makeSilence` 的帧数。
+- 混音：无 voice 静音、单 voice 双声道、voice/bus/master 增益、硬左/硬右 pan。
+- 循环：2 帧 clip 循环 4 帧仍输出；非循环在结束后自动移除并计入 `finished`。
+- stop：即时停止、fade 的线性下降与结束移除、重复 stop 返回 false。
+- 32 voice：低优先级/低音量新声音被丢弃；高优先级新声音淘汰最低 voice。
+- 距离衰减：listener 开启/关闭与远近差异。
+- `SpscQueue`：顺序、容量、move-only、满时 `dropped()`。
+- `AudioEngine` + fake `IAudioDevice`：initialize / play / pump / 总线静音 / stop /
+  shutdown / 设备失败路径。
+
+实测（三配置一致）：
+
+```text
+fa_tests.exe "[audio]" → All tests passed (9808 assertions in 12 test cases)
+fa_tests.exe           → All tests passed (28628 assertions in 440 test cases)
+fa_app.exe --frames 60 → m08: 1 voice(s), 2 played, 1 stopped, 0 dropped,
+                         48000 Hz, 2 channel(s), <mixed frames>
+                       → M02+M03+M04+M05+M06+M07+M08+M09+M11+M12+M13+M15+M16+M17+M18 smoke test OK
 ```
 
-- 32 voice 上限；超出按 `priority`（`SoundDesc` 可加字段）与当前音量淘汰。
-- 总线音量相乘；Master 为 0 时静音。
-- 声像：线性 pan；距离衰减 v1 默认关闭，`setListener` 只在启用时生效。
-- 循环与淡入淡出；`stop` 的 fade 在混音器里用每块增益斜坡实现。
-- 音频线程只读命令队列 + 混音；回调内不分配、不加锁等待。`AudioClip` 用
-  `shared_ptr<const AudioClip>` 保活；voice 结束在音频线程释放引用（原子引用计数）。
-- 音乐流式播放 v1 不做；整段 PCM 常驻，文档标注后续扩展。
+`mixed frames` 由墙钟与音频回调决定（本机实测 51360–52320），不要写成固定断言。
 
-### M05 / 资源
+## 3. 遇到的问题与结论
 
-v1 **不新增解码器**：app 用代码生成一段 16-bit PCM 正弦/方波作为 `AudioClip`，验证
-播放/循环/音量/声像/淡出。真实 WAV/OGG 解码与 `AudioClip` 资源类型留给 M05 的
-`IAudioDecoder`（与 `IImageDecoder` 对称），在文档中登记为后续工作。
+1. **`SDL_audio.h` 不声明 `SDL_InitSubSystem` / `SDL_INIT_AUDIO`。**
+   只 include `<SDL3/SDL_audio.h>` 会在 `SDL_INIT_AUDIO` 处报 C2065。解决：在
+   `SdlAudioDevice.cpp` include `<SDL3/SDL.h>`；私有头只保留 `<SDL3/SDL_audio.h>`
+   以获得 `SDL_AudioStream` 与 `SDLCALL`。
+2. **`SDL_OpenAudioDeviceStream` 打开后是暂停状态。**
+   必须调用 `SDL_ResumeAudioStreamDevice()`；否则命令与混音都正常，但设备不出声。
+3. **`additional_amount` 是字节。**
+   直接当帧数会每次生成 4 倍（立体声 16-bit）数据。实现里按
+   `sizeof(int16_t) * channels` 换算并使用固定 scratch 分块。
+4. **统计不能在主线程直接读 `AudioMixer`。**
+   混音器只在音频线程被访问；`stats()` 改成读 `AudioEngine` 的原子快照。
+5. **`update()` 的语义需要区分设备是否打开。**
+   设备打开时命令由音频回调消费；未打开时才在主线程 drain，避免无设备测试里命令
+   永远不生效。
+6. **fade 测试最初把“剩余淡出帧”当成静音。**
+   5 帧 ramp 检查只消耗了 10 帧淡出的一半，后 5 帧仍应线性下降；测试改为先验证
+   剩余 ramp，再验证 voice 移除后的静音。
+7. **新增 `IPlatform::audio()` 纯虚函数会打断测试替身。**
+   `tests/time.test.cpp` 的 `FakePlatform` 补了 `audio()` 返回 `nullptr`。
+8. **头文件依赖保持窄。**
+   `fa_audio` 只 include `fa_core`、`fa_platform`；没有 JSON/`<chrono>`/
+   `<unordered_map>`，所以不需要 `/EHsc`。SDL 类型只出现在 `fa_platform` 的私有
+   `SdlAudioDevice.hpp` 中。
 
-## 3. 测试计划（headless，不打开设备）
-
-- `AudioClip` 帧数/声道校验；空 clip 拒绝。
-- `AudioMixer::mix` 输出静音（无 voice）与单 voice 的采样值/峰值。
-- 音量、Master/SFX 总线、静音、pan 左右声道差异。
-- 循环：mix 超过 clip 长度后仍输出；非循环 voice 在结束后自动移除。
-- `stop` 即时与 fade 后移除；voice 上限淘汰最低优先级/音量。
-- `SpscQueue` 单线程顺序、容量满时丢弃并计数、move-only 类型。
-- `AudioEngine` 用 fake `IAudioDevice` 验证 initialize/shutdown/play/stop/update；
-  设备失败返回错误但 `shutdown()` 安全。
-- 不测试真实 SDL 设备（CI 无声卡）；app 冒烟单独尝试初始化。
-
-## 4. app 集成
-
-- `SmokeSink` 增加 `std::unique_ptr<fa::audio::AudioEngine>`、`AudioClip`、`AudioStats`。
-- 初始化：`platform.audio()`（M02 新增）返回 `IAudioDevice&`；失败则打印
-  `audio unavailable` 并继续（与 GL 一样非致命）。
-- 生成 0.25 s 440 Hz 正弦 + 0.1 s 静音，播放一次 one-shot、一个循环，设置
-  Master/SFX 音量，播放 2 帧后 stop，输出统计。
-- 摘要增加 `m08: voices, played, stopped, dropped, sample rate, channels`；
-  smoke OK 行加 `+M08`（按模块号插在 M07 后）。
-- HUD 可加一行 `AUDIO 48K STEREO`（可选，非必需）。
-
-## 5. 验证
+## 4. 验证命令
 
 ```powershell
 $env:VCPKG_ROOT='D:\CPPLibraries\vcpkg'
@@ -150,12 +147,11 @@ foreach ($cfg in @('Debug','Development','Release')) {
 }
 ```
 
-完成后回写：`docs/modules/08-audio.md`、`docs/build/m08-audio.md`（把本计划替换为实测）、
-`docs/index.md`、`docs/plan-status.md`、`docs/architecture/module-map.md` /
-`dependency-rules.md`、`docs/adr/0005-audio-backend.md`。
+## 5. 已知限制 / 后续
 
-## 6. 已确认
-
-用户已选择 **SDL3 自带音频 + M08 自研软件混音**，**不引入 SDL_mixer**。
-实现顺序：先写 ADR-0005，再按上面的文件顺序实现；`fa_audio` 的 ProjectReference 只加
-`fa_core` 与 `fa_platform`（`AudioClip` 由 M08 定义，不依赖 M05）。
+- 没有解码器：WAV/OGG 要等 M05 的 `IAudioDecoder`；`AudioClip` 常驻内存。
+- 没有音乐流式播放：整曲 PCM 载入，长音乐要等 `MusicStream`。
+- 固定 48 kHz / 1–2 声道；任意设备格式交给 SDL 流转换。
+- 没有 3D、低通、混响、DSP 图；扩展点按总线插入。
+- voice 淘汰/命令丢弃只有计数，没有回调通知。
+- `stats()` 是最近一次音频回调的快照；游戏逻辑不要依赖逐样本精确值。

@@ -261,6 +261,8 @@ fa::core::Status SdlPlatform::initialize(const WindowDesc& desc) {
 }
 
 void SdlPlatform::shutdown() {
+    /// The audio stream must stop before SDL_Quit tears the subsystem down.
+    m_audio.shutdown();
     // The context is bound to the window, so it has to go first.
     m_glContext.destroyContext();
     m_window.destroy();
@@ -293,6 +295,8 @@ IWindow& SdlPlatform::window() { return m_window; }
 IFileSystem& SdlPlatform::files() { return m_files; }
 
 IGlContext* SdlPlatform::glContext() { return &m_glContext; }
+
+IAudioDevice* SdlPlatform::audio() { return &m_audio; }
 
 double SdlPlatform::monotonicSeconds() const {
     if (!m_initialized) {

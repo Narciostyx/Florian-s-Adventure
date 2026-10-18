@@ -49,7 +49,7 @@
 | `Input.hpp` | `IInput`（玩法唯一依赖面）与 `InputSystem`（完整实现） |
 
 私有实现 `src/engine/input/src/`：`Action.cpp`、`Binding.cpp`、`ActionMap.cpp`、`InputContext.cpp`、`InputDevice.cpp`、`InputSystem.cpp`。
-`fa_input.vcxproj` 的 `ClCompile` 是 `src\*.cpp` 通配，新增实现文件无需改工程。
+`fa_input.vcxproj` 显式列出源文件与公共头（VS2026 不再使用通配符）；新增实现文件时要同时改 `.vcxproj`。
 
 工程 `src/engine/input/fa_input.vcxproj`（GUID `{C0DE0006-…0006}`）引用 `fa_core` 与 `fa_platform`。它**单独开启 `/EHsc`**（`<ExceptionHandling>Sync</ExceptionHandling>`），原因是 `nlohmann/json` 会拉入 `<chrono>`，见 [M07 坑 #2](../build/m07-input.md)。
 

@@ -30,8 +30,19 @@
     <Import Project="$(SolutionDir)build\Project.props" />
   </ImportGroup>
   <ItemGroup>
-    <ClCompile Include="src\*.cpp" />
-    <ClInclude Include="..\include\fa\inventory\*.hpp" />
+    <ClCompile Include="src\Equipment.cpp" />
+    <ClCompile Include="src\Hotbar.cpp" />
+    <ClCompile Include="src\Inventory.cpp" />
+    <ClCompile Include="src\ItemUseService.cpp" />
+    <ClCompile Include="src\PlayerInventory.cpp" />
+    <ClInclude Include="..\include\fa\inventory\Equipment.hpp" />
+    <ClInclude Include="..\include\fa\inventory\Hotbar.hpp" />
+    <ClInclude Include="..\include\fa\inventory\Inventory.hpp" />
+    <ClInclude Include="..\include\fa\inventory\InventoryError.hpp" />
+    <ClInclude Include="..\include\fa\inventory\ItemStack.hpp" />
+    <ClInclude Include="..\include\fa\inventory\ItemUseHandler.hpp" />
+    <ClInclude Include="..\include\fa\inventory\ItemUseService.hpp" />
+    <ClInclude Include="..\include\fa\inventory\PlayerInventory.hpp" />
   </ItemGroup>
   <!-- M18 only stores ContentIds and counts; no entity pointers, no renderer, no
        JSON parsing. fa_scene is a header-only dependency here (EntityId), so only

@@ -50,6 +50,7 @@
 | [0002](0002-v1-scope-decisions.md) | v1 范围决策：耐力与闪避、季节与温室、加工链、多槽存档、键鼠输入 | Accepted |
 | [0003](0003-tile-and-collision-metrics.md) | 瓦片与碰撞度量：16×16 瓦片、640×360、脚部盒 10×6 | Accepted |
 | [0004](0004-core-math-and-result-shape.md) | Core 的值类型形态：`Rect` 独立结构体、`Result<T>` 无异常 | Accepted |
+| [0005](0005-audio-backend.md) | 音频后端：SDL3 流回调 + M08 自研软件混音，不引入 SDL_mixer | Accepted |
 
 ## 约定
 

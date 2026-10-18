@@ -30,8 +30,18 @@
     <Import Project="$(SolutionDir)build\Project.props" />
   </ImportGroup>
   <ItemGroup>
-    <ClCompile Include="src\*.cpp" />
-    <ClInclude Include="..\include\fa\physics\*.hpp" />
+    <ClCompile Include="src\CollisionLayer.cpp" />
+    <ClCompile Include="src\PhysicsSystem.cpp" />
+    <ClCompile Include="src\PhysicsWorld.cpp" />
+    <ClCompile Include="src\SpatialHash.cpp" />
+    <ClCompile Include="src\TileCollision.cpp" />
+    <ClInclude Include="..\include\fa\physics\Collider.hpp" />
+    <ClInclude Include="..\include\fa\physics\CollisionLayer.hpp" />
+    <ClInclude Include="..\include\fa\physics\PhysicsError.hpp" />
+    <ClInclude Include="..\include\fa\physics\PhysicsSystem.hpp" />
+    <ClInclude Include="..\include\fa\physics\PhysicsWorld.hpp" />
+    <ClInclude Include="..\include\fa\physics\SpatialHash.hpp" />
+    <ClInclude Include="..\include\fa\physics\TileCollision.hpp" />
   </ItemGroup>
   <!-- `SpatialHash` keys its buckets with std::unordered_map, whose header contains
        try/catch internals that do not compile with unwind semantics off (C4530).

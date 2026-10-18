@@ -30,8 +30,12 @@
     <Import Project="$(SolutionDir)build\Project.props" />
   </ImportGroup>
   <ItemGroup>
-    <ClCompile Include="src\*.cpp" />
-    <ClInclude Include="..\include\fa\ui\*.hpp" />
+    <ClCompile Include="src\Font.cpp" />
+    <ClCompile Include="src\Text.cpp" />
+    <ClCompile Include="src\Ui.cpp" />
+    <ClInclude Include="..\include\fa\ui\Font.hpp" />
+    <ClInclude Include="..\include\fa\ui\Text.hpp" />
+    <ClInclude Include="..\include\fa\ui\Ui.hpp" />
   </ItemGroup>
   <!-- M09 produces draw items only; it never owns a GL context and takes the font
        atlas and the 1x1 white texture as handles. fa_render is needed for

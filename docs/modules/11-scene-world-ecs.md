@@ -72,7 +72,7 @@
 
 | 文件 | 改动 |
 |---|---|
-| `src/engine/scene/fa_scene.vcxproj` | 新建静态库工程，GUID `{C0DE0008-…}`；引用 `fa_core`、`fa_time`、`fa_render`；`ClCompile` 用通配符 `src\*.cpp` |
+| `src/engine/scene/fa_scene.vcxproj` | 新建静态库工程，GUID `{C0DE0008-…}`；引用 `fa_core`、`fa_time`、`fa_render`；源文件显式列出（VS2026 不再使用通配符） |
 | `FloriansAdventure.sln` | 新增工程节点 + 6 行配置映射 |
 | `src/app/fa_app.vcxproj`、`tests/fa_tests.vcxproj` | 各新增一行 `ProjectReference` |
 

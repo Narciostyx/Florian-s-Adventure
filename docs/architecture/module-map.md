@@ -14,26 +14,26 @@
 | M05 | Asset Pipeline | L1 | P0 | 资源 ID、异步加载、缓存、句柄、热重载 | M01–M03 |
 | M06 | Rendering | L1 | P0 | OpenGL 设备、精灵批处理、相机、图层、调试绘制（文字归 M09） | M01–M02 |
 | M07 | Input | L1 | P0 | 键盘/鼠标/手柄状态、动作映射、输入上下文 | M01–M02 |
-| M08 | Audio | L1 | P1 | 音效/音乐播放、总线音量、3D 衰减（2D 模拟） | M01–M05 |
+| M08 | Audio | L1 | P1 | PCM 音效播放、软件混音、总线音量、2D 声像/距离衰减 | M01–M02 |
 | M09 | UI & Text | L1 | P1 | 立即模式 UI、布局、字体、HUD/菜单控件 | M01, M06 |
-| M10 | Animation | L1 | P1 | 精灵动画、状态机、帧事件、混合 | M01–M05 |
+| M10 | Animation | L1 | P1 | 精灵动画、四向状态机、帧事件 | M01、M06 |
 | M11 | Scene / World & ECS | L2 | P0 | 场景栈、World、EntityId、SparseSet、System 调度 | M01, M04, M06 |
 | M12 | Tilemap & World | L2 | P1 | 瓦片地图、图层、地图查询、地图加载 | M11, M13 |
 | M13 | Physics & Collision | L2 | P0 | AABB 碰撞、瓦片碰撞、移动求解、空间查询、触发器 | M01, M04, M11 |
-| M14 | Serialization & Save | L2 | P1 | JSON 序列化、存档槽、版本迁移、原子写入 | M01–M05, M11 |
+| M14 | Serialization & Save | L2 | P1 | JSON 序列化、存档槽、版本迁移、原子写入 | M01–M02、M11 |
 | M15 | Content Database | L3 | P0 | 物品/作物/敌人/配方等内容定义与校验 | M01–M05 |
 | M16 | Player Controller | L3 | P1 | 玩家移动、朝向、交互输入、状态切换 | M07, M11, M13 |
 | M17 | Interaction & Grid Placement | L3 | P1 | 交互目标选择、格子放置/拆除、工具使用 | M11–M13（M15 后续） |
 | M18 | Inventory & Items | L3 | P1 | 背包、堆叠、装备、物品使用、掉落 | M01, M15 |
 | M19 | Farming & World Objects | L3 | P1 | 耕地、播种、浇水、生长、收获、放置物 | M11–M15, M17 |
-| M20 | Combat | L3 | P1 | 生命/伤害、攻击判定、受击、死亡、掉落 | M11–M13, M15, M18 |
+| M20 | Combat | L3 | P1 | 生命/伤害、攻击判定、受击、死亡、投射物、状态 | M01、M11、M13、M16 |
 | M21 | AI | L3 | P1 | 敌人状态机、感知、寻路、行为决策 | M11–M13, M20 |
-| M22 | Calendar / Weather / Lighting | L3 | P1 | 日历、季节、天气、环境光与昼夜 | M01–M06, M11 |
+| M22 | Calendar / Weather / Lighting | L3 | P1 | 日历、季节、天气、环境光与昼夜 | M01（事件/绘制由组装根接 M03/M06/M11） |
 | M23 | NPC / Dialogue / Quests | L3 | P2 | NPC、对话、任务、关系与标记 | M11–M15, M25 |
 | M24 | Economy / Crafting / Shops | L3 | P2 | 金钱、商店、配方、制作、价格 | M15, M18, M23 |
 | M25 | Game Flow | L3 | P1 | 新游戏、读档、存档、场景切换、暂停、退出 | M11, M14, M22–M24 |
 | M26 | Editor Tools | L4 | P2 | 地图/内容编辑、实时调参、保存到 JSON | M05–M13, M15 |
-| M27 | Debug Tools | L4 | P1 | 调试绘制、控制台、性能面板、ECS 检查器 | M01–M13 |
+| M27 | Debug Tools | L4 | P1 | 调试绘制、控制台、性能面板、ECS 检查器 | M01–M02、M06、M09、M11、M13 |
 
 ## 2. 依赖图
 
@@ -84,14 +84,15 @@ flowchart TB
   M05 --> M03
   M06 --> M02
   M07 --> M02
-  M08 --> M05
+  M08 --> M02
   M09 --> M06
-  M10 --> M05
+  M10 --> M06
   M11 --> M04
   M11 --> M06
   M12 --> M11
   M12 --> M13
   M13 --> M11
+  M14 --> M02
   M14 --> M11
   M15 --> M05
   M16 --> M07
@@ -100,14 +101,16 @@ flowchart TB
   M17 --> M13
   M18 --> M15
   M19 --> M17
-  M20 --> M18
+  M20 --> M13
+  M20 --> M16
   M21 --> M20
-  M22 --> M11
+  M22 --> M01
   M23 --> M15
   M24 --> M18
   M25 --> M14
   M26 --> M15
-  M27 --> M11
+ M27 --> M09
+ M27 --> M13
 ```
 
 > 图中只画主要依赖；完整依赖以各模块文档和 `dependency-rules.md` 为准。
@@ -128,9 +131,12 @@ flowchart TB
 - **M06** 是唯一直接调用 OpenGL 的模块；其他模块只提交绘制项。
 - **M05 与 M06 编译期互不依赖**：`fa_assets` 不引用 `fa_render`，上传走 `ITextureUploader` 反向接口；`fa_render` 也不引用 `fa_assets`。桥接在 `fa_app` 里用适配器完成。
 - **M07** 把平台事件翻译为动作状态；不包含玩法键位。
-- **M08** 只消费音频命令；不反向查询 ECS。
+- **M08** 只依赖 M01 与 M02：`fa_audio` 不引用 `fa_assets`、`fa_render`、`fa_scene`，`AudioClip` 由 M08 定义；
+  命令队列是唯一的跨线程入口，混音器只在音频线程被访问，统计经原子快照发布。
 - **M09** 只依赖 `fa_core` 与 `fa_render`（`RenderQueue`/`TextureHandle`）；不依赖输入、场景或资源系统。每帧鼠标快照由调用方传入，控件读写调用方提供的值，因此没有绑定层。
 - **M10** 只描述动画数据与播放状态；不决定何时切换（由玩法系统决定）。
+  `AnimationClip` 只存裸 `render::TextureHandle`，`Animator` 是纯数据，ECS 调度由
+  composition root / M11 负责；因此 `fa_anim` 只引用 `fa_core` 与 `fa_render`。
 
 ### L2 世界运行时
 
@@ -140,6 +146,8 @@ flowchart TB
   `TileDef` 只存裸 `render::TextureHandle`，不引用 `fa_assets`。
 - **M13** 只做几何与碰撞求解；不决定伤害或交互。M12 已实现它需要的 `ISolidTiles`。
 - **M14** 负责序列化机制与存档槽；具体组件的读写由组件/玩法模块注册。
+  `SaveArchive` 用 PIMPL 隐藏 `nlohmann::json`，公共头不泄漏第三方类型；`fa_save` 只引用
+  `fa_core`、`fa_platform`、`fa_scene`，不依赖 M05/M06/M09/M12/M15。
 
 ### L3 玩法系统
 
@@ -151,12 +159,20 @@ flowchart TB
   （内容 ID 用不透明 `payload`）。具体工具由 M19/M20 注册 `IToolHandler`；输入来源由 M16 提供。
 - **M18** 只做物品栈、容器、快捷栏、装备与使用分发；不实现食物/工具效果（`IItemUseHandler` 由 M19/M20 注册），
   不写存档文件（M14 读快照），也不做背包 UI 布局（M09/M26）。物品只存 `ContentId`/数量/耐久。
+- **M20** 只做伤害/攻击/投射物/状态判定，不决定 AI、输入或掉落入包；掉落表以字符串 id 事件
+  交给组装根，表现由 M06/M10 消费事件。它只引用 `fa_core`、`fa_scene`、`fa_physics`、`fa_player`。
+- **M22** 只做日历/天气/环境光与点光数据，不读写存档、不直接改作物或 NPC；事件记录在
+  `events()`，由组装根转发给 M19/M21/M23/M24。它是纯逻辑，只引用 `fa_core`；
+  暗化层与点光由 app 在 `RenderLayer::Weather` 上提交。
 - **M16–M25** 通过 ECS 组件、事件和窄接口协作；禁止互相 `#include` 具体实现类。
 - **M25** 是玩法层的高层协调者；场景切换通过 M11 的 `SceneStack`，不直接操作窗口。
 
 ### L4 工具
 
 - **M26/M27** 只读或受控修改运行时数据；发布构建可完全剔除。
+- **M27** 只引用 `fa_core`、`fa_platform`、`fa_render`、`fa_scene`、`fa_physics`、`fa_ui`；
+  命令由 composition root 注册，`DebugStats` 由 app 填充，实体检查器只做值快照。
+  `fa_app` 只在非 Release 配置引用它；`fa_tests` 在所有配置链接以保持测试覆盖。
 - 调试工具不得成为玩法逻辑的依赖；所有调试入口必须可编译期关闭。
 
 ## 4. 跨模块关注点

@@ -30,8 +30,15 @@
     <Import Project="$(SolutionDir)build\Project.props" />
   </ImportGroup>
   <ItemGroup>
-    <ClCompile Include="src\*.cpp" />
-    <ClInclude Include="..\include\fa\interaction\*.hpp" />
+    <ClCompile Include="src\InteractionService.cpp" />
+    <ClCompile Include="src\InteractionTypes.cpp" />
+    <ClCompile Include="src\PlacementGrid.cpp" />
+    <ClInclude Include="..\include\fa\interaction\Interactable.hpp" />
+    <ClInclude Include="..\include\fa\interaction\InteractionError.hpp" />
+    <ClInclude Include="..\include\fa\interaction\InteractionService.hpp" />
+    <ClInclude Include="..\include\fa\interaction\InteractionTypes.hpp" />
+    <ClInclude Include="..\include\fa\interaction\PlacementGrid.hpp" />
+    <ClInclude Include="..\include\fa\interaction\ToolHandler.hpp" />
   </ItemGroup>
   <!-- fa_scene for World/EntityId/Transform, fa_physics for Collider-sized actor
        centres, fa_tilemap for the map/tile queries. fa_assets, fa_events, fa_input

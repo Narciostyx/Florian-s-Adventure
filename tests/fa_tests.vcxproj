@@ -52,7 +52,28 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="*.cpp" />
+    <ClCompile Include="anim.test.cpp" />
+    <ClCompile Include="assets.test.cpp" />
+    <ClCompile Include="audio.test.cpp" />
+    <ClCompile Include="combat.test.cpp" />
+    <ClCompile Include="content.test.cpp" />
+    <ClCompile Include="core.test.cpp" />
+    <ClCompile Include="debug.test.cpp" />
+    <ClCompile Include="events.test.cpp" />
+    <ClCompile Include="input.test.cpp" />
+    <ClCompile Include="interaction.test.cpp" />
+    <ClCompile Include="inventory.test.cpp" />
+    <ClCompile Include="main.test.cpp" />
+    <ClCompile Include="physics.test.cpp" />
+    <ClCompile Include="platform.test.cpp" />
+    <ClCompile Include="player.test.cpp" />
+    <ClCompile Include="render.test.cpp" />
+    <ClCompile Include="save.test.cpp" />
+    <ClCompile Include="scene.test.cpp" />
+    <ClCompile Include="tilemap.test.cpp" />
+    <ClCompile Include="time.test.cpp" />
+    <ClCompile Include="ui.test.cpp" />
+    <ClCompile Include="world.test.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="$(SolutionDir)src\engine\core\fa_core.vcxproj" />
@@ -70,6 +91,12 @@
     <ProjectReference Include="$(SolutionDir)src\engine\content\fa_content.vcxproj" />
     <ProjectReference Include="$(SolutionDir)src\engine\ui\fa_ui.vcxproj" />
     <ProjectReference Include="$(SolutionDir)src\engine\inventory\fa_inventory.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\audio\fa_audio.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\debug\fa_debug.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\save\fa_save.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\anim\fa_anim.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\combat\fa_combat.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\world\fa_world.vcxproj" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>

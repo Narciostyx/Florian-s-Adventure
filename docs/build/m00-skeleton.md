@@ -164,10 +164,12 @@ EndGlobal
     <Import Project="$(SolutionDir)build\Project.props" />
   </ImportGroup>
   <ItemGroup>
-    <ClInclude Include="$(SolutionDir)src\engine\include\fa\core\*.hpp" />
+    <ClCompile Include="src\Assert.cpp" />
+    <!-- ...one explicit entry per source file... -->
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="src\*.cpp" />
+    <ClInclude Include="..\include\fa\core\Assert.hpp" />
+    <!-- ...one explicit entry per public header... -->
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets" />

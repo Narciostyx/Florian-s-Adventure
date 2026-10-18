@@ -30,8 +30,21 @@
     <Import Project="$(SolutionDir)build\Project.props" />
   </ImportGroup>
   <ItemGroup>
-    <ClCompile Include="src\*.cpp" />
-    <ClInclude Include="..\include\fa\core\*.hpp" />
+    <ClCompile Include="src\Assert.cpp" />
+    <ClCompile Include="src\Hash.cpp" />
+    <ClCompile Include="src\Log.cpp" />
+    <ClCompile Include="src\Rng.cpp" />
+    <ClCompile Include="src\Version.cpp" />
+    <ClInclude Include="..\include\fa\core\Assert.hpp" />
+    <ClInclude Include="..\include\fa\core\Error.hpp" />
+    <ClInclude Include="..\include\fa\core\Hash.hpp" />
+    <ClInclude Include="..\include\fa\core\Ids.hpp" />
+    <ClInclude Include="..\include\fa\core\Log.hpp" />
+    <ClInclude Include="..\include\fa\core\Math.hpp" />
+    <ClInclude Include="..\include\fa\core\Result.hpp" />
+    <ClInclude Include="..\include\fa\core\Rng.hpp" />
+    <ClInclude Include="..\include\fa\core\TimeUnits.hpp" />
+    <ClInclude Include="..\include\fa\core\Version.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>

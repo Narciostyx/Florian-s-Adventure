@@ -36,7 +36,7 @@
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="*.cpp" />
+    <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="$(SolutionDir)src\engine\core\fa_core.vcxproj" />
@@ -52,6 +52,14 @@
     <ProjectReference Include="$(SolutionDir)src\engine\content\fa_content.vcxproj" />
     <ProjectReference Include="$(SolutionDir)src\engine\ui\fa_ui.vcxproj" />
     <ProjectReference Include="$(SolutionDir)src\engine\inventory\fa_inventory.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\audio\fa_audio.vcxproj" />
+    <!-- Debug tools are compiled out of Release; only link them when the
+         FA_ENABLE_DEBUG_TOOLS macro is active (Debug / Development). -->
+    <ProjectReference Include="$(SolutionDir)src\engine\debug\fa_debug.vcxproj" Condition="'$(Configuration)' != 'Release'" />
+    <ProjectReference Include="$(SolutionDir)src\engine\save\fa_save.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\anim\fa_anim.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\combat\fa_combat.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\world\fa_world.vcxproj" />
     <ProjectReference Include="$(SolutionDir)src\engine\input\fa_input.vcxproj" />
     <ProjectReference Include="$(SolutionDir)src\engine\events\fa_events.vcxproj" />
   </ItemGroup>

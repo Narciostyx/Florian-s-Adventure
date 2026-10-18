@@ -32,6 +32,18 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "fa_ui", "src\engine\ui\fa_u
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "fa_inventory", "src\engine\inventory\fa_inventory.vcxproj", "{C0DE000F-000F-4F00-9A00-00000000000F}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "fa_audio", "src\engine\audio\fa_audio.vcxproj", "{C0DE0010-0010-4F00-9A00-000000000010}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "fa_debug", "src\engine\debug\fa_debug.vcxproj", "{C0DE0011-0011-4F00-9A00-000000000011}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "fa_save", "src\engine\save\fa_save.vcxproj", "{C0DE0012-0012-4F00-9A00-000000000012}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "fa_anim", "src\engine\anim\fa_anim.vcxproj", "{C0DE0013-0013-4F00-9A00-000000000013}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "fa_combat", "src\engine\combat\fa_combat.vcxproj", "{C0DE0014-0014-4F00-9A00-000000000014}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "fa_world", "src\engine\world\fa_world.vcxproj", "{C0DE0015-0015-4F00-9A00-000000000015}"
+EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "fa_app", "src\app\fa_app.vcxproj", "{C0DE00A0-00A0-4F00-9A00-0000000000A0}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "fa_tests", "tests\fa_tests.vcxproj", "{C0DE00FE-00FE-4F00-9A00-0000000000FE}"
@@ -133,6 +145,42 @@ Global
 		{C0DE000F-000F-4F00-9A00-00000000000F}.Development|x64.Build.0 = Development|x64
 		{C0DE000F-000F-4F00-9A00-00000000000F}.Release|x64.ActiveCfg = Release|x64
 		{C0DE000F-000F-4F00-9A00-00000000000F}.Release|x64.Build.0 = Release|x64
+		{C0DE0010-0010-4F00-9A00-000000000010}.Debug|x64.ActiveCfg = Debug|x64
+		{C0DE0010-0010-4F00-9A00-000000000010}.Debug|x64.Build.0 = Debug|x64
+		{C0DE0010-0010-4F00-9A00-000000000010}.Development|x64.ActiveCfg = Development|x64
+		{C0DE0010-0010-4F00-9A00-000000000010}.Development|x64.Build.0 = Development|x64
+		{C0DE0010-0010-4F00-9A00-000000000010}.Release|x64.ActiveCfg = Release|x64
+		{C0DE0010-0010-4F00-9A00-000000000010}.Release|x64.Build.0 = Release|x64
+		{C0DE0011-0011-4F00-9A00-000000000011}.Debug|x64.ActiveCfg = Debug|x64
+		{C0DE0011-0011-4F00-9A00-000000000011}.Debug|x64.Build.0 = Debug|x64
+		{C0DE0011-0011-4F00-9A00-000000000011}.Development|x64.ActiveCfg = Development|x64
+		{C0DE0011-0011-4F00-9A00-000000000011}.Development|x64.Build.0 = Development|x64
+		{C0DE0011-0011-4F00-9A00-000000000011}.Release|x64.ActiveCfg = Release|x64
+		{C0DE0011-0011-4F00-9A00-000000000011}.Release|x64.Build.0 = Release|x64
+		{C0DE0012-0012-4F00-9A00-000000000012}.Debug|x64.ActiveCfg = Debug|x64
+		{C0DE0012-0012-4F00-9A00-000000000012}.Debug|x64.Build.0 = Debug|x64
+		{C0DE0012-0012-4F00-9A00-000000000012}.Development|x64.ActiveCfg = Development|x64
+		{C0DE0012-0012-4F00-9A00-000000000012}.Development|x64.Build.0 = Development|x64
+		{C0DE0012-0012-4F00-9A00-000000000012}.Release|x64.ActiveCfg = Release|x64
+		{C0DE0012-0012-4F00-9A00-000000000012}.Release|x64.Build.0 = Release|x64
+		{C0DE0013-0013-4F00-9A00-000000000013}.Debug|x64.ActiveCfg = Debug|x64
+		{C0DE0013-0013-4F00-9A00-000000000013}.Debug|x64.Build.0 = Debug|x64
+		{C0DE0013-0013-4F00-9A00-000000000013}.Development|x64.ActiveCfg = Development|x64
+		{C0DE0013-0013-4F00-9A00-000000000013}.Development|x64.Build.0 = Development|x64
+		{C0DE0013-0013-4F00-9A00-000000000013}.Release|x64.ActiveCfg = Release|x64
+		{C0DE0013-0013-4F00-9A00-000000000013}.Release|x64.Build.0 = Release|x64
+		{C0DE0014-0014-4F00-9A00-000000000014}.Debug|x64.ActiveCfg = Debug|x64
+		{C0DE0014-0014-4F00-9A00-000000000014}.Debug|x64.Build.0 = Debug|x64
+		{C0DE0014-0014-4F00-9A00-000000000014}.Development|x64.ActiveCfg = Development|x64
+		{C0DE0014-0014-4F00-9A00-000000000014}.Development|x64.Build.0 = Development|x64
+		{C0DE0014-0014-4F00-9A00-000000000014}.Release|x64.ActiveCfg = Release|x64
+		{C0DE0014-0014-4F00-9A00-000000000014}.Release|x64.Build.0 = Release|x64
+		{C0DE0015-0015-4F00-9A00-000000000015}.Debug|x64.ActiveCfg = Debug|x64
+		{C0DE0015-0015-4F00-9A00-000000000015}.Debug|x64.Build.0 = Debug|x64
+		{C0DE0015-0015-4F00-9A00-000000000015}.Development|x64.ActiveCfg = Development|x64
+		{C0DE0015-0015-4F00-9A00-000000000015}.Development|x64.Build.0 = Development|x64
+		{C0DE0015-0015-4F00-9A00-000000000015}.Release|x64.ActiveCfg = Release|x64
+		{C0DE0015-0015-4F00-9A00-000000000015}.Release|x64.Build.0 = Release|x64
 		{C0DE00A0-00A0-4F00-9A00-0000000000A0}.Debug|x64.ActiveCfg = Debug|x64
 		{C0DE00A0-00A0-4F00-9A00-0000000000A0}.Debug|x64.Build.0 = Debug|x64
 		{C0DE00A0-00A0-4F00-9A00-0000000000A0}.Development|x64.ActiveCfg = Development|x64

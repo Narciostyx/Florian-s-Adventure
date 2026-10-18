@@ -30,8 +30,17 @@
     <Import Project="$(SolutionDir)build\Project.props" />
   </ImportGroup>
   <ItemGroup>
-    <ClCompile Include="src\*.cpp" />
-    <ClInclude Include="..\include\fa\tilemap\*.hpp" />
+    <ClCompile Include="src\Autotile.cpp" />
+    <ClCompile Include="src\Tilemap.cpp" />
+    <ClCompile Include="src\TilemapExtract.cpp" />
+    <ClCompile Include="src\TilemapLoader.cpp" />
+    <ClInclude Include="..\include\fa\tilemap\Autotile.hpp" />
+    <ClInclude Include="..\include\fa\tilemap\TileDef.hpp" />
+    <ClInclude Include="..\include\fa\tilemap\TileId.hpp" />
+    <ClInclude Include="..\include\fa\tilemap\Tilemap.hpp" />
+    <ClInclude Include="..\include\fa\tilemap\TilemapError.hpp" />
+    <ClInclude Include="..\include\fa\tilemap\TilemapExtract.hpp" />
+    <ClInclude Include="..\include\fa\tilemap\TilemapLoader.hpp" />
   </ItemGroup>
   <!-- TilemapLoader.cpp parses with nlohmann/json, whose headers contain try/catch
        internals that do not compile with unwind semantics off (C4530). Only this

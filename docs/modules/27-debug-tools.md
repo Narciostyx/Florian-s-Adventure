@@ -4,40 +4,42 @@
 |---|---|
 | 层 | L4 |
 | 优先级 | P1 |
-| 状态 | 设计完成 |
-| 依赖 | M00–M25 |
+| 状态 | 已实现 |
+| 依赖 | M01、M02、M06、M09、M11、M13 |
 | 被依赖 | 无（叶子模块） |
+
+> 实测与踩坑：[构建记录](../build/m27-debug-tools.md)
 
 ## 1. 目的
 
-提供开发期可观测性与操控能力：控制台、统计覆盖层、实体检查器、物理调试绘制、时间控制与快捷命令。仅在 Debug/Development 构建启用。
+提供开发期可观测性与操控能力：控制台、CVar、统计覆盖层、日志窗口、实体检查器与物理调试绘制。仅在 Debug/Development 构建链接进 `fa_app`；Release 完全不引用 `fa_debug`。
 
 ## 2. 范围
 
-**负责**
+**已实现**
 
-- 控制台：命令注册、参数解析、历史、输出窗口（M09）。
-- CVar：运行时配置（显示、音量、玩法开关），支持持久化。
-- 性能覆盖层：FPS、帧时间、固定步数、实体数、绘制项、批次数、内存/资源计数。
-- 实体检查器：搜索实体、查看/编辑组件、销毁/复制。
-- 物理调试：碰撞盒、瓦片网格、射线、空间哈希格子。
-- 渲染调试：线框、批次统计、纹理查看。
-- 时间控制：暂停、单步、时间缩放、跳转时刻/日期。
-- 便捷命令：传送、给予物品、生成敌人、杀死全部、存档/读档、切换地图。
-- 日志窗口：按级别/分类过滤，错误高亮。
+- 控制台：命令注册、带引号的参数解析、历史、输出环、输入行编辑。
+- 内置命令：`help`、`clear`、`history`、`echo`。
+- 外挂命令：`stats`、`stats.show/hide/toggle`、`log.show/hide/toggle/clear`、
+  `physics.show/hide/toggle`、`cvar.list/get/set`、`console.close`。
+- CVar：bool/int/float/string 四种类型、变更回调、`name=value` 文本持久化。
+- 统计快照：FPS、帧时间、固定步、实体/组件、绘制项/批次、资源、物理、音频、地图。
+- 日志窗口：捕获 `fa::core::log`，按最低级别过滤，环形容量，等级着色。
+- 实体检查器：快照 `Transform`/`Sprite`/`Collider`，不持有组件指针。
+- 物理调试：把 M13 的 `DebugShape` 列表转成 M06 的 `drawDebugRect` 调用。
+- 覆盖层：通过 M09 `UiContext` 绘制统计面板、控制台与日志面板。
+- 事件路由：F3 统计、F4 日志、F5 物理、反引号控制台；控制台打开时吞掉键盘/文本输入。
+- app 命令：`teleport <x> <y>`、`give <item.id> <count>`、`entities`，以及 M14 接入后的
+  `save [slot]`、`load [slot]`、`slots`、`delete <slot>`。
 
-**不负责**
+**未实现 / 后续**
 
-- 发布构建中的任何功能。
-- 内容编辑（M26）。
-- 作弊防护（单机游戏不设防）。
-
-### 战斗与存档调试（ADR-0002）
-
-- 显示耐力条数值、闪避冷却、无敌窗口剩余时间。
-- 可强制触发自动存档、可查看当前存档槽状态与上次存档游戏时间。
-- 可切换季节/时间以验证季节限制与温室逻辑。
-- 所有调试入口仅在 Debug/Development 构建启用。
+- ImGui 或独立调试窗口；当前全部走 M09。
+- 时间控制（暂停、单步、缩放）命令。
+- 纹理查看器、线框模式、渲染目标调试。
+- 生成敌人/杀死全部/存档/读档/切换地图等玩法命令。
+- 命令自动补全、滚动、搜索、远程 TCP 控制。
+- 录制/回放（输入 + 时间）。
 
 ## 3. 核心概念与数据结构
 
@@ -45,63 +47,136 @@
 struct ConsoleCommand {
     std::string name;
     std::string help;
-    std::function<void(std::span<const std::string>)> fn;
+    std::function<void(DebugConsole&, std::span<const std::string>)> handler;
 };
 
+enum class CVarType { Bool, Int, Float, String };
+
 struct DebugStats {
-    float fps;
-    float frameMs;
-    int fixedSteps;
-    int entityCount;
-    int drawItems;
-    int batchCount;
-    std::size_t textureCount;
+    float fps, frameMs;
+    std::uint64_t frameCount, fixedSteps, droppedSteps;
+    double simulatedSeconds;
+    std::size_t entities, componentTypes, components;
+    std::size_t worldDrawItems, uiDrawItems;
+    std::uint32_t drawCalls, quads, textureSwitches, liveTextures;
+    std::size_t assetTextures, placeholderTextures, failedAssets;
+    std::size_t physicsBodies, physicsCells;
+    std::uint64_t physicsMoves, physicsBlocked;
+    int audioVoices, audioSampleRate;
+    std::uint64_t audioDropped;
+    std::size_t mapTiles, mapSolidTiles;
 };
 ```
 
-- 命令注册在启动时完成；命令实现只调用公共接口。
-- CVar 有类型（bool/int/float/string）与回调，变更立即生效。
-- 调试覆盖层使用 M06 的即时绘制与 M09 文本。
+- 控制台输出是 `std::vector<std::string>` 的环形窗口（最多 256 行），历史最多 64 条。
+- CVar 用 `std::vector<Entry>` 线性查找，避免 `std::unordered_map` 的额外异常路径。
+- `DebugLogSink` 用 `std::atomic_flag` 自旋锁保护环形日志，日志线程不阻塞在互斥量上。
+- `DebugStats` 由 composition root 填充；M27 不反向查询 ECS/资源/音频。
 
-## 4. 公共接口草案
+## 4. 公共接口
 
 ```cpp
 namespace fa::debug {
 
-class IDebugTools {
+struct ConsoleCommand { /* name, help, handler */ };
+class DebugConsole {
 public:
-    virtual ~IDebugTools() = default;
-    virtual void registerCommand(ConsoleCommand cmd) = 0;
-    virtual void execute(std::string_view line) = 0;
-    virtual void update(scene::World& world, const time::FrameContext& time) = 0;
-    virtual void draw(ui::IUi& ui, render::IRenderer& renderer, const DebugStats& stats) = 0;
-    virtual bool visible() const = 0;
-    virtual void setVisible(bool visible) = 0;
+    bool registerCommand(ConsoleCommand command);
+    bool execute(std::string_view line);
+    void print(std::string_view line);
+    void clear();
+    const std::vector<std::string>& lines() const;
+    const std::vector<std::string>& history() const;
+    void setOpen(bool open);
+    bool open() const;
+    const std::string& input() const;
+    void setInput(std::string text);
+    void appendInput(std::string_view text);
+    void backspace();
+    bool submitInput();
+    void historyPrevious();
+    void historyNext();
 };
 
-} // namespace fa::debug
+class CVarRegistry {
+public:
+    bool registerBool/registerInt/registerFloat/registerString(...);
+    const CVarValue* get(std::string_view name) const;
+    bool set(std::string_view name, std::string_view value);
+    std::vector<CVarInfo> list() const;
+    core::Status save(platform::IFileSystem&, std::string_view path) const;
+    core::Status load(platform::IFileSystem&, std::string_view path);
+};
+
+class DebugLogSink final : public core::ILogSink {
+    void write(core::LogLevel, core::LogCategory, std::string_view) override;
+    std::vector<DebugLogLine> snapshot() const;
+    void clear();
+    void setMinimumLevel(core::LogLevel);
+};
+
+class DebugOverlay {
+    void draw(ui::UiContext&, core::Rect viewport, const DebugStats&, const DebugConsole&,
+              const DebugLogSink&, const DebugOverlayState&) const;
+};
+
+class DebugTools {
+public:
+    DebugConsole& console();
+    CVarRegistry& cvars();
+    DebugLogSink& log();
+    void setStats(const DebugStats&);
+    void setStatsVisible(bool); bool statsVisible() const; void toggleStats();
+    void setLogVisible(bool);   bool logVisible() const;   void toggleLog();
+    void setPhysicsVisible(bool); bool physicsVisible() const; void togglePhysics();
+    void setConsoleOpen(bool);  bool consoleOpen() const;
+    bool handleEvent(const platform::PlatformEvent&);
+    void draw(ui::UiContext&, core::Rect viewport) const;
+    bool registerCommand(ConsoleCommand);
+    void attachLogSink();
+    void detachLogSink();
+};
+
+void drawPhysicsShapes(render::IRenderer&, std::span<const physics::DebugShape> shapes);
+
+}  // namespace fa::debug
 ```
 
 ## 5. 依赖关系
 
-- 依赖 M04（时间控制）、M06（绘制）、M07（快捷键）、M09（UI）、M11（实体）、M13（物理调试）、M25（流程命令）。
-- 被 composition root 在开发构建中注册；不进入发布构建。
-- 不反向依赖玩法模块内部；需要玩法数据时通过公共查询接口。
+- 依赖 M01（字符串/数学/日志/`Result`）、M02（`PlatformEvent`、`IFileSystem`）、
+  M06（`UiContext` 需要的绘制类型、`IRenderer::drawDebugRect`）、M09（`UiContext`）、
+  M11（`World` 快照）、M13（`DebugShape`）。
+- **不依赖任何玩法模块**；`teleport`/`give`/`entities` 与存档命令由 composition root 注册，命令实现只调用公共接口。
+- `fa_debug` 因为 `DebugInspector.cpp` include `fa/scene/World.hpp`（`<unordered_map>`）而打开 `/EHsc`。
+- `fa_app` 只在 `Configuration != Release` 时引用 `fa_debug`；`fa_tests` 在所有配置链接它，
+  因此 Release 仍能测试模块，但发布可执行文件不包含调试代码。
 
 ## 6. 扩展点
 
-- 新增命令分组与自动补全。
-- 新增可视化面板（AI 状态、任务进度、经济流水）。
-- 新增录制/回放（输入 + 时间）。
-- 新增远程控制（TCP/ImGui 独立窗口）用于调试主机。
+- 新增命令：`DebugTools::registerCommand`，命令拿到 `DebugConsole&` 与参数 span。
+- 新增 CVar：注册时给默认值、帮助文本与变更回调；保存/加载自动包含。
+- 新增面板：在 `DebugOverlay::draw` 里追加，或直接调用 `UiContext`。
+- 新增可视化：参考 `drawPhysicsShapes`，把纯数据列表适配到 M06。
+- 新增时间控制：由 app 注册命令并调用 `time::ITimeService`，M27 不直接拥有时间服务。
+- 新增远程控制/ImGui：隔离在 M27/M26，不污染公共头。
 
-## 7. 实现阶段
+## 7. 验收
 
-P1，Phase F（部分可提前到 Phase B）。先实现控制台、FPS/实体统计、物理调试绘制；再实现检查器与时间控制。验收：可用命令传送/给物品/生成敌人；能定位穿墙与碰撞盒错位。
+- `fa_tests.exe "[debug]"` → 118 断言 / 12 用例全绿（含既有 `[debug]` 用例）。
+- 全量测试 → 451 用例 / 28744 断言全绿。
+- Debug/Development `fa_app.exe --frames 60` → `m27: 26 console command(s)`（M14 接入后），smoke 行含 `+M27`。
+- Release `fa_app.exe --frames 60` → `m27: disabled (release build)`，smoke 行不含 `+M27`。
+- 三配置构建零 warning。
 
 ## 8. 风险与开放问题
 
-- 调试代码泄漏到发布构建会带来性能与安全问题；用编译开关与独立目标隔离。
-- 命令直接修改状态可能绕过规则导致误判；明确“调试命令不受玩法约束”。
-- 控制台与文本输入上下文的冲突需处理。
-- 是否引入 ImGui？若引入，需隔离在 M27/M26，不污染公共头。
+- 调试代码泄漏到发布构建：已用条件 `ProjectReference` 隔离，但 `fa_tests` 仍链接它。
+- 控制台只支持 ASCII；CJK 输入仍需 M09 多字节字体与文本输入。
+- 控制台与玩法输入冲突：打开时吞掉键盘/文本，鼠标事件仍会传给 M07。
+- 日志自旋锁在极端高频日志下会烧 CPU；日志量应是开发期可接受范围。
+- `DebugStats` 只是快照，可能落后一帧；不要用它做玩法判定。
+- 实体检查器最多 64 条，且只展示 Transform/Sprite/Collider；无组件编辑/销毁。
+- 覆盖层面板使用固定像素矩形，640×360 以外的分辨率需要重新排布。
+- 物理调试每帧重建 `DebugShape` 列表；实体多时只在需要时开启 F5。
+- 没有 ImGui、时间控制、纹理查看器与远程控制。

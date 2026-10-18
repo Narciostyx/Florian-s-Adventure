@@ -43,7 +43,7 @@
 | `JobSystem.hpp` | `JobHandle`、`JobDesc`、`JobSystem` |
 
 私有实现 `src/engine/events/src/`：`EventBus.cpp`、`JobSystem.cpp`。
-工程用 `src\*.cpp` 通配，新增实现文件无需改 `.vcxproj`。
+工程显式列出源文件与公共头（VS2026 不再使用通配符）；新增实现文件时要同时改 `.vcxproj`。
 
 工程 `src/engine/events/fa_events.vcxproj`（GUID `{C0DE0007-…0007}`）只引用 `fa_core`，**不引用 `fa_platform`**，因此事件与作业可以在没有窗口、没有设备的情况下测试与运行。
 

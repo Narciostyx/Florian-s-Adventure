@@ -4,6 +4,7 @@
 
 #include <fa/platform/Platform.hpp>
 
+#include "SdlAudioDevice.hpp"
 #include "SdlGlContext.hpp"
 #include "SdlWindow.hpp"
 #include "StdFileSystem.hpp"
@@ -30,6 +31,7 @@ public:
     IWindow& window() override;
     IFileSystem& files() override;
     IGlContext* glContext() override;
+    IAudioDevice* audio() override;
     double monotonicSeconds() const override;
     void sleepSeconds(double seconds) override;
     fa::core::Status showMessageBox(MessageBoxKind kind, std::string_view title,
@@ -38,6 +40,7 @@ public:
 private:
     SdlWindow m_window;
     SdlGlContext m_glContext;
+    SdlAudioDevice m_audio;
     StdFileSystem m_files;
     bool m_initialized = false;
     bool m_quitRequested = false;

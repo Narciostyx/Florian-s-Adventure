@@ -30,8 +30,24 @@
     <Import Project="$(SolutionDir)build\Project.props" />
   </ImportGroup>
   <ItemGroup>
-    <ClCompile Include="src\*.cpp" />
-    <ClInclude Include="..\include\fa\scene\*.hpp" />
+    <ClCompile Include="src\CommandBuffer.cpp" />
+    <ClCompile Include="src\EntityId.cpp" />
+    <ClCompile Include="src\Scene.cpp" />
+    <ClCompile Include="src\SceneStack.cpp" />
+    <ClCompile Include="src\SpriteExtractor.cpp" />
+    <ClCompile Include="src\System.cpp" />
+    <ClCompile Include="src\World.cpp" />
+    <ClInclude Include="..\include\fa\scene\CommandBuffer.hpp" />
+    <ClInclude Include="..\include\fa\scene\Components.hpp" />
+    <ClInclude Include="..\include\fa\scene\ComponentType.hpp" />
+    <ClInclude Include="..\include\fa\scene\EntityId.hpp" />
+    <ClInclude Include="..\include\fa\scene\Scene.hpp" />
+    <ClInclude Include="..\include\fa\scene\SceneError.hpp" />
+    <ClInclude Include="..\include\fa\scene\SceneStack.hpp" />
+    <ClInclude Include="..\include\fa\scene\SparseSet.hpp" />
+    <ClInclude Include="..\include\fa\scene\SpriteExtractor.hpp" />
+    <ClInclude Include="..\include\fa\scene\System.hpp" />
+    <ClInclude Include="..\include\fa\scene\World.hpp" />
   </ItemGroup>
   <!-- fa_core for the error/Result types, fa_time for the frame context the hooks
        receive, fa_render for DrawItem/RenderQueue. No fa_assets: sprites hold a

@@ -22,7 +22,25 @@
 #include <fa/assets/AssetManager.hpp>
 #include <fa/assets/AssetTypes.hpp>
 #include <fa/assets/ImageData.hpp>
+#include <fa/anim/AnimationClip.hpp>
+#include <fa/anim/AnimationService.hpp>
+#include <fa/anim/AnimationStateMachine.hpp>
+#include <fa/anim/Animator.hpp>
 #include <fa/assets/ITextureUploader.hpp>
+#include <fa/audio/AudioClip.hpp>
+#include <fa/audio/AudioEngine.hpp>
+#include <fa/audio/AudioTypes.hpp>
+#include <fa/combat/CombatService.hpp>
+#include <fa/combat/CombatTypes.hpp>
+#if defined(FA_ENABLE_DEBUG_TOOLS)
+#include <fa/debug/DebugConsole.hpp>
+#include <fa/debug/DebugCVar.hpp>
+#include <fa/debug/DebugDraw.hpp>
+#include <fa/debug/DebugInspector.hpp>
+#include <fa/debug/DebugLog.hpp>
+#include <fa/debug/DebugStats.hpp>
+#include <fa/debug/DebugTools.hpp>
+#endif
 #include <fa/core/Result.hpp>
 #include <fa/core/Version.hpp>
 #include <fa/content/ContentDatabase.hpp>
@@ -51,6 +69,13 @@
 #include <fa/player/PlayerTypes.hpp>
 #include <fa/platform/FileSystem.hpp>
 #include <fa/platform/Platform.hpp>
+#include <fa/platform/PlatformError.hpp>
+#include <fa/save/SaveArchive.hpp>
+#include <fa/save/SaveError.hpp>
+#include <fa/save/SaveService.hpp>
+#include <fa/save/SaveTypes.hpp>
+#include <fa/world/Calendar.hpp>
+#include <fa/world/Lighting.hpp>
 #include <fa/render/IRenderer.hpp>
 #include <fa/render/RenderError.hpp>
 #include <fa/render/RenderQueue.hpp>
@@ -318,6 +343,70 @@ struct InventoryDemoStats {
     std::size_t useEvents = 0;
 };
 
+/// \brief Counters for the one M14 save/load round-trip the smoke run performs.
+struct SaveDemoStats {
+    bool ok = false;
+    bool recovered = false;
+    std::string error;
+    std::string slot;
+    std::string scene;
+    int version = 0;
+    int day = 0;
+    double playSeconds = 0.0;
+    std::size_t entities = 0;
+    fa::core::Vec2 marker{};
+    float stamina = 0.0f;
+    std::size_t slots = 0;
+};
+
+/// \brief Counters for the one M10 animation the smoke run plays.
+struct AnimationDemoStats {
+    std::uint64_t updates = 0;
+    std::uint64_t events = 0;
+    std::size_t frameIndex = 0;
+    std::size_t frameCount = 0;
+    std::size_t lastEventFrame = 0;
+    std::string lastEvent;
+    bool finished = false;
+};
+
+/// \brief Counters for the scripted M20 combat sequence.
+struct CombatDemoStats {
+    std::uint64_t updates = 0;
+    std::uint64_t attacks = 0;
+    std::uint64_t attackHits = 0;
+    std::uint64_t damageDealt = 0;
+    std::uint64_t kills = 0;
+    std::uint64_t projectiles = 0;
+    std::uint64_t projectileHits = 0;
+    std::uint64_t projectileWallHits = 0;
+    std::uint64_t statusApplications = 0;
+    std::uint64_t statusTicks = 0;
+    std::size_t damageEvents = 0;
+    std::size_t deathEvents = 0;
+    std::size_t projectileEvents = 0;
+    std::size_t statusEvents = 0;
+};
+
+/// \brief Snapshot of the M22 calendar/weather/ambient state for the summary.
+struct CalendarDemoStats {
+    int year = 1;
+    fa::world::Season season = fa::world::Season::Spring;
+    int day = 1;
+    int hour = 6;
+    int minute = 0;
+    fa::world::Weather today = fa::world::Weather::Sunny;
+    fa::world::Weather tomorrow = fa::world::Weather::Sunny;
+    float ambientIntensity = 1.0f;
+    bool autoWater = false;
+    float growth = 1.0f;
+    std::uint64_t days = 0;
+    std::uint64_t hours = 0;
+    std::uint64_t seasons = 0;
+    std::uint64_t weatherChanges = 0;
+    std::size_t events = 0;
+};
+
 /// \brief Consumes one food item and records the use.
 ///
 /// M18 deliberately does not know what "food" does beyond the category string; a
@@ -420,6 +509,7 @@ public:
         auto physics = std::make_unique<fa::physics::PhysicsSystem>(&m_solids, 64.0f);
         m_physics = physics.get();
         systems().add(std::move(physics));
+        m_combat = std::make_unique<fa::combat::CombatService>(m_physics->physics());
 
         auto tiles = std::make_unique<fa::tilemap::TilemapExtractSystem>(m_map);
         m_tileSystem = tiles.get();
@@ -428,6 +518,8 @@ public:
     }
 
     void onExit() override {
+        // `CombatService` borrows the physics world owned by `PhysicsSystem`.
+        m_combat.reset();
         // `PhysicsSystem` borrows `m_solids` and the tile system borrows `m_map`, so
         // both systems have to die before those members do.
         systems().clear();
@@ -440,6 +532,17 @@ public:
     [[nodiscard]] fa::core::Vec2 markerPosition() const {
         const fa::scene::Transform* transform = world().tryGet<fa::scene::Transform>(m_markerEntity);
         return transform != nullptr ? transform->position : fa::core::Vec2{};
+    }
+
+    /// \brief Debug hook for the `teleport` console command.
+    ///
+    /// The next physics step still owns position; this only moves the marker now so
+    /// a developer can inspect a spot without walking there.
+    void teleportMarker(fa::core::Vec2 position) {
+        if (fa::scene::Transform* transform = world().tryGet<fa::scene::Transform>(m_markerEntity);
+            transform != nullptr) {
+            transform->position = position;
+        }
     }
 
     [[nodiscard]] std::size_t groundTiles() const noexcept { return m_map.cellCount(); }
@@ -462,6 +565,16 @@ public:
     /// \brief Counters for the one scripted M17 sequence, snapshotted before shutdown.
     [[nodiscard]] const InteractionDemoStats& interactionDemoStats() const noexcept { return m_demoStats; }
 
+    /// \brief M10 playback counters and the last emitted event.
+    [[nodiscard]] AnimationDemoStats animationDemoStats() const { return m_animStats; }
+
+    /// \brief Public entry point for the composition root's fixed step.
+    void advanceAnimation(float deltaSeconds) { updateAnimation(deltaSeconds); }
+
+    /// \brief M20 counters for the smoke summary.
+    [[nodiscard]] CombatDemoStats combatDemoStats() const { return m_combatStats; }
+    void advanceCombat(float deltaSeconds) { updateCombat(deltaSeconds); }
+
     /// \brief Per-frame cursor target, used only for the debug highlight.
     void setCursorWorld(fa::core::Vec2 worldPosition) {
         m_cursorTarget = m_interaction.pickTarget(world(), m_markerEntity, worldPosition);
@@ -478,6 +591,15 @@ public:
 
     [[nodiscard]] fa::physics::PhysicsStats physicsStats() const {
         return m_physics != nullptr ? m_physics->physics().stats() : fa::physics::PhysicsStats{};
+    }
+
+    /// \brief M13 geometry for the M27 physics overlay.
+    [[nodiscard]] std::vector<fa::physics::DebugShape> physicsDebugShapes() const {
+        std::vector<fa::physics::DebugShape> shapes;
+        if (m_physics != nullptr) {
+            m_physics->physics().debugDraw(world(), shapes);
+        }
+        return shapes;
     }
 
     [[nodiscard]] fa::player::PlayerStats playerStats() const {
@@ -629,6 +751,178 @@ private:
         placedCollider.layer = fa::physics::CollisionLayer::World;
         placedCollider.mask = fa::physics::maskOf(fa::physics::CollisionLayer::Player);
         static_cast<void>(world().add<fa::physics::Collider>(m_placedEntity, placedCollider));
+
+        buildAnimation();
+        buildCombat();
+    }
+
+    /// \brief Creates one animated grass quad for M10.
+    ///
+    /// Frames are the four quadrants of the placeholder grass texture. The entity has
+    /// no collider, so it exercises animation and extraction without touching physics.
+    void buildAnimation() {
+        m_animEntity = world().create();
+        fa::scene::Transform transform;
+        transform.position = fa::core::Vec2{120.0f, 160.0f};
+        static_cast<void>(world().add<fa::scene::Transform>(m_animEntity, transform));
+
+        fa::scene::Sprite sprite;
+        sprite.texture = m_grass;
+        sprite.size = fa::core::Vec2{16.0f, 16.0f};
+        sprite.source = fa::core::makeRect(0.0f, 0.0f, 8.0f, 8.0f);
+        sprite.layer = fa::render::RenderLayer::Objects;
+        static_cast<void>(world().add<fa::scene::Sprite>(m_animEntity, sprite));
+
+        auto clip = std::make_shared<fa::anim::AnimationClip>();
+        clip->texture = m_grass;
+        clip->loop = true;
+        clip->frames = {
+            fa::anim::AnimationFrame{fa::core::makeRect(0.0f, 0.0f, 8.0f, 8.0f), 0.12f, "step"},
+            fa::anim::AnimationFrame{fa::core::makeRect(8.0f, 0.0f, 8.0f, 8.0f), 0.12f, {}},
+            fa::anim::AnimationFrame{fa::core::makeRect(0.0f, 8.0f, 8.0f, 8.0f), 0.12f, "step"},
+            fa::anim::AnimationFrame{fa::core::makeRect(8.0f, 8.0f, 8.0f, 8.0f), 0.12f, {}},
+        };
+        m_animStats = AnimationDemoStats{};
+        m_animStats.frameCount = clip->frames.size();
+        m_animService.play(m_animator, std::move(clip), true);
+    }
+
+    /// \brief Creates two enemy dummies and gives the marker a Health component.
+    void buildCombat() {
+        if (!world().has<fa::player::Health>(m_markerEntity)) {
+            fa::player::Health health;
+            health.current = 100;
+            health.max = 100;
+            static_cast<void>(world().add<fa::player::Health>(m_markerEntity, health));
+        }
+
+        const auto makeDummy = [this](fa::core::Vec2 position, int health, std::string_view loot)
+            -> fa::scene::EntityId {
+            const fa::scene::EntityId id = world().create();
+            fa::scene::Transform transform;
+            transform.position = position;
+            static_cast<void>(world().add<fa::scene::Transform>(id, transform));
+
+            fa::scene::Sprite sprite;
+            sprite.texture = m_wall;
+            sprite.size = fa::core::Vec2{16.0f, 16.0f};
+            sprite.layer = fa::render::RenderLayer::Objects;
+            sprite.tint = fa::core::Color{1.0f, 0.55f, 0.55f, 1.0f};
+            static_cast<void>(world().add<fa::scene::Sprite>(id, sprite));
+
+            fa::physics::Collider collider;
+            collider.size = fa::core::Vec2{16.0f, 16.0f};
+            collider.layer = fa::physics::CollisionLayer::Enemy;
+            collider.mask = fa::physics::maskOf(fa::physics::CollisionLayer::Player) |
+                            fa::physics::CollisionLayer::PlayerAttack;
+            static_cast<void>(world().add<fa::physics::Collider>(id, collider));
+
+            fa::player::Health hp;
+            hp.current = health;
+            hp.max = health;
+            static_cast<void>(world().add<fa::player::Health>(id, hp));
+
+            fa::combat::LootSource lootSource;
+            lootSource.lootTable = std::string(loot);
+            static_cast<void>(world().add<fa::combat::LootSource>(id, lootSource));
+            return id;
+        };
+
+        m_combatDummy1 = makeDummy(fa::core::Vec2{300.0f, 220.0f}, 20, "loot.slime");
+        m_combatDummy2 = makeDummy(fa::core::Vec2{300.0f, 240.0f}, 30, "loot.slime");
+    }
+
+    /// \brief Scripted M20 sequence: two melee hits, one projectile and poison.
+    void updateCombat(float deltaSeconds) {
+        if (m_combat == nullptr) {
+            return;
+        }
+
+        const fa::scene::Transform* marker = world().tryGet<fa::scene::Transform>(m_markerEntity);
+        if (m_combatStats.updates == 30 || m_combatStats.updates == 50) {
+            if (marker != nullptr) {
+                fa::combat::AttackHitbox hitbox;
+                hitbox.offset = fa::core::Vec2{-40.0f, -16.0f};
+                hitbox.size = fa::core::Vec2{40.0f, 48.0f};
+                hitbox.activeFrom = 0.0f;
+                hitbox.activeTo = 0.05f;
+                hitbox.damage = 10;
+                hitbox.targetMask = fa::physics::maskOf(fa::physics::CollisionLayer::Enemy);
+                hitbox.attackId = static_cast<std::uint32_t>(m_combatStats.updates);
+                m_combat->spawnAttack(world(), m_markerEntity, hitbox);
+            }
+        }
+
+        if (m_combatStats.updates == 30 && marker != nullptr) {
+            fa::combat::ProjectileDesc projectile;
+            projectile.position = marker->position + fa::core::Vec2{0.0f, 20.0f};
+            projectile.velocity = fa::core::Vec2{-160.0f, 0.0f};
+            projectile.lifetime = 0.5f;
+            projectile.damage = 5;
+            projectile.targetMask = fa::physics::maskOf(fa::physics::CollisionLayer::Enemy);
+            projectile.owner = m_markerEntity;
+            const fa::scene::EntityId entity = m_combat->spawnProjectile(world(), projectile);
+            if (entity.isValid()) {
+                fa::scene::Sprite sprite;
+                sprite.texture = m_marker;
+                sprite.size = fa::core::Vec2{4.0f, 4.0f};
+                sprite.layer = fa::render::RenderLayer::Objects;
+                sprite.tint = fa::core::Color{1.0f, 1.0f, 0.5f, 1.0f};
+                static_cast<void>(world().add<fa::scene::Sprite>(entity, sprite));
+            }
+        }
+
+        if (m_combatStats.updates == 35) {
+            fa::combat::StatusEffect poison;
+            poison.kind = fa::combat::StatusKind::Poison;
+            poison.duration = 1.0f;
+            poison.magnitude = 4.0f;
+            poison.source = m_markerEntity;
+            static_cast<void>(m_combat->applyStatus(world(), m_combatDummy2, poison));
+        }
+
+        m_combat->update(world(), deltaSeconds);
+        ++m_combatStats.updates;
+
+        const fa::combat::CombatStats& stats = m_combat->stats();
+        m_combatStats.attacks = stats.attacks;
+        m_combatStats.attackHits = stats.attackHits;
+        m_combatStats.damageDealt = stats.damageDealt;
+        m_combatStats.kills = stats.kills;
+        m_combatStats.projectiles = stats.projectilesSpawned;
+        m_combatStats.projectileHits = stats.projectileHits;
+        m_combatStats.projectileWallHits = stats.projectileWallHits;
+        m_combatStats.statusApplications = stats.statusApplications;
+        m_combatStats.statusTicks = stats.statusTicks;
+        m_combatStats.damageEvents += m_combat->damageEvents().size();
+        m_combatStats.deathEvents += m_combat->deathEvents().size();
+        m_combatStats.projectileEvents += m_combat->projectileEvents().size();
+        m_combatStats.statusEvents += m_combat->statusEvents().size();
+        m_combat->clearEvents();
+    }
+
+    /// \brief Advances M10 on the fixed step and copies the current source rect.
+    void updateAnimation(float deltaSeconds) {
+        if (m_animEntity.index == 0 || m_animator.clip == nullptr) {
+            return;
+        }
+
+        m_animService.update(m_animator, deltaSeconds);
+        ++m_animStats.updates;
+        m_animStats.frameIndex = m_animator.frameIndex;
+        m_animStats.finished = m_animator.finished;
+
+        if (const fa::anim::AnimationFrame* frame = m_animService.currentFrame(m_animator); frame != nullptr) {
+            if (fa::scene::Sprite* sprite = world().tryGet<fa::scene::Sprite>(m_animEntity); sprite != nullptr) {
+                sprite->texture = m_animator.clip->texture;
+                sprite->source = frame->source;
+            }
+        }
+        for (const fa::anim::AnimationEvent& event : m_animator.events) {
+            ++m_animStats.events;
+            m_animStats.lastEvent = event.name;
+            m_animStats.lastEventFrame = event.frame;
+        }
     }
 
     /// \brief Runs the one interaction/placement sequence the smoke summary reports.
@@ -690,6 +984,14 @@ private:
     fa::scene::EntityId m_markerEntity;
     fa::scene::EntityId m_crateEntity;
     fa::scene::EntityId m_placedEntity;
+    fa::scene::EntityId m_animEntity;
+    fa::anim::AnimationService m_animService;
+    fa::anim::Animator m_animator;
+    AnimationDemoStats m_animStats;
+    std::unique_ptr<fa::combat::CombatService> m_combat;
+    fa::scene::EntityId m_combatDummy1;
+    fa::scene::EntityId m_combatDummy2;
+    CombatDemoStats m_combatStats;
     fa::interaction::GridTarget m_cursorTarget;
     InteractionDemoStats m_demoStats;
     fa::player::PlayerSystem* m_playerSystem = nullptr;
@@ -927,6 +1229,345 @@ public:
         return fa::core::okStatus();
     }
 
+    /// \brief Creates the M14 save service rooted at the ignored `saves/` directory.
+    void initializeSave(fa::platform::IPlatform& platform) {
+        saveService = std::make_unique<fa::save::SaveService>(platform.files(), "saves");
+    }
+
+    /// \brief Creates the M22 calendar and two placeholder point lights.
+    ///
+    /// The demo runs the clock fast (0.01 real seconds per game minute) so the
+    /// 60-frame smoke shows an hour change; the product default is 0.7.
+    void initializeCalendar() {
+        calendar = std::make_unique<fa::world::WorldCalendar>(20261018ULL);
+        calendar->setRealSecondsPerGameMinute(0.01f);
+        calendarEvents = 0;
+
+        fa::world::PointLight markerLight;
+        markerLight.position = fa::core::Vec2{344.0f, 260.0f};
+        markerLight.radius = 64.0f;
+        markerLight.color = fa::core::Color{1.0f, 0.80f, 0.40f, 1.0f};
+        markerLight.intensity = 0.8f;
+        static_cast<void>(lights.add(markerLight));
+
+        fa::world::PointLight animLight;
+        animLight.position = fa::core::Vec2{120.0f, 160.0f};
+        animLight.radius = 48.0f;
+        animLight.color = fa::core::Color{0.50f, 0.80f, 1.00f, 1.0f};
+        animLight.intensity = 0.7f;
+        static_cast<void>(lights.add(animLight));
+    }
+
+    [[nodiscard]] CalendarDemoStats calendarStats() const {
+        CalendarDemoStats stats;
+        if (calendar == nullptr) {
+            return stats;
+        }
+        stats.year = calendar->date().year;
+        stats.season = calendar->season();
+        stats.day = calendar->date().day;
+        stats.hour = calendar->hour();
+        stats.minute = calendar->minute();
+        stats.today = calendar->today();
+        stats.tomorrow = calendar->tomorrow();
+        stats.ambientIntensity = calendar->ambientIntensity();
+        stats.autoWater = calendar->autoWatersCrops();
+        stats.growth = calendar->cropGrowthMultiplier();
+        const fa::world::CalendarStats raw = calendar->stats();
+        stats.days = raw.daysElapsed;
+        stats.hours = raw.hoursElapsed;
+        stats.seasons = raw.seasonChanges;
+        stats.weatherChanges = raw.weatherChanges;
+        stats.events = static_cast<std::size_t>(calendarEvents);
+        return stats;
+    }
+
+    void shutdownCalendar() {
+        calendar.reset();
+        lights.clear();
+    }
+
+    /// \brief Builds a snapshot of the current demo state and writes one slot.
+    fa::core::Status saveToSlot(std::string_view slot) {
+        if (saveService == nullptr) {
+            return fa::core::errorStatus(fa::save::save_error::kIoFailure, "save service is not initialized");
+        }
+
+        fa::save::SaveContext context;
+        context.slotName = std::string(slot);
+        context.sceneId = "demo";
+        context.inGameDay = 1;
+        context.playSeconds = static_cast<double>(fixedSteps) / 60.0;
+
+        const fa::scene::WorldStats world = sceneWorldStats();
+        context.world.setInt("entities", static_cast<int>(world.liveEntities));
+        context.world.setVec2("marker", sceneMarkerPosition());
+        context.player.setFloat("stamina", scenePlayerStamina());
+        if (playerInventory != nullptr) {
+            context.inventories.setInt("backpackItems", playerInventory->backpack().totalItems());
+            context.inventories.setInt("backpackSlots", playerInventory->backpack().usedSlots());
+            context.inventories.setInt("hotbarItems", playerInventory->hotbar().inventory().totalItems());
+            context.inventories.setInt("selected", playerInventory->hotbar().selected());
+        }
+        return saveService->save(slot, context);
+    }
+
+    /// \brief Loads one slot; the caller decides whether to apply it to the scene.
+    fa::core::Result<fa::save::SaveFile> loadFromSlot(std::string_view slot) {
+        if (saveService == nullptr) {
+            return fa::core::Result<fa::save::SaveFile>::err(fa::save::save_error::kIoFailure,
+                                                             "save service is not initialized");
+        }
+        return saveService->load(slot);
+    }
+
+    /// \brief Writes and immediately reads `autosave`, then snapshots the header.
+    void runSaveDemo() {
+        saveDemo = SaveDemoStats{};
+        if (saveService == nullptr || demoScene == nullptr) {
+            saveDemo.error = "no scene or save service";
+            return;
+        }
+
+        const fa::core::Status saved = saveToSlot("autosave");
+        if (saved.isError()) {
+            saveDemo.error = saved.error().message;
+            return;
+        }
+
+        const fa::core::Result<fa::save::SaveFile> loaded = loadFromSlot("autosave");
+        if (loaded.isError()) {
+            saveDemo.error = loaded.error().message;
+            return;
+        }
+
+        const fa::save::SaveFile& file = loaded.value();
+        saveDemo.ok = true;
+        saveDemo.recovered = file.recoveredFromBackup;
+        saveDemo.slot = file.meta.slotName;
+        saveDemo.scene = file.meta.sceneId;
+        saveDemo.version = file.meta.saveVersion;
+        saveDemo.day = file.meta.inGameDay;
+        saveDemo.playSeconds = file.meta.playSeconds;
+        int entities = 0;
+        static_cast<void>(file.world.getInt("entities", entities));
+        saveDemo.entities = static_cast<std::size_t>(entities > 0 ? entities : 0);
+        static_cast<void>(file.world.getVec2("marker", saveDemo.marker));
+        static_cast<void>(file.player.getFloat("stamina", saveDemo.stamina));
+        saveDemo.slots = saveService->listSlots().size();
+    }
+
+    void shutdownSave() { saveService.reset(); }
+
+    [[nodiscard]] SaveDemoStats saveDemoStats() const { return saveDemo; }
+
+    /// \brief Opens the platform audio device and starts the scripted M08 voices.
+    ///
+    /// v1 has no decoder, so the clips are generated here: a 0.25 s 440 Hz tone
+    /// followed by 0.1 s of silence, plus a looping 220 Hz tone. The one-shot is
+    /// stopped after two rendered frames in onRender().
+    fa::core::Status initializeAudio(fa::platform::IPlatform& platform) {
+        fa::platform::IAudioDevice* device = platform.audio();
+        if (device == nullptr) {
+            return fa::core::errorStatus(fa::platform::platform_error::kAudioInitFailed,
+                                         "the platform has no audio device");
+        }
+
+        audioEngine = std::make_unique<fa::audio::AudioEngine>();
+        const fa::core::Status status = audioEngine->initialize(*device);
+        if (status.isError()) {
+            audioEngine.reset();
+            return status;
+        }
+
+        fa::audio::AudioClip tone = fa::audio::makeTone(440.0f, 0.25f);
+        const fa::audio::AudioClip silence = fa::audio::makeSilence(0.1f);
+        tone.samples.insert(tone.samples.end(), silence.samples.begin(), silence.samples.end());
+        toneClip = std::make_shared<fa::audio::AudioClip>(std::move(tone));
+        loopClip = std::make_shared<fa::audio::AudioClip>(fa::audio::makeTone(220.0f, 0.5f));
+
+        audioEngine->setBusVolume(fa::audio::AudioBus::Master, 0.8f);
+        audioEngine->setBusVolume(fa::audio::AudioBus::SFX, 0.7f);
+
+        fa::audio::SoundDesc oneShot;
+        oneShot.bus = fa::audio::AudioBus::SFX;
+        oneShot.volume = 0.6f;
+        toneHandle = audioEngine->play(toneClip, oneShot);
+
+        fa::audio::SoundDesc loop;
+        loop.bus = fa::audio::AudioBus::Music;
+        loop.volume = 0.25f;
+        loop.loop = true;
+        loopHandle = audioEngine->play(loopClip, loop);
+        return fa::core::okStatus();
+    }
+
+#if defined(FA_ENABLE_DEBUG_TOOLS)
+    /// \brief Creates the M27 console/overlay and registers app-level commands.
+    ///
+    /// The commands intentionally go through public APIs only: `teleport` writes a
+    /// Transform, `give` uses the M18 backpack, `entities` uses the M27 inspector.
+    void initializeDebug() {
+        debugTools = std::make_unique<fa::debug::DebugTools>();
+        debugTools->attachLogSink();
+
+        static_cast<void>(debugTools->registerCommand(fa::debug::ConsoleCommand{
+            "entities", "list up to 16 entities in the demo scene",
+            [this](fa::debug::DebugConsole& console, std::span<const std::string>) {
+                if (demoScene == nullptr) {
+                    console.print("no scene");
+                    return;
+                }
+                const std::vector<fa::debug::EntityInspection> entities =
+                    fa::debug::inspectWorld(demoScene->world(), 16);
+                console.print("entities: " + std::to_string(entities.size()));
+                for (const fa::debug::EntityInspection& entity : entities) {
+                    console.print(fa::debug::formatInspection(entity));
+                }
+            }}));
+
+        static_cast<void>(debugTools->registerCommand(fa::debug::ConsoleCommand{
+            "teleport", "teleport the marker: teleport <x> <y>",
+            [this](fa::debug::DebugConsole& console, std::span<const std::string> args) {
+                if (args.size() != 2 || demoScene == nullptr) {
+                    console.print("usage: teleport <x> <y>");
+                    return;
+                }
+                const float x = static_cast<float>(std::atof(args[0].c_str()));
+                const float y = static_cast<float>(std::atof(args[1].c_str()));
+                demoScene->teleportMarker(fa::core::Vec2{x, y});
+                console.print("marker moved");
+            }}));
+
+        static_cast<void>(debugTools->registerCommand(fa::debug::ConsoleCommand{
+            "give", "give an item: give <item.id> <count>",
+            [this](fa::debug::DebugConsole& console, std::span<const std::string> args) {
+                if (args.size() != 2 || playerInventory == nullptr) {
+                    console.print("usage: give <item.id> <count>");
+                    return;
+                }
+                const int count = std::atoi(args[1].c_str());
+                const fa::core::Result<int> added = playerInventory->backpack().add(
+                    fa::inventory::ItemStack{fa::content::ContentId::fromName(args[0]), count, -1});
+                if (added.isError()) {
+                    console.print("give failed: " + added.error().message);
+                    return;
+                }
+                console.print("remaining " + std::to_string(added.value()));
+            }}));
+
+        static_cast<void>(debugTools->registerCommand(fa::debug::ConsoleCommand{
+            "save", "save the demo: save [slot]",
+            [this](fa::debug::DebugConsole& console, std::span<const std::string> args) {
+                const std::string slot = args.empty() ? std::string("quicksave") : args[0];
+                const fa::core::Status saved = saveToSlot(slot);
+                if (saved.isError()) {
+                    console.print("save failed: " + saved.error().message);
+                    return;
+                }
+                console.print("saved " + slot);
+            }}));
+
+        static_cast<void>(debugTools->registerCommand(fa::debug::ConsoleCommand{
+            "load", "load a slot: load [slot]",
+            [this](fa::debug::DebugConsole& console, std::span<const std::string> args) {
+                const std::string slot = args.empty() ? std::string("autosave") : args[0];
+                const fa::core::Result<fa::save::SaveFile> loaded = loadFromSlot(slot);
+                if (loaded.isError()) {
+                    console.print("load failed: " + loaded.error().message);
+                    return;
+                }
+                const fa::save::SaveFile& file = loaded.value();
+                console.print("loaded " + file.meta.slotName + " v" + std::to_string(file.meta.saveVersion) +
+                              " day " + std::to_string(file.meta.inGameDay));
+                fa::core::Vec2 marker;
+                if (demoScene != nullptr && file.world.getVec2("marker", marker)) {
+                    demoScene->teleportMarker(marker);
+                    console.print("marker restored");
+                }
+            }}));
+
+        static_cast<void>(debugTools->registerCommand(fa::debug::ConsoleCommand{
+            "slots", "list save slots",
+            [this](fa::debug::DebugConsole& console, std::span<const std::string>) {
+                if (saveService == nullptr) {
+                    console.print("save service unavailable");
+                    return;
+                }
+                for (const fa::save::SaveMetadata& metadata : saveService->listSlots()) {
+                    console.print(metadata.slotName + (metadata.readable ? " readable" : " corrupt") +
+                                  " day " + std::to_string(metadata.inGameDay));
+                }
+            }}));
+
+        static_cast<void>(debugTools->registerCommand(fa::debug::ConsoleCommand{
+            "delete", "delete a slot: delete <slot>",
+            [this](fa::debug::DebugConsole& console, std::span<const std::string> args) {
+                if (args.size() != 1 || saveService == nullptr) {
+                    console.print("usage: delete <slot>");
+                    return;
+                }
+                const fa::core::Status status = saveService->deleteSlot(args[0]);
+                console.print(status.isOk() ? "deleted " + args[0] : "delete failed: " + status.error().message);
+            }}));
+    }
+
+    /// \brief Fills the M27 snapshot from the modules the app already owns.
+    void updateDebugStats() {
+        if (debugTools == nullptr) {
+            return;
+        }
+
+        fa::debug::DebugStats stats;
+        stats.fps = lastRealDelta > 0.0 ? static_cast<float>(1.0 / lastRealDelta) : 0.0f;
+        stats.frameMs = static_cast<float>(lastRealDelta * 1000.0);
+        stats.frameCount = static_cast<std::uint64_t>(renderedFrames);
+        stats.fixedSteps = fixedSteps;
+        const fa::scene::WorldStats world = sceneWorldStats();
+        stats.entities = world.liveEntities;
+        stats.componentTypes = world.componentTypes;
+        stats.components = world.components;
+        stats.worldDrawItems = extractedItems;
+        stats.uiDrawItems = uiItems;
+        stats.drawCalls = lastStats.drawCalls;
+        stats.quads = lastStats.quads;
+        stats.textureSwitches = lastStats.textureSwitches;
+        stats.liveTextures =
+            renderer != nullptr ? static_cast<std::uint32_t>(renderer->liveTextureCount()) : 0u;
+        const fa::assets::AssetStats assetsSnapshot = assetStats();
+        stats.assetTextures = assetsSnapshot.textureCount;
+        stats.placeholderTextures = assetsSnapshot.placeholderCount;
+        stats.failedAssets = assetsSnapshot.failedCount;
+        const fa::physics::PhysicsStats physicsSnapshot = scenePhysicsStats();
+        stats.physicsBodies = physicsSnapshot.bodies;
+        stats.physicsCells = physicsSnapshot.cells;
+        stats.physicsMoves = physicsSnapshot.moves;
+        stats.physicsBlocked = physicsSnapshot.blockedMoves;
+        const fa::audio::AudioStats audioSnapshot = audioStats();
+        stats.audioVoices = audioSnapshot.activeVoices;
+        stats.audioSampleRate = audioSnapshot.sampleRate;
+        stats.audioDropped = audioSnapshot.dropped;
+        const fa::tilemap::TilemapStats mapSnapshot = sceneTilemapStats();
+        stats.mapTiles = mapSnapshot.nonEmptyTiles;
+        stats.mapSolidTiles = mapSnapshot.solidTiles;
+        debugTools->setStats(stats);
+    }
+
+    void shutdownDebug() {
+        if (debugTools != nullptr) {
+            debugTools->detachLogSink();
+            debugTools.reset();
+        }
+    }
+
+    [[nodiscard]] std::size_t debugCommandCount() const {
+        return debugTools != nullptr ? debugTools->console().commands().size() : 0;
+    }
+    [[nodiscard]] std::size_t debugCVarCount() const {
+        return debugTools != nullptr ? debugTools->cvars().size() : 0;
+    }
+#endif
+
     /// \brief Uploads the built-in font atlas and the 1x1 white quad texture.
     ///
     /// M09 owns no GL objects: the composition root creates both textures and hands
@@ -996,9 +1637,35 @@ public:
         }
     }
 
+    /// \brief Stops the audio device and releases the generated clips.
+    void shutdownAudio() {
+        if (audioEngine != nullptr) {
+            audioEngine->shutdown();
+            audioEngine.reset();
+        }
+        toneClip.reset();
+        loopClip.reset();
+        toneHandle = fa::audio::kInvalidSoundHandle;
+        loopHandle = fa::audio::kInvalidSoundHandle;
+    }
+
     void onEvents(std::span<const fa::platform::PlatformEvent> events) override {
+#if defined(FA_ENABLE_DEBUG_TOOLS)
+        /// The console swallows text/keys while it is open; everything else still
+        /// reaches M07, so closing the console restores gameplay input exactly.
+        filteredEvents.clear();
+        for (const fa::platform::PlatformEvent& event : events) {
+            if (debugTools != nullptr && debugTools->handleEvent(event)) {
+                continue;
+            }
+            filteredEvents.push_back(event);
+        }
+        input.poll(filteredEvents);
+        forwardedEvents += filteredEvents.size();
+#else
         input.poll(events);
         forwardedEvents += events.size();
+#endif
         for (const fa::platform::PlatformEvent& event : events) {
             switch (event.type) {
                 case fa::platform::PlatformEventType::Quit:
@@ -1031,6 +1698,10 @@ public:
             demoScene->setScriptedMove(scripted);
         }
         stack.fixedUpdate(context);
+        if (demoScene != nullptr) {
+            demoScene->advanceAnimation(static_cast<float>(context.fixedDeltaSeconds));
+            demoScene->advanceCombat(static_cast<float>(context.fixedDeltaSeconds));
+        }
         if (demo != nullptr) {
             demo->beginTick(context.fixedStepIndex);
         }
@@ -1038,16 +1709,33 @@ public:
 
     void onVariableUpdate(const fa::time::FrameContext& context) override {
         lastRealDelta = context.realDeltaSeconds;
+        if (calendar != nullptr) {
+            calendar->advance(static_cast<float>(context.realDeltaSeconds));
+            // The composition root owns forwarding; counting and clearing here keeps
+            // the internal event vector from growing for the life of the process.
+            calendarEvents += calendar->events().size();
+            calendar->clearEvents();
+        }
         stack.variableUpdate(context);
     }
 
     void onRender(const fa::time::FrameContext&) override {
         ++renderedFrames;
+        if (audioEngine != nullptr) {
+            if (!audioOneShotStopped && renderedFrames >= 2) {
+                audioEngine->stop(toneHandle, 0.05f);
+                audioOneShotStopped = true;
+            }
+            audioEngine->update();
+        }
         lastMouse = input.mousePosition();
         if (demo != nullptr) {
             demo->endFrame();
         }
         renderFrame();
+#if defined(FA_ENABLE_DEBUG_TOOLS)
+        updateDebugStats();
+#endif
         input.endFrame();
     }
 
@@ -1090,6 +1778,26 @@ public:
     std::unique_ptr<ConsumableUseHandler> consumable;
     std::unique_ptr<fa::inventory::ItemUseService> itemUse;
     InventoryDemoStats inventoryDemo;
+    /// \brief M08 state. The engine is shut down explicitly before the platform.
+    std::unique_ptr<fa::audio::AudioEngine> audioEngine;
+    std::shared_ptr<const fa::audio::AudioClip> toneClip;
+    std::shared_ptr<const fa::audio::AudioClip> loopClip;
+    fa::audio::SoundHandle toneHandle = fa::audio::kInvalidSoundHandle;
+    fa::audio::SoundHandle loopHandle = fa::audio::kInvalidSoundHandle;
+    bool audioOneShotStopped = false;
+    /// \brief M14 slots; the service borrows the platform file system.
+    std::unique_ptr<fa::save::SaveService> saveService;
+    SaveDemoStats saveDemo;
+    /// \brief M22 calendar and placeholder point lights.
+    std::unique_ptr<fa::world::WorldCalendar> calendar;
+    fa::world::LightSet lights;
+    std::uint64_t calendarEvents = 0;
+#if defined(FA_ENABLE_DEBUG_TOOLS)
+    /// \brief M27 facade; absent in Release because the project reference is absent.
+    std::unique_ptr<fa::debug::DebugTools> debugTools;
+    /// \brief Events that were not consumed by the console, forwarded to M07.
+    std::vector<fa::platform::PlatformEvent> filteredEvents;
+#endif
     int quitEvents = 0;
     int resizeEvents = 0;
     int renderedFrames = 0;
@@ -1140,6 +1848,15 @@ public:
         return demoScene != nullptr ? demoScene->playerAnimation() : fa::player::PlayerAnimationParams{};
     }
     InventoryDemoStats sceneInventoryStats() const { return inventoryDemo; }
+    AnimationDemoStats sceneAnimationStats() const {
+        return demoScene != nullptr ? demoScene->animationDemoStats() : AnimationDemoStats{};
+    }
+    CombatDemoStats sceneCombatStats() const {
+        return demoScene != nullptr ? demoScene->combatDemoStats() : CombatDemoStats{};
+    }
+    fa::audio::AudioStats audioStats() const {
+        return audioEngine != nullptr ? audioEngine->stats() : fa::audio::AudioStats{};
+    }
     float scenePlayerStamina() const { return demoScene != nullptr ? demoScene->playerStamina() : 0.0f; }
     fa::physics::PhysicsStats scenePhysicsStats() const {
         return demoScene != nullptr ? demoScene->physicsStats() : fa::physics::PhysicsStats{};
@@ -1225,6 +1942,11 @@ private:
         static_cast<void>(ui->slider(fa::ui::UiId::fromName("scale"), sliderValue, 1.0f, 4.0f,
                                      fa::core::makeRect(254.0f, 52.0f, 150.0f, 10.0f)));
 
+#if defined(FA_ENABLE_DEBUG_TOOLS)
+        if (debugTools != nullptr) {
+            debugTools->draw(*ui, camera.visibleRect());
+        }
+#endif
         uiItems = ui->itemCount();
         ui->submit(renderQueue);
     }
@@ -1281,6 +2003,37 @@ private:
         // them on RenderLayer::UI, so they draw last. Debug shapes go straight to the
         // renderer and share the same final sort.
         buildHud(cursor);
+
+        // M22: a full-screen darkening quad plus one translucent quad per point
+        // light. Both land on RenderLayer::Weather, below the UI, so the HUD stays
+        // at full brightness.
+        if (calendar != nullptr && uiWhiteTexture.isValid()) {
+            const fa::core::Rect visible = camera.visibleRect();
+            const float darkness = fa::core::clamp01(1.0f - calendar->ambientIntensity()) * 0.85f;
+            if (darkness > 0.001f) {
+                fa::render::DrawItem shade;
+                shade.texture = uiWhiteTexture;
+                shade.position = fa::core::Vec2{visible.x, visible.y};
+                shade.size = fa::core::Vec2{visible.w, visible.h};
+                shade.tint = fa::core::Color{0.0f, 0.0f, 0.0f, darkness};
+                shade.layer = fa::render::RenderLayer::Weather;
+                shade.sortY = -100000.0f;
+                renderQueue.submit(shade);
+            }
+            for (const fa::world::PointLight& light : lights.lights()) {
+                fa::render::DrawItem glow;
+                glow.texture = uiWhiteTexture;
+                glow.position = fa::core::Vec2{light.position.x - light.radius,
+                                               light.position.y - light.radius};
+                glow.size = fa::core::Vec2{light.radius * 2.0f, light.radius * 2.0f};
+                glow.tint = fa::core::Color{light.color.r, light.color.g, light.color.b,
+                                            fa::core::clamp01(light.intensity) * 0.35f};
+                glow.layer = fa::render::RenderLayer::Weather;
+                glow.sortY = light.position.y;
+                glow.entityId = light.handle;
+                renderQueue.submit(glow);
+            }
+        }
         renderQueue.sort();
         renderer->submitAll(renderQueue.items());
 
@@ -1295,6 +2048,15 @@ private:
                 renderer->drawDebugRect(targetRect, demoScene->interactionTargetColor());
             }
         }
+
+#if defined(FA_ENABLE_DEBUG_TOOLS)
+        /// F5 toggles collision boxes. M13 produces the shapes, M27 adapts them to
+        /// M06's debug draw calls; the renderer still owns the actual quads.
+        if (debugTools != nullptr && debugTools->physicsVisible() && demoScene != nullptr) {
+            const std::vector<fa::physics::DebugShape> shapes = demoScene->physicsDebugShapes();
+            fa::debug::drawPhysicsShapes(*renderer, shapes);
+        }
+#endif
 
         renderer->endFrame();
         lastStats = renderer->stats();
@@ -1350,6 +2112,22 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    sink.initializeSave(*platform);
+    sink.initializeCalendar();
+
+    /// Audio is optional in exactly the same way as GL: a CI image without a
+    /// sound card must still finish the smoke run.
+    const fa::core::Status audioStatus = sink.initializeAudio(*platform);
+    if (audioStatus.isError()) {
+        std::printf("audio init failed (%d): %s\n", audioStatus.error().code,
+                    audioStatus.error().message.c_str());
+        std::printf("  continuing without audio\n");
+    }
+
+#if defined(FA_ENABLE_DEBUG_TOOLS)
+    sink.initializeDebug();
+#endif
+
     // A hidden window may still get a software GL context, but CI images that have
     // none must not fail the smoke run; a visible run has to be able to draw.
     const fa::core::Status renderStatus = sink.initializeRenderer(*platform, options.visibleWindow);
@@ -1401,6 +2179,8 @@ int main(int argc, char** argv) {
 
     const fa::time::FixedStepClock& clock = loop.clock();
     const bool eventsJobsOk = demo.flush();
+    /// M14 runs after the scene has lived for the whole smoke run.
+    sink.runSaveDemo();
     // Snapshot what the summary reports: the strings and the stats die with the context.
     std::string glVersionText;
     std::string glRendererText;
@@ -1438,8 +2218,21 @@ int main(int argc, char** argv) {
     const bool hudVisible = sink.uiHudVisible();
     const float uiSlider = sink.uiSliderValue();
     const InventoryDemoStats inventoryStats = sink.sceneInventoryStats();
-    // The context belongs to the renderer and dies with the window, so it has to go
-    // before the platform shuts that window down.
+    const AnimationDemoStats animStats = sink.sceneAnimationStats();
+    const CombatDemoStats combatStats = sink.sceneCombatStats();
+    const fa::audio::AudioStats audioStats = sink.audioStats();
+    const SaveDemoStats saveDemo = sink.saveDemoStats();
+    const CalendarDemoStats calendarStats = sink.calendarStats();
+#if defined(FA_ENABLE_DEBUG_TOOLS)
+    const std::size_t debugCommands = sink.debugCommandCount();
+    const std::size_t debugCvars = sink.debugCVarCount();
+    sink.shutdownDebug();
+#endif
+    sink.shutdownSave();
+    sink.shutdownCalendar();
+    /// Audio and the GL context both belong to the platform window, so they go
+    /// before the platform shuts it down.
+    sink.shutdownAudio();
     sink.shutdownRenderer();
     platform->shutdown();
 
@@ -1472,6 +2265,22 @@ int main(int argc, char** argv) {
                 contextName.data(), static_cast<unsigned long long>(sink.movingSteps),
                 static_cast<double>(sink.lastMoveAxis.x), static_cast<double>(sink.lastMoveAxis.y),
                 static_cast<double>(sink.lastMouse.x), static_cast<double>(sink.lastMouse.y));
+    if (audioStats.sampleRate == 0 || audioStats.channels == 0) {
+        std::printf("  m08: audio unavailable\n");
+    } else {
+        std::printf("  m08: %d voice(s), %llu played, %llu stopped, %llu dropped, "
+                    "%d Hz, %d channel(s), %llu mixed frame(s)\n",
+                    audioStats.activeVoices, static_cast<unsigned long long>(audioStats.played),
+                    static_cast<unsigned long long>(audioStats.stopped),
+                    static_cast<unsigned long long>(audioStats.dropped), audioStats.sampleRate,
+                    audioStats.channels, static_cast<unsigned long long>(audioStats.mixedFrames));
+    }
+#if defined(FA_ENABLE_DEBUG_TOOLS)
+    std::printf("  m27: %zu console command(s), %zu cvar(s), F3 stats / F4 log / ` console\n",
+                debugCommands, debugCvars);
+#else
+    std::printf("  m27: disabled (release build)\n");
+#endif
     if (uiGlyphs == 0) {
         std::printf("  m09: UI unavailable (no font atlas)\n");
     } else {
@@ -1479,6 +2288,10 @@ int main(int argc, char** argv) {
                     uiGlyphs, uiAtlasWidth, uiAtlasHeight, uiItems, uiPresses, hudVisible ? "on" : "off",
                     static_cast<double>(uiSlider));
     }
+    std::printf("  m10: %llu update(s), frame %zu/%zu, %llu event(s), last %s@%zu, %s\n",
+                static_cast<unsigned long long>(animStats.updates), animStats.frameIndex + 1,
+                animStats.frameCount, static_cast<unsigned long long>(animStats.events),
+                animStats.lastEvent.c_str(), animStats.lastEventFrame, animStats.finished ? "finished" : "looping");
     if (glVersionText.empty()) {
         std::printf("  m06: renderer unavailable (no GL context)\n");
     } else {
@@ -1526,6 +2339,16 @@ int main(int argc, char** argv) {
                 static_cast<unsigned long long>(physicsStats.triggerBegins),
                 static_cast<unsigned long long>(physicsStats.triggerEnds), physicsStats.triggerEvents);
     std::printf("       nearest wall straight ahead: %g px\n", static_cast<double>(probeDistance));
+    if (!saveDemo.ok) {
+        std::printf("  m14: save/load unavailable (%s)\n", saveDemo.error.c_str());
+    } else {
+        std::printf("  m14: slot %s, v%d, scene %s, day %d, %.2fs, %zu entities, marker (%g, %g), "
+                    "stamina %.1f, %zu slot(s), backup %s\n",
+                    saveDemo.slot.c_str(), saveDemo.version, saveDemo.scene.c_str(), saveDemo.day,
+                    saveDemo.playSeconds, saveDemo.entities, static_cast<double>(saveDemo.marker.x),
+                    static_cast<double>(saveDemo.marker.y), static_cast<double>(saveDemo.stamina),
+                    saveDemo.slots, saveDemo.recovered ? "used" : "no");
+    }
     std::printf("  m15: %zu item(s), %zu crop(s), %zu recipe(s), %zu enemy(ies), %zu loot table(s), "
                 "%zu error(s), schema %d, content v%llu, turnip stack %d\n",
                 contentStats.items, contentStats.crops, contentStats.recipes, contentStats.enemies,
@@ -1560,6 +2383,37 @@ int main(int argc, char** argv) {
                 inventoryStats.backpackItems, inventoryStats.backpackSlots, inventoryStats.hotbarItems,
                 inventoryStats.selected, toolName, inventoryStats.soupUses, inventoryStats.inventoryEvents,
                 inventoryStats.useEvents);
-    std::printf("M02+M03+M04+M05+M06+M07+M09+M11+M12+M13+M15+M16+M17+M18 smoke test OK\n");
+    std::printf("  m20: %llu attack(s), %llu hit(s), %llu damage, %llu kill(s), "
+                "%llu projectile(s)/%llu hit(s)/%llu wall hit(s), %llu status tick(s), %zu event(s)\n",
+                static_cast<unsigned long long>(combatStats.attacks),
+                static_cast<unsigned long long>(combatStats.attackHits),
+                static_cast<unsigned long long>(combatStats.damageDealt),
+                static_cast<unsigned long long>(combatStats.kills),
+                static_cast<unsigned long long>(combatStats.projectiles),
+                static_cast<unsigned long long>(combatStats.projectileHits),
+                static_cast<unsigned long long>(combatStats.projectileWallHits),
+                static_cast<unsigned long long>(combatStats.statusTicks),
+                combatStats.damageEvents + combatStats.deathEvents + combatStats.projectileEvents +
+                    combatStats.statusEvents);
+    const std::string_view seasonName = fa::world::toString(calendarStats.season);
+    const std::string_view weatherName = fa::world::toString(calendarStats.today);
+    const std::string_view tomorrowName = fa::world::toString(calendarStats.tomorrow);
+    std::printf("  m22: year %d %.*s day %d %02d:%02d, %.*s -> %.*s, ambient %.2f, "
+                "auto-water %s, growth x%.2f, %llu day(s)/%llu hour(s)/%llu season(s)/"
+                "%llu weather change(s), %zu event(s)\n",
+                calendarStats.year, static_cast<int>(seasonName.size()), seasonName.data(), calendarStats.day,
+                calendarStats.hour, calendarStats.minute, static_cast<int>(weatherName.size()),
+                weatherName.data(), static_cast<int>(tomorrowName.size()), tomorrowName.data(),
+                static_cast<double>(calendarStats.ambientIntensity), calendarStats.autoWater ? "yes" : "no",
+                static_cast<double>(calendarStats.growth),
+                static_cast<unsigned long long>(calendarStats.days),
+                static_cast<unsigned long long>(calendarStats.hours),
+                static_cast<unsigned long long>(calendarStats.seasons),
+                static_cast<unsigned long long>(calendarStats.weatherChanges), calendarStats.events);
+#if defined(FA_ENABLE_DEBUG_TOOLS)
+    std::printf("M02+M03+M04+M05+M06+M07+M08+M09+M10+M11+M12+M13+M14+M15+M16+M17+M18+M20+M22+M27 smoke test OK\n");
+#else
+    std::printf("M02+M03+M04+M05+M06+M07+M08+M09+M10+M11+M12+M13+M14+M15+M16+M17+M18+M20+M22 smoke test OK\n");
+#endif
     return 0;
 }

@@ -108,6 +108,8 @@ public:
     }
     /// The loop never renders, so it does not need a graphics backend.
     fa::platform::IGlContext* glContext() override { return nullptr; }
+    /// The loop never plays audio either.
+    fa::platform::IAudioDevice* audio() override { return nullptr; }
 
 private:
     FakeWindow m_window;
