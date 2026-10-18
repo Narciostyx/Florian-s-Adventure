@@ -44,6 +44,8 @@
 #include <fa/core/Result.hpp>
 #include <fa/core/Version.hpp>
 #include <fa/content/ContentDatabase.hpp>
+#include <fa/economy/EconomyService.hpp>
+#include <fa/economy/ShopDatabase.hpp>
 #include <fa/ai/AiService.hpp>
 #include <fa/ai/AiTypes.hpp>
 #if defined(FA_ENABLE_EDITOR)
@@ -68,6 +70,8 @@
 #include <fa/inventory/ItemUseHandler.hpp>
 #include <fa/inventory/ItemUseService.hpp>
 #include <fa/inventory/PlayerInventory.hpp>
+#include <fa/narrative/NarrativeDatabase.hpp>
+#include <fa/narrative/NarrativeService.hpp>
 #include <fa/physics/Collider.hpp>
 #include <fa/physics/CollisionLayer.hpp>
 #include <fa/physics/PhysicsSystem.hpp>
@@ -189,6 +193,50 @@ constexpr std::string_view kContentText = R"({
     {"id": "loot.slime", "entries": [
       {"item": "item.turnip_seed", "min_amount": 1, "max_amount": 2, "chance": 0.5}
     ]}
+  ]
+})";
+
+/// \brief One NPC, one branching dialogue and one collection quest for M23.
+constexpr std::string_view kNarrativeText = R"({
+  "schema_version": 1,
+  "npcs": [
+    {"id": "npc.elder", "name": "Elder", "liked_items": ["item.turnip"]}
+  ],
+  "dialogues": [
+    {"id": "dialogue.elder", "npc": "npc.elder", "start": "greet", "nodes": [
+      {"id": "greet", "speaker": "Elder",
+       "text": "The soil remembers every season. Will you help?",
+       "choices": [
+         {"text": "I will bring a turnip.", "next": "quest"},
+         {"text": "Not now.", "next": "bye"}
+       ]},
+      {"id": "quest", "speaker": "Elder",
+       "text": "Bring me one turnip and I will trade seeds.",
+       "actions": [{"kind": "start_quest", "id": "quest.turnip"}],
+       "next": "bye"},
+      {"id": "bye", "speaker": "Elder",
+       "text": "Come back when the sun is high.", "next": ""}
+    ]}
+  ],
+  "quests": [
+    {"id": "quest.turnip", "title": "A Turnip for the Elder",
+     "description": "Bring one turnip.",
+     "objectives": [{"kind": "collect", "target": "item.turnip", "required": 1}],
+     "rewards": [{"item": "item.turnip_seed", "amount": 2}], "gold": 10}
+  ]
+})";
+
+/// \brief One general store for the M24 smoke sequence.
+constexpr std::string_view kShopText = R"({
+  "schema_version": 1,
+  "shops": [
+    {"id": "shop.general", "name": "General Store",
+     "buy_multiplier": 1.0, "sell_multiplier": 0.5,
+     "stock": [
+       {"item": "item.turnip_seed", "price": 10, "daily_limit": 5},
+       {"item": "item.turnip", "price": 40},
+       {"item": "item.turnip_soup", "price": 150}
+     ]}
   ]
 })";
 
@@ -334,6 +382,38 @@ struct FarmingDemoStats {
     int harvestCount = 0;
     int seedCount = 0;
     fa::farming::FarmingStats stats;
+};
+
+/// \brief Snapshot of the scripted M24 economy sequence.
+struct EconomyDemoStats {
+    bool buyOk = false;
+    bool sellOk = false;
+    bool craftOk = false;
+    bool collectOk = false;
+    bool shipOk = false;
+    int settledGold = 0;
+    int gold = 0;
+    int seeds = 0;
+    int turnips = 0;
+    int soups = 0;
+    fa::economy::EconomyStats stats;
+};
+
+/// \brief Snapshot of the scripted M23 dialogue/quest sequence.
+struct NarrativeDemoStats {
+    bool active = false;
+    std::string node;
+    std::size_t choices = 0;
+    int affinity = 0;
+    bool questCompleted = false;
+    bool questActive = false;
+    int seeds = 0;
+    std::uint64_t dialoguesStarted = 0;
+    std::uint64_t dialoguesEnded = 0;
+    std::uint64_t nodes = 0;
+    std::uint64_t choicesMade = 0;
+    std::uint64_t gifts = 0;
+    std::size_t events = 0;
 };
 
 /// \brief Snapshot of the scripted M21 agent for the smoke summary.
@@ -522,11 +602,15 @@ public:
     static constexpr std::uint32_t kPlacementPayload = 9;
 
     DemoScene() = delete;
-    DemoScene(fa::input::IInput& input, const fa::content::ContentDatabase& content)
+    DemoScene(fa::input::IInput& input, const fa::content::ContentDatabase& content,
+              const fa::narrative::NarrativeDatabase& narrative)
         : BasicScene("demo"), m_input(input), m_interaction(m_map, &m_placement) {
         m_farming.setContentDatabase(&content);
         m_farmInventory.setContentDatabase(&content);
         m_farmingTools.setDebrisLayer(&m_farmDebris);
+        m_narrative.setDatabase(&narrative);
+        m_narrative.setInventory(&m_farmInventory);
+        m_narrative.setSeason(fa::content::Season::Spring);
         static_cast<void>(m_map.reset(kColumns, kRows, fa::render::kTileSize));
         static_cast<void>(m_placement.resize(kColumns, kRows));
         m_interaction.addHandler(m_toolHandler);
@@ -562,6 +646,7 @@ public:
             buildWorld();
             runInteractionDemo();
             runFarmingDemo();
+            runNarrativeDemo();
             m_built = true;
         }
 
@@ -647,6 +732,32 @@ public:
 
     [[nodiscard]] fa::core::Vec2 farmingCellPosition(fa::tilemap::TileCoord cell) const noexcept {
         return m_map.gridToWorld(cell);
+    }
+
+    [[nodiscard]] fa::narrative::NarrativeService& narrative() noexcept { return m_narrative; }
+    [[nodiscard]] const fa::narrative::NarrativeService& narrative() const noexcept { return m_narrative; }
+
+    [[nodiscard]] NarrativeDemoStats narrativeDemoStats() const {
+        NarrativeDemoStats result;
+        const fa::narrative::NarrativeStats stats = m_narrative.stats();
+        result.active = stats.dialogueActive;
+        if (const fa::narrative::DialogueNode* node = m_narrative.currentNode(); node != nullptr) {
+            result.node = node->id;
+            result.choices = m_narrative.availableChoices().size();
+        }
+        const fa::content::ContentId elder = fa::content::ContentId::fromName("npc.elder");
+        const fa::content::ContentId quest = fa::content::ContentId::fromName("quest.turnip");
+        result.affinity = m_narrative.affinity(elder);
+        result.questActive = m_narrative.isQuestActive(quest);
+        result.questCompleted = m_narrative.isQuestCompleted(quest);
+        result.seeds = m_farmInventory.countOf(fa::content::ContentId::fromName("item.turnip_seed"));
+        result.dialoguesStarted = stats.dialoguesStarted;
+        result.dialoguesEnded = stats.dialoguesEnded;
+        result.nodes = stats.nodesEntered;
+        result.choicesMade = stats.choices;
+        result.gifts = stats.gifts;
+        result.events = stats.events;
+        return result;
     }
 
     /// \brief M10 playback counters and the last emitted event.
@@ -868,6 +979,7 @@ private:
         buildAnimation();
         buildCombat();
         buildAi();
+        buildNarrative();
     }
 
     /// \brief Creates one animated grass quad for M10.
@@ -1210,6 +1322,54 @@ private:
         m_farmingDemo.stats = m_farming.stats();
     }
 
+    /// \brief Creates the one NPC the narrative demo talks to.
+    void buildNarrative() {
+        m_npcEntity = world().create();
+        fa::scene::Transform transform;
+        transform.position = fa::core::Vec2{326.0f, 190.0f};
+        static_cast<void>(world().add<fa::scene::Transform>(m_npcEntity, transform));
+
+        fa::scene::Sprite sprite;
+        sprite.texture = m_marker;
+        sprite.size = fa::core::Vec2{16.0f, 16.0f};
+        sprite.tint = fa::core::Color{1.0f, 0.78f, 0.30f, 1.0f};
+        sprite.layer = fa::render::RenderLayer::Actors;
+        static_cast<void>(world().add<fa::scene::Sprite>(m_npcEntity, sprite));
+
+        fa::interaction::Interactable interactable;
+        interactable.area = fa::core::makeRect(0.0f, 0.0f, 16.0f, 16.0f);
+        interactable.priority = 1;
+        interactable.payload = 23;
+        static_cast<void>(world().add<fa::interaction::Interactable>(m_npcEntity, interactable));
+    }
+
+    /// \brief Runs one full dialogue/quest/gift sequence, then leaves a dialogue open.
+    void runNarrativeDemo() {
+        using fa::content::ContentId;
+        const ContentId dialogue = ContentId::fromName("dialogue.elder");
+        const ContentId elder = ContentId::fromName("npc.elder");
+        const ContentId turnip = ContentId::fromName("item.turnip");
+        const ContentId quest = ContentId::fromName("quest.turnip");
+
+        if (!m_narrative.startDialogue(dialogue, m_npcEntity).isOk()) {
+            return;
+        }
+        static_cast<void>(m_narrative.choose(0));
+        static_cast<void>(m_narrative.advance());
+        static_cast<void>(m_narrative.advance());
+
+        fa::narrative::QuestEvent collected;
+        collected.kind = fa::narrative::QuestObjectiveKind::Collect;
+        collected.target = turnip;
+        collected.amount = 1;
+        m_narrative.reportEvent(collected);
+        static_cast<void>(m_narrative.giveGift(elder, turnip, m_farmInventory));
+
+        // Leave the second greeting open so the dialogue panel and choice routing
+        // are exercised by the visible app, not only by the unit tests.
+        static_cast<void>(m_narrative.startDialogue(dialogue, m_npcEntity));
+    }
+
     fa::render::TextureHandle m_grass;
     fa::render::TextureHandle m_wall;
     fa::render::TextureHandle m_soil;
@@ -1229,6 +1389,9 @@ private:
     fa::farming::DebrisLayer m_farmDebris;
     fa::farming::FarmingToolHandler m_farmingTools{m_farming, m_farmInventory};
     FarmingDemoStats m_farmingDemo;
+    /// \brief M23 dialogue/quest state and the NPC entity it talks to.
+    fa::narrative::NarrativeService m_narrative;
+    fa::scene::EntityId m_npcEntity;
     /// Declared after its map, grid and handlers so those outlive it.
     fa::interaction::InteractionService m_interaction;
     fa::scene::EntityId m_markerEntity;
@@ -1320,8 +1483,20 @@ public:
                 std::printf("content error %d [%s]: %s\n", error.code, error.context.c_str(),
                             error.message.c_str());
             }
+            return status;
         }
-        return status;
+        const fa::core::Status narrativeStatus = narrative.loadDocument(kNarrativeText);
+        if (narrativeStatus.isError()) {
+            std::printf("narrative init failed (%d): %s\n", narrativeStatus.error().code,
+                        narrativeStatus.error().message.c_str());
+            return narrativeStatus;
+        }
+        const fa::core::Status shopStatus = shops.loadDocument(kShopText);
+        if (shopStatus.isError()) {
+            std::printf("shop init failed (%d): %s\n", shopStatus.error().code,
+                        shopStatus.error().message.c_str());
+        }
+        return shopStatus;
     }
 
     /// \brief Loads the catalog and uploads the four textures the frame draws.
@@ -1385,7 +1560,7 @@ public:
 
         // M11 takes over from here: the textures go into a scene, and the scene becomes
         // the only source of draw items.
-        auto scene = std::make_unique<DemoScene>(input, content);
+        auto scene = std::make_unique<DemoScene>(input, content, narrative);
         scene->setTextures(fa::render::TextureHandle{grassAsset->gpuTexture},
                            fa::render::TextureHandle{wallAsset->gpuTexture},
                            fa::render::TextureHandle{soilAsset->gpuTexture},
@@ -1529,6 +1704,38 @@ public:
         inventoryDemo.inventoryEvents = backpack.events().size() + hotbar.events().size();
         inventoryDemo.useEvents = itemUse->events().size();
         return fa::core::okStatus();
+    }
+
+    /// \brief Runs the M24 buy/sell/craft/ship sequence on the player backpack.
+    void initializeEconomy() {
+        if (playerInventory == nullptr) {
+            return;
+        }
+        economy = std::make_unique<fa::economy::EconomyService>(&content, &shops);
+        economy->setGold(100);
+        economy->setSeason(fa::content::Season::Spring);
+
+        fa::inventory::Inventory& bag = playerInventory->backpack();
+        const fa::content::ContentId shop = fa::content::ContentId::fromName("shop.general");
+        const fa::content::ContentId seed = fa::content::ContentId::fromName("item.turnip_seed");
+        const fa::content::ContentId turnip = fa::content::ContentId::fromName("item.turnip");
+        const fa::content::ContentId soup = fa::content::ContentId::fromName("item.turnip_soup");
+        const fa::content::ContentId recipe = fa::content::ContentId::fromName("recipe.turnip_soup");
+
+        economyDemo = EconomyDemoStats{};
+        economyDemo.buyOk = economy->buy(shop, seed, 3, bag).isOk();
+        economyDemo.sellOk = economy->sell(shop, turnip, 2, bag).isOk();
+        economyDemo.craftOk = economy->startCraft(recipe, "kitchen", bag).isOk();
+        economy->update(30);
+        economyDemo.collectOk = economy->collectCraft(0, bag).isOk();
+        economyDemo.shipOk = economy->ship(soup, 1, bag).isOk();
+        economyDemo.settledGold = economy->onDayChanged();
+
+        economyDemo.stats = economy->stats();
+        economyDemo.gold = economyDemo.stats.gold;
+        economyDemo.seeds = bag.countOf(seed);
+        economyDemo.turnips = bag.countOf(turnip);
+        economyDemo.soups = bag.countOf(soup) + playerInventory->hotbar().inventory().countOf(soup);
     }
 
     /// \brief Creates the M14 save service rooted at the ignored `saves/` directory.
@@ -2012,6 +2219,38 @@ public:
             }
         }
 #endif
+#if defined(FA_ENABLE_EDITOR)
+        const bool editorActive = editor != nullptr && editor->active();
+#else
+        const bool editorActive = false;
+#endif
+        if (!editorActive && demoScene != nullptr && demoScene->narrative().dialogueActive()) {
+            for (const fa::platform::PlatformEvent& event : events) {
+                if (event.type != fa::platform::PlatformEventType::KeyDown) {
+                    continue;
+                }
+                switch (event.scancode) {
+                    case fa::platform::Scancode::Digit1:
+                        static_cast<void>(demoScene->narrative().choose(0));
+                        break;
+                    case fa::platform::Scancode::Digit2:
+                        static_cast<void>(demoScene->narrative().choose(1));
+                        break;
+                    case fa::platform::Scancode::Digit3:
+                        static_cast<void>(demoScene->narrative().choose(2));
+                        break;
+                    case fa::platform::Scancode::Enter:
+                    case fa::platform::Scancode::Space:
+                        static_cast<void>(demoScene->narrative().advance());
+                        break;
+                    case fa::platform::Scancode::Escape:
+                        static_cast<void>(demoScene->narrative().endDialogue());
+                        break;
+                    default:
+                        break;
+                }
+            }
+        }
 #if defined(FA_ENABLE_DEBUG_TOOLS)
         /// The console swallows text/keys while it is open; everything else still
         /// reaches M07, so closing the console restores gameplay input exactly.
@@ -2110,6 +2349,8 @@ public:
     /// through `uploader`, which reaches into the renderer.
     std::unique_ptr<fa::render::IRenderer> renderer;
     fa::content::ContentDatabase content;
+    fa::narrative::NarrativeDatabase narrative;
+    fa::economy::ShopDatabase shops;
     fa::assets::AssetCatalog catalog;
     /// Borrowed from the platform, which owns the only file system in the run.
     fa::platform::IFileSystem* fileSystem = nullptr;
@@ -2142,6 +2383,9 @@ public:
     /// M18 containers outlive the renderer; `content` is declared before them, so
     /// they are destroyed first and never keep a dangling database pointer.
     std::unique_ptr<fa::inventory::PlayerInventory> playerInventory;
+    /// \brief M24 wallet/shop/crafting runtime over the player backpack.
+    std::unique_ptr<fa::economy::EconomyService> economy;
+    EconomyDemoStats economyDemo;
     /// The handler must outlive the service that stores a non-owning pointer to it.
     std::unique_ptr<ConsumableUseHandler> consumable;
     std::unique_ptr<fa::inventory::ItemUseService> itemUse;
@@ -2216,6 +2460,7 @@ public:
         return demoScene != nullptr ? demoScene->playerAnimation() : fa::player::PlayerAnimationParams{};
     }
     InventoryDemoStats sceneInventoryStats() const { return inventoryDemo; }
+    EconomyDemoStats sceneEconomyStats() const { return economyDemo; }
     AnimationDemoStats sceneAnimationStats() const {
         return demoScene != nullptr ? demoScene->animationDemoStats() : AnimationDemoStats{};
     }
@@ -2227,6 +2472,9 @@ public:
     }
     AiDemoStats sceneAiStats() const {
         return demoScene != nullptr ? demoScene->aiDemoStats() : AiDemoStats{};
+    }
+    NarrativeDemoStats sceneNarrativeStats() const {
+        return demoScene != nullptr ? demoScene->narrativeDemoStats() : NarrativeDemoStats{};
     }
 #if defined(FA_ENABLE_EDITOR)
     EditorDemoStats sceneEditorStats() const {
@@ -2337,6 +2585,14 @@ private:
                                        fa::core::makeRect(254.0f, 30.0f, 150.0f, 16.0f)));
         static_cast<void>(ui->slider(fa::ui::UiId::fromName("scale"), sliderValue, 1.0f, 4.0f,
                                      fa::core::makeRect(254.0f, 52.0f, 150.0f, 10.0f)));
+        if (economy != nullptr) {
+            fa::ui::TextStyle goldStyle;
+            goldStyle.color = theme.text;
+            goldStyle.scale = 1.0f;
+            char goldText[32]{};
+            std::snprintf(goldText, sizeof(goldText), "GOLD %d", economy->gold());
+            ui->text(goldText, fa::core::makeRect(254.0f, 74.0f, 150.0f, 7.0f), goldStyle);
+        }
 
 #if defined(FA_ENABLE_DEBUG_TOOLS)
         if (debugTools != nullptr) {
@@ -2348,6 +2604,36 @@ private:
             editor->draw(*ui);
         }
 #endif
+        if (demoScene != nullptr) {
+            const fa::narrative::NarrativeService& dialogueState = demoScene->narrative();
+            const fa::narrative::DialogueNode* node = dialogueState.currentNode();
+            if (dialogueState.dialogueActive() && node != nullptr) {
+                const fa::core::Rect panel = fa::core::makeRect(32.0f, 248.0f, 576.0f, 100.0f);
+                ui->panel(panel, theme.panel);
+                ui->border(panel, theme.panelBorder);
+                fa::ui::TextStyle style;
+                style.color = theme.text;
+                style.scale = 1.0f;
+                ui->text(node->speaker,
+                         fa::core::makeRect(panel.x + 8.0f, panel.y + 5.0f, 300.0f, 7.0f), style);
+                ui->text(node->text,
+                         fa::core::makeRect(panel.x + 8.0f, panel.y + 17.0f, 560.0f, 7.0f), style);
+
+                const std::vector<std::size_t> choices = dialogueState.availableChoices();
+                if (choices.empty()) {
+                    ui->text("[ENTER] CONTINUE",
+                             fa::core::makeRect(panel.x + 8.0f, panel.y + 34.0f, 300.0f, 7.0f), style);
+                } else {
+                    float y = panel.y + 34.0f;
+                    for (std::size_t index = 0; index < choices.size(); ++index) {
+                        const std::string line = std::to_string(index + 1) + ") " +
+                                                 node->choices[choices[index]].text;
+                        ui->text(line, fa::core::makeRect(panel.x + 8.0f, y, 560.0f, 7.0f), style);
+                        y += 11.0f;
+                    }
+                }
+            }
+        }
         uiItems = ui->itemCount();
         ui->submit(renderQueue);
     }
@@ -2578,6 +2864,7 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    sink.initializeEconomy();
     sink.initializeSave(*platform);
     sink.initializeCalendar();
 
@@ -2684,10 +2971,12 @@ int main(int argc, char** argv) {
     const bool hudVisible = sink.uiHudVisible();
     const float uiSlider = sink.uiSliderValue();
     const InventoryDemoStats inventoryStats = sink.sceneInventoryStats();
+    const EconomyDemoStats economyStats = sink.sceneEconomyStats();
     const AnimationDemoStats animStats = sink.sceneAnimationStats();
     const CombatDemoStats combatStats = sink.sceneCombatStats();
     const FarmingDemoStats farmingStats = sink.sceneFarmingStats();
     const AiDemoStats aiStats = sink.sceneAiStats();
+    const NarrativeDemoStats narrativeStats = sink.sceneNarrativeStats();
 #if defined(FA_ENABLE_EDITOR)
     const EditorDemoStats editorStats = sink.sceneEditorStats();
 #endif
@@ -2905,6 +3194,33 @@ int main(int argc, char** argv) {
                 static_cast<unsigned long long>(calendarStats.hours),
                 static_cast<unsigned long long>(calendarStats.seasons),
                 static_cast<unsigned long long>(calendarStats.weatherChanges), calendarStats.events);
+    const char* questStatus = narrativeStats.questCompleted ? "completed"
+                             : narrativeStats.questActive ? "active"
+                                                          : "none";
+    std::printf("  m23: %s, node %s, %zu choice(s), affinity %d, quest %s, seed %d, "
+                "%llu dialogue(s) [%llu ended], %llu node(s), %llu choice(s), "
+                "%llu gift(s), %zu event(s)\n",
+                narrativeStats.active ? "active" : "off",
+                narrativeStats.node.empty() ? "-" : narrativeStats.node.c_str(), narrativeStats.choices,
+                narrativeStats.affinity, questStatus, narrativeStats.seeds,
+                static_cast<unsigned long long>(narrativeStats.dialoguesStarted),
+                static_cast<unsigned long long>(narrativeStats.dialoguesEnded),
+                static_cast<unsigned long long>(narrativeStats.nodes),
+                static_cast<unsigned long long>(narrativeStats.choicesMade),
+                static_cast<unsigned long long>(narrativeStats.gifts), narrativeStats.events);
+    std::printf("  m24: gold %d (+%d settled), seed %d, turnip %d, soup %d, "
+                "buy %s, sell %s, craft %s, collect %s, ship %s; "
+                "%llu bought / %llu sold / %llu crafted / %llu shipped, "
+                "%d spent / %d earned, %zu event(s)\n",
+                economyStats.gold, economyStats.settledGold, economyStats.seeds, economyStats.turnips,
+                economyStats.soups, economyStats.buyOk ? "ok" : "fail", economyStats.sellOk ? "ok" : "fail",
+                economyStats.craftOk ? "ok" : "fail", economyStats.collectOk ? "ok" : "fail",
+                economyStats.shipOk ? "ok" : "fail",
+                static_cast<unsigned long long>(economyStats.stats.bought),
+                static_cast<unsigned long long>(economyStats.stats.sold),
+                static_cast<unsigned long long>(economyStats.stats.crafted),
+                static_cast<unsigned long long>(economyStats.stats.shipped), economyStats.stats.goldSpent,
+                economyStats.stats.goldEarned, economyStats.stats.events);
 #if defined(FA_ENABLE_EDITOR)
     const std::string_view editorToolName = fa::editor::toString(editorStats.tool);
     std::printf("  m26: %s, tool %.*s, layer %d, brush %u, undo %zu / redo %zu, "
@@ -2918,9 +3234,9 @@ int main(int argc, char** argv) {
     std::printf("  m26: disabled (release build)\n");
 #endif
 #if defined(FA_ENABLE_DEBUG_TOOLS)
-    std::printf("M02+M03+M04+M05+M06+M07+M08+M09+M10+M11+M12+M13+M14+M15+M16+M17+M18+M19+M20+M21+M22+M26+M27 smoke test OK\n");
+    std::printf("M02+M03+M04+M05+M06+M07+M08+M09+M10+M11+M12+M13+M14+M15+M16+M17+M18+M19+M20+M21+M22+M23+M24+M26+M27 smoke test OK\n");
 #else
-    std::printf("M02+M03+M04+M05+M06+M07+M08+M09+M10+M11+M12+M13+M14+M15+M16+M17+M18+M19+M20+M21+M22 smoke test OK\n");
+    std::printf("M02+M03+M04+M05+M06+M07+M08+M09+M10+M11+M12+M13+M14+M15+M16+M17+M18+M19+M20+M21+M22+M23+M24 smoke test OK\n");
 #endif
     return 0;
 }

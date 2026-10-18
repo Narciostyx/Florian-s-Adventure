@@ -4,9 +4,11 @@
 |---|---|
 | 层 | L3 |
 | 优先级 | P2 |
-| 状态 | 设计完成 |
-| 依赖 | M00–M22 |
+| 状态 | 已实现 |
+| 依赖 | M00–M22（实际链接 `fa_core`、`fa_content`、`fa_inventory`、`fa_scene`） |
 | 被依赖 | M24、M25、M26 |
+
+> 实测与踩坑：[构建记录](../build/m23-npc-dialogue-quests.md)
 
 ## 1. 目的
 
@@ -65,7 +67,46 @@ struct QuestState {
 - 条件表达式使用受限语法（比较、与或非、变量查询），不做通用脚本。
 - 任务进度通过事件更新（`ItemAdded`、`EntityDied` 等），QuestSystem 订阅。
 
-## 4. 公共接口草案
+## 4. 公共接口
+
+实际落地是 `NarrativeDatabase` + `NarrativeService`，没有引入
+`IDialogueService`/`IQuestService` 接口：
+
+```cpp
+namespace fa::narrative {
+
+class NarrativeDatabase {
+public:
+    core::Status loadDocument(std::string_view json);
+    const NpcDef* npc(const content::ContentId& id) const noexcept;
+    const DialogueDef* dialogue(const content::ContentId& id) const noexcept;
+    const QuestDef* quest(const content::ContentId& id) const noexcept;
+};
+
+class NarrativeService {
+public:
+    core::Status startDialogue(const content::ContentId& dialogue,
+                               scene::EntityId speaker = {});
+    const DialogueNode* currentNode() const noexcept;
+    std::vector<std::size_t> availableChoices() const;
+    core::Status choose(std::size_t displayedIndex);
+    core::Status advance();
+
+    int affinity(const content::ContentId& npc) const noexcept;
+    core::Status giveGift(const content::ContentId& npc, const content::ContentId& item,
+                          inventory::Inventory& inventory);
+
+    core::Status startQuest(const content::ContentId& quest);
+    void reportEvent(const QuestEvent& event);
+    const QuestState* questState(const content::ContentId& quest) const noexcept;
+};
+
+} // namespace fa::narrative
+```
+
+条件/动作是 typed enum 白名单，不是自由表达式；详见构建记录。
+
+早期草案（未采用，保留作设计记录）：
 
 ```cpp
 namespace fa::narrative {
@@ -92,9 +133,13 @@ public:
 
 ## 5. 依赖关系
 
-- 依赖 M03（事件）、M09（UI 调用）、M11（NPC 实体）、M15（NPC/对话/任务定义）、M18（物品）、M24（金钱/商店）。
-- 不依赖 M19/M20；任务目标通过事件订阅，不直接查询玩法内部状态。
-- M25 负责开始新游戏/读档时重建任务状态。
+- 设计上依赖 M03（事件）、M09（UI 调用）、M11（NPC 实体）、M15（NPC/对话/任务定义）、M18（物品）、M24（金钱/商店）。
+- **实际落地**：`fa_narrative` 链接 `fa_core`、`fa_content`、`fa_inventory`、
+  `fa_scene`。v1 用自己的 `NarrativeDatabase` 解析 NPC/对话/任务 JSON，
+  **尚未扩展 M15 的 `ContentDatabase`**；物品引用只做 `item.` 前缀校验。
+- 不依赖 M19/M20；任务目标通过 `reportEvent()` 订阅，不直接查询玩法内部状态。
+- UI/输入由 app 负责：底部对话框、Digit1–3 选择、Enter/Space 推进。
+- M25 负责开始新游戏/读档时重建任务状态；M23 目前没有存档序列化。
 
 ## 6. 扩展点
 
@@ -110,9 +155,20 @@ public:
 - 温室相关台词通过 `AreaKind` 条件触发，不硬编码坐标。
 - 任务奖励走 M18/M24 的通用接口，不直接改玩家状态。
 
-## 7. 实现阶段
+## 7. 实现落地
 
-P2，Phase E。先实现线性对话与送礼好感；再实现对话图、任务、日志。验收：对话选项按条件显示；送礼提升好感；收集任务完成自动结算奖励。
+P2，Phase E，已完成 v1：
+
+- `NarrativeDatabase`：NPC/对话图/任务 JSON，重复与引用校验。
+- `NarrativeService`：条件过滤、对话动作、节点跳转、每日好感/送礼、
+  事件驱动任务进度与物品奖励。
+- app：内联 NPC/对话/任务，跑通“对话 → 接任务 → 收集 → 完成 → 送礼”，
+  并留下一个可交互的底部对话面板；摘要 `m23:` 与 smoke OK 的 `+M23`。
+- 条件/动作白名单：`affinity_at_least`、`quest_active`、`quest_completed`、
+  `has_item`、`flag`、`season`；`give_item`、`add_affinity`、`start_quest`、
+  `complete_quest`、`set_flag`、`open_shop`。
+
+验收：对话选项按条件显示；送礼提升好感；收集任务完成自动结算奖励。
 
 ## 8. 风险与开放问题
 

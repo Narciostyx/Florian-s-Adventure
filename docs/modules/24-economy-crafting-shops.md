@@ -4,9 +4,11 @@
 |---|---|
 | 层 | L3 |
 | 优先级 | P2 |
-| 状态 | 设计完成 |
-| 依赖 | M00–M23 |
+| 状态 | 已实现 |
+| 依赖 | M00–M23（实际链接 `fa_core`、`fa_content`、`fa_inventory`） |
 | 被依赖 | M25、M26 |
+
+> 实测与踩坑：[构建记录](../build/m24-economy-crafting-shops.md)
 
 ## 1. 目的
 
@@ -72,7 +74,35 @@ struct ShippingBin {
 - 加工设备持有 `CraftJob`（配方、剩余时间、输入已扣除）。
 - 出货箱在 `DayChanged` 时结算。
 
-## 4. 公共接口草案
+## 4. 公共接口
+
+实际落地是 `ShopDatabase` + `EconomyService`，没有引入 `IEconomyService` 接口：
+
+```cpp
+namespace fa::economy {
+
+class EconomyService {
+public:
+    core::Status buy(const content::ContentId& shop, const content::ContentId& item,
+                     int count, inventory::Inventory& inventory);
+    core::Status sell(const content::ContentId& shop, const content::ContentId& item,
+                      int count, inventory::Inventory& inventory);
+    core::Status startCraft(const content::ContentId& recipe,
+                            const std::string& stationKind,
+                            inventory::Inventory& inventory);
+    void update(int gameMinutes);
+    core::Status collectCraft(std::size_t index, inventory::Inventory& inventory);
+    core::Status ship(const content::ContentId& item, int count,
+                      inventory::Inventory& inventory);
+    int onDayChanged();
+    int gold() const noexcept;
+};
+
+} // namespace fa::economy
+```
+
+商店定义由 M24 本地的 `ShopDatabase` 解析；配方来自 M15 `RecipeDef`。
+早期草案（未采用，保留作设计记录）：
 
 ```cpp
 namespace fa::economy {
@@ -92,8 +122,11 @@ public:
 
 ## 5. 依赖关系
 
-- 依赖 M03（事件）、M11（设备实体）、M15（价格/配方/商店定义）、M18（背包/金钱）、M22（每日刷新/结算）。
-- 不依赖 M23；任务奖励通过 `IEconomyService` 或直接物品给予。
+- 设计上依赖 M03（事件）、M11（设备实体）、M15（价格/配方/商店定义）、M18（背包/金钱）、M22（每日刷新/结算）。
+- **实际落地**：`fa_economy` 链接 `fa_core`、`fa_content`、`fa_inventory`。
+  配方来自 M15；商店是 M24 本地 `ShopDatabase`；交易直接操作 M18 `Inventory`。
+  v1 由服务持有 `int m_gold`，尚未接 `player::Wallet`，也没有 M22 自动日终。
+- 不依赖 M23；任务奖励通过事件/物品给予，金币奖励仍未走 M24。
 - 不依赖 M09；UI 调用服务并展示结果。
 
 ## 6. 扩展点
@@ -103,9 +136,18 @@ public:
 - 新增拍卖/订单板等交易形式。
 - 新增经济统计与成就挂钩。
 
-## 7. 实现阶段
+## 7. 实现落地
 
-P2，Phase E。先实现钱包、商店买卖、出货箱；再实现配方与加工设备。验收：买卖原子性正确；出货箱次日到账；加工完成后可取回产物。
+P2，Phase E，已完成 v1：
+
+- 钱包（`EconomyService::gold()`）、商店买卖、每日限购与重置。
+- M15 配方驱动的加工任务：扣输入、按游戏分钟推进、ready 后取回产物。
+- 出货箱 pending 与 `onDayChanged()` 结算。
+- 交易原子性：先检查金币/背包/库存，再修改状态；加工输入失败会回滚。
+- 事件：买入/卖出/加工开始/ready/取回/出货/结算/每日刷新。
+- app：买种子 → 卖萝卜 → 做汤 → 出货，HUD 显示金币，摘要 `m24:` 与 `+M24`。
+
+验收：买卖原子性正确；出货箱次日到账；加工完成后可取回产物。
 
 ## 8. 风险与开放问题
 

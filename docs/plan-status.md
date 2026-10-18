@@ -2,10 +2,12 @@
 
 **这份文档是「继续任务」的唯一入口。** 新开一个对话继续开发时，先读这里，再读对应的模块文档与构建记录，不需要重新翻历史。
 
-- 最后更新：M26 Editor Tools 交付完成（实现 + 三配置实测 + 文档回写）
-- 下一步：**等待用户选择下一个模块**（M26 已完成；候选见 §6）
-- 当前总体：**28 个模块中 25 个已实现**（M00–M10 + M11 + M12 + M13 + M14 + M15 + M16 + M17 + M18 + M19 + M20 + M21 + M22 + M26 + M27），其余处于设计完成、尚未编码
-- 当前可运行内容：窗口 + 主循环 + 事件/作业 + 输入 + 渲染 + 资源缓存 + **ECS 世界与场景栈** + **AABB 碰撞与查询** + **瓦片地图与图层提取** + **交互目标选择与格子放置** + **玩家移动/朝向/耐力/闪避** + **带引用校验的内容数据库** + **内置位图字体与即时模式 HUD/控件** + **物品堆叠/背包/快捷栏/装备/使用分发** + **PCM16 软件混音与总线音量** + **调试控制台/统计覆盖层/日志窗口/实体检查器/物理调试** + **JSON 存档槽/原子写/`.bak` 恢复/迁移** + **帧动画/循环/事件/四向状态机** + **伤害/攻击窗口/投射物/状态/死亡事件**；画面是**全部色块占位**，40×23 地图（920 格、143 实心、16 可耕地）由 M12 提取，标记由 M16 驱动、M13 求解并停在 x=344，M17 在标记旁选目标、调用一次工具并占一个放置格，M15 加载物品/作物/配方/敌人/掉落表，M18 堆叠 120 个种子、转移 21 个到快捷栏、装备锄头并使用一份汤，M09 每帧绘制 HUD、耐力条、按钮、复选框、滑条与热键栏文本，M08 生成 440 Hz/220 Hz 占位 PCM、播放 one-shot 与循环、设置总线音量并在 2 帧后淡出 one-shot，M27 在 Debug/Development 提供 F3 统计、F4 日志、F5 物理调试与控制台（`teleport`/`give`/`entities`/`save`/`load`/`slots`），M14 每轮 smoke 写 `saves/autosave.json` 并读回版本/场景/实体/标记/耐力摘要，M10 在固定步推进一个 4 帧草地动画并在 frame 0/2 触发 `step` 事件，M20 用两个 dummy 跑通两次近战、投射物与中毒并击杀一个 dummy，M19 在 (4,8) 跑通锄地 → 播种 → 浇水 → 5 天成熟 → 收获，并在 (7,11) 温室与 (6,9) 室外验证冬季规则，M21 用一个紫色 agent 追击静止假人、攻击一次并在丢失目标后返回出生点，M22 用 0.01 s/game-minute 的快速时钟跑出 06:00 → 07:40、计算环境光并在 Weather 层绘制暗化层与两个占位点光，M26 在 Debug/Development 提供 F2 瓦片编辑器、撤销/重做与 JSON 保存/加载（Release 不链接），但还没有完整玩法
+> 需要逐项完善程序时，先看 [已知限制与后续改进汇总](known-limitations.md)：它把各模块的限制和跨模块风险集中成一份清单。
+
+- 最后更新：M24 Economy / Crafting / Shops 交付完成（实现 + 三配置实测 + 文档回写）
+- 下一步：**等待用户选择下一个模块**（M24 已完成；候选见 §6）
+- 当前总体：**28 个模块中 27 个已实现**（M00–M10 + M11 + M12 + M13 + M14 + M15 + M16 + M17 + M18 + M19 + M20 + M21 + M22 + M23 + M24 + M26 + M27），其余处于设计完成、尚未编码
+- 当前可运行内容：窗口 + 主循环 + 事件/作业 + 输入 + 渲染 + 资源缓存 + **ECS 世界与场景栈** + **AABB 碰撞与查询** + **瓦片地图与图层提取** + **交互目标选择与格子放置** + **玩家移动/朝向/耐力/闪避** + **带引用校验的内容数据库** + **内置位图字体与即时模式 HUD/控件** + **物品堆叠/背包/快捷栏/装备/使用分发** + **PCM16 软件混音与总线音量** + **调试控制台/统计覆盖层/日志窗口/实体检查器/物理调试** + **JSON 存档槽/原子写/`.bak` 恢复/迁移** + **帧动画/循环/事件/四向状态机** + **伤害/攻击窗口/投射物/状态/死亡事件**；画面是**全部色块占位**，40×23 地图（920 格、143 实心、16 可耕地）由 M12 提取，标记由 M16 驱动、M13 求解并停在 x=344，M17 在标记旁选目标、调用一次工具并占一个放置格，M15 加载物品/作物/配方/敌人/掉落表，M18 堆叠 120 个种子、转移 21 个到快捷栏、装备锄头并使用一份汤，M09 每帧绘制 HUD、耐力条、按钮、复选框、滑条与热键栏文本，M08 生成 440 Hz/220 Hz 占位 PCM、播放 one-shot 与循环、设置总线音量并在 2 帧后淡出 one-shot，M27 在 Debug/Development 提供 F3 统计、F4 日志、F5 物理调试与控制台（`teleport`/`give`/`entities`/`save`/`load`/`slots`），M14 每轮 smoke 写 `saves/autosave.json` 并读回版本/场景/实体/标记/耐力摘要，M10 在固定步推进一个 4 帧草地动画并在 frame 0/2 触发 `step` 事件，M20 用两个 dummy 跑通两次近战、投射物与中毒并击杀一个 dummy，M19 在 (4,8) 跑通锄地 → 播种 → 浇水 → 5 天成熟 → 收获，并在 (7,11) 温室与 (6,9) 室外验证冬季规则，M21 用一个紫色 agent 追击静止假人、攻击一次并在丢失目标后返回出生点，M22 用 0.01 s/game-minute 的快速时钟跑出 06:00 → 07:40、计算环境光并在 Weather 层绘制暗化层与两个占位点光，M23 用一个 NPC 跑通对话分支、接任务、收集完成、送礼与每日上限，并在底部对话框留下可交互选项，M24 用玩家背包跑通买种子、卖萝卜、做汤、出货与次日结算（金币显示在 HUD），M26 在 Debug/Development 提供 F2 瓦片编辑器、撤销/重做与 JSON 保存/加载（Release 不链接），但还没有完整玩法
 
 ## 0. 上下文快满时的交接（强制）
 
@@ -61,7 +63,7 @@
 
 ## 3. 模块状态
 
-### 已实现（25 个）
+### 已实现（27 个）
 
 | 模块 | 名称 | 用例（新增） | 关键交付 | 文档 |
 |---|---|---|---|---|
@@ -88,10 +90,12 @@
 | M20 | Combat | 7 | `Damage`/`Health` 结算、M16 闪避无敌、攻击窗口与单实例去重、投射物 raycast/move、击退、Poison/Burn/Slow、四类事件与 `CombatStats` | [设计](modules/20-combat.md) · [实测](build/m20-combat.md) |
 | M21 | AI | 11 | `AiService` + `AiAgent`/`AiTargetTag`/`BehaviorProfile`、A*（4 邻接 + 视线平滑）、Bresenham 视线、感知节流、Idle/Patrol/Chase/Attack/Flee/Return、M13 移动、M20 攻击执行、`AiStats` | [设计](modules/21-ai.md) · [实测](build/m21-ai.md) |
 | M22 | Calendar / Weather / Lighting | 22 | `Season`/`Weather`/`GameDate`/`WorldClock`、0–24 时刻与跨日/季/年、`HourChanged`/`DayChanged`/`SeasonChanged`/`WeatherChanged`、按季节权重随机天气与 RNG 状态保存、自动浇水/生长倍率、环境光曲线与室内外、`LightSet` 点光与线性衰减采样 | [设计](modules/22-calendar-weather-lighting.md) · [实测](build/m22-calendar-weather-lighting.md) |
+| M23 | NPC / Dialogue / Quests | 10 | `NarrativeDatabase` + `NarrativeService`、NPC/对话图/任务 JSON、白名单条件与动作、每日好感/送礼、事件驱动任务进度与物品奖励、底部对话框与 Digit1–3 选择 | [设计](modules/23-npc-dialogue-quests.md) · [实测](build/m23-npc-dialogue-quests.md) |
+| M24 | Economy / Crafting / Shops | 10 | `EconomyService` + `ShopDatabase`、钱包、买卖原子性、每日限购、M15 配方加工任务、出货箱次日结算、经济事件/统计 | [设计](modules/24-economy-crafting-shops.md) · [实测](build/m24-economy-crafting-shops.md) |
 | M26 | Editor Tools | 10 | `MapEditor` + `EditorHistory` + `EditorOverlay`、Brush/Rect/Fill/Erase/Picker、命令差分 undo/redo、M12 `saveTilemapToJson()`、M09 状态面板、F2/1–5/`[`/`]`/Z/Y/S/L 快捷键；Release 不链接 | [设计](modules/26-editor-tools.md) · [实测](build/m26-editor-tools.md) |
 | M27 | Debug Tools | 11 | `DebugConsole` 命令/引号/历史、`CVarRegistry` 四种类型与 save/load、`DebugLogSink` 环形日志、`DebugStats`、实体快照、`UiContext` 覆盖层、M13 `DebugShape` 适配、F3/F4/F5/控制台事件路由；Release 不链接 | [设计](modules/27-debug-tools.md) · [实测](build/m27-debug-tools.md) |
 
-实际落地顺序是 M01 → M02 → M04 → M03 → M07 → M06 → M05 → M11 → M13 → M12 → M17 → M16 → M15 → M09 → M18 → M08 → M27 → M14 → M10 → M20 → M22 → M19 → M21 → M26，所以上表顺序与时间顺序不同。
+实际落地顺序是 M01 → M02 → M04 → M03 → M07 → M06 → M05 → M11 → M13 → M12 → M17 → M16 → M15 → M09 → M18 → M08 → M27 → M14 → M10 → M20 → M22 → M19 → M21 → M26 → M23 → M24，所以上表顺序与时间顺序不同。
 M12 排在 M13 之后，是因为它要适配 M13 的 `ISolidTiles`；M17 排在 M12 之后，因为它要用地图做目标与放置校验；
 M16 把输入、物理和 M17 的交互请求串起来；M15 是 P0，后续 M18/M19/M24 都靠它；
 M09 补上了此前「任何文字都画不出来」的空白；M18 接着把 M15 的物品定义变成可堆叠、可转移、可使用的容器状态，
@@ -184,6 +188,8 @@ fa_tests.exe → All tests passed (28935 assertions in 469 test cases)
              "[farming]"  → 219 assertions in 13 test cases
              "[ai]"       → 101 assertions in 11 test cases
              "[editor]"   → 310 assertions in 10 test cases
+             "[narrative]" → 74 assertions in 10 test cases
+             "[economy]"  → 90 assertions in 10 test cases
 fa_app.exe --frames 60 (Debug/Development)
              → m08: 1 voice(s), 2 played, 1 stopped, 0 dropped, 48000 Hz, 2 channel(s)
              → m10: 60 update(s), frame 1/4, 5 event(s), last step@0, looping
@@ -200,10 +206,16 @@ fa_app.exe --frames 60 (Debug/Development)
              → m22: year 1 spring day 1 07:39–07:40, sunny -> sunny, ambient 0.91–0.92,
                     auto-water no, growth x1.00, 0 day(s)/1 hour(s)/0 season(s),
                     0 weather change(s), 1 event(s)
+             → m23: active, node greet, 2 choice(s), affinity 4, quest completed,
+                    seed 4, 2 dialogue(s) [1 ended], 4 node(s), 1 choice(s),
+                    1 gift(s), 12 event(s)
+             → m24: gold 170 (+60 settled), seed 102, turnip 1, soup 2,
+                    buy/sell/craft/collect/ship ok; 1 bought / 1 sold / 1 crafted /
+                    1 shipped, 30 spent / 100 earned, 8 event(s)
              → m27: 26 console command(s), 0 cvar(s), F3 stats / F4 log / ` console
              → m26: off, tool brush, layer 0, brush 0, undo 0 / redo 0,
                     0 command(s), dirty no, map 40x23, save ok, load ok
-             → M02+M03+M04+M05+M06+M07+M08+M09+M10+M11+M12+M13+M14+M15+M16+M17+M18+M19+M20+M21+M22+M26+M27 smoke test OK
+             → M02+M03+M04+M05+M06+M07+M08+M09+M10+M11+M12+M13+M14+M15+M16+M17+M18+M19+M20+M21+M22+M23+M24+M26+M27 smoke test OK
 fa_app.exe --frames 60 (Release)
              → m10: 60 update(s), frame 1/4, 5 event(s), last step@0, looping
              → m14: slot autosave, v1, scene demo, day 1, 1.00s, 7 entities, ...
@@ -211,18 +223,18 @@ fa_app.exe --frames 60 (Release)
              → m20: 3 attack(s), 5 hit(s), 51 damage, 1 kill(s), ...
              → m21: attack, target valid (visible), 1 path node(s), ...
              → m22: year 1 spring day 1 07:40, sunny -> sunny, ambient 0.92, ...
+             → m23: active, node greet, 2 choice(s), affinity 4, quest completed, ...
+             → m24: gold 170 (+60 settled), seed 102, turnip 1, soup 2, ...
              → m27: disabled (release build)
              → m26: disabled (release build)
-             → M02+M03+M04+M05+M06+M07+M08+M09+M10+M11+M12+M13+M14+M15+M16+M17+M18+M19+M20+M21+M22 smoke test OK
+             → M02+M03+M04+M05+M06+M07+M08+M09+M10+M11+M12+M13+M14+M15+M16+M17+M18+M19+M20+M21+M22+M23+M24 smoke test OK
 ```
 
-### 未实现（3 个）
+### 未实现（1 个）
 
 | 模块 | 名称 | 优先级 | 依赖是否已就绪 | 备注 |
 |---|---|---|---|---|
-| M23 | NPC / Dialogue / Quests | P2 | 需要 M09 ✅、M15 ✅ | |
-| M24 | Economy / Crafting / Shops | P2 | 需要 M15 ✅、M18 ✅ | 星露谷式加工链 |
-| M25 | Game Flow | P1 | 需要 M11 ✅、M09 ✅、M14 | 场景栈、菜单流 |
+| M25 | Game Flow | P1 | 需要 M11 ✅、M09 ✅、M14 ✅、M23 ✅、M24 ✅ | 场景栈、菜单流、新游戏/读档 |
 
 ## 4. 已有的接口面（下一个模块可以直接用）
 
@@ -322,7 +334,6 @@ fa_app.exe --frames 60 (Release)
 | UI 不自动切输入上下文 | 打开 UI 时玩法输入仍生效，需调用方屏蔽 | M09 / M25 |
 | 耐久只参与分栈不参与移除 | `remove(id,count)` 会合并不同耐久的计数，返回耐久取自首槽 | M18 / M20 |
 | 使用不自动消耗 | handler 忘记 `removeAt` 会无限使用 | M18 / M19 / M20 |
-| 商店交易不原子 | M24 需要保证扣钱与给物品同时成功 | M18 / M24 |
 | 无重量/容量/分类限制 | 任何物品可进任何容器；Tool 槽可以放食物 | M18 / M19 |
 | `ContentDatabase` 生命周期 | 容器存借用指针，内容库先销毁会让 `maxStackFor`/use 悬空 | M18 |
 | 背包事件只记录不发布 | M03 接线由组装根决定；UI 需要自己清事件 | M18 / M03 |
@@ -394,7 +405,7 @@ fa_app.exe --frames 60 (Release)
 | 内容指针会失效 | 继续加载/热重载会让 `vector` 重分配 | M15（实体只存 `ContentId`） |
 | 内容不校验资源存在性 | `AssetId` 只校验语法，catalog 没声明的纹理也能通过 | M05/M15 |
 | 内容前缀规则很严 | `item.`/`crop.`/`recipe.`/`enemy.`/`loot.` 写错就报错 | M15（内容约定） |
-| 内容表没有瓦片/商店/对话/任务 | M12 的 `TileDef` 仍是独立表；M23/M24 还要扩展 | M15/M12/M23/M24 |
+| 内容表没有瓦片/商店/对话/任务 | M12 的 `TileDef`、M23 的叙事定义与 M24 的 `ShopDatabase` 仍是独立表，尚未迁入 M15 | M15/M12/M23/M24 |
 | 内容版本不是内容哈希 | `contentVersion` 只是加载次数，跨存档兼容还要 M14 决定 | M15/M14 |
 | 宽相 cell 尺寸固定 64 px | 大量超大碰撞体会推高 `maxCellOccupancy`，查询多捞 | M13 调优 |
 | 无视锥/扇形查询 | AI 感知只能用 `overlap` + 自己过滤 | M21 |
@@ -412,7 +423,7 @@ fa_app.exe --frames 60 (Release)
 | 农田没有存档序列化 | 田地/作物还写不进 `SaveArchive`，读档后回到空田 | M14 / M19 |
 | 农田按格线性查找 | 大田的查找与日结算是 O(n)，v1 规模可接受 | M19（需要时换哈希/索引） |
 | 作物产量/品质未实现 | 单株单产，没有品质概率、多次收获次数与产量表 | M19 后续 |
-| 箱子/熔炉只是占用层 | 没有存储、加工与每日刷新行为 | M24 |
+| 箱子/熔炉仍是占用层 | 加工由 M24 服务处理，但没有设备实体/燃料/队列；箱子存储与洒水器行为未实现 | M19 / M24 |
 | 作物渲染是色块 | 没有使用 `CropDef::stageSprites` 的真实阶段精灵 | M19 / M05 |
 | 杂物未进 app 演示 | `DebrisLayer` 与斧/镐路径只有单元测试覆盖 | M19 |
 | 寻路没有任务池/每帧上限 | 大量 agent 同时重算会推高固定步耗时 | M21 后续 |
@@ -427,6 +438,20 @@ fa_app.exe --frames 60 (Release)
 | L 键只校验加载 | 不替换实时地图，避免丢失纹理绑定 | M26 后续 |
 | 编辑器面板是固定坐标 | 非 640×360 时可能与其它覆盖层重叠 | M09 / M26 |
 | Release 不链接编辑器 | 需要 `FA_ENABLE_EDITOR` 与非 Release 引用 | 构建约定 |
+| 叙事定义没有进 M15 | M23 自带 `NarrativeDatabase`，物品引用只校验前缀 | M15 / M23 |
+| 叙事没有存档 | 好感度/任务/flags 还不能写入 `SaveArchive` | M14 / M23 / M25 |
+| 对话不暂停玩法 | 只路由数字键/Enter，玩家仍可移动 | M07 / M23 / M25 |
+| 没有 NPC 日程 | M22 的 `HourChanged` 与 M21 尚未接到 M23 | M21 / M23 / M25 |
+| 任务奖励不是事务 | 背包满时物品可能丢失，任务仍完成 | M18 / M23 / M24 |
+| `Deliver` 不消耗物品 | 收集/送达只按事件推进，不检查背包 | M18 / M23 |
+| 金币奖励没有走 M24 | M23 只记录金币事件；M24 钱包尚未被任务调用 | M23 / M24 |
+| 没有任务日志/本地化 | 文本单字符串，无滚动日志、无翻译 | M09 / M23 |
+| 商店/配方表没有进 M15 | M24 自带 `ShopDatabase`；配方仍来自 M15，商店未跨表 | M15 / M24 |
+| 金币没有统一钱包 | M24 持有 `int m_gold`，尚未写回 `player::Wallet` | M18 / M24 / M25 |
+| 没有商店 UI/季节库存 | 只有服务与脚本演示；库存/价格不随季节重建 | M09 / M22 / M24 |
+| 加工站是字符串 | 没有设备实体、燃料、队列上限或多输出 | M11 / M24 |
+| 经济没有存档 | 金币/库存剩余/加工任务/出货 pending 不能保存 | M14 / M24 / M25 |
+| 日终结算未接 M22 | `onDayChanged()` 目前由 app 手动调用 | M22 / M24 / M25 |
 
 ## 6. 下一步建议
 
@@ -434,10 +459,9 @@ fa_app.exe --frames 60 (Release)
 
 | 候选 | 理由 | 风险 |
 |---|---|---|
-| M23 NPC / Dialogue / Quests | M09 ✅、M15 ✅、M08 ✅ 已就绪；可以把对话、任务与 AI 接起来 | 对话数据结构与任务状态机要一次定清 |
-| M24 Economy / Crafting / Shops | M15 ✅、M18 ✅、M19 ✅ 已就绪；加工链与星露谷式商店是下一个内容驱动点 | 交易原子性与价格规则要定 |
+| M25 Game Flow | M11 ✅、M09 ✅、M14 ✅、M23 ✅、M24 ✅ 已就绪；新游戏/读档/暂停/场景切换是最后一个模块 | 任务重建、钱包归属与存档迁移需要一次定清 |
 
-**M26 已完成。后续实现哪个模块由用户选择；选定后先向用户确认，再按既有节奏推进：**
+**M24 已完成。后续实现哪个模块由用户选择；选定后先向用户确认，再按既有节奏推进：**
 **模块文档 → 实现 → 测试 → app 集成 → 三配置验证 → 全新克隆验证 → 回写文档 → 更新本文件 → 提交**。
 
 ## 7. 维护方式

@@ -92,6 +92,14 @@
   攻击。**不依赖 M16**：目标用 `AiTargetTag` 标记；读的是 M20 也写的
   `player::Health` 组件。`fa_ai` 因为 `World`/`PhysicsWorld` 的 `unordered_map`
   单独打开 `/EHsc`。
+- M23 依赖 M01/M15/M18：`NarrativeService` 只读写 `NarrativeDatabase`、`Inventory`
+  与纯值类型；对话/任务 JSON 由 app 交给 `NarrativeDatabase`。v1 **没有**扩 M15
+  的 `ContentDatabase`，也没有依赖 M21/M24；UI/输入和存档由组装根负责。
+  `fa_narrative` 因为 nlohmann/json 单独打开 `/EHsc`。
+- M24 依赖 M01/M15/M18：`EconomyService` 读取 M15 `RecipeDef`，通过 M18
+  `Inventory` 移动物品；商店是本地 `ShopDatabase`。金币由服务持有，尚未接
+  `player::Wallet`；`onDayChanged()` 由组装根调用。`fa_economy` 因
+  nlohmann/json 单独打开 `/EHsc`。
 - M25 可以协调多个玩法模块，但只通过它们的公开接口/事件；不得直接改对方内部状态。
 
 ### L4
