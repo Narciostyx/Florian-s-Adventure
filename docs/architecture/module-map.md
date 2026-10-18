@@ -18,12 +18,12 @@
 | M09 | UI & Text | L1 | P1 | 立即模式 UI、布局、字体、HUD/菜单控件 | M01–M06 |
 | M10 | Animation | L1 | P1 | 精灵动画、状态机、帧事件、混合 | M01–M05 |
 | M11 | Scene / World & ECS | L2 | P0 | 场景栈、World、EntityId、SparseSet、System 调度 | M01, M04, M06 |
-| M12 | Tilemap & World | L2 | P1 | 瓦片地图、图层、地图查询、地图加载 | M05, M11, M13 |
+| M12 | Tilemap & World | L2 | P1 | 瓦片地图、图层、地图查询、地图加载 | M11, M13 |
 | M13 | Physics & Collision | L2 | P0 | AABB 碰撞、瓦片碰撞、移动求解、空间查询、触发器 | M01, M04, M11 |
 | M14 | Serialization & Save | L2 | P1 | JSON 序列化、存档槽、版本迁移、原子写入 | M01–M05, M11 |
 | M15 | Content Database | L3 | P0 | 物品/作物/敌人/配方等内容定义与校验 | M01–M05 |
 | M16 | Player Controller | L3 | P1 | 玩家移动、朝向、交互输入、状态切换 | M07, M11, M13 |
-| M17 | Interaction & Grid Placement | L3 | P1 | 交互目标选择、格子放置/拆除、工具使用 | M11–M13, M15 |
+| M17 | Interaction & Grid Placement | L3 | P1 | 交互目标选择、格子放置/拆除、工具使用 | M11–M13（M15 后续） |
 | M18 | Inventory & Items | L3 | P1 | 背包、堆叠、装备、物品使用、掉落 | M11, M15 |
 | M19 | Farming & World Objects | L3 | P1 | 耕地、播种、浇水、生长、收获、放置物 | M11–M15, M17 |
 | M20 | Combat | L3 | P1 | 生命/伤害、攻击判定、受击、死亡、掉落 | M11–M13, M15, M18 |
@@ -90,11 +90,14 @@ flowchart TB
   M11 --> M04
   M11 --> M06
   M12 --> M11
+  M12 --> M13
   M13 --> M11
   M14 --> M11
   M15 --> M05
+  M16 --> M07
   M16 --> M13
-  M17 --> M15
+  M17 --> M12
+  M17 --> M13
   M18 --> M15
   M19 --> M17
   M20 --> M18
@@ -132,13 +135,20 @@ flowchart TB
 ### L2 世界运行时
 
 - **M11** 提供通用 ECS 与场景栈，不包含任何具体玩法组件/系统。
-- **M12** 负责地图数据与查询；不负责耕地/作物规则（属于 M19）。
-- **M13** 只做几何与碰撞求解；不决定伤害或交互。
+- **M12** 负责地图数据与查询；不负责耕地/作物规则（属于 M19）。地图通过非 owning 的
+  `TilemapSolids` 适配 `ISolidTiles`，因此 `fa_physics` 仍然不认识瓦片结构；
+  `TileDef` 只存裸 `render::TextureHandle`，不引用 `fa_assets`。
+- **M13** 只做几何与碰撞求解；不决定伤害或交互。M12 已实现它需要的 `ISolidTiles`。
 - **M14** 负责序列化机制与存档槽；具体组件的读写由组件/玩法模块注册。
 
 ### L3 玩法系统
 
-- **M15** 只提供内容定义与查询；不实现玩法规则。
+- **M15** 只提供内容定义与查询；不实现玩法规则。定义只存 `ContentId`/值/`AssetId`，不引用 M11 的实体；
+  文件读取归 M05/composition root，数据库只接收 JSON 文本。
+- **M16** 只把输入变成 `Velocity`、朝向、状态与 `PlayerActionRequest`；不直接链接 M12/M17，
+  也不结算伤害或背包。动作请求由组装根转发；位置仍由 M13 写。
+- **M17** 只做目标选择、校验、工具分发与放置占用；不实现锄地/播种/伤害，也暂不依赖 M15
+  （内容 ID 用不透明 `payload`）。具体工具由 M19/M20 注册 `IToolHandler`；输入来源由 M16 提供。
 - **M16–M25** 通过 ECS 组件、事件和窄接口协作；禁止互相 `#include` 具体实现类。
 - **M25** 是玩法层的高层协调者；场景切换通过 M11 的 `SceneStack`，不直接操作窗口。
 
@@ -171,7 +181,8 @@ flowchart TB
 | 已实现 | 代码、测试、文档一致 |
 | 待定 | 依赖未确认的产品决策 |
 
-当前所有模块均为**设计完成**，代码尚未开始。
+当前 M00–M07、M11–M13、M15–M17 已实现；其余模块为**设计完成**，尚未编码。逐模块状态、接口面与下一步建议以
+[计划完成情况](../plan-status.md) 为准。
 
 ## 6. 新增模块的流程
 

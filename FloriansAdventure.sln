@@ -20,6 +20,16 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "fa_scene", "src\engine\scen
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "fa_physics", "src\engine\physics\fa_physics.vcxproj", "{C0DE0009-0009-4F00-9A00-000000000009}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "fa_tilemap", "src\engine\tilemap\fa_tilemap.vcxproj", "{C0DE000A-000A-4F00-9A00-00000000000A}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "fa_interaction", "src\engine\interaction\fa_interaction.vcxproj", "{C0DE000B-000B-4F00-9A00-00000000000B}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "fa_player", "src\engine\player\fa_player.vcxproj", "{C0DE000C-000C-4F00-9A00-00000000000C}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "fa_content", "src\engine\content\fa_content.vcxproj", "{C0DE000D-000D-4F00-9A00-00000000000D}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "fa_ui", "src\engine\ui\fa_ui.vcxproj", "{C0DE000E-000E-4F00-9A00-00000000000E}"
+EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "fa_app", "src\app\fa_app.vcxproj", "{C0DE00A0-00A0-4F00-9A00-0000000000A0}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "fa_tests", "tests\fa_tests.vcxproj", "{C0DE00FE-00FE-4F00-9A00-0000000000FE}"
@@ -85,6 +95,36 @@ Global
 		{C0DE0009-0009-4F00-9A00-000000000009}.Development|x64.Build.0 = Development|x64
 		{C0DE0009-0009-4F00-9A00-000000000009}.Release|x64.ActiveCfg = Release|x64
 		{C0DE0009-0009-4F00-9A00-000000000009}.Release|x64.Build.0 = Release|x64
+		{C0DE000A-000A-4F00-9A00-00000000000A}.Debug|x64.ActiveCfg = Debug|x64
+		{C0DE000A-000A-4F00-9A00-00000000000A}.Debug|x64.Build.0 = Debug|x64
+		{C0DE000A-000A-4F00-9A00-00000000000A}.Development|x64.ActiveCfg = Development|x64
+		{C0DE000A-000A-4F00-9A00-00000000000A}.Development|x64.Build.0 = Development|x64
+		{C0DE000A-000A-4F00-9A00-00000000000A}.Release|x64.ActiveCfg = Release|x64
+		{C0DE000A-000A-4F00-9A00-00000000000A}.Release|x64.Build.0 = Release|x64
+		{C0DE000B-000B-4F00-9A00-00000000000B}.Debug|x64.ActiveCfg = Debug|x64
+		{C0DE000B-000B-4F00-9A00-00000000000B}.Debug|x64.Build.0 = Debug|x64
+		{C0DE000B-000B-4F00-9A00-00000000000B}.Development|x64.ActiveCfg = Development|x64
+		{C0DE000B-000B-4F00-9A00-00000000000B}.Development|x64.Build.0 = Development|x64
+		{C0DE000B-000B-4F00-9A00-00000000000B}.Release|x64.ActiveCfg = Release|x64
+		{C0DE000B-000B-4F00-9A00-00000000000B}.Release|x64.Build.0 = Release|x64
+		{C0DE000C-000C-4F00-9A00-00000000000C}.Debug|x64.ActiveCfg = Debug|x64
+		{C0DE000C-000C-4F00-9A00-00000000000C}.Debug|x64.Build.0 = Debug|x64
+		{C0DE000C-000C-4F00-9A00-00000000000C}.Development|x64.ActiveCfg = Development|x64
+		{C0DE000C-000C-4F00-9A00-00000000000C}.Development|x64.Build.0 = Development|x64
+		{C0DE000C-000C-4F00-9A00-00000000000C}.Release|x64.ActiveCfg = Release|x64
+		{C0DE000C-000C-4F00-9A00-00000000000C}.Release|x64.Build.0 = Release|x64
+		{C0DE000D-000D-4F00-9A00-00000000000D}.Debug|x64.ActiveCfg = Debug|x64
+		{C0DE000D-000D-4F00-9A00-00000000000D}.Debug|x64.Build.0 = Debug|x64
+		{C0DE000D-000D-4F00-9A00-00000000000D}.Development|x64.ActiveCfg = Development|x64
+		{C0DE000D-000D-4F00-9A00-00000000000D}.Development|x64.Build.0 = Development|x64
+		{C0DE000D-000D-4F00-9A00-00000000000D}.Release|x64.ActiveCfg = Release|x64
+		{C0DE000D-000D-4F00-9A00-00000000000D}.Release|x64.Build.0 = Release|x64
+		{C0DE000E-000E-4F00-9A00-00000000000E}.Debug|x64.ActiveCfg = Debug|x64
+		{C0DE000E-000E-4F00-9A00-00000000000E}.Debug|x64.Build.0 = Debug|x64
+		{C0DE000E-000E-4F00-9A00-00000000000E}.Development|x64.ActiveCfg = Development|x64
+		{C0DE000E-000E-4F00-9A00-00000000000E}.Development|x64.Build.0 = Development|x64
+		{C0DE000E-000E-4F00-9A00-00000000000E}.Release|x64.ActiveCfg = Release|x64
+		{C0DE000E-000E-4F00-9A00-00000000000E}.Release|x64.Build.0 = Release|x64
 		{C0DE00A0-00A0-4F00-9A00-0000000000A0}.Debug|x64.ActiveCfg = Debug|x64
 		{C0DE00A0-00A0-4F00-9A00-0000000000A0}.Debug|x64.Build.0 = Debug|x64
 		{C0DE00A0-00A0-4F00-9A00-0000000000A0}.Development|x64.ActiveCfg = Development|x64

@@ -46,6 +46,11 @@
     <ProjectReference Include="$(SolutionDir)src\engine\render\fa_render.vcxproj" />
     <ProjectReference Include="$(SolutionDir)src\engine\scene\fa_scene.vcxproj" />
     <ProjectReference Include="$(SolutionDir)src\engine\physics\fa_physics.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\tilemap\fa_tilemap.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\interaction\fa_interaction.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\player\fa_player.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\content\fa_content.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\ui\fa_ui.vcxproj" />
     <ProjectReference Include="$(SolutionDir)src\engine\input\fa_input.vcxproj" />
     <ProjectReference Include="$(SolutionDir)src\engine\events\fa_events.vcxproj" />
   </ItemGroup>

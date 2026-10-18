@@ -1,0 +1,14 @@
+{
+    "version": 1,
+    "revision": 0,
+    "rules": [
+        {
+            "primary-output": "Florian_.0ADA6077\\x64\\Debug\\源.obj",
+            "outputs": [
+                "Florian_.0ADA6077\\x64\\Debug\\源.cpp.obj.dt.module.json",
+                "Florian_.0ADA6077\\x64\\Debug\\源.cpp.obj.dt.d.json"
+            ],
+            "requires": []
+        }
+    ]
+}

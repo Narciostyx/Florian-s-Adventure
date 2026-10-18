@@ -100,7 +100,7 @@ layersInteract(a, b) = (a.layer & b.mask) && (b.layer & a.mask)
 
 `ISolidTiles` 只有三个方法：`tileSize()`、`isSolid(column, row)`，加一个供调试遍历的可选 `columns()`/`rows()`（返回 0 表示"无有限范围"，`debugDraw` 就跳过瓦片）。
 
-这样 M12 落地时只要让自己的地图实现这个接口，`fa_physics` 不需要反向依赖 `fa_tilemap`。`TileGrid` 是这个接口的最小实现：一块 `vector<uint8_t>`，`outsideIsSolid` 默认 **true**，让有限地图天然拥有外墙。
+M12 已通过非 owning 的 `TilemapSolids` 适配器实现这个接口，`fa_physics` 仍然不需要反向依赖 `fa_tilemap`。`TileGrid` 是这个接口的最小实现：一块 `vector<uint8_t>`，`outsideIsSolid` 默认 **true**，让有限地图天然拥有外墙。
 
 ### 4.4 宽相：整表重建，不做增量
 

@@ -100,8 +100,8 @@ if (auto status = files.writeText(p, text); !status) {
 - 错误信息包含上下文：模块、操作、路径/ID。
 - **异常边界**：全局编译开关是 `/EHsc-`（见 [Directory.Build.props](../../Directory.Build.props)），
   因此绝大多数模块**不能**写 `try/catch`。只有确实要包住第三方库的模块才单独打开 `/EHsc`
-  （目前为 `fa_platform`、`fa_events`、`fa_input` 与 `fa_assets`，原因分别是文件系统、`<chrono>`、
-  键位 JSON 与资源 catalog JSON），
+  （目前为 `fa_platform`、`fa_events`、`fa_input`、`fa_assets`、`fa_tilemap`、`fa_player` 与 `fa_content`，原因分别是文件系统、
+  `<chrono>`、键位 JSON、资源 catalog JSON、地图 JSON、输入头间接引入的 `<unordered_map>` 与内容 JSON），
   且这些模块自己也**不抛异常**——捕获只发生在真正调用第三方 API 的那一层，
   转换后立刻以 `Result`/`Status` 返回。新增模块需要异常边界时，
   在它自己的 `.vcxproj` 里开 `/EHsc`，不要改全局开关。

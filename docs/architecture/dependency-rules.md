@@ -49,12 +49,13 @@
 - M11 是通用 ECS/场景容器；不得 include 任何 `fa/game/...`。
 - M11 只依赖 M01（基础类型）、M04（`FrameContext`）、M06（`DrawItem`/`TextureHandle`/`RenderQueue`）。**不依赖 M05**：`Sprite` 只存裸 `TextureHandle`，纹理保活归加载方，避免把资源系统的异步加载与 `/EHsc` 拖进每个使用 ECS 的模块。
 - M11 的提取接口产出**纯数据** `RenderQueue`，不接收 `IRenderer&`——这样渲染提取的测试不需要 GL 上下文。
-- M13 只依赖 M01（`Rect`/`Vec2`）、M04（`FrameContext`）、M11（`World`/`Transform`/`EntityId`/`ISystem`）。**不依赖 M12**：静态地形只通过单方法接口 `ISolidTiles`（`tileSize`/`isSolid`）借用，M12 落地时实现该接口即可，地图模块因此可以反过来依赖物理而不成环。
+- M13 只依赖 M01（`Rect`/`Vec2`）、M04（`FrameContext`）、M11（`World`/`Transform`/`EntityId`/`ISystem`）。**不依赖 M12**：静态地形只通过单方法接口 `ISolidTiles`（`tileSize`/`isSolid`）借用；M12 已用 `TilemapSolids` 适配器实现该接口，地图模块因此可以反过来依赖物理而不成环。
 - M13 **不依赖 M06**：调试绘制产出 `DebugShape` 列表而不是接收 `IRenderer&`；`fa_render` 只在 `fa_scene` 的 `ISystem` 头里间接出现，`fa_physics.vcxproj` 也没有 `fa_render` 的 ProjectReference。
 - M13 **不依赖 M03、M05**：触发器事件按步记录在 `triggerEvents()`，由组装根决定是否发布到事件总线；碰撞体不含任何资源句柄。
 - M13 是唯一写入 `Transform::position` 的模块（通过 `PhysicsWorld::move`/`step`）；其余模块只写 `Velocity` 或只读位置。
 - M13 只负责几何与碰撞求解；伤害/交互判定属于 M20/M17。
-- M12 只负责地图数据、图层与查询；耕地/作物规则属于 M19。
+- M12 只依赖 M01（数学/`Result`）、M06（`DrawItem`/`TextureHandle`/`RenderQueue`）、M11（`ISystem`/`World`）与 M13（`ISolidTiles`）。**不依赖 M05/`fa_assets`**：`TileDef` 只存裸 `render::TextureHandle`，JSON 里的纹理名由 composition root 解析后绑定；地图 JSON 解析使用 nlohmann/json，因此 `fa_tilemap` 单独打开 `/EHsc`。
+- M12 只负责地图数据、图层与查询；耕地/作物规则属于 M19。`Tilemap` 是可拷贝/可移动的值类型，物理桥是独立的非 owning `TilemapSolids`；提取接口产出纯数据 `RenderQueue`，不接收 `IRenderer&`。
 - M14 只负责序列化机制与存档槽；具体组件的读写由组件/玩法模块注册。
 
 ### L3
@@ -62,6 +63,11 @@
 - 玩法模块之间优先通过**组件 + 事件 + 窄接口**协作。
 - 允许依赖“数据定义”头（如 `ContentId`、`ItemDef`），不允许依赖对方的系统实现类。
 - 跨模块调用示例：战斗需要知道掉落物 → 发 `EntityDied` 事件，由掉落系统消费；而不是 `CombatSystem` 直接调用 `InventorySystem`。
+- M16 只依赖 M07/M11/M13，**不依赖 M12/M17/M15/M10/`fa_assets`**：输入变成 `Velocity`、朝向、状态与
+  `PlayerActionRequest`，动作由组装根转发；位置仍由 M13 写，工具/伤害/背包分别属于 M19/M20/M18。
+- M15 只依赖 M01/M05，**不依赖 M11/M12/M16/M17**：内容定义只存 `ContentId`/值/`AssetId`，
+  文件读取归 M05/composition root；数据库只做解析、合并、引用校验与查询。
+- M17 只依赖 M01/M11/M12/M13，**不依赖 M15/M16/M09/`fa_assets`/`fa_events`/`fa_input`**：内容 ID 暂用不透明 `payload`，工具通过 `IToolHandler` 注册，事件记录在 `events()`，输入来源由 M16 提供。放置占用用独立的 `PlacementGrid`，不直接改瓦片或碰撞体。
 - M25 可以协调多个玩法模块，但只通过它们的公开接口/事件；不得直接改对方内部状态。
 
 ### L4
