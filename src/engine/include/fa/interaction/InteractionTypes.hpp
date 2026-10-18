@@ -37,6 +37,7 @@ enum class ToolKind : std::uint8_t {
     Pickaxe,
     Sword,
     Seed,
+    Harvest,
     Placeable,
     Count,
 };

@@ -1,6 +1,6 @@
 # 文档索引
 
-Florian's Adventure 的全部设计文档入口。当前状态：设计方案已完成，**M00 构建骨架、M01 Core、M02 Platform、M03 Events & Jobs、M04 Time & Frame Loop、M05 Asset Pipeline、M06 Rendering、M07 Input、M08 Audio、M09 UI & Text、M10 Animation、M11 Scene / World & ECS、M12 Tilemap & World、M13 Physics & Collision、M14 Serialization & Save、M15 Content Database、M16 Player Controller、M17 Interaction & Grid Placement、M18 Inventory & Items、M20 Combat、M22 Calendar / Weather / Lighting、M27 Debug Tools 已实现并通过实测**，其余模块处于设计阶段。
+Florian's Adventure 的全部设计文档入口。当前状态：设计方案已完成，**M00 构建骨架、M01 Core、M02 Platform、M03 Events & Jobs、M04 Time & Frame Loop、M05 Asset Pipeline、M06 Rendering、M07 Input、M08 Audio、M09 UI & Text、M10 Animation、M11 Scene / World & ECS、M12 Tilemap & World、M13 Physics & Collision、M14 Serialization & Save、M15 Content Database、M16 Player Controller、M17 Interaction & Grid Placement、M18 Inventory & Items、M19 Farming & World Objects、M20 Combat、M21 AI、M22 Calendar / Weather / Lighting、M27 Debug Tools 已实现并通过实测**，其余模块处于设计阶段。
 
 > **要继续开发，先读 [计划完成情况](plan-status.md)** —— 它记录每个模块的状态、已有接口面、遗留风险与下一步建议，是新对话接手任务的唯一入口。
 
@@ -53,6 +53,8 @@ Florian's Adventure 的全部设计文档入口。当前状态：设计方案已
 | [M14 序列化与存档・实测](build/m14-serialization-save.md) | `SaveArchive` 隐藏 nlohmann、原子写 + `.bak` 恢复、迁移链、错误码保留、槽名校验、`/EHsc` 结论 |
 | [M17 交互与格子放置・实测](build/m17-interaction-grid.md) | `payload` 取代内容 ID、`canInteract` 需要 actor、`cellsAlong` 的 NaN/负数、放置校验顺序、占用与碰撞两套权威 |
 | [M18 背包与物品・实测](build/m18-inventory-items.md) | 内容驱动堆叠、原子移除、耐久分栈、快捷栏/装备、使用分发、事件记录与 `/EHsc` 结论 |
+| [M19 农业与世界对象・实测](build/m19-farming-world-objects.md) | 按格农田、浇水/生长/季节/温室、收获与再生、M17 工具适配、世界对象占用与杂物清理 |
+| [M21 AI・实测](build/m21-ai.md) | A* 与视线、感知节流、追击/攻击/返回/逃跑/巡逻、M13 移动与 M20 攻击执行 |
 | [M20 战斗・实测](build/m20-combat.md) | 伤害/无敌/攻击窗口去重、投射物射线、击退、状态 DoT、死亡事件；脚本位置与墙体踩坑 |
 | [M22 日历/天气/光照・实测](build/m22-calendar-weather-lighting.md) | 0–24 时刻与跨日/季/年、天气权重与 RNG 存档、自动浇水/生长倍率、环境光曲线、Weather 层暗化与点光 |
 | [M27 调试工具・实测](build/m27-debug-tools.md) | 控制台/CVar/日志/统计/实体检查器/物理调试；Release 条件链接；通配符展开后的新文件登记流程 |
@@ -81,12 +83,14 @@ Florian's Adventure 的全部设计文档入口。当前状态：设计方案已
 | M16 Player Controller | 已实现 | 379 用例 / 18243 断言 | `PlayerController` 走/跑/加速度/斜向归一化、朝向主导轴、状态机与动作锁、耐力/闪避/无敌窗口、`PlayerSystem` 输入适配、`PlayerActionRequest` 记录、动画参数 |
 | M17 Interaction & Grid Placement | 已实现 | 365 用例 / 18136 断言 | `InteractionService` 目标选择（实体优先/朝向/距离/视线）、`Interactable` 组件、`IToolHandler` 分发、`PlacementGrid` 多格占用、`PlacementPreview`、交互/放置事件记录 |
 | M18 Inventory & Items | 已实现 | 428 用例 / 18820 断言 | `ItemStack` + 内容驱动堆叠、`Inventory` 固定槽位与原子移除/交换/拆分/合并/转移、`Hotbar` 选中与消耗、`Equipment` Tool/Weapon、`IItemUseHandler` 分发、`PlayerInventory` 快速转移 |
+| M19 Farming & World Objects | 已实现 | 489 用例 / 29216 断言 | `FarmTile`/`CropState`、按格农田、锄地/浇水/播种/按天生长/收获、季节与温室、再生作物、`FarmingDayContext`、`FarmingToolHandler`（Hoe/WateringCan/Seed/Harvest/Axe/Pickaxe）、`WorldObjectLayer`/`DebrisLayer` |
 | M20 Combat | 已实现 | 469 用例 / 28935 断言 | `Damage`/`Health` 结算、M16 闪避无敌、攻击窗口与单实例去重、投射物 raycast/move、击退、Poison/Burn/Slow、`DamageEvent`/`DeathEvent`/`ProjectileEvent`/`StatusEvent` |
+| M21 AI | 已实现 | 500 用例 / 29317 断言 | `AiService`/`AiAgent`/`AiTargetTag`/`BehaviorProfile`、A*（4 邻接 + 视线平滑）、Bresenham 视线、感知节流、Idle/Patrol/Chase/Attack/Flee/Return、M13 `move`、M20 `spawnAttack`、`AiStats` |
 | M22 Calendar / Weather / Lighting | 已实现 | 476 用例 / 28997 断言 | `Season`/`Weather`/`GameDate`/`WorldClock`、0–24 时刻与跨日/季/年、四类日历事件、按季节权重随机天气与 RNG 状态保存、自动浇水/生长倍率、环境光曲线与室内外、`LightSet` 点光与线性衰减采样 |
 | M27 Debug Tools | 已实现 | 451 用例 / 28744 断言 | `DebugConsole` 命令/引号/历史、`CVarRegistry` 四种类型与持久化、`DebugLogSink` 环形日志、`DebugStats`、实体快照、`UiContext` 覆盖层、M13 `DebugShape` 适配、F3/F4/F5/控制台事件路由；Release 不链接 |
 
-各模块按 ID 排序，实际落地顺序为 M01 → M02 → M04 → M03 → M07 → M06 → M05 → M11 → M13 → M12 → M17 → M16 → M15 → M09 → M18 → M08 → M27 → M14 → M10 → M20 → M22，因此「完成时累计」栏不是单调递增的；
-当前总计 **476 用例 / 28997 断言**。逐模块状态与下一步建议见 [计划完成情况](plan-status.md)。
+各模块按 ID 排序，实际落地顺序为 M01 → M02 → M04 → M03 → M07 → M06 → M05 → M11 → M13 → M12 → M17 → M16 → M15 → M09 → M18 → M08 → M27 → M14 → M10 → M20 → M22 → M19 → M21，因此「完成时累计」栏不是单调递增的；
+当前总计 **500 用例 / 29317 断言**。逐模块状态与下一步建议见 [计划完成情况](plan-status.md)。
 
 三配置（Debug / Development / Release × x64）Rebuild 均零警告零错误。
 

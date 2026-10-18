@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Development|x64">
+      <Configuration>Development</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>17.0</VCProjectVersion>
+    <ProjectGuid>{C0DE0016-0016-4F00-9A00-000000000016}</ProjectGuid>
+    <RootNamespace>fa_farming</RootNamespace>
+    <Keyword>Win32Proj</Keyword>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="$(SolutionDir)build\Project.props" />
+  </ImportGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <!-- The M17 tool header pulls in scene::World and tilemap, which use
+           std::unordered_map; this library therefore opts into /EHsc. -->
+      <ExceptionHandling>Sync</ExceptionHandling>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="src\FarmingService.cpp" />
+    <ClCompile Include="src\FarmingTools.cpp" />
+    <ClCompile Include="src\FarmingWorld.cpp" />
+    <ClInclude Include="..\include\fa\farming\FarmingService.hpp" />
+    <ClInclude Include="..\include\fa\farming\FarmingTools.hpp" />
+    <ClInclude Include="..\include\fa\farming\FarmingTypes.hpp" />
+    <ClInclude Include="..\include\fa\farming\FarmingWorld.hpp" />
+  </ItemGroup>
+  <!-- M19 owns per-tile farmland/crops and the M17 tool adapter. Rendering,
+       save files and chest/processing behaviour stay in the composition root
+       and M24. -->
+  <ItemGroup>
+    <ProjectReference Include="$(SolutionDir)src\engine\core\fa_core.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\content\fa_content.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\inventory\fa_inventory.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\interaction\fa_interaction.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\scene\fa_scene.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\tilemap\fa_tilemap.vcxproj" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>

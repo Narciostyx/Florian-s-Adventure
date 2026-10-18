@@ -33,6 +33,8 @@ std::string_view toString(ToolKind tool) noexcept {
             return "sword";
         case ToolKind::Seed:
             return "seed";
+        case ToolKind::Harvest:
+            return "harvest";
         case ToolKind::Placeable:
             return "placeable";
         default:

@@ -110,7 +110,9 @@ FloriansAdventure.sln
 ├─ src/engine/anim/fa_anim.vcxproj              -> fa_anim
 ├─ src/engine/combat/fa_combat.vcxproj          -> fa_combat
 ├─ src/engine/world/fa_world.vcxproj            -> fa_world
-├─ （待建）src/game/...                          -> 玩法模块（M19/M21/M23–M26）
+├─ src/engine/farming/fa_farming.vcxproj        -> fa_farming
+├─ src/engine/ai/fa_ai.vcxproj                  -> fa_ai
+├─ （待建）src/game/...                          -> 玩法模块（M23–M26）
 ├─ src/app/fa_app.vcxproj                       -> 可执行文件
 ├─ tests/fa_tests.vcxproj                       -> Catch2 测试
 └─ tools/                                       -> 资源导入/校验（可选 C++ 或脚本）

@@ -47,7 +47,7 @@ M19/M20 通过 `IToolHandler` 注册具体行为；M16 负责何时调用；M09 
 ```cpp
 enum class Facing : std::uint8_t { North, East, South, West, Count };
 enum class ToolKind : std::uint8_t {
-    None, Hoe, WateringCan, Axe, Pickaxe, Sword, Seed, Placeable, Count
+    None, Hoe, WateringCan, Axe, Pickaxe, Sword, Seed, Harvest, Placeable, Count
 };
 
 struct GridTarget {

@@ -44,8 +44,14 @@
 #include <fa/core/Result.hpp>
 #include <fa/core/Version.hpp>
 #include <fa/content/ContentDatabase.hpp>
+#include <fa/ai/AiService.hpp>
+#include <fa/ai/AiTypes.hpp>
 #include <fa/events/EventBus.hpp>
 #include <fa/events/JobSystem.hpp>
+#include <fa/farming/FarmingService.hpp>
+#include <fa/farming/FarmingTools.hpp>
+#include <fa/farming/FarmingTypes.hpp>
+#include <fa/farming/FarmingWorld.hpp>
 #include <fa/input/Input.hpp>
 #include <fa/interaction/Interactable.hpp>
 #include <fa/interaction/InteractionService.hpp>
@@ -311,11 +317,38 @@ struct InteractionDemoStats {
     bool previewAfter = false;
 };
 
-/// \brief Records the one tool call the smoke run dispatches.
+/// \brief Counters for the scripted M19 sequence.
+struct FarmingDemoStats {
+    bool hoeOk = false;
+    bool seedOk = false;
+    bool waterOk = false;
+    bool harvestOk = false;
+    bool greenhouseOk = false;
+    bool wiltedOk = false;
+    int stage = 0;
+    bool harvestable = false;
+    int harvestCount = 0;
+    int seedCount = 0;
+    fa::farming::FarmingStats stats;
+};
+
+/// \brief Snapshot of the scripted M21 agent for the smoke summary.
+struct AiDemoStats {
+    fa::ai::AiState state = fa::ai::AiState::Idle;
+    bool targetValid = false;
+    bool targetVisible = false;
+    std::size_t pathNodes = 0;
+    fa::ai::AiStats stats;
+};
+
+/// \brief Records the one generic tool call the smoke run dispatches.
+///
+/// M19 owns Hoe/WateringCan/Seed/Harvest/Axe/Pickaxe now, so this recording
+/// handler deliberately takes Sword to prove M17 dispatch without clashing.
 class CountingToolHandler final : public fa::interaction::IToolHandler {
 public:
     [[nodiscard]] bool handles(fa::interaction::ToolKind tool) const noexcept override {
-        return tool == fa::interaction::ToolKind::Hoe;
+        return tool == fa::interaction::ToolKind::Sword;
     }
 
     [[nodiscard]] fa::core::Status use(const fa::interaction::ToolUseContext& context) override {
@@ -464,11 +497,15 @@ public:
     static constexpr std::uint32_t kPlacementPayload = 9;
 
     DemoScene() = delete;
-    explicit DemoScene(fa::input::IInput& input)
+    DemoScene(fa::input::IInput& input, const fa::content::ContentDatabase& content)
         : BasicScene("demo"), m_input(input), m_interaction(m_map, &m_placement) {
+        m_farming.setContentDatabase(&content);
+        m_farmInventory.setContentDatabase(&content);
+        m_farmingTools.setDebrisLayer(&m_farmDebris);
         static_cast<void>(m_map.reset(kColumns, kRows, fa::render::kTileSize));
         static_cast<void>(m_placement.resize(kColumns, kRows));
         m_interaction.addHandler(m_toolHandler);
+        m_interaction.addHandler(m_farmingTools);
     }
 
     /// \brief Hands the scene the textures the map and the marker draw with.
@@ -499,6 +536,7 @@ public:
         if (!m_built) {
             buildWorld();
             runInteractionDemo();
+            runFarmingDemo();
             m_built = true;
         }
 
@@ -510,6 +548,7 @@ public:
         m_physics = physics.get();
         systems().add(std::move(physics));
         m_combat = std::make_unique<fa::combat::CombatService>(m_physics->physics());
+        m_ai = std::make_unique<fa::ai::AiService>(m_map, m_physics->physics(), m_combat.get());
 
         auto tiles = std::make_unique<fa::tilemap::TilemapExtractSystem>(m_map);
         m_tileSystem = tiles.get();
@@ -518,6 +557,8 @@ public:
     }
 
     void onExit() override {
+        // The AI service borrows the physics world and the combat service.
+        m_ai.reset();
         // `CombatService` borrows the physics world owned by `PhysicsSystem`.
         m_combat.reset();
         // `PhysicsSystem` borrows `m_solids` and the tile system borrows `m_map`, so
@@ -565,6 +606,18 @@ public:
     /// \brief Counters for the one scripted M17 sequence, snapshotted before shutdown.
     [[nodiscard]] const InteractionDemoStats& interactionDemoStats() const noexcept { return m_demoStats; }
 
+    /// \brief Counters for the scripted M19 sequence.
+    [[nodiscard]] const FarmingDemoStats& farmingDemoStats() const noexcept { return m_farmingDemo; }
+
+    /// \brief Farmland/crop overlay entries, drawn by the composition root.
+    [[nodiscard]] std::span<const fa::farming::FarmTileEntry> farmingTiles() const noexcept {
+        return m_farming.entries();
+    }
+
+    [[nodiscard]] fa::core::Vec2 farmingCellPosition(fa::tilemap::TileCoord cell) const noexcept {
+        return m_map.gridToWorld(cell);
+    }
+
     /// \brief M10 playback counters and the last emitted event.
     [[nodiscard]] AnimationDemoStats animationDemoStats() const { return m_animStats; }
 
@@ -574,6 +627,28 @@ public:
     /// \brief M20 counters for the smoke summary.
     [[nodiscard]] CombatDemoStats combatDemoStats() const { return m_combatStats; }
     void advanceCombat(float deltaSeconds) { updateCombat(deltaSeconds); }
+
+    /// \brief M21 snapshot for the smoke summary.
+    [[nodiscard]] AiDemoStats aiDemoStats() const {
+        AiDemoStats result;
+        if (m_ai != nullptr) {
+            result.stats = m_ai->stats();
+            result.pathNodes = m_ai->pathNodeCount(m_aiAgentEntity);
+        }
+        if (const fa::ai::AiAgent* agent = world().tryGet<fa::ai::AiAgent>(m_aiAgentEntity);
+            agent != nullptr) {
+            result.state = agent->state;
+            result.targetValid = agent->target.isValid();
+            result.targetVisible = agent->targetVisible;
+        }
+        return result;
+    }
+
+    void advanceAi(float deltaSeconds) {
+        if (m_ai != nullptr) {
+            m_ai->update(world(), deltaSeconds);
+        }
+    }
 
     /// \brief Per-frame cursor target, used only for the debug highlight.
     void setCursorWorld(fa::core::Vec2 worldPosition) {
@@ -680,6 +755,13 @@ private:
             }
         }
 
+        // M19 reads the greenhouse property from the map, not from a hard-coded cell.
+        fa::tilemap::MapArea greenhouse;
+        greenhouse.areaId = 1;
+        greenhouse.kind = fa::tilemap::AreaKind::Greenhouse;
+        greenhouse.bounds = fa::tilemap::TileBounds{7, 11, 1, 1};
+        m_map.addArea(greenhouse);
+
         m_markerEntity = world().create();
         fa::scene::Transform marker;
         marker.position = fa::core::Vec2{320.0f, 200.0f};
@@ -754,6 +836,7 @@ private:
 
         buildAnimation();
         buildCombat();
+        buildAi();
     }
 
     /// \brief Creates one animated grass quad for M10.
@@ -830,6 +913,66 @@ private:
 
         m_combatDummy1 = makeDummy(fa::core::Vec2{300.0f, 220.0f}, 20, "loot.slime");
         m_combatDummy2 = makeDummy(fa::core::Vec2{300.0f, 240.0f}, 30, "loot.slime");
+    }
+
+    /// \brief Creates one M21 agent and a stationary decoy target.
+    ///
+    /// The decoy is deliberately separate from the M20 dummies: the AI chases and
+    /// attacks it without moving the scripted combat targets.
+    void buildAi() {
+        const fa::core::Vec2 agentPosition{255.0f, 180.0f};
+        m_aiAgentEntity = world().create();
+        fa::scene::Transform agentTransform;
+        agentTransform.position = agentPosition;
+        static_cast<void>(world().add<fa::scene::Transform>(m_aiAgentEntity, agentTransform));
+
+        fa::scene::Sprite agentSprite;
+        agentSprite.texture = m_wall;
+        agentSprite.size = fa::core::Vec2{16.0f, 16.0f};
+        agentSprite.layer = fa::render::RenderLayer::Actors;
+        agentSprite.tint = fa::core::Color{0.72f, 0.45f, 1.0f, 1.0f};
+        static_cast<void>(world().add<fa::scene::Sprite>(m_aiAgentEntity, agentSprite));
+
+        fa::physics::Collider agentCollider;
+        agentCollider.size = fa::core::Vec2{16.0f, 16.0f};
+        agentCollider.layer = fa::physics::CollisionLayer::Enemy;
+        agentCollider.mask = fa::physics::maskOf(fa::physics::CollisionLayer::World);
+        static_cast<void>(world().add<fa::physics::Collider>(m_aiAgentEntity, agentCollider));
+        static_cast<void>(world().add<fa::player::Health>(m_aiAgentEntity, fa::player::Health{60, 60}));
+
+        fa::ai::AiAgent agent;
+        agent.home = fa::core::Vec2{agentPosition.x + 8.0f, agentPosition.y + 8.0f};
+        agent.profile.sightRadius = 160.0f;
+        agent.profile.attackRange = 24.0f;
+        agent.profile.moveSpeed = 60.0f;
+        agent.profile.attackDamage = 5;
+        agent.profile.attackCooldown = 1.0f;
+        agent.profile.fleeHealthRatio = 0.0f;
+        agent.profile.loseTargetSeconds = 2.0f;
+        agent.profile.repathSeconds = 0.5f;
+        agent.profile.perceptionIntervalSteps = 6;
+        agent.profile.attackMask = fa::physics::maskOf(fa::physics::CollisionLayer::Enemy);
+        static_cast<void>(world().add<fa::ai::AiAgent>(m_aiAgentEntity, agent));
+
+        m_aiTargetEntity = world().create();
+        fa::scene::Transform targetTransform;
+        targetTransform.position = fa::core::Vec2{300.0f, 180.0f};
+        static_cast<void>(world().add<fa::scene::Transform>(m_aiTargetEntity, targetTransform));
+
+        fa::scene::Sprite targetSprite;
+        targetSprite.texture = m_soil;
+        targetSprite.size = fa::core::Vec2{16.0f, 16.0f};
+        targetSprite.layer = fa::render::RenderLayer::Objects;
+        targetSprite.tint = fa::core::Color{0.45f, 0.70f, 1.0f, 1.0f};
+        static_cast<void>(world().add<fa::scene::Sprite>(m_aiTargetEntity, targetSprite));
+
+        fa::physics::Collider targetCollider;
+        targetCollider.size = fa::core::Vec2{16.0f, 16.0f};
+        targetCollider.layer = fa::physics::CollisionLayer::Enemy;
+        targetCollider.mask = 0;
+        static_cast<void>(world().add<fa::physics::Collider>(m_aiTargetEntity, targetCollider));
+        static_cast<void>(world().add<fa::player::Health>(m_aiTargetEntity, fa::player::Health{50, 50}));
+        static_cast<void>(world().add<fa::ai::AiTargetTag>(m_aiTargetEntity, fa::ai::AiTargetTag{}));
     }
 
     /// \brief Scripted M20 sequence: two melee hits, one projectile and poison.
@@ -943,7 +1086,7 @@ private:
         fa::interaction::InteractionRequest use;
         use.actor = m_markerEntity;
         use.target = target;
-        use.tool = fa::interaction::ToolKind::Hoe;
+        use.tool = fa::interaction::ToolKind::Sword;
         use.payload = kToolPayload;
         m_demoStats.toolUsed = m_interaction.interact(world(), use).isOk();
         m_demoStats.toolUses = m_toolHandler.uses;
@@ -966,6 +1109,76 @@ private:
         m_demoStats.occupiedCells = m_placement.occupiedCells();
     }
 
+    /// \brief Dispatches one farming tool without going through target selection.
+    fa::core::Status useFarmingTool(fa::tilemap::TileCoord cell, fa::interaction::ToolKind tool) {
+        fa::interaction::InteractionRequest request;
+        request.actor = m_markerEntity;
+        request.target.cell = cell;
+        request.target.tile = m_map.tileAt(cell.x, cell.y, 0);
+        request.target.valid = true;
+        request.target.reachable = true;
+        request.tool = tool;
+        const fa::interaction::ToolUseContext context{world(), m_map, &m_placement, request};
+        return m_farmingTools.use(context);
+    }
+
+    /// \brief Runs the scripted M19 sequence the smoke summary reports.
+    ///
+    /// The plot cycles through hoe/seed/water/harvest, then proves both sides of
+    /// the season rule: a normal cell wilts in winter, a greenhouse cell survives.
+    void runFarmingDemo() {
+        using fa::content::ContentId;
+        using fa::content::Season;
+        using fa::interaction::ToolKind;
+
+        m_farmingDemo = FarmingDemoStats{};
+        const ContentId seed = ContentId::fromName("item.turnip_seed");
+        const ContentId crop = ContentId::fromName("item.turnip");
+        m_farming.setCurrentSeason(Season::Spring);
+        m_farmingTools.setSelectedSeed(seed);
+        static_cast<void>(m_farmInventory.add(fa::inventory::ItemStack{seed, 5, -1}));
+
+        const fa::tilemap::TileCoord plot{4, 8};
+        m_farmingDemo.hoeOk = useFarmingTool(plot, ToolKind::Hoe).isOk();
+        m_farmingDemo.seedOk = useFarmingTool(plot, ToolKind::Seed).isOk();
+        m_farmingDemo.waterOk = useFarmingTool(plot, ToolKind::WateringCan).isOk();
+        for (int day = 0; day < 5; ++day) {
+            if (day > 0) {
+                static_cast<void>(useFarmingTool(plot, ToolKind::WateringCan));
+            }
+            m_farming.onDayChanged(fa::farming::FarmingDayContext{Season::Spring, false, 1.0f});
+        }
+        if (const fa::farming::CropState* grown = m_farming.cropAt(plot); grown != nullptr) {
+            m_farmingDemo.stage = grown->stage;
+            m_farmingDemo.harvestable = grown->harvestable;
+        }
+        m_farmingDemo.harvestOk = useFarmingTool(plot, ToolKind::Harvest).isOk();
+        m_farmingDemo.harvestCount = m_farmInventory.countOf(crop);
+
+        m_farming.setCurrentSeason(Season::Spring);
+        const fa::tilemap::TileCoord greenhouse{7, 11};
+        static_cast<void>(useFarmingTool(greenhouse, ToolKind::Hoe));
+        static_cast<void>(useFarmingTool(greenhouse, ToolKind::Seed));
+        static_cast<void>(useFarmingTool(greenhouse, ToolKind::WateringCan));
+        m_farming.onDayChanged(fa::farming::FarmingDayContext{Season::Winter, false, 1.0f});
+        if (const fa::farming::CropState* surviving = m_farming.cropAt(greenhouse); surviving != nullptr) {
+            m_farmingDemo.greenhouseOk = !surviving->dead;
+        }
+
+        m_farming.setCurrentSeason(Season::Spring);
+        const fa::tilemap::TileCoord outdoor{6, 9};
+        static_cast<void>(useFarmingTool(outdoor, ToolKind::Hoe));
+        static_cast<void>(useFarmingTool(outdoor, ToolKind::Seed));
+        static_cast<void>(useFarmingTool(outdoor, ToolKind::WateringCan));
+        m_farming.onDayChanged(fa::farming::FarmingDayContext{Season::Winter, false, 1.0f});
+        if (const fa::farming::CropState* wilted = m_farming.cropAt(outdoor); wilted != nullptr) {
+            m_farmingDemo.wiltedOk = wilted->dead;
+        }
+
+        m_farmingDemo.seedCount = m_farmInventory.countOf(seed);
+        m_farmingDemo.stats = m_farming.stats();
+    }
+
     fa::render::TextureHandle m_grass;
     fa::render::TextureHandle m_wall;
     fa::render::TextureHandle m_soil;
@@ -979,7 +1192,13 @@ private:
     fa::tilemap::TilemapSolids m_solids{m_map};
     fa::interaction::PlacementGrid m_placement;
     CountingToolHandler m_toolHandler;
-    /// Declared after its map, grid and handler so those outlive it.
+    /// \brief M19 state. The inventory is the demo's seed/harvest sink.
+    fa::farming::FarmingService m_farming;
+    fa::inventory::Inventory m_farmInventory{4, 99, nullptr};
+    fa::farming::DebrisLayer m_farmDebris;
+    fa::farming::FarmingToolHandler m_farmingTools{m_farming, m_farmInventory};
+    FarmingDemoStats m_farmingDemo;
+    /// Declared after its map, grid and handlers so those outlive it.
     fa::interaction::InteractionService m_interaction;
     fa::scene::EntityId m_markerEntity;
     fa::scene::EntityId m_crateEntity;
@@ -992,6 +1211,11 @@ private:
     fa::scene::EntityId m_combatDummy1;
     fa::scene::EntityId m_combatDummy2;
     CombatDemoStats m_combatStats;
+    /// \brief M21 service and the scripted agent/decoy pair.
+    std::unique_ptr<fa::ai::AiService> m_ai;
+    fa::scene::EntityId m_aiAgentEntity;
+    fa::scene::EntityId m_aiTargetEntity;
+    AiDemoStats m_aiDemo;
     fa::interaction::GridTarget m_cursorTarget;
     InteractionDemoStats m_demoStats;
     fa::player::PlayerSystem* m_playerSystem = nullptr;
@@ -1130,7 +1354,7 @@ public:
 
         // M11 takes over from here: the textures go into a scene, and the scene becomes
         // the only source of draw items.
-        auto scene = std::make_unique<DemoScene>(input);
+        auto scene = std::make_unique<DemoScene>(input, content);
         scene->setTextures(fa::render::TextureHandle{grassAsset->gpuTexture},
                            fa::render::TextureHandle{wallAsset->gpuTexture},
                            fa::render::TextureHandle{soilAsset->gpuTexture},
@@ -1701,6 +1925,7 @@ public:
         if (demoScene != nullptr) {
             demoScene->advanceAnimation(static_cast<float>(context.fixedDeltaSeconds));
             demoScene->advanceCombat(static_cast<float>(context.fixedDeltaSeconds));
+            demoScene->advanceAi(static_cast<float>(context.fixedDeltaSeconds));
         }
         if (demo != nullptr) {
             demo->beginTick(context.fixedStepIndex);
@@ -1854,6 +2079,12 @@ public:
     CombatDemoStats sceneCombatStats() const {
         return demoScene != nullptr ? demoScene->combatDemoStats() : CombatDemoStats{};
     }
+    FarmingDemoStats sceneFarmingStats() const {
+        return demoScene != nullptr ? demoScene->farmingDemoStats() : FarmingDemoStats{};
+    }
+    AiDemoStats sceneAiStats() const {
+        return demoScene != nullptr ? demoScene->aiDemoStats() : AiDemoStats{};
+    }
     fa::audio::AudioStats audioStats() const {
         return audioEngine != nullptr ? audioEngine->stats() : fa::audio::AudioStats{};
     }
@@ -2003,6 +2234,44 @@ private:
         // them on RenderLayer::UI, so they draw last. Debug shapes go straight to the
         // renderer and share the same final sort.
         buildHud(cursor);
+
+        // M19: farmland and crops are plain data, so the composition root turns
+        // them into tinted quads. Tilled cells sit below actors; crops use the
+        // object layer and the cell's bottom edge as the depth key.
+        if (demoScene != nullptr && uiWhiteTexture.isValid()) {
+            for (const fa::farming::FarmTileEntry& entry : demoScene->farmingTiles()) {
+                const fa::core::Vec2 cellPosition = demoScene->farmingCellPosition(entry.cell);
+                if (entry.tile.tilled) {
+                    fa::render::DrawItem soil;
+                    soil.texture = uiWhiteTexture;
+                    soil.position = cellPosition;
+                    soil.size = fa::core::Vec2{16.0f, 16.0f};
+                    soil.tint = entry.tile.watered
+                                    ? fa::core::Color{0.16f, 0.22f, 0.34f, 0.72f}
+                                    : fa::core::Color{0.34f, 0.23f, 0.13f, 0.55f};
+                    soil.layer = fa::render::RenderLayer::GroundDetail;
+                    soil.sortY = cellPosition.y;
+                    renderQueue.submit(soil);
+                }
+                if (entry.hasCrop) {
+                    fa::render::DrawItem crop;
+                    crop.texture = uiWhiteTexture;
+                    crop.position = fa::core::Vec2{cellPosition.x + 3.0f, cellPosition.y + 4.0f};
+                    crop.size = fa::core::Vec2{10.0f, 10.0f};
+                    if (entry.crop.dead) {
+                        crop.tint = fa::core::Color{0.45f, 0.38f, 0.32f, 0.95f};
+                    } else if (entry.crop.harvestable) {
+                        crop.tint = fa::core::Color{1.0f, 0.85f, 0.25f, 1.0f};
+                    } else {
+                        crop.tint = fa::core::Color{
+                            0.25f + 0.12f * static_cast<float>(entry.crop.stage), 0.65f, 0.25f, 1.0f};
+                    }
+                    crop.layer = fa::render::RenderLayer::Objects;
+                    crop.sortY = cellPosition.y + 16.0f;
+                    renderQueue.submit(crop);
+                }
+            }
+        }
 
         // M22: a full-screen darkening quad plus one translucent quad per point
         // light. Both land on RenderLayer::Weather, below the UI, so the HUD stays
@@ -2220,6 +2489,8 @@ int main(int argc, char** argv) {
     const InventoryDemoStats inventoryStats = sink.sceneInventoryStats();
     const AnimationDemoStats animStats = sink.sceneAnimationStats();
     const CombatDemoStats combatStats = sink.sceneCombatStats();
+    const FarmingDemoStats farmingStats = sink.sceneFarmingStats();
+    const AiDemoStats aiStats = sink.sceneAiStats();
     const fa::audio::AudioStats audioStats = sink.audioStats();
     const SaveDemoStats saveDemo = sink.saveDemoStats();
     const CalendarDemoStats calendarStats = sink.calendarStats();
@@ -2383,6 +2654,17 @@ int main(int argc, char** argv) {
                 inventoryStats.backpackItems, inventoryStats.backpackSlots, inventoryStats.hotbarItems,
                 inventoryStats.selected, toolName, inventoryStats.soupUses, inventoryStats.inventoryEvents,
                 inventoryStats.useEvents);
+    std::printf("  m19: %zu tilled, %zu crop(s), %zu harvestable, %zu dead; "
+                "%llu till(s)/%llu water(s)/%llu plant(s)/%llu harvest(s), %llu item(s), "
+                "stage %d%s, greenhouse %s, winter wilt %s, seed %d, %zu event(s)\n",
+                farmingStats.stats.tilled, farmingStats.stats.crops, farmingStats.stats.harvestable,
+                farmingStats.stats.dead, static_cast<unsigned long long>(farmingStats.stats.tills),
+                static_cast<unsigned long long>(farmingStats.stats.waters),
+                static_cast<unsigned long long>(farmingStats.stats.plants),
+                static_cast<unsigned long long>(farmingStats.stats.harvests),
+                static_cast<unsigned long long>(farmingStats.stats.harvestItems), farmingStats.stage,
+                farmingStats.harvestable ? " (ready)" : "", farmingStats.greenhouseOk ? "ok" : "bad",
+                farmingStats.wiltedOk ? "ok" : "bad", farmingStats.seedCount, farmingStats.stats.events);
     std::printf("  m20: %llu attack(s), %llu hit(s), %llu damage, %llu kill(s), "
                 "%llu projectile(s)/%llu hit(s)/%llu wall hit(s), %llu status tick(s), %zu event(s)\n",
                 static_cast<unsigned long long>(combatStats.attacks),
@@ -2395,6 +2677,19 @@ int main(int argc, char** argv) {
                 static_cast<unsigned long long>(combatStats.statusTicks),
                 combatStats.damageEvents + combatStats.deathEvents + combatStats.projectileEvents +
                     combatStats.statusEvents);
+    const std::string_view aiStateName = fa::ai::toString(aiStats.state);
+    std::printf("  m21: %.*s, target %s (%s), %zu path node(s), %zu agent(s), "
+                "%llu perception(s), %llu target(s), %llu path(s), %llu move(s), "
+                "%llu attack(s), %llu state change(s)\n",
+                static_cast<int>(aiStateName.size()), aiStateName.data(),
+                aiStats.targetValid ? "valid" : "none", aiStats.targetVisible ? "visible" : "hidden",
+                aiStats.pathNodes, aiStats.stats.agents,
+                static_cast<unsigned long long>(aiStats.stats.perceptions),
+                static_cast<unsigned long long>(aiStats.stats.targetsFound),
+                static_cast<unsigned long long>(aiStats.stats.pathsFound),
+                static_cast<unsigned long long>(aiStats.stats.moves),
+                static_cast<unsigned long long>(aiStats.stats.attacks),
+                static_cast<unsigned long long>(aiStats.stats.stateChanges));
     const std::string_view seasonName = fa::world::toString(calendarStats.season);
     const std::string_view weatherName = fa::world::toString(calendarStats.today);
     const std::string_view tomorrowName = fa::world::toString(calendarStats.tomorrow);
@@ -2411,9 +2706,9 @@ int main(int argc, char** argv) {
                 static_cast<unsigned long long>(calendarStats.seasons),
                 static_cast<unsigned long long>(calendarStats.weatherChanges), calendarStats.events);
 #if defined(FA_ENABLE_DEBUG_TOOLS)
-    std::printf("M02+M03+M04+M05+M06+M07+M08+M09+M10+M11+M12+M13+M14+M15+M16+M17+M18+M20+M22+M27 smoke test OK\n");
+    std::printf("M02+M03+M04+M05+M06+M07+M08+M09+M10+M11+M12+M13+M14+M15+M16+M17+M18+M19+M20+M21+M22+M27 smoke test OK\n");
 #else
-    std::printf("M02+M03+M04+M05+M06+M07+M08+M09+M10+M11+M12+M13+M14+M15+M16+M17+M18+M20+M22 smoke test OK\n");
+    std::printf("M02+M03+M04+M05+M06+M07+M08+M09+M10+M11+M12+M13+M14+M15+M16+M17+M18+M19+M20+M21+M22 smoke test OK\n");
 #endif
     return 0;
 }

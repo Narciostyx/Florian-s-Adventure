@@ -25,7 +25,7 @@
 | M16 | Player Controller | L3 | P1 | 玩家移动、朝向、交互输入、状态切换 | M07, M11, M13 |
 | M17 | Interaction & Grid Placement | L3 | P1 | 交互目标选择、格子放置/拆除、工具使用 | M11–M13（M15 后续） |
 | M18 | Inventory & Items | L3 | P1 | 背包、堆叠、装备、物品使用、掉落 | M01, M15 |
-| M19 | Farming & World Objects | L3 | P1 | 耕地、播种、浇水、生长、收获、放置物 | M11–M15, M17 |
+| M19 | Farming & World Objects | L3 | P1 | 耕地、播种、浇水、生长、收获、放置物 | M12, M15, M17, M18 |
 | M20 | Combat | L3 | P1 | 生命/伤害、攻击判定、受击、死亡、投射物、状态 | M01、M11、M13、M16 |
 | M21 | AI | L3 | P1 | 敌人状态机、感知、寻路、行为决策 | M11–M13, M20 |
 | M22 | Calendar / Weather / Lighting | L3 | P1 | 日历、季节、天气、环境光与昼夜 | M01（事件/绘制由组装根接 M03/M06/M11） |
@@ -100,9 +100,14 @@ flowchart TB
   M17 --> M12
   M17 --> M13
   M18 --> M15
+  M19 --> M12
+  M19 --> M15
   M19 --> M17
+  M19 --> M18
   M20 --> M13
   M20 --> M16
+  M21 --> M12
+  M21 --> M13
   M21 --> M20
   M22 --> M01
   M23 --> M15
@@ -161,6 +166,11 @@ flowchart TB
   不写存档文件（M14 读快照），也不做背包 UI 布局（M09/M26）。物品只存 `ContentId`/数量/耐久。
 - **M20** 只做伤害/攻击/投射物/状态判定，不决定 AI、输入或掉落入包；掉落表以字符串 id 事件
   交给组装根，表现由 M06/M10 消费事件。它只引用 `fa_core`、`fa_scene`、`fa_physics`、`fa_player`。
+- **M19** 只做按格农田/作物、世界对象占用与杂物；每日结算输入是 `FarmingDayContext`，
+  不直接读 M22，也不实现箱子存储/加工（属于 M24）。它用 M17 的 `IToolHandler`
+  接收锄地/浇水/播种/收获，收获只调用 M18 的 `Inventory`。
+- **M21** 只做感知/决策/寻路，并把移动交给 M13、攻击交给 M20；它不扣血、不播动画、
+  不依赖 M16。目标用 `AiTargetTag` 标记，路径由 service 私有保存，不放进 ECS。
 - **M22** 只做日历/天气/环境光与点光数据，不读写存档、不直接改作物或 NPC；事件记录在
   `events()`，由组装根转发给 M19/M21/M23/M24。它是纯逻辑，只引用 `fa_core`；
   暗化层与点光由 app 在 `RenderLayer::Weather` 上提交。

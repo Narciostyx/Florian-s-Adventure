@@ -74,6 +74,8 @@
     <ClCompile Include="time.test.cpp" />
     <ClCompile Include="ui.test.cpp" />
     <ClCompile Include="world.test.cpp" />
+    <ClCompile Include="farming.test.cpp" />
+    <ClCompile Include="ai.test.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="$(SolutionDir)src\engine\core\fa_core.vcxproj" />
@@ -97,6 +99,8 @@
     <ProjectReference Include="$(SolutionDir)src\engine\anim\fa_anim.vcxproj" />
     <ProjectReference Include="$(SolutionDir)src\engine\combat\fa_combat.vcxproj" />
     <ProjectReference Include="$(SolutionDir)src\engine\world\fa_world.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\farming\fa_farming.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\ai\fa_ai.vcxproj" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>

@@ -83,6 +83,15 @@
 - M22 只依赖 M01（数学/`Rng`/`Color`），**不依赖 M03/M04/M06/M11/M14/M15**：日历/天气是纯逻辑，
   事件记录在 `events()`、由组装根转发；光照是纯数据，暗化层与点光由 app 提交到
   `RenderLayer::Weather`；天气 RNG 状态由 M14 在存档层保存。`fa_world` 因此不需要 `/EHsc`。
+- M19 依赖 M12/M15/M17/M18：农田数据按格保存在 `FarmingService`，不进 ECS；
+  `FarmingToolHandler` 实现 M17 的 `IToolHandler`，收获写 M18 的 `Inventory`；
+  每日结算只接收 `FarmingDayContext`，**不依赖 M22**。公共头经 M17 间接包含
+  `scene::World`/`Tilemap`，所以 `fa_farming` 单独打开 `/EHsc`。
+- M21 依赖 M11/M12/M13/M20：`AiService` 读 `AiAgent`/`Transform`/`Health`，用
+  `Tilemap` 做 A* 与视线，用 `PhysicsWorld::move` 移动，用 `ICombatService::spawnAttack`
+  攻击。**不依赖 M16**：目标用 `AiTargetTag` 标记；读的是 M20 也写的
+  `player::Health` 组件。`fa_ai` 因为 `World`/`PhysicsWorld` 的 `unordered_map`
+  单独打开 `/EHsc`。
 - M25 可以协调多个玩法模块，但只通过它们的公开接口/事件；不得直接改对方内部状态。
 
 ### L4

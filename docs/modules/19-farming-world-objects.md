@@ -4,9 +4,11 @@
 |---|---|
 | 层 | L3 |
 | 优先级 | P1 |
-| 状态 | 设计完成 |
-| 依赖 | M00–M18 |
+| 状态 | 已实现 |
+| 依赖 | M00–M18（实际链接 `fa_core`、`fa_content`、`fa_inventory`、`fa_interaction`、`fa_scene`、`fa_tilemap`） |
 | 被依赖 | M22、M24、M25、M26、M27 |
+
+> 实测与踩坑：[构建记录](../build/m19-farming-world-objects.md)
 
 ## 1. 目的
 
@@ -71,7 +73,41 @@ struct WorldObject {
 - 加工链：`ProcessingJob { machineKind, inputId, outputId, remainingMinutes }`，跨天累计，星露谷式语义。
 - 所有数值与规则来自 M15 内容库，本模块不含硬编码作物名。
 
-## 4. 公共接口草案
+## 4. 公共接口
+
+实际落地是具体类 `fa::farming::FarmingService`（没有引入 `IFarmingService`
+接口），外加 M17 适配器 `FarmingToolHandler`。主要方法：
+
+```cpp
+namespace fa::farming {
+
+class FarmingService {
+public:
+    explicit FarmingService(const content::ContentDatabase* content = nullptr);
+    core::Status till(tilemap::TileCoord cell, const tilemap::Tilemap& map);
+    core::Status water(tilemap::TileCoord cell);
+    core::Status plant(tilemap::TileCoord cell, const content::ContentId& seed);
+    core::Result<inventory::ItemStack> harvest(tilemap::TileCoord cell,
+                                               inventory::Inventory& inventory);
+    void onDayChanged(const FarmingDayContext& context);
+
+    const FarmTile* tileAt(tilemap::TileCoord cell) const noexcept;
+    const CropState* cropAt(tilemap::TileCoord cell) const noexcept;
+    std::span<const FarmTileEntry> entries() const noexcept;
+    FarmingStats stats() const noexcept;
+    std::span<const FarmingEvent> events() const noexcept;
+};
+
+class FarmingToolHandler final : public interaction::IToolHandler {
+public:
+    bool handles(interaction::ToolKind tool) const noexcept override;
+    core::Status use(const interaction::ToolUseContext& context) override;
+};
+
+} // namespace fa::farming
+```
+
+早期草案（未采用，保留作设计记录）：
 
 ```cpp
 namespace fa::farming {
@@ -92,9 +128,13 @@ public:
 
 ## 5. 依赖关系
 
-- 依赖 M03（事件）、M11（ECS）、M12（瓦片/覆盖层）、M15（作物/物品定义）、M18（收获物入包）。
+- 设计上依赖 M03（事件）、M11（ECS）、M12（瓦片/覆盖层）、M15（作物/物品定义）、M18（收获物入包）。
+- **实际落地**：`fa_farming` 只链接 `fa_core`、`fa_content`、`fa_inventory`、
+  `fa_interaction`、`fa_scene`、`fa_tilemap`。没有直接依赖 M03/M22：每日结算输入是
+  `FarmingDayContext`，由组装根从 M22 的 `CalendarEvent` 转换。
 - 不依赖 M20/M21；战斗掉落物由 M20 生成，M19 不感知。
-- 季节与天气通过 `DayChangedEvent` 传入，M19 不直接读 M22。
+- 季节与天气通过 `FarmingDayContext`（`season`/`rain`/`growthMultiplier`）传入，
+  M19 不直接读 M22。
 
 ## 6. 扩展点
 
@@ -103,9 +143,20 @@ public:
 - 新增设备（洒水器、稻草人）实现 `IWorldObjectBehavior`。
 - 新增品质系统：`CropInstance` 增加品质字段与概率表。
 
-## 7. 实现阶段
+## 7. 实现落地
 
-P1，Phase C。先实现耕地/浇水/播种/生长/收获；再实现季节、再生作物、世界对象。验收：萝卜 4 天成熟、浇水加速正确、换季枯萎符合规则、收获进入背包。
+P1，Phase C，已完成：
+
+- 耕地/浇水/播种/按天生长/收获；阶段来自 `CropDef::stageDays`。
+- 季节检查与温室绕过；换季室外枯萎，温室存活。
+- 再生作物收获后回退到 `totalDays - regrowDays`。
+- `FarmingToolHandler` 覆盖 Hoe/WateringCan/Seed/Harvest/Axe/Pickaxe；
+  M17 新增 `ToolKind::Harvest`。
+- `WorldObjectLayer` 与 `DebrisLayer` 提供单格占用/清理与产出。
+- app 用萝卜跑通 5 天生长与收获，并分别验证温室存活和室外枯萎；
+  摘要 `m19:` 行与 smoke OK 的 `+M19`。
+
+验收：浇水日才生长；雨天自动浇水；生长倍率生效；换季规则正确；收获进入背包。
 
 ## 8. 风险与开放问题
 
