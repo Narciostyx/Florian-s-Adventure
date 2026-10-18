@@ -31,6 +31,7 @@
   </ImportGroup>
   <ItemGroup>
     <ClCompile Include="src\*.cpp" />
+    <ClInclude Include="..\include\fa\core\*.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>

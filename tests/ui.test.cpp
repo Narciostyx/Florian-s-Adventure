@@ -42,7 +42,6 @@ using fa::ui::UiContext;
 using fa::ui::UiId;
 using fa::ui::UiInputState;
 using fa::ui::UiResult;
-using fa::ui::UiTheme;
 using Catch::Approx;
 
 /// \brief A font whose texture handle is non-zero so drawText() actually submits.
@@ -111,8 +110,11 @@ TEST_CASE("glyph lookup normalises lowercase and falls back to '?'", "[ui]") {
     CHECK(lower.defined);
 
     const Glyph& question = glyphFor(font, U'?');
+    CHECK(question.defined);
     const Glyph& unknown = glyphFor(font, U'\u4e2d');
-    CHECK(unknown.defined == false);
+    // The fallback glyph itself is defined; only an unusable atlas returns an
+    // undefined glyph.
+    CHECK(unknown.defined);
     CHECK(unknown.source.x == Approx(question.source.x));
 
     const FontAtlas empty;
@@ -194,14 +196,15 @@ TEST_CASE("drawText honours alignment and integer scaling", "[ui]") {
     RenderQueue center;
     drawText(font, "A", Rect{10.0f, 0.0f, 20.0f, 20.0f}, style, center);
     REQUIRE(center.size() == 1);
-    CHECK(center.items()[0].position.x == Approx(18.0f));
+    // Alignment uses the advance (8 px at scale 2), not the 6 px visual width.
+    CHECK(center.items()[0].position.x == Approx(16.0f));
     CHECK(center.items()[0].size.x == Approx(6.0f));
 
     style.align = TextAlign::Right;
     RenderQueue right;
     drawText(font, "A", Rect{10.0f, 0.0f, 20.0f, 20.0f}, style, right);
     REQUIRE(right.size() == 1);
-    CHECK(right.items()[0].position.x == Approx(26.0f));
+    CHECK(right.items()[0].position.x == Approx(22.0f));
 }
 
 TEST_CASE("drawText supports shadow and outline effects", "[ui]") {
@@ -223,16 +226,15 @@ TEST_CASE("drawText supports shadow and outline effects", "[ui]") {
     CHECK(outlineQueue.items()[4].tint == outline.color);
 }
 
-TEST_CASE("drawText needs a texture and skips unknown glyphs", "[ui]") {
+TEST_CASE("drawText needs a texture and falls back for unknown bytes", "[ui]") {
     FontAtlas font = buildBuiltinFont();
     RenderQueue queue;
     drawText(font, "A", Rect{0.0f, 0.0f, 10.0f, 10.0f}, {}, queue);
     CHECK(queue.empty());
 
     font.texture = TextureHandle{1};
-    drawText(font, "\u4e2d", Rect{0.0f, 0.0f, 10.0f, 10.0f}, {}, queue);
-    CHECK(queue.empty() == false);
-    // The replacement is '?', which is a real glyph.
+    // v1 walks UTF-8 bytes as bytes; one byte outside the atlas maps to '?'.
+    drawText(font, "\x7f", Rect{0.0f, 0.0f, 10.0f, 10.0f}, {}, queue);
     CHECK(queue.size() == 1);
 }
 
@@ -386,13 +388,14 @@ TEST_CASE("slider tracks the mouse and clamps to its range", "[ui]") {
 
     ui.beginFrame(mouseAt(Vec2{20.0f, 6.0f}, false, false, true));
     result = ui.slider(id, value, 0.0f, 1.0f, rect);
-    CHECK_FALSE(result.changed);
+    CHECK(result.changed);
+    CHECK(value == Approx(0.2f));
 
     // Once released, moving the mouse no longer drags.
     ui.beginFrame(mouseAt(Vec2{80.0f, 6.0f}));
     result = ui.slider(id, value, 0.0f, 1.0f, rect);
     CHECK_FALSE(result.changed);
-    CHECK(value == Approx(0.0f));
+    CHECK(value == Approx(0.2f));
 }
 
 TEST_CASE("submit appends every queued item to the caller's queue", "[ui]") {

@@ -15,7 +15,7 @@
 | M06 | Rendering | L1 | P0 | OpenGL 设备、精灵批处理、相机、图层、调试绘制（文字归 M09） | M01–M02 |
 | M07 | Input | L1 | P0 | 键盘/鼠标/手柄状态、动作映射、输入上下文 | M01–M02 |
 | M08 | Audio | L1 | P1 | 音效/音乐播放、总线音量、3D 衰减（2D 模拟） | M01–M05 |
-| M09 | UI & Text | L1 | P1 | 立即模式 UI、布局、字体、HUD/菜单控件 | M01–M06 |
+| M09 | UI & Text | L1 | P1 | 立即模式 UI、布局、字体、HUD/菜单控件 | M01, M06 |
 | M10 | Animation | L1 | P1 | 精灵动画、状态机、帧事件、混合 | M01–M05 |
 | M11 | Scene / World & ECS | L2 | P0 | 场景栈、World、EntityId、SparseSet、System 调度 | M01, M04, M06 |
 | M12 | Tilemap & World | L2 | P1 | 瓦片地图、图层、地图查询、地图加载 | M11, M13 |
@@ -129,7 +129,7 @@ flowchart TB
 - **M05 与 M06 编译期互不依赖**：`fa_assets` 不引用 `fa_render`，上传走 `ITextureUploader` 反向接口；`fa_render` 也不引用 `fa_assets`。桥接在 `fa_app` 里用适配器完成。
 - **M07** 把平台事件翻译为动作状态；不包含玩法键位。
 - **M08** 只消费音频命令；不反向查询 ECS。
-- **M09** 依赖渲染与输入，但不依赖具体场景；通过绑定数据与回调工作。
+- **M09** 只依赖 `fa_core` 与 `fa_render`（`RenderQueue`/`TextureHandle`）；不依赖输入、场景或资源系统。每帧鼠标快照由调用方传入，控件读写调用方提供的值，因此没有绑定层。
 - **M10** 只描述动画数据与播放状态；不决定何时切换（由玩法系统决定）。
 
 ### L2 世界运行时

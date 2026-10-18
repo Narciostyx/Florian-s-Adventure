@@ -44,6 +44,7 @@
 #include <fa/platform/FileSystem.hpp>
 #include <fa/platform/Platform.hpp>
 #include <fa/render/IRenderer.hpp>
+#include <fa/render/RenderError.hpp>
 #include <fa/render/RenderQueue.hpp>
 #include <fa/render/RenderTypes.hpp>
 #include <fa/scene/CommandBuffer.hpp>
@@ -803,7 +804,8 @@ public:
     /// M09 plain handles, exactly like the asset pipeline hands handles to sprites.
     fa::core::Status initializeUi() {
         if (renderer == nullptr) {
-            return fa::core::errorStatus(fa::assets::asset_error::kNotInitialized, "no renderer to upload the font");
+            return fa::core::errorStatus(fa::render::render_error::kNotInitialized,
+                                         "no renderer to upload the font");
         }
         uiFont = fa::ui::buildBuiltinFont();
 
@@ -943,6 +945,15 @@ public:
     DemoScene* demoScene = nullptr;
     fa::render::RenderQueue renderQueue;
     std::size_t extractedItems = 0;
+    /// M09 holds only borrowed handles; `uiFont` is declared before `ui` so the
+    /// context (which references the atlas) is destroyed first.
+    fa::ui::FontAtlas uiFont;
+    fa::render::TextureHandle uiWhiteTexture;
+    std::unique_ptr<fa::ui::UiContext> ui;
+    bool showHud = true;
+    float sliderValue = 2.0f;
+    std::size_t uiItems = 0;
+    std::size_t uiPresses = 0;
     int quitEvents = 0;
     int resizeEvents = 0;
     int renderedFrames = 0;
@@ -1004,6 +1015,8 @@ public:
         return demoScene != nullptr ? demoScene->systems().size() : 0;
     }
     std::size_t uiFontGlyphCount() const { return uiFont.glyphs.size(); }
+    int uiAtlasWidth() const { return uiFont.width; }
+    int uiAtlasHeight() const { return uiFont.height; }
     std::size_t uiDrawnItems() const { return uiItems; }
     std::size_t uiPressCount() const { return uiPresses; }
     bool uiHudVisible() const { return showHud; }
@@ -1104,8 +1117,6 @@ private:
         }
         renderQueue.clear();
         stack.renderExtract(renderQueue);
-        renderQueue.sort();
-        renderer->submitAll(renderQueue.items());
         extractedItems = renderQueue.size();
 
         // Mouse position proves the window -> virtual -> world chain: the viewport
@@ -1115,6 +1126,13 @@ private:
         if (demoScene != nullptr) {
             demoScene->setCursorWorld(cursor);
         }
+
+        // M09 appends its HUD and widget quads after the world; the queue sort puts
+        // them on RenderLayer::UI, so they draw last. Debug shapes go straight to the
+        // renderer and share the same final sort.
+        buildHud(cursor);
+        renderQueue.sort();
+        renderer->submitAll(renderQueue.items());
 
         renderer->drawDebugRect(fa::core::makeRect(cursor.x - 8.0f, cursor.y - 8.0f, 16.0f, 16.0f),
                                 fa::core::Color{1.0f, 1.0f, 0.2f, 1.0f});
@@ -1197,6 +1215,18 @@ int main(int argc, char** argv) {
             }
             std::printf("  continuing without assets (hidden run)\n");
         }
+
+        // M09 needs only a renderer: it uploads a generated atlas, not an asset file.
+        const fa::core::Status uiStatus = sink.initializeUi();
+        if (uiStatus.isError()) {
+            std::printf("ui init failed (%d): %s\n", uiStatus.error().code, uiStatus.error().message.c_str());
+            if (options.visibleWindow) {
+                sink.shutdownRenderer();
+                platform->shutdown();
+                return 1;
+            }
+            std::printf("  continuing without UI (hidden run)\n");
+        }
     }
 
     fa::time::FrameLoopConfig config;
@@ -1242,6 +1272,13 @@ int main(int argc, char** argv) {
     // Probe first: the ray is a real query and its counter belongs in the summary.
     const float probeDistance = sink.sceneProbeDistance();
     const fa::physics::PhysicsStats physicsStats = sink.scenePhysicsStats();
+    const std::size_t uiGlyphs = sink.uiFontGlyphCount();
+    const int uiAtlasWidth = sink.uiAtlasWidth();
+    const int uiAtlasHeight = sink.uiAtlasHeight();
+    const std::size_t uiItems = sink.uiDrawnItems();
+    const std::size_t uiPresses = sink.uiPressCount();
+    const bool hudVisible = sink.uiHudVisible();
+    const float uiSlider = sink.uiSliderValue();
     // The context belongs to the renderer and dies with the window, so it has to go
     // before the platform shuts that window down.
     sink.shutdownRenderer();
@@ -1276,6 +1313,13 @@ int main(int argc, char** argv) {
                 contextName.data(), static_cast<unsigned long long>(sink.movingSteps),
                 static_cast<double>(sink.lastMoveAxis.x), static_cast<double>(sink.lastMoveAxis.y),
                 static_cast<double>(sink.lastMouse.x), static_cast<double>(sink.lastMouse.y));
+    if (uiGlyphs == 0) {
+        std::printf("  m09: UI unavailable (no font atlas)\n");
+    } else {
+        std::printf("  m09: %zu glyph(s) in a %dx%d atlas, %zu UI item(s), %zu press(es), HUD %s, slider %.2f\n",
+                    uiGlyphs, uiAtlasWidth, uiAtlasHeight, uiItems, uiPresses, hudVisible ? "on" : "off",
+                    static_cast<double>(uiSlider));
+    }
     if (glVersionText.empty()) {
         std::printf("  m06: renderer unavailable (no GL context)\n");
     } else {
@@ -1351,6 +1395,6 @@ int main(int argc, char** argv) {
                 interactionStats.placements, interactionStats.events, interactionStats.occupiedCells,
                 interactionStats.previewBefore ? "valid" : "invalid",
                 interactionStats.previewAfter ? "valid" : "invalid");
-    std::printf("M02+M03+M04+M05+M06+M07+M11+M12+M13+M15+M16+M17 smoke test OK\n");
+    std::printf("M02+M03+M04+M05+M06+M07+M09+M11+M12+M13+M15+M16+M17 smoke test OK\n");
     return 0;
 }

@@ -41,7 +41,7 @@
 - M06 是唯一直接调用 OpenGL 的模块（GL 上下文由 M02 的 `IGlContext` 提供）；对外提供 `IRenderer`、`RenderQueue`、`Camera2D`、`Viewport`、`TextureHandle`。批处理是实现细节，不是对外类型。
 - M07 不包含玩法键位；只提供动作名到物理输入的映射。
 - M08 不查询 ECS；只消费 `AudioCommand` 队列。
-- M09 不依赖具体场景；通过 `UiBinding` 与回调工作。
+- M09 只依赖 M01 与 M06 的 `RenderQueue`/`DrawItem`/`TextureHandle`，**不依赖 M05/M07/M11**：字体与 1×1 白纹理以裸句柄传入，鼠标快照由调用方每帧提供，控件只读写调用方传入的值。文字与四边形都产出纯数据 `DrawItem`，因此 `fa_ui` 不需要 GL、资源或输入模块，也不需要 `/EHsc`。
 - M10 不决定动画切换；只播放/混合调用方指定的动画。
 
 ### L2

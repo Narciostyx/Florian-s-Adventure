@@ -2,9 +2,9 @@
 
 **这份文档是「继续任务」的唯一入口。** 新开一个对话继续开发时，先读这里，再读对应的模块文档与构建记录，不需要重新翻历史。
 
-- 最后更新：M15 Content Database 交付完成（实现 + 文档回写）
-- 当前总体：**28 个模块中 14 个已实现**（M00–M07 + M11 + M12 + M13 + M15 + M16 + M17），其余处于设计完成、尚未编码
-- 当前可运行内容：窗口 + 主循环 + 事件/作业 + 输入 + 渲染 + 资源缓存 + **ECS 世界与场景栈** + **AABB 碰撞与查询** + **瓦片地图与图层提取** + **交互目标选择与格子放置** + **玩家移动/朝向/耐力/闪避** + **带引用校验的内容数据库**；画面是**全部色块占位**，40×23 地图（920 格、143 实心、16 可耕地）由 M12 提取，标记由 M16 驱动、M13 求解并停在 x=344，M17 在标记旁选目标、调用一次工具并占一个放置格，M15 加载物品/作物/配方/敌人/掉落表，但还没有完整玩法
+- 最后更新：M09 UI & Text 交付完成（实现 + 文档回写）
+- 当前总体：**28 个模块中 15 个已实现**（M00–M07 + M09 + M11 + M12 + M13 + M15 + M16 + M17），其余处于设计完成、尚未编码
+- 当前可运行内容：窗口 + 主循环 + 事件/作业 + 输入 + 渲染 + 资源缓存 + **ECS 世界与场景栈** + **AABB 碰撞与查询** + **瓦片地图与图层提取** + **交互目标选择与格子放置** + **玩家移动/朝向/耐力/闪避** + **带引用校验的内容数据库** + **内置位图字体与即时模式 HUD/控件**；画面是**全部色块占位**，40×23 地图（920 格、143 实心、16 可耕地）由 M12 提取，标记由 M16 驱动、M13 求解并停在 x=344，M17 在标记旁选目标、调用一次工具并占一个放置格，M15 加载物品/作物/配方/敌人/掉落表，M09 每帧绘制 HUD、耐力条、按钮、复选框与滑条，但还没有完整玩法
 
 ## 1. 长期有效的规约
 
@@ -24,8 +24,10 @@
 |---|---|
 | Visual Studio | Community 2026，MSVC `14.51.36231`（工具集 `v145`） |
 | MSBuild | `C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\Bin\MSBuild.exe` |
-| vcpkg | `D:\CPPLibraries\vcpkg\vcpkg.exe`，**每次都要显式** `$env:VCPKG_ROOT` |
+| vcpkg | `D:\CPPLibraries\vcpkg\vcpkg.exe`，命令行**每次都要显式** `$env:VCPKG_ROOT`；VS 里需要用户级 `VCPKG_ROOT` 或 `vcpkg integrate install` |
 | triplet | `x64-windows-static-md` |
+| 解决方案文件 | `FloriansAdventure.sln`（**没有下划线**）；根目录的 `Florian_Adventure.*` 是 VS 误生成、无源文件也无依赖的空工程，已删除 |
+| VS 直接生成 | 选 `x64` + Debug/Development/Release；依赖由各 `.vcxproj` 的 `ProjectReference` 声明，不需要手工加 |
 | 全解决方案构建 | `MSBuild.exe FloriansAdventure.sln /p:Configuration=X /p:Platform=x64 /m /nologo /v:m` |
 | 单工程构建 | 必须带 `/p:SolutionDir="$PWD\"` |
 | 二进制 | `build\bin\x64\<Config>\fa_tests.exe`、`fa_app.exe` |
@@ -43,7 +45,7 @@
 
 ## 3. 模块状态
 
-### 已实现（14 个）
+### 已实现（15 个）
 
 | 模块 | 名称 | 用例（新增） | 关键交付 | 文档 |
 |---|---|---|---|---|
@@ -55,6 +57,7 @@
 | M05 | Asset Pipeline | 61 | `AssetId`/`AssetHandle`、`AssetCatalog`、异步加载 + 帧线程上传、占位降级、`ITextureUploader` 反向桥 | [设计](modules/05-asset-pipeline.md) · [实测](build/m05-assets.md) |
 | M06 | Rendering | 42 | `IRenderer` + `RenderQueue` + `Camera2D` + `Viewport`、自研 42 项 GL 函数表、精灵批处理、调试绘制 | [设计](modules/06-rendering.md) · [实测](build/m06-render.md) |
 | M07 | Input | 36 | `ActionId` + `Binding` + 每上下文 `ActionMap`、上下文栈、`IInput` 窄接口、JSON 键位持久化 | [设计](modules/07-input.md) · [实测](build/m07-input.md) |
+| M09 | UI & Text | 16 | 内置 3×5 ASCII 位图字体、字形回退、测量/换行/对齐、投影/描边、立即模式面板/按钮/复选框/滑条/进度条、`RenderLayer::UI` 与主题 | [设计](modules/09-ui-and-text.md) · [实测](build/m09-ui-and-text.md) |
 | M11 | Scene / World & ECS | 78 | `World` + `EntityId` 代际句柄 + `SparseSet` + `CommandBuffer`、`SystemPipeline` 三钩子调度、`SceneStack` 栈式场景、`SpriteExtractor` 纯数据提取 | [设计](modules/11-scene-world-ecs.md) · [实测](build/m11-scene-ecs.md) |
 | M12 | Tilemap & World | 17 | `Tilemap` + `TileId`/`TileCoord`/`TileBounds` + 多图层 + 瓦片属性、`worldToGrid`/`gridToWorld`/`queryArea`/`portalAt`、JSON 地图加载、4 邻接自动瓦片、`extractTiles` 视锥裁剪、`TilemapSolids` 物理适配器 | [设计](modules/12-tilemap-and-world.md) · [实测](build/m12-tilemap.md) |
 | M13 | Physics & Collision | 40 | `Collider` + `CollisionLayer` 双向掩码、`SpatialHash` 宽相、`TileGrid` 静态碰撞、轴分离 + ≤4px 子步求解、`overlap`/`overlapCircle`/`raycast`、触发器进出事件 | [设计](modules/13-physics-collision.md) · [实测](build/m13-physics-collision.md) |
@@ -62,9 +65,10 @@
 | M16 | Player Controller | 14 | `PlayerController` 走/跑/加速度/斜向归一化、朝向主导轴、状态机与动作锁、耐力/闪避/无敌窗口、`PlayerSystem` 输入适配、`PlayerActionRequest` 记录、动画参数 | [设计](modules/16-player-controller.md) · [实测](build/m16-player-controller.md) |
 | M17 | Interaction & Grid Placement | 15 | `InteractionService` 目标选择（实体优先/朝向/距离/视线）、`Interactable` 组件、`IToolHandler` 分发、`PlacementGrid` 多格占用、`PlacementPreview`、交互/放置事件记录 | [设计](modules/17-interaction-grid-placement.md) · [实测](build/m17-interaction-grid.md) |
 
-实际落地顺序是 M01 → M02 → M04 → M03 → M07 → M06 → M05 → M11 → M13 → M12 → M17 → M16 → M15，所以上表顺序与时间顺序不同。
+实际落地顺序是 M01 → M02 → M04 → M03 → M07 → M06 → M05 → M11 → M13 → M12 → M17 → M16 → M15 → M09，所以上表顺序与时间顺序不同。
 M12 排在 M13 之后，是因为它要适配 M13 的 `ISolidTiles`；M17 排在 M12 之后，因为它要用地图做目标与放置校验；
-M16 把输入、物理和 M17 的交互请求串起来；M15 最后落地，但它是 P0，后续 M18/M19/M24 都靠它。
+M16 把输入、物理和 M17 的交互请求串起来；M15 是 P0，后续 M18/M19/M24 都靠它；
+M09 最后落地，补上了此前「任何文字都画不出来」的空白，并为 M18/M23/M25 的界面做准备。
 
 M05 交付时还顺带清理了一处历史遗留：`fa_render.vcxproj` 里有一条指向 `fa_assets` 的 `ProjectReference`，但没有任何源文件用它，已删除。**M05 与 M06 现在编译期互不依赖**——上传走 `ITextureUploader` 反向接口，由 `fa_app` 适配。
 
@@ -97,32 +101,38 @@ M15 只引用 `fa_core` 与 `fa_assets`，**不引用 M11/M12/M16/M17**：定义
 文件读取归 M05/composition root，`loadDocument()` 只接收文本。它用 nlohmann/json 做解析，
 所以 `fa_content` 单独打开 `/EHsc`（见 [构建记录](build/m15-content-database.md) §5 第 11 条）。
 
+M09 只引用 `fa_core` 与 `fa_render`，**不引用 `fa_assets`、`fa_input`、`fa_scene`、`fa_events`**：
+字体图集与 1×1 白纹理以裸 `TextureHandle` 传入，由 app 上传；鼠标快照与控件状态都由调用方每帧提供；
+文字与四边形都产出纯数据 `DrawItem`，所以 `fa_ui` 不需要 GL、资源或输入模块，也**不需要 `/EHsc`**
+（见 [构建记录](build/m09-ui-and-text.md) §5 第 10 条）。
+
 **验收快照**（测试三配置一致；冒烟三配置都是 exit 0。固定步数由墙钟累积，并行负载下可能明显多于 60，不要逐字比对帧数或 y 坐标；x 坐标才是稳定断言）：
 
 ```text
-fa_tests.exe → All tests passed (18421 assertions in 390 test cases)
+fa_tests.exe → All tests passed (18532 assertions in 406 test cases)
+             "[ui]"       → 111 assertions in 16 test cases
+             "~[ui]"      → 18421 assertions in 390 test cases
              "[content]"  → 178 assertions in 11 test cases
              "~[content]" → 18243 assertions in 379 test cases
              "[player]"   → 107 assertions in 14 test cases
-fa_app.exe --frames 60 → M02+M03+M04+M05+M06+M07+M11+M12+M13+M15+M16+M17 smoke test OK
+fa_app.exe --frames 60 → M02+M03+M04+M05+M06+M07+M09+M11+M12+M13+M15+M16+M17 smoke test OK
 ```
 
-### 未实现（14 个）
+### 未实现（13 个）
 
 | 模块 | 名称 | 优先级 | 依赖是否已就绪 | 备注 |
 |---|---|---|---|---|
 | M08 | Audio | P1 | 需要 M05 ✅ | 需要 SDL_mixer 或自研混音；首个真正的新增第三方依赖点 |
-| M09 | UI & Text | P1 | 需要 M06 ✅ | 字体图集 + 字形缓存 + 排版；M06 明确把文字留给它 |
 | M10 | Animation | P1 | 需要 M05 ✅、M06 ✅ | 剪辑/混合/状态机边界；`revision` 已为它准备 |
 | M14 | Serialization & Save | P1 | 需要 M11 ✅ | 多槽存档、游戏时间每 12 小时自动存档 |
-| M18 | Inventory & Items | P1 | 需要 M15 ✅、M09 | |
+| M18 | Inventory & Items | P1 | 需要 M15 ✅、M09 ✅ | |
 | M19 | Farming & World Objects | P1 | 需要 M12 ✅、M17 ✅、M22 | 作物、耕地、温室 |
 | M20 | Combat | P1 | 需要 M13 ✅、M16 ✅、M18 | 含耐力与闪避（ADR-0002） |
 | M21 | AI | P1 | 需要 M11 ✅、M13 ✅ | |
 | M22 | Calendar / Weather / Lighting | P1 | 需要 M04 ✅、M06 ✅ | 季节驱动 M19/M21 行为差异 |
-| M23 | NPC / Dialogue / Quests | P2 | 需要 M09、M15 ✅ | |
+| M23 | NPC / Dialogue / Quests | P2 | 需要 M09 ✅、M15 ✅ | |
 | M24 | Economy / Crafting / Shops | P2 | 需要 M15 ✅、M18 | 星露谷式加工链 |
-| M25 | Game Flow | P1 | 需要 M11 ✅、M14 | 场景栈、菜单流 |
+| M25 | Game Flow | P1 | 需要 M11 ✅、M09 ✅、M14 | 场景栈、菜单流 |
 | M26 | Editor Tools | P2 | 需要 M05 ✅、M06 ✅ | |
 | M27 | Debug Tools | P1 | 需要 M06 ✅ | `AssetStats` 已为它的资源面板准备 |
 
@@ -140,6 +150,8 @@ fa_app.exe --frames 60 → M02+M03+M04+M05+M06+M07+M11+M12+M13+M15+M16+M17 smoke
 | 资源 | `IAssetManager`、`AssetHandle<T>`、`AssetId`、`AssetCatalog` | `fa/assets/` |
 | 渲染 | `IRenderer`、`RenderQueue`、`Camera2D`、`Viewport`、`TextureHandle` | `fa/render/` |
 | 输入 | `IInput`、`ActionId`、`ActionMap`、上下文栈 | `fa/input/` |
+| 文字绘制 | `buildBuiltinFont`、`glyphFor`、`measureText`、`drawText`、`FontAtlas`、`TextStyle`、`TextMetrics`、`TextAlign` | `fa/ui/Font.hpp`、`fa/ui/Text.hpp` |
+| 即时模式 UI | `UiContext`（`beginFrame`/`panel`/`border`/`progressBar`/`text`/`button`/`checkbox`/`slider`/`submit`）、`UiId`、`UiInputState`、`UiResult`、`UiTheme` | `fa/ui/Ui.hpp` |
 | 实体与组件（**L2，玩法都用它**） | `World`、`EntityId`、`CommandBuffer`、`Transform`、`Sprite` | `fa/scene/` |
 | 系统调度 | `ISystem`、`SystemPipeline`（`onFixedUpdate`/`onVariableUpdate`/`onRenderExtract`） | `fa/scene/System.hpp` |
 | 场景 | `IScene`、`BasicScene`、`SceneStack` | `fa/scene/` |
@@ -185,7 +197,12 @@ fa_app.exe --frames 60 → M02+M03+M04+M05+M06+M07+M11+M12+M13+M15+M16+M17 smoke
 |---|---|---|
 | `kVirtualHeight = 360` 不是 16 的整数倍 | 纵向 22.5 格；演示地图取 23 行，相机夹取会裁掉底部半格；更大的地图按 23 行布局或改 640×352 | M10/M12（已按 23 行落地） |
 | 旋转精灵破坏像素风 | `DrawItem::rotation` 只靠注释限制 90° 倍数 | M06（接受） |
-| 无文字绘制 | 任何文字（含调试文字）都画不出来 | M09 |
+| 文字只支持 ASCII | 多字节 UTF-8 会拆成多个 `?`；CJK 需要解码 + 动态图集 | M09 |
+| 内置 3×5 字体可读性有限 | 只适合占位与调试；真实字体后置 | M09 |
+| UI 仅鼠标 | 键盘/手柄焦点链、Tab 顺序、文本输入未实现 | M09 / M25 |
+| UI 按 `sortY` 排序 | 重叠窗口的绘制顺序由屏幕 y 决定，不是提交顺序 | M09 |
+| UI 无布局组/裁剪/滚动 | 复杂面板要手算矩形，超出面板仍会绘制 | M09 / M18 / M26 |
+| UI 不自动切输入上下文 | 打开 UI 时玩法输入仍生效，需调用方屏蔽 | M09 / M25 |
 | 无渲染目标 / 后处理 | 做不了光照、屏幕扭曲 | M22 需要时再加 `RenderPass` |
 | 单一混合模式 | 预乘 alpha、加色做不了 | M06（分批断点已留好） |
 | 资源全是占位 | 看不到真实画面 | 真实美术后置，见 [art-policy](architecture/art-policy.md) |
@@ -237,10 +254,9 @@ fa_app.exe --frames 60 → M02+M03+M04+M05+M06+M07+M11+M12+M13+M15+M16+M17 smoke
 
 | 候选 | 理由 | 风险 |
 |---|---|---|
-| **M09 UI & Text**（推荐） | 解锁「能看到字」——现在任何文字（含调试数字）都画不出来；也是 M18/M23/M25 的前置，内容表已经能提供显示名 | 字体图集 + 字形缓存 + 排版是独立工程 |
-| M22 Calendar / Weather / Lighting | M19 的前置；M12 的 `MapAmbient` 已为光照/室内外准备 | 日历/季节/天气规则与光照叠加需要设计 |
+| **M18 Inventory & Items**（推荐） | M15 ✅ 与 M09 ✅ 都已就绪：可以把物品定义、堆叠、装备、使用与背包网格接到 HUD/控件上，这是下一条能产生可见玩法的路径 | 堆叠/装备/掉落规则要一次定清；背包网格需要 M09 后续补布局组与滚动区 |
+| M22 Calendar / Weather / Lighting | M19 的前置；M12 的 `MapAmbient` 已为光照/室内外准备；M09 已能显示日期/时间/季节 | 日历/季节/天气规则与光照叠加需要设计 |
 | M10 Animation | 依赖 M05 ✅ + M06 ✅ 已就绪；M16 已经产出 `PlayerAnimationParams`，正好接上 | 剪辑/混合/状态机边界要一次想清楚 |
-| M18 Inventory & Items | M15 ✅ 已就绪；只差 M09 的 UI 就能做背包界面与物品使用 | 堆叠/装备/掉落规则要一次定清 |
 | M14 Serialization & Save | 依赖 M11 ✅；多槽 + 每游戏日 12 小时自动存档的需求已定 | 需要先决定「存世界快照还是存场景描述」 |
 | M08 Audio | 独立性高，接口窄（`AudioCommand` 队列） | 需要首个新增音频第三方依赖，要先做一次 ADR |
 

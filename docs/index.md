@@ -1,6 +1,6 @@
 # 文档索引
 
-Florian's Adventure 的全部设计文档入口。当前状态：设计方案已完成，**M00 构建骨架、M01 Core、M02 Platform、M03 Events & Jobs、M04 Time & Frame Loop、M05 Asset Pipeline、M06 Rendering、M07 Input、M11 Scene / World & ECS、M12 Tilemap & World、M13 Physics & Collision、M15 Content Database、M16 Player Controller、M17 Interaction & Grid Placement 已实现并通过实测**，其余模块处于设计阶段。
+Florian's Adventure 的全部设计文档入口。当前状态：设计方案已完成，**M00 构建骨架、M01 Core、M02 Platform、M03 Events & Jobs、M04 Time & Frame Loop、M05 Asset Pipeline、M06 Rendering、M07 Input、M09 UI & Text、M11 Scene / World & ECS、M12 Tilemap & World、M13 Physics & Collision、M15 Content Database、M16 Player Controller、M17 Interaction & Grid Placement 已实现并通过实测**，其余模块处于设计阶段。
 
 > **要继续开发，先读 [计划完成情况](plan-status.md)** —— 它记录每个模块的状态、已有接口面、遗留风险与下一步建议，是新对话接手任务的唯一入口。
 
@@ -44,6 +44,7 @@ Florian's Adventure 的全部设计文档入口。当前状态：设计方案已
 | [M05 资源管线・实测](build/m05-assets.md) | `friend` 与命名空间约束、占位降级语义、`/EHsc` 结论、异步等待用时间不用次数、错误码分段纠错 |
 | [M06 渲染・实测](build/m06-render.md) | 自研 GL 函数表、`IGlContext` 归属、隐藏窗口上下文实测、整数缩放与排序语义 |
 | [M07 输入・实测](build/m07-input.md) | `ActionId` 名字派生、上下文即独立 ActionMap、`asKeyboard()` 替代下行转型、`/EHsc` 结论修正 |
+| [M09 UI 与文字・实测](build/m09-ui-and-text.md) | 内置位图字体、逐字节 ASCII、对齐用 advance、纹理句柄借用、UI 排序与纹理切换、无 `/EHsc` |
 | [M11 场景与 ECS・实测](build/m11-scene-ecs.md) | `[[nodiscard]]` 与 C4834 连锁、`each` 需 const 重载、占位符句柄与代际溢出、测试不得读已销毁场景、统计快照时机 |
 | [M12 瓦片地图・实测](build/m12-tilemap.md) | `Tilemap` 值类型与 `ISolidTiles` 适配器、walkable 反向逻辑、JSON 无异常读取、视锥裁剪的边界、自动瓦片快照 |
 | [M13 物理与碰撞・实测](build/m13-physics-collision.md) | `std::unordered_map` 触发 C4530、负方向扫掠符号写反、半开区间吃掉边界、掩码必须双向、系统借用派生成员导致的悬空 |
@@ -62,6 +63,7 @@ Florian's Adventure 的全部设计文档入口。当前状态：设计方案已
 | M05 Asset Pipeline | 已实现 | 215 用例 / 17092 断言 | `AssetId`/`AssetHandle`/`AssetCatalog`、异步加载 + 帧线程上传、色块占位降级、`ITextureUploader` 反向桥 |
 | M06 Rendering | 已实现 | 154 用例 / 16780 断言 | `IRenderer` + `RenderQueue` + `Camera2D` + `Viewport`、自研 42 项 GL 函数表、精灵批处理与调试绘制 |
 | M07 Input | 已实现 | 112 用例 / 16598 断言 | `ActionId` + `Binding` + 每上下文 `ActionMap`、上下文栈、`IInput` 窄接口、JSON 键位持久化 |
+| M09 UI & Text | 已实现 | 406 用例 / 18532 断言 | 内置 3×5 ASCII 位图字体、字形回退、测量/换行/对齐、投影/描边、立即模式按钮/复选框/滑条/进度条、`RenderLayer::UI` 与主题 |
 | M11 Scene / World & ECS | 已实现 | 293 用例 / 17378 断言 | `World` + `EntityId` 代际句柄 + `SparseSet` + `CommandBuffer`、`SystemPipeline` 三钩子调度、`SceneStack` 栈式场景、`SpriteExtractor` 纯数据提取 |
 | M12 Tilemap & World | 已实现 | 350 用例 / 17952 断言 | `Tilemap` + `TileId`/`TileCoord`/`TileBounds` + 多图层 + 瓦片属性、世界/网格转换、区域与传送点、JSON 地图加载、4 邻接自动瓦片、`extractTiles` 视锥裁剪、`TilemapSolids` 物理适配器 |
 | M13 Physics & Collision | 已实现 | 333 用例 / 17677 断言 | `Collider` + `CollisionLayer` 双向掩码、`SpatialHash` 宽相、`TileGrid` 静态碰撞、轴分离 + ≤4px 子步求解、`overlap`/`overlapCircle`/`raycast`、触发器进出事件 |
@@ -69,8 +71,8 @@ Florian's Adventure 的全部设计文档入口。当前状态：设计方案已
 | M16 Player Controller | 已实现 | 379 用例 / 18243 断言 | `PlayerController` 走/跑/加速度/斜向归一化、朝向主导轴、状态机与动作锁、耐力/闪避/无敌窗口、`PlayerSystem` 输入适配、`PlayerActionRequest` 记录、动画参数 |
 | M17 Interaction & Grid Placement | 已实现 | 365 用例 / 18136 断言 | `InteractionService` 目标选择（实体优先/朝向/距离/视线）、`Interactable` 组件、`IToolHandler` 分发、`PlacementGrid` 多格占用、`PlacementPreview`、交互/放置事件记录 |
 
-各模块按 ID 排序，实际落地顺序为 M01 → M02 → M04 → M03 → M07 → M06 → M05 → M11 → M13 → M12 → M17 → M16 → M15，因此「完成时累计」栏不是单调递增的；
-当前总计 **390 用例 / 18421 断言**。逐模块状态与下一步建议见 [计划完成情况](plan-status.md)。
+各模块按 ID 排序，实际落地顺序为 M01 → M02 → M04 → M03 → M07 → M06 → M05 → M11 → M13 → M12 → M17 → M16 → M15 → M09，因此「完成时累计」栏不是单调递增的；
+当前总计 **406 用例 / 18532 断言**。逐模块状态与下一步建议见 [计划完成情况](plan-status.md)。
 
 三配置（Debug / Development / Release × x64）Rebuild 均零警告零错误。
 

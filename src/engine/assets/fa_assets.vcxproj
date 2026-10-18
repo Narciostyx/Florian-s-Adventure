@@ -40,6 +40,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="src\*.cpp" />
+    <ClInclude Include="..\include\fa\assets\*.hpp" />
   </ItemGroup>
   <!-- fa_events is referenced for JobSystem only: requestTexture() hands decoding
        to the pool, and the pointer stays opaque so the cache never links the bus.

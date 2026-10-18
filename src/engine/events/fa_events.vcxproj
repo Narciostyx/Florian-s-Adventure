@@ -41,6 +41,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="src\*.cpp" />
+    <ClInclude Include="..\include\fa\events\*.hpp" />
   </ItemGroup>
   <!-- Only fa_core: the event bus and the job pool must stay usable without a
        window or a device, so this project never includes the platform layer

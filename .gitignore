@@ -13,6 +13,11 @@
 *.VC.VC.opendb
 .vsconfig
 
+# Stray single-project solution VS creates when a folder (not the .sln) is opened
+/Florian_Adventure.*
+/Florian_.*/
+/x64/
+
 # vcpkg
 /vcpkg_installed/
 /vcpkg/

@@ -42,6 +42,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="src\*.cpp" />
+    <ClInclude Include="..\include\fa\input\*.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="$(SolutionDir)src\engine\core\fa_core.vcxproj" />

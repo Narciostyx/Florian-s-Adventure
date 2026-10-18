@@ -147,18 +147,18 @@ UiResult UiContext::slider(UiId id, float& value, float minimum, float maximum, 
     if (m_input.mousePressed && result.hovered) {
         m_active = id.value;
     }
-    if (m_input.mouseReleased && m_active == id.value) {
-        m_active = 0u;
-    }
 
     const bool editable = maximum > minimum && rect.w > 0.0f;
-    if (m_active == id.value && m_input.mouseDown && editable) {
+    if (m_active == id.value && (m_input.mouseDown || m_input.mouseReleased) && editable) {
         const float fraction = core::clamp01((m_input.mousePosition.x - rect.x) / rect.w);
         const float next = minimum + (maximum - minimum) * fraction;
         if (next != value) {
             value = next;
             result.changed = true;
         }
+    }
+    if (m_input.mouseReleased && m_active == id.value) {
+        m_active = 0u;
     }
 
     const float trackHeight = rect.h * 0.25f > 2.0f ? rect.h * 0.25f : 2.0f;

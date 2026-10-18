@@ -31,6 +31,7 @@
   </ImportGroup>
   <ItemGroup>
     <ClCompile Include="src\*.cpp" />
+    <ClInclude Include="..\include\fa\ui\*.hpp" />
   </ItemGroup>
   <!-- M09 produces draw items only; it never owns a GL context and takes the font
        atlas and the 1x1 white texture as handles. fa_render is needed for
