@@ -38,6 +38,12 @@ public:
     /// \brief \p inventory receives harvested items and is charged for seeds.
     FarmingToolHandler(FarmingService& service, inventory::Inventory& inventory);
 
+    /// \brief Replaces the inventory that seeds are charged to and harvests go to.
+    ///
+    /// The composition root calls this in play mode so farming uses the player's
+    /// backpack instead of the demo-only inventory.
+    void setInventory(inventory::Inventory& inventory) noexcept { m_inventory = &inventory; }
+
     /// \brief Seed used by the next `ToolKind::Seed` request.
     void setSelectedSeed(const content::ContentId& seed) noexcept { m_seed = seed; }
     [[nodiscard]] const content::ContentId& selectedSeed() const noexcept { return m_seed; }
@@ -52,7 +58,7 @@ public:
 
 private:
     FarmingService& m_service;
-    inventory::Inventory& m_inventory;
+    inventory::Inventory* m_inventory = nullptr;
     DebrisLayer* m_debris = nullptr;
     content::ContentId m_seed;
     FarmingToolStats m_stats;

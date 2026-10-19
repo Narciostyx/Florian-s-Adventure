@@ -3,11 +3,13 @@
 **这份文档是「继续任务」的唯一入口。** 新开一个对话继续开发时，先读这里，再读对应的模块文档与构建记录，不需要重新翻历史。
 
 > 需要逐项完善程序时，先看 [已知限制与后续改进汇总](known-limitations.md)：它把各模块的限制和跨模块风险集中成一份清单。
+>
+> 需要定位代码时看 [代码速查](code-reference.md)：按模块列出命名空间、依赖、公开头文件、类型、方法、枚举与常量。
 
-- 最后更新：M25 Game Flow 交付完成（实现 + 三配置实测 + 文档回写）
-- 下一步：**全部 28 个模块已实现；进入垂直切片与打磨阶段**（见 §6）
+- 最后更新：种植 + 近战/掉落闭环可手动操作（`--play` + `--play-test`，三配置实测）
+- 下一步：**种植与战斗已验证；按 §6 继续睡眠存档 / 场景切换 / 商店交互**
 - 当前总体：**28 个模块全部已实现**（M00–M27）
-- 当前可运行内容：窗口 + 主循环 + 事件/作业 + 输入 + 渲染 + 资源缓存 + **ECS 世界与场景栈** + **AABB 碰撞与查询** + **瓦片地图与图层提取** + **交互目标选择与格子放置** + **玩家移动/朝向/耐力/闪避** + **带引用校验的内容数据库** + **内置位图字体与即时模式 HUD/控件** + **物品堆叠/背包/快捷栏/装备/使用分发** + **PCM16 软件混音与总线音量** + **调试控制台/统计覆盖层/日志窗口/实体检查器/物理调试** + **JSON 存档槽/原子写/`.bak` 恢复/迁移** + **帧动画/循环/事件/四向状态机** + **伤害/攻击窗口/投射物/状态/死亡事件**；画面是**全部色块占位**，40×23 地图（920 格、143 实心、16 可耕地）由 M12 提取，标记由 M16 驱动、M13 求解并停在 x=344，M17 在标记旁选目标、调用一次工具并占一个放置格，M15 加载物品/作物/配方/敌人/掉落表，M18 堆叠 120 个种子、转移 21 个到快捷栏、装备锄头并使用一份汤，M09 每帧绘制 HUD、耐力条、按钮、复选框、滑条与热键栏文本，M08 生成 440 Hz/220 Hz 占位 PCM、播放 one-shot 与循环、设置总线音量并在 2 帧后淡出 one-shot，M27 在 Debug/Development 提供 F3 统计、F4 日志、F5 物理调试与控制台（`teleport`/`give`/`entities`/`save`/`load`/`slots`），M14 每轮 smoke 写 `saves/autosave.json` 并读回版本/场景/实体/标记/耐力摘要，M10 在固定步推进一个 4 帧草地动画并在 frame 0/2 触发 `step` 事件，M20 用两个 dummy 跑通两次近战、投射物与中毒并击杀一个 dummy，M19 在 (4,8) 跑通锄地 → 播种 → 浇水 → 5 天成熟 → 收获，并在 (7,11) 温室与 (6,9) 室外验证冬季规则，M21 用一个紫色 agent 追击静止假人、攻击一次并在丢失目标后返回出生点，M22 用 0.01 s/game-minute 的快速时钟跑出 06:00 → 07:40、计算环境光并在 Weather 层绘制暗化层与两个占位点光，M23 用一个 NPC 跑通对话分支、接任务、收集完成、送礼与每日上限，并在底部对话框留下可交互选项，M24 用玩家背包跑通买种子、卖萝卜、做汤、出货与次日结算（金币显示在 HUD），M25 用脚本跑通新游戏 → 暂停 → 保存 → 日终 → 死亡 → 复活 → 主菜单 → 读档 → 退出（菜单 UI 仍缺），M26 在 Debug/Development 提供 F2 瓦片编辑器、撤销/重做与 JSON 保存/加载（Release 不链接），但还没有完整玩法
+- 当前可运行内容：窗口 + 主循环 + 事件/作业 + 输入 + 渲染 + 资源缓存 + **ECS 世界与场景栈** + **AABB 碰撞与查询** + **瓦片地图与图层提取** + **交互目标选择与格子放置** + **玩家移动/朝向/耐力/闪避** + **带引用校验的内容数据库** + **内置位图字体与即时模式 HUD/控件** + **物品堆叠/背包/快捷栏/装备/使用分发** + **PCM16 软件混音与总线音量** + **调试控制台/统计覆盖层/日志窗口/实体检查器/物理调试** + **JSON 存档槽/原子写/`.bak` 恢复/迁移** + **帧动画/循环/事件/四向状态机** + **伤害/攻击窗口/投射物/状态/死亡事件**；画面是**全部色块占位**，40×23 地图（920 格、143 实心、16 可耕地）由 M12 提取，标记由 M16 以八向朝向驱动、M13 求解并停在 x=344，M17 在标记旁选目标、调用一次工具并占一个放置格，M15 加载物品/作物/配方/敌人/掉落表，M18 堆叠 120 个种子、转移 21 个到快捷栏、装备锄头并使用一份汤，M09 每帧绘制 HUD、耐力条、按钮、复选框、滑条与热键栏文本，M08 生成 440 Hz/220 Hz 占位 PCM、播放 one-shot 与循环、设置总线音量并在 2 帧后淡出 one-shot，M27 在 Debug/Development 提供 F3 统计、F4 日志、F5 物理调试与控制台（`teleport`/`give`/`entities`/`save`/`load`/`slots`），M14 每轮 smoke 写 `saves/autosave.json` 并读回版本/场景/实体/标记/耐力摘要，M10 在固定步推进一个 4 帧草地动画并在 frame 0/2 触发 `step` 事件，M20 用两个 dummy 跑通两次近战、投射物与中毒并击杀一个 dummy，M19 在 (4,8) 跑通锄地 → 播种 → 浇水 → 5 天成熟 → 收获，并在 (7,11) 温室与 (6,9) 室外验证冬季规则，M21 用一个紫色 agent 追击静止假人、攻击一次并在丢失目标后返回出生点，M22 用 0.01 s/game-minute 的快速时钟跑出 06:00 → 07:40、计算环境光并在 Weather 层绘制暗化层与两个占位点光，M23 用一个 NPC 跑通对话分支、接任务、收集完成、送礼与每日上限，并在底部对话框留下可交互选项，M24 用玩家背包跑通买种子、卖萝卜、做汤、出货与次日结算（金币显示在 HUD），M25 用脚本跑通新游戏 → 暂停 → 保存 → 日终 → 死亡 → 复活 → 主菜单 → 读档 → 退出（菜单 UI 仍缺），M26 在 Debug/Development 提供 F2 瓦片编辑器、撤销/重做与 JSON 保存/加载（Release 不链接）；`--play` 进入可操作会话（快捷栏 1–3 = 锄头/水壶/种子，左键使用，指向成熟作物自动收获；右键近战，敌人死亡掉落并自动拾取），`--play-test` 无头跑通耕地 → 播种 → 浇水 → 5 天 → 收获 → 击杀 dummy → 拾取掉落并返回失败码，但还没有完整玩法
 
 ## 0. 上下文快满时的交接（强制）
 
@@ -73,7 +75,7 @@
 | M03 | Events & Jobs | 26 | `EventBus` + RAII `Subscription`、`JobSystem` 线程池与 `parallelFor` | [设计](modules/03-events-and-jobs.md) · [实测](build/m03-events-jobs.md) |
 | M04 | Time & Frame Loop | 20 | 固定步时钟、`FrameContext`、时间域暂停/缩放、`FrameLoop` | [设计](modules/04-time-and-frame-loop.md) · [实测](build/m04-frame-loop.md) |
 | M05 | Asset Pipeline | 61 | `AssetId`/`AssetHandle`、`AssetCatalog`、异步加载 + 帧线程上传、占位降级、`ITextureUploader` 反向桥 | [设计](modules/05-asset-pipeline.md) · [实测](build/m05-assets.md) |
-| M06 | Rendering | 42 | `IRenderer` + `RenderQueue` + `Camera2D` + `Viewport`、自研 42 项 GL 函数表、精灵批处理、调试绘制 | [设计](modules/06-rendering.md) · [实测](build/m06-render.md) |
+| M06 | Rendering | 42 | `IRenderer` + `RenderQueue` + `Camera2D`（边界夹取 + 死区/平滑/限速跟随）+ `Viewport`、自研 42 项 GL 函数表、精灵批处理、调试绘制 | [设计](modules/06-rendering.md) · [实测](build/m06-render.md) |
 | M07 | Input | 36 | `ActionId` + `Binding` + 每上下文 `ActionMap`、上下文栈、`IInput` 窄接口、JSON 键位持久化 | [设计](modules/07-input.md) · [实测](build/m07-input.md) |
 | M08 | Audio | 12 | `AudioClip` PCM16、32 voice 软件混音、Master/SFX/Music/Ambience 总线、pan/loop/fade/pitch、距离衰减、无锁 SPSC 命令队列、SDL3 `IAudioDevice` 回调、原子统计 | [设计](modules/08-audio.md) · [实测](build/m08-audio.md) · [ADR](adr/0005-audio-backend.md) |
 | M09 | UI & Text | 16 | 内置 3×5 ASCII 位图字体、字形回退、测量/换行/对齐、投影/描边、立即模式面板/按钮/复选框/滑条/进度条、`RenderLayer::UI` 与主题 | [设计](modules/09-ui-and-text.md) · [实测](build/m09-ui-and-text.md) |
@@ -82,19 +84,19 @@
 | M12 | Tilemap & World | 17 | `Tilemap` + `TileId`/`TileCoord`/`TileBounds` + 多图层 + 瓦片属性、`worldToGrid`/`gridToWorld`/`queryArea`/`portalAt`、JSON 地图加载、4 邻接自动瓦片、`extractTiles` 视锥裁剪、`TilemapSolids` 物理适配器 | [设计](modules/12-tilemap-and-world.md) · [实测](build/m12-tilemap.md) |
 | M13 | Physics & Collision | 40 | `Collider` + `CollisionLayer` 双向掩码、`SpatialHash` 宽相、`TileGrid` 静态碰撞、轴分离 + ≤4px 子步求解、`overlap`/`overlapCircle`/`raycast`、触发器进出事件 | [设计](modules/13-physics-collision.md) · [实测](build/m13-physics-collision.md) |
 | M14 | Serialization & Save | 7 | `SaveArchive` JSON 值树（隐藏 nlohmann）、`SaveMetadata`/`SaveContext`/`SaveFile`、`SaveService` 多槽/原子写/`.bak` 恢复/迁移链、`ComponentSerializerRegistry` | [设计](modules/14-serialization-save.md) · [实测](build/m14-serialization-save.md) |
-| M15 | Content Database | 11 | `ContentId` + `ItemDef`/`CropDef`/`RecipeDef`/`EnemyDef`/`LootTableDef`、季节掩码、JSON 多文档合并、前缀/重复/必填/数值校验、四类引用完整性、全量错误收集、按 ID/标签/类别查询 | [设计](modules/15-content-database.md) · [实测](build/m15-content-database.md) |
-| M16 | Player Controller | 14 | `PlayerController` 走/跑/加速度/斜向归一化、朝向主导轴、状态机与动作锁、耐力/闪避/无敌窗口、`PlayerSystem` 输入适配、`PlayerActionRequest` 记录、动画参数 | [设计](modules/16-player-controller.md) · [实测](build/m16-player-controller.md) |
+| M15 | Content Database | 11 | `ContentId` + `ItemDef`/`CropDef`/`RecipeDef`/`EnemyDef`/`LootTableDef`、可选 `ItemDef::toolKind`、季节掩码、JSON 多文档合并、前缀/重复/必填/数值校验、四类引用完整性、全量错误收集、按 ID/标签/类别查询 | [设计](modules/15-content-database.md) · [实测](build/m15-content-database.md) |
+| M16 | Player Controller | 14 | `PlayerController` 走/跑/加速度/斜向归一化、**八向朝向**（45° 扇区 + 斜向折叠）、状态机与动作锁、耐力/闪避/无敌窗口、`PlayerSystem` 输入适配、`PlayerActionRequest` 记录、动画参数 | [设计](modules/16-player-controller.md) · [实测](build/m16-player-controller.md) |
 | M17 | Interaction & Grid Placement | 15 | `InteractionService` 目标选择（实体优先/朝向/距离/视线）、`Interactable` 组件、`IToolHandler` 分发、`PlacementGrid` 多格占用、`PlacementPreview`、交互/放置事件记录 | [设计](modules/17-interaction-grid-placement.md) · [实测](build/m17-interaction-grid.md) |
 | M18 | Inventory & Items | 22 | `ItemStack` + 内容驱动堆叠、`Inventory` 固定槽位与原子移除/交换/拆分/合并/转移、`Hotbar` 选中与消耗、`Equipment` Tool/Weapon、`IItemUseHandler` 分发、`PlayerInventory` 快速转移 | [设计](modules/18-inventory-items.md) · [实测](build/m18-inventory-items.md) |
-| M19 | Farming & World Objects | 13 | `FarmTile`/`CropState`、无 ECS 的按格农田、锄地/浇水/播种/按天生长/收获、季节与温室、再生作物、`FarmingDayContext` 消费 M22 天气、`FarmingToolHandler`（Hoe/WateringCan/Seed/Harvest/Axe/Pickaxe）、`WorldObjectLayer`/`DebrisLayer` | [设计](modules/19-farming-world-objects.md) · [实测](build/m19-farming-world-objects.md) |
-| M20 | Combat | 7 | `Damage`/`Health` 结算、M16 闪避无敌、攻击窗口与单实例去重、投射物 raycast/move、击退、Poison/Burn/Slow、四类事件与 `CombatStats` | [设计](modules/20-combat.md) · [实测](build/m20-combat.md) |
+| M19 | Farming & World Objects | 14 | `FarmTile`/`CropState`、无 ECS 的按格农田、锄地/浇水/播种/按天生长/收获、季节与温室、再生作物、`FarmingDayContext` 消费 M22 天气、`FarmingToolHandler`（Hoe/WateringCan/Seed/Harvest/Axe/Pickaxe，可 `setInventory` 切到玩家快捷栏）、`WorldObjectLayer`/`DebrisLayer` | [设计](modules/19-farming-world-objects.md) · [实测](build/m19-farming-world-objects.md) |
+| M20 | Combat | 7 | `Damage`/`Health` 结算、M16 闪避无敌、攻击窗口与单实例去重、投射物 raycast/move、击退、Poison/Burn/Slow、四类事件与 `CombatStats`；play 模式右键攻击、死亡掉落与自动拾取 | [设计](modules/20-combat.md) · [实测](build/m20-combat.md) |
 | M21 | AI | 11 | `AiService` + `AiAgent`/`AiTargetTag`/`BehaviorProfile`、A*（4 邻接 + 视线平滑）、Bresenham 视线、感知节流、Idle/Patrol/Chase/Attack/Flee/Return、M13 移动、M20 攻击执行、`AiStats` | [设计](modules/21-ai.md) · [实测](build/m21-ai.md) |
 | M22 | Calendar / Weather / Lighting | 22 | `Season`/`Weather`/`GameDate`/`WorldClock`、0–24 时刻与跨日/季/年、`HourChanged`/`DayChanged`/`SeasonChanged`/`WeatherChanged`、按季节权重随机天气与 RNG 状态保存、自动浇水/生长倍率、环境光曲线与室内外、`LightSet` 点光与线性衰减采样 | [设计](modules/22-calendar-weather-lighting.md) · [实测](build/m22-calendar-weather-lighting.md) |
 | M23 | NPC / Dialogue / Quests | 10 | `NarrativeDatabase` + `NarrativeService`、NPC/对话图/任务 JSON、白名单条件与动作、每日好感/送礼、事件驱动任务进度与物品奖励、底部对话框与 Digit1–3 选择 | [设计](modules/23-npc-dialogue-quests.md) · [实测](build/m23-npc-dialogue-quests.md) |
 | M24 | Economy / Crafting / Shops | 10 | `EconomyService` + `ShopDatabase`、钱包、买卖原子性、每日限购、M15 配方加工任务、出货箱次日结算、经济事件/统计 | [设计](modules/24-economy-crafting-shops.md) · [实测](build/m24-economy-crafting-shops.md) |
 | M25 | Game Flow | 6 | `GameFlow`/`IGameFlow`、`AppState` 状态机、新游戏/读档、暂停/对话、日终结算、自动存档、死亡/复活、退出、7400 错误段 | [设计](modules/25-game-flow.md) · [实测](build/m25-game-flow.md) |
 | M26 | Editor Tools | 10 | `MapEditor` + `EditorHistory` + `EditorOverlay`、Brush/Rect/Fill/Erase/Picker、命令差分 undo/redo、M12 `saveTilemapToJson()`、M09 状态面板、F2/1–5/`[`/`]`/Z/Y/S/L 快捷键；Release 不链接 | [设计](modules/26-editor-tools.md) · [实测](build/m26-editor-tools.md) |
-| M27 | Debug Tools | 11 | `DebugConsole` 命令/引号/历史、`CVarRegistry` 四种类型与 save/load、`DebugLogSink` 环形日志、`DebugStats`、实体快照、`UiContext` 覆盖层、M13 `DebugShape` 适配、F3/F4/F5/控制台事件路由；Release 不链接 | [设计](modules/27-debug-tools.md) · [实测](build/m27-debug-tools.md) |
+| M27 | Debug Tools | 11 | `DebugConsole` 命令/引号/历史、`CVarRegistry` 四种类型与 save/load、`DebugLogSink` 环形日志、`DebugStats`（含角色相机与 AI 锁定目标）、实体快照、`UiContext` 覆盖层、M13 `DebugShape` 适配、F3/F4/F5/控制台事件路由；Release 不链接 | [设计](modules/27-debug-tools.md) · [实测](build/m27-debug-tools.md) |
 
 实际落地顺序是 M01 → M02 → M04 → M03 → M07 → M06 → M05 → M11 → M13 → M12 → M17 → M16 → M15 → M09 → M18 → M08 → M27 → M14 → M10 → M20 → M22 → M19 → M21 → M26 → M23 → M24 → M25，所以上表顺序与时间顺序不同。
 M12 排在 M13 之后，是因为它要适配 M13 的 `ISolidTiles`；M17 排在 M12 之后，因为它要用地图做目标与放置校验；
@@ -175,18 +177,20 @@ M18 只引用 `fa_core` 与 `fa_content`，**不引用 `fa_assets`、`fa_render`
 **验收快照**（测试三配置一致；冒烟三配置都是 exit 0。固定步数由墙钟累积，并行负载下可能明显多于 60，不要逐字比对帧数或 y 坐标；x 坐标才是稳定断言）：
 
 ```text
-fa_tests.exe → All tests passed (29909 assertions in 536 test cases)
+fa_tests.exe → All tests passed (30281 assertions in 543 test cases)
              "[anim]"     → 59 assertions in 4 test cases
              "[audio]"    → 9808 assertions in 12 test cases
              "[combat]"   → 50 assertions in 7 test cases
-             "[debug]"    → 118 assertions in 12 test cases
+             "[debug]"    → 122 assertions in 12 test cases
              "[save]"     → 82 assertions in 7 test cases
              "[inventory]" → 288 assertions in 22 test cases
              "[ui]"       → 111 assertions in 16 test cases
-             "[content]"  → 178 assertions in 11 test cases
-             "[player]"   → 107 assertions in 14 test cases
+             "[content]"  → 181 assertions in 11 test cases
+             "[player]"   → 140 assertions in 15 test cases
+             "[render]"   → 495 assertions in 47 test cases
+             "[camera]"   → 313 assertions in 5 test cases（含在 [render] 内）
              "[world]"    → 122 assertions in 22 test cases
-             "[farming]"  → 219 assertions in 13 test cases
+             "[farming]"  → 238 assertions in 14 test cases
              "[ai]"       → 101 assertions in 11 test cases
              "[editor]"   → 310 assertions in 10 test cases
              "[narrative]" → 74 assertions in 10 test cases
@@ -197,6 +201,9 @@ fa_app.exe --frames 60 (Debug/Development)
              → m10: 60 update(s), frame 1/4, 5 event(s), last step@0, looping
              → m14: slot autosave, v1, scene demo, day 1, 1.00s, 10 entities,
                     marker (344, 242.792), stamina 100.0, 2 slot(s), backup no
+             → m06 camera: (320.0, 188.0), follow deadzone 48.0x32.0, 10.0/s, cap 0.0
+             → m16: move, facing south-east, speed 90.0, stamina 100.0,
+                    60 update(s), 60 move / 0 idle, 0 dodge(s), 0 action(s)
              → m19: 3 tilled, 2 crop(s), 0 harvestable, 1 dead;
                     3 till(s)/7 water(s)/3 plant(s)/1 harvest(s), 1 item(s),
                     stage 3 (ready), greenhouse ok, winter wilt ok, seed 2, 19 event(s)
@@ -220,9 +227,15 @@ fa_app.exe --frames 60 (Debug/Development)
                     1 menu return(s), 1 quit(s), 10 transition(s), 20 event(s);
                     new ok, pause ok, save ok, day ok, over ok, respawn ok,
                     menu ok, load ok, quit ok
-             → m27: 26 console command(s), 0 cvar(s), F3 stats / F4 log / ` console
+             → m27: 28 console command(s), 0 cvar(s), camera ok, 1 ai target(s),
+                    F3 stats / F4 log / ` console
              → m26: off, tool brush, layer 0, brush 0, undo 0 / redo 0,
                     0 command(s), dirty no, map 40x23, save ok, load ok
+fa_app.exe --play-test
+             → play-test: till ok / plant ok / water ok / harvest ok
+             → play-test: turnips 0 -> 1
+             → play-test: combat killed, seeds 0 -> 2
+             → play-test: OK
              → M02+M03+M04+M05+M06+M07+M08+M09+M10+M11+M12+M13+M14+M15+M16+M17+M18+M19+M20+M21+M22+M23+M24+M25+M26+M27 smoke test OK
 fa_app.exe --frames 60 (Release)
              → m10: 60 update(s), frame 1/4, 5 event(s), last step@0, looping
@@ -364,6 +377,7 @@ fa_app.exe --frames 60 (Release)
 | 实体检查器只读且上限 64 | 不能搜索/编辑/销毁实体 | M27 |
 | 无 ImGui / 时间控制 / 纹理查看 | 复杂面板与暂停单步仍缺 | M27 后续 |
 | 无动画混合 | 上下半身/武器叠加/平滑过渡做不了 | M10 后续 |
+| 动画仍是四向 | 玩家朝向已八向，但 M10 `Direction` 只有四向；斜向需复用相邻主方向或由组装根映射 | M10 / M16 |
 | 方向切换重启 clip | 走/跑切换可能有相位跳变 | M10（v1 取舍） |
 | 事件只有字符串 | 攻击窗口/特效需要结构化参数 | M10 / M20 |
 | 无动画资源格式 | clip 由代码构建，真实数据驱动缺 loader | M10 / M05 / M26 |
@@ -410,7 +424,6 @@ fa_app.exe --frames 60 (Release)
 | 闪避期间禁止其他动作 | 是否允许闪避取消攻击未定 | M16 / M20 |
 | 多玩家共享同一 `PlayerIntent` | v1 只支持一个玩家；多玩家需要每实体意图 | M16 |
 | `Hurt`/`Menu` 状态未使用 | 受击与菜单需要 M20/M09/M25 接入 | M16 / M20 / M25 |
-| 相机跟随未实现 | app 仍是固定相机；像素对齐平滑跟随待设计 | M16 / M22 / M25 |
 | 玩家动作只记录不发布 | M03 事件化由组装根决定 | M16 |
 | 内容加载不是事务 | 失败时会保留已解析的数据，便于修好后重试 | M15（多文件发布要小心） |
 | 内容指针会失效 | 继续加载/热重载会让 `vector` 重分配 | M15（实体只存 `ContentId`） |
@@ -470,11 +483,13 @@ fa_app.exe --frames 60 (Release)
 
 | 方向 | 理由 | 主要风险 |
 |---|---|---|
-| 垂直切片接线 | 主菜单/暂停/存档 UI、场景切换、完整存档应用、26:00 睡眠与死亡流程 | 钱包、任务、农田、AI 的存档格式需要一次定清 |
-| 内容与手感 | 真实美术/音频、数值平衡、对话/商店/任务面板、相机跟随 | 内容量与时序；像素风一致性 |
-| 工程收尾 | 全新克隆 CI、三配置回归、性能基线、存档迁移链 | 第三方依赖与 CI runner 差异 |
+| 睡眠与存档 | 睡眠触发 `endDay()`、自动存档，再把背包/农田/世界写回 `SaveFile` | 各模块 serializer 与读档应用时机 |
+| 战斗打磨 | 当前是最小近战盒；还需攻击动画/朝向反馈、敌人反击、掉落持久化 | 攻击窗口与动画同步；掉落物存档 |
+| 场景与流程 UI | 农场↔林地传送、主菜单/暂停/存档槽 UI | `SceneStack` 切换与输入上下文 |
+| 内容与手感 | 真实美术/音频、数值平衡、对话/商店/任务面板、八向动画 | 内容量与时序；像素风一致性 |
+| 工程收尾 | 全新克隆 CI、性能基线、存档迁移链 | 第三方依赖与 CI runner 差异 |
 
-**本轮交付的 M25 只负责流程编排；菜单 UI、世界重建与完整存档应用仍需组装根接线。**
+**种植闭环已可用 `--play` 手动验证；菜单 UI、世界重建与完整存档应用仍需组装根接线。**
 后续每项改动仍按既有节奏推进：
 **设计/确认 → 实现 → 测试 → app 集成 → 三配置验证 → 全新克隆验证 → 回写文档 → 更新本文件 → 提交**。
 

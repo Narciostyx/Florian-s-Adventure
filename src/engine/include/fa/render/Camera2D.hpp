@@ -6,6 +6,19 @@
 
 namespace fa::render {
 
+/// \brief Follow tuning for Camera2D::follow().
+///
+/// The deadzone is a half-extent window around the camera centre: the target can
+/// move that far in each direction without moving the view. Once it leaves the
+/// window the camera eases toward it, optionally capped by `maxSpeed`.
+struct CameraFollowConfig {
+    core::Vec2 deadzone{0.0f, 0.0f};
+    /// \brief Exponential easing rate in 1/s; 0 snaps to the target immediately.
+    float smoothing = 8.0f;
+    /// \brief Maximum follow speed in px/s; 0 or less means unlimited.
+    float maxSpeed = 0.0f;
+};
+
 /// \brief Axis-aligned 2D camera: translation only, no zoom.
 ///
 /// Position is the world-space point shown at the centre of the virtual surface.
@@ -39,6 +52,18 @@ public:
     /// outside the region becomes visible (unless the region is smaller than the
     /// viewport, in which case it is centred).
     void setBounds(core::Rect bounds) noexcept;
+
+    /// \brief Replacement follow tuning; negative values are clamped to zero.
+    void setFollowConfig(const CameraFollowConfig& config) noexcept;
+    [[nodiscard]] const CameraFollowConfig& followConfig() const noexcept { return m_follow; }
+
+    /// \brief Eases the camera toward \p target for one frame.
+    ///
+    /// The target is the world-space point that should end up near the centre.
+    /// With a deadzone the camera only moves when the target leaves it; with
+    /// smoothing 0 the camera snaps to the deadzone edge. Bounds are applied to
+    /// the result, so following never reveals space outside the map.
+    void follow(core::Vec2 target, float deltaSeconds) noexcept;
 
     /// \brief Removes the clamp set by setBounds().
     void clearBounds() noexcept;
@@ -81,6 +106,7 @@ private:
     core::Vec2 m_position{};
     core::Vec2 m_viewportSize{static_cast<float>(kVirtualWidth), static_cast<float>(kVirtualHeight)};
     core::Rect m_bounds{};
+    CameraFollowConfig m_follow{};
     bool m_hasBounds = false;
 };
 

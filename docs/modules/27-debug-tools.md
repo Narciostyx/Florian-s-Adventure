@@ -24,6 +24,8 @@
   `physics.show/hide/toggle`、`cvar.list/get/set`、`console.close`。
 - CVar：bool/int/float/string 四种类型、变更回调、`name=value` 文本持久化。
 - 统计快照：FPS、帧时间、固定步、实体/组件、绘制项/批次、资源、物理、音频、地图。
+- 角色相机：当前控制实体的相机位置、视口尺寸、跟随目标与死区/平滑参数。
+- AI 锁定目标：每个 agent 的状态、当前目标、可见性，以及 agent/目标的中心点。
 - 日志窗口：捕获 `fa::core::log`，按最低级别过滤，环形容量，等级着色。
 - 实体检查器：快照 `Transform`/`Sprite`/`Collider`，不持有组件指针。
 - 物理调试：把 M13 的 `DebugShape` 列表转成 M06 的 `drawDebugRect` 调用。
@@ -52,6 +54,23 @@ struct ConsoleCommand {
 
 enum class CVarType { Bool, Int, Float, String };
 
+struct DebugCameraInfo {
+    bool valid;
+    core::Vec2 position, viewportSize;
+    core::Rect visible;
+    scene::EntityId followTarget;
+    bool following;
+    float deadzoneX, deadzoneY, smoothing;
+};
+
+struct DebugAiTargetInfo {
+    scene::EntityId agent, target;
+    bool hasTarget, targetVisible;
+    std::string state;
+    core::Vec2 agentPosition, targetPosition;
+    bool hasAgentPosition, hasTargetPosition;
+};
+
 struct DebugStats {
     float fps, frameMs;
     std::uint64_t frameCount, fixedSteps, droppedSteps;
@@ -65,6 +84,8 @@ struct DebugStats {
     int audioVoices, audioSampleRate;
     std::uint64_t audioDropped;
     std::size_t mapTiles, mapSolidTiles;
+    DebugCameraInfo camera;
+    std::vector<DebugAiTargetInfo> aiTargets;
 };
 ```
 
@@ -72,6 +93,11 @@ struct DebugStats {
 - CVar 用 `std::vector<Entry>` 线性查找，避免 `std::unordered_map` 的额外异常路径。
 - `DebugLogSink` 用 `std::atomic_flag` 自旋锁保护环形日志，日志线程不阻塞在互斥量上。
 - `DebugStats` 由 composition root 填充；M27 不反向查询 ECS/资源/音频。
+- 相机与 AI 目标都是**纯数据快照**：M27 不知道 `Camera2D` 或 `AiService` 的存在，
+  只格式化 app 交来的坐标/实体 ID。
+- 覆盖层文本最多列出 6 个 AI 目标；更多时显示 `+N more`，避免面板无限增长。
+- F3 同时在世界里画 agent 方框、agent→target 连线和目标方框；
+  目标可见为橙色，丢失视线为灰色。F5 的物理调试仍独立开关。
 
 ## 4. 公共接口
 
@@ -163,9 +189,9 @@ void drawPhysicsShapes(render::IRenderer&, std::span<const physics::DebugShape> 
 
 ## 7. 验收
 
-- `fa_tests.exe "[debug]"` → 118 断言 / 12 用例全绿（含既有 `[debug]` 用例）。
-- 全量测试 → 451 用例 / 28744 断言全绿。
-- Debug/Development `fa_app.exe --frames 60` → `m27: 26 console command(s)`（M14 接入后），smoke 行含 `+M27`。
+- `fa_tests.exe "[debug]"` → 122 断言 / 12 用例全绿（含既有 `[debug]` 用例）。
+- 全量测试 → 543 用例 / 30281 断言全绿。
+- Debug/Development `fa_app.exe --frames 60` → `m27: 28 console command(s)`（含 `time.addDays`/`time.set`），smoke 行含 `+M27`。
 - Release `fa_app.exe --frames 60` → `m27: disabled (release build)`，smoke 行不含 `+M27`。
 - 三配置构建零 warning。
 
@@ -176,6 +202,7 @@ void drawPhysicsShapes(render::IRenderer&, std::span<const physics::DebugShape> 
 - 控制台与玩法输入冲突：打开时吞掉键盘/文本，鼠标事件仍会传给 M07。
 - 日志自旋锁在极端高频日志下会烧 CPU；日志量应是开发期可接受范围。
 - `DebugStats` 只是快照，可能落后一帧；不要用它做玩法判定。
+- AI 目标文本最多 6 行（多出的只显示数量）；agent/目标坐标也是上一帧快照。
 - 实体检查器最多 64 条，且只展示 Transform/Sprite/Collider；无组件编辑/销毁。
 - 覆盖层面板使用固定像素矩形，640×360 以外的分辨率需要重新排布。
 - 物理调试每帧重建 `DebugShape` 列表；实体多时只在需要时开启 F5。

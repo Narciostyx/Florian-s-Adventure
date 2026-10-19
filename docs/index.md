@@ -4,13 +4,15 @@ Florian's Adventure 的全部设计文档入口。当前状态：**28 个模块 
 
 > **要继续开发，先读 [计划完成情况](plan-status.md)** —— 它记录每个模块的状态、已有接口面、遗留风险与下一步建议，是新对话接手任务的唯一入口。
 >
+> **要查代码，读 [代码速查](code-reference.md)** —— 按模块列出命名空间、工程依赖、公开头文件、类/结构体、关键方法、枚举与常量。
+>
 > **要完善程序，先读 [已知限制与后续改进汇总](known-limitations.md)** —— 它把各模块的设计/构建记录里的限制集中成一份可勾选清单。
 
 > 两条权威基线：产品与范围见 [ADR-0002](adr/0002-v1-scope-decisions.md)，像素与碰撞度量见 [ADR-0003](adr/0003-tile-and-collision-metrics.md) 与 [像素度量](architecture/pixel-metrics.md)。模块文档与它们冲突时，以 ADR 为准。
 
 ## 建议阅读顺序
 
-0. [计划完成情况](plan-status.md) —— 什么已经做完、接口面在哪、下一步做什么。
+0. [计划完成情况](plan-status.md) —— 什么已经做完、接口面在哪、下一步做什么；查具体符号时配合 [代码速查](code-reference.md)。
 1. [愿景与设计支柱](architecture/vision-and-pillars.md) —— 这个游戏是什么，不做什么。
 2. [架构总览](architecture/overview-design.md) —— 分层、主循环、时间、坐标、ECS、线程与存档边界。
 3. [模块地图](architecture/module-map.md) —— 28 个模块的职责与依赖图。
@@ -33,6 +35,7 @@ Florian's Adventure 的全部设计文档入口。当前状态：**28 个模块 
 | [编码与内容规范](architecture/conventions.md) | 命名、目录、错误处理、日志、ECS 约定、JSON 规范、Git 提交 |
 | [美术资源策略](architecture/art-policy.md) | 色块占位规格、颜色约定、真实美术的接入方式 |
 | [像素度量](architecture/pixel-metrics.md) | 虚拟分辨率、瓦片、精灵锚点、碰撞盒、排序与缩放 |
+| [代码速查](code-reference.md) | 28 个模块的命名空间、依赖、头文件、类型、方法、枚举与常量 |
 
 ## 构建与实测
 
@@ -76,7 +79,7 @@ Florian's Adventure 的全部设计文档入口。当前状态：**28 个模块 
 | M03 Events & Jobs | 已实现 | 76 用例 / 16154 断言 | `EventBus` + RAII `Subscription`、`JobSystem` 线程池与 `parallelFor` |
 | M04 Time & Frame Loop | 已实现 | 50 用例 / 14968 断言 | 固定步时钟、`FrameContext`、时间域暂停/缩放、`FrameLoop` |
 | M05 Asset Pipeline | 已实现 | 215 用例 / 17092 断言 | `AssetId`/`AssetHandle`/`AssetCatalog`、异步加载 + 帧线程上传、色块占位降级、`ITextureUploader` 反向桥 |
-| M06 Rendering | 已实现 | 154 用例 / 16780 断言 | `IRenderer` + `RenderQueue` + `Camera2D` + `Viewport`、自研 42 项 GL 函数表、精灵批处理与调试绘制 |
+| M06 Rendering | 已实现 | 154 用例 / 16780 断言 | `IRenderer` + `RenderQueue` + `Camera2D`（边界夹取 + 死区/平滑/限速跟随）+ `Viewport`、自研 42 项 GL 函数表、精灵批处理与调试绘制 |
 | M07 Input | 已实现 | 112 用例 / 16598 断言 | `ActionId` + `Binding` + 每上下文 `ActionMap`、上下文栈、`IInput` 窄接口、JSON 键位持久化 |
 | M08 Audio | 已实现 | 440 用例 / 28628 断言 | `AudioClip` PCM16、32 voice 软件混音、四总线、pan/loop/fade/pitch、距离衰减、无锁 SPSC 命令队列、SDL3 `IAudioDevice` 回调、原子统计 |
 | M09 UI & Text | 已实现 | 406 用例 / 18532 断言 | 内置 3×5 ASCII 位图字体、字形回退、测量/换行/对齐、投影/描边、立即模式按钮/复选框/滑条/进度条、`RenderLayer::UI` 与主题 |
@@ -85,11 +88,11 @@ Florian's Adventure 的全部设计文档入口。当前状态：**28 个模块 
 | M12 Tilemap & World | 已实现 | 350 用例 / 17952 断言 | `Tilemap` + `TileId`/`TileCoord`/`TileBounds` + 多图层 + 瓦片属性、世界/网格转换、区域与传送点、JSON 地图加载、4 邻接自动瓦片、`extractTiles` 视锥裁剪、`TilemapSolids` 物理适配器 |
 | M13 Physics & Collision | 已实现 | 333 用例 / 17677 断言 | `Collider` + `CollisionLayer` 双向掩码、`SpatialHash` 宽相、`TileGrid` 静态碰撞、轴分离 + ≤4px 子步求解、`overlap`/`overlapCircle`/`raycast`、触发器进出事件 |
 | M14 Serialization & Save | 已实现 | 458 用例 / 28826 断言 | `SaveArchive` JSON 值树（隐藏 nlohmann）、`SaveMetadata`/`SaveContext`/`SaveFile`、`SaveService` 多槽/原子写/`.bak` 恢复/迁移链、`ComponentSerializerRegistry` |
-| M15 Content Database | 已实现 | 390 用例 / 18421 断言 | `ContentId` + `ItemDef`/`CropDef`/`RecipeDef`/`EnemyDef`/`LootTableDef`、季节掩码、JSON 多文档合并、前缀/重复/必填/数值校验、四类引用完整性、全量错误收集、按 ID/标签/类别查询 |
-| M16 Player Controller | 已实现 | 379 用例 / 18243 断言 | `PlayerController` 走/跑/加速度/斜向归一化、朝向主导轴、状态机与动作锁、耐力/闪避/无敌窗口、`PlayerSystem` 输入适配、`PlayerActionRequest` 记录、动画参数 |
+| M15 Content Database | 已实现 | 390 用例 / 18421 断言 | `ContentId` + `ItemDef`（含可选 `toolKind`）/`CropDef`/`RecipeDef`/`EnemyDef`/`LootTableDef`、季节掩码、JSON 多文档合并、前缀/重复/必填/数值校验、四类引用完整性、全量错误收集、按 ID/标签/类别查询 |
+| M16 Player Controller | 已实现 | 379 用例 / 18243 断言 | `PlayerController` 走/跑/加速度/斜向归一化、八向朝向（45° 扇区 + 斜向折叠）、状态机与动作锁、耐力/闪避/无敌窗口、`PlayerSystem` 输入适配、`PlayerActionRequest` 记录、动画参数 |
 | M17 Interaction & Grid Placement | 已实现 | 365 用例 / 18136 断言 | `InteractionService` 目标选择（实体优先/朝向/距离/视线）、`Interactable` 组件、`IToolHandler` 分发、`PlacementGrid` 多格占用、`PlacementPreview`、交互/放置事件记录 |
 | M18 Inventory & Items | 已实现 | 428 用例 / 18820 断言 | `ItemStack` + 内容驱动堆叠、`Inventory` 固定槽位与原子移除/交换/拆分/合并/转移、`Hotbar` 选中与消耗、`Equipment` Tool/Weapon、`IItemUseHandler` 分发、`PlayerInventory` 快速转移 |
-| M19 Farming & World Objects | 已实现 | 489 用例 / 29216 断言 | `FarmTile`/`CropState`、按格农田、锄地/浇水/播种/按天生长/收获、季节与温室、再生作物、`FarmingDayContext`、`FarmingToolHandler`（Hoe/WateringCan/Seed/Harvest/Axe/Pickaxe）、`WorldObjectLayer`/`DebrisLayer` |
+| M19 Farming & World Objects | 已实现 | 489 用例 / 29216 断言 | `FarmTile`/`CropState`、按格农田、锄地/浇水/播种/按天生长/收获、季节与温室、再生作物、`FarmingDayContext`、`FarmingToolHandler`（Hoe/WateringCan/Seed/Harvest/Axe/Pickaxe，可 `setInventory`）、`WorldObjectLayer`/`DebrisLayer` |
 | M20 Combat | 已实现 | 469 用例 / 28935 断言 | `Damage`/`Health` 结算、M16 闪避无敌、攻击窗口与单实例去重、投射物 raycast/move、击退、Poison/Burn/Slow、`DamageEvent`/`DeathEvent`/`ProjectileEvent`/`StatusEvent` |
 | M21 AI | 已实现 | 500 用例 / 29317 断言 | `AiService`/`AiAgent`/`AiTargetTag`/`BehaviorProfile`、A*（4 邻接 + 视线平滑）、Bresenham 视线、感知节流、Idle/Patrol/Chase/Attack/Flee/Return、M13 `move`、M20 `spawnAttack`、`AiStats` |
 | M22 Calendar / Weather / Lighting | 已实现 | 476 用例 / 28997 断言 | `Season`/`Weather`/`GameDate`/`WorldClock`、0–24 时刻与跨日/季/年、四类日历事件、按季节权重随机天气与 RNG 状态保存、自动浇水/生长倍率、环境光曲线与室内外、`LightSet` 点光与线性衰减采样 |
@@ -97,10 +100,10 @@ Florian's Adventure 的全部设计文档入口。当前状态：**28 个模块 
 | M24 Economy / Crafting / Shops | 已实现 | 530 用例 / 29791 断言 | `EconomyService` + `ShopDatabase`、钱包、买卖原子性、每日限购、M15 配方加工任务、出货箱次日结算、经济事件/统计 |
 | M25 Game Flow | 已实现 | 536 用例 / 29909 断言 | `GameFlow`/`IGameFlow`、`AppState` 状态机、新游戏/读档、暂停/对话、日终结算、自动存档、死亡/复活、退出、7400 错误段 |
 | M26 Editor Tools | 已实现 | 510 用例 / 29627 断言 | `MapEditor` + `EditorHistory` + `EditorOverlay`、Brush/Rect/Fill/Erase/Picker、命令差分 undo/redo、M12 `saveTilemapToJson()`、M09 状态面板；Release 不链接 |
-| M27 Debug Tools | 已实现 | 451 用例 / 28744 断言 | `DebugConsole` 命令/引号/历史、`CVarRegistry` 四种类型与持久化、`DebugLogSink` 环形日志、`DebugStats`、实体快照、`UiContext` 覆盖层、M13 `DebugShape` 适配、F3/F4/F5/控制台事件路由；Release 不链接 |
+| M27 Debug Tools | 已实现 | 451 用例 / 28744 断言 | `DebugConsole` 命令/引号/历史、`CVarRegistry` 四种类型与持久化、`DebugLogSink` 环形日志、`DebugStats`（含角色相机与 AI 锁定目标）、实体快照、`UiContext` 覆盖层、M13 `DebugShape` 适配、F3/F4/F5/控制台事件路由；Release 不链接 |
 
 各模块按 ID 排序，实际落地顺序为 M01 → M02 → M04 → M03 → M07 → M06 → M05 → M11 → M13 → M12 → M17 → M16 → M15 → M09 → M18 → M08 → M27 → M14 → M10 → M20 → M22 → M19 → M21 → M26 → M23 → M24 → M25，因此「完成时累计」栏不是单调递增的；
-当前总计 **536 用例 / 29909 断言**。逐模块状态与下一步建议见 [计划完成情况](plan-status.md)。
+当前总计 **543 用例 / 30281 断言**。逐模块状态与下一步建议见 [计划完成情况](plan-status.md)。
 
 三配置（Debug / Development / Release × x64）Rebuild 均零警告零错误。
 

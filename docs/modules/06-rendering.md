@@ -26,7 +26,7 @@
 - 纹理创建/上传/销毁，`nearest` 过滤 + `clamp to edge` 环绕。
 - 精灵批处理：动态 VBO + 预生成索引，按「连续同纹理」分批。
 - `RenderQueue`：收集 `DrawItem`，按 layer → 量化 `sortY` → `entityId` 稳定排序。
-- `Camera2D`：平移 + 边界夹取，无缩放；世界↔虚拟像素转换；正交投影矩阵。
+- `Camera2D`：平移 + 边界夹取，无缩放；死区/平滑/限速跟随；世界↔虚拟像素转换；正交投影矩阵。
 - `Viewport`：整数缩放 + letterbox，窗口像素↔虚拟像素换算。
 - 像素对齐：只在生成顶点时把世界坐标吸附到整像素，模拟状态永不吸附。
 - 调试绘制 `drawDebugRect` / `drawDebugLine`（M27 使用），与精灵共用同一批。
@@ -51,7 +51,7 @@
 | `RenderError.hpp` | `render_error` 4000–4005（[Error.hpp](../../src/engine/include/fa/core/Error.hpp) 划给 Render/Input/Audio/UI 的区间）：`kGlFunctionMissing`、`kShaderCompileFailed`、`kShaderLinkFailed`、`kTextureCreationFailed`、`kNotInitialized`、`kUnknownTexture` |
 | `RenderTypes.hpp` | `TextureHandle`、`TextureFormat`、`bytesPerPixel`、`TextureDesc`、`RenderLayer`、`DrawItem`、`depthKey`、`drawsBefore`、`RenderStats` |
 | `Viewport.hpp` | `Viewport`（`fit`、`drawableWidth/Height`、`isEmpty`、`windowRect`、`windowToVirtual`、`virtualToWindow`、`operator==`） |
-| `Camera2D.hpp` | `Camera2D`（位置/边界/可见矩形/坐标转换/`snapped`/`projection`） |
+| `Camera2D.hpp` | `Camera2D`（位置/边界/跟随/可见矩形/坐标转换/`snapped`/`projection`）、`CameraFollowConfig` |
 | `RenderQueue.hpp` | `RenderQueue`（`clear`/`submit`/`sort`/`items`/静态 `countDrawCalls`/`countTextureSwitches`） |
 | `IRenderer.hpp` | `RendererDesc`、`IRenderer`（M06 唯一对外门面）、`createRenderer()` |
 
@@ -146,6 +146,16 @@ static Viewport fit(int windowWidth, int windowHeight,
 
 `setBounds()` 保证视野不越出地图：区域比视口大时夹取相机中心，比视口小时把区域居中。
 `projection()` 手写列主序正交矩阵（y 翻转，因为世界 y 向下而裁剪空间 y 向上），直接喂 `glUniformMatrix4fv(..., GL_FALSE, ...)`。
+
+`follow(target, dt)` 是 v1 的跟随入口：
+
+- `CameraFollowConfig::deadzone` 是中心周围的半宽/半高死区，目标在里面移动时相机不动；
+- 离开死区后，相机以指数平滑（`smoothing`，1/s）靠近，`maxSpeed > 0` 时再限制最大速度；
+- 每步结果仍走 `setBounds()`，所以跟随到地图边缘会精确停在地图边界；
+- `smoothing = 0` 表示硬跟随，测试和过场可以直接用。
+
+128×128 瓦片（16 px）地图在 `[render][camera]` 里覆盖：相机逐格跟随、
+视野始终落在地图内、四角夹取正确。app 以玩家精灵中心为目标，死区 48×32、平滑 10/s。
 
 ### 顶点格式与着色器
 
@@ -297,7 +307,7 @@ m06: 4.1.0 Core Profile Context ... on AMD Radeon (TM) Graphics
 | 验收点 | 状态 | 依据 |
 |---|---|---|
 | 在窗口里显示一张图 | ✅ | 程序化棋盘纹理（不是 PNG——M05 未实现，纹理上传路径本身已覆盖） |
-| 相机能移动 | ✅ | 冒烟里每帧 `setPosition` 被边界夹取；`[render]` 覆盖 `setPosition`/`move`/`visibleRect` |
+| 相机能移动/跟随 | ✅ | app 以玩家中心调用 `follow()` 并受边界夹取；`[render][camera]` 覆盖 128×128 地图逐格跟随、死区、平滑、限速与四角夹取 |
 | 1000 个精灵稳定 60 FPS | ✅ | 966 quad @ 60.0 fps（隐藏）/ 60.8 fps（可见） |
 | 像素无模糊 | ✅ | `nearest` + 整数倍缩放 + 顶点吸附；黑边而不是拉伸 |
 

@@ -32,6 +32,11 @@
   丢最旧一条并计入 `dropped()`。默认最低级别 `Info`。
 - **统计**：`DebugStats` 由 app 每帧从 M05/M06/M11/M13/M08/M12 的公开 stats 填充；
   M27 不反向 include 这些模块的私有实现。
+- **相机/AI 目标**：app 额外填入当前控制实体的相机（位置/视口/跟随目标/死区/平滑）
+  与每个 `AiAgent` 的状态/目标/可见性/中心点；M27 只格式化与绘制。
+  覆盖层文本最多列 6 个 AI 目标，其余显示 `+N more`。
+- **AI 可视化**：F3 打开统计时，app 用 `drawDebugLine`/`drawDebugRect` 画
+  agent 方框、agent→target 连线与目标方框；可见目标橙色、丢失视线灰色。
 - **覆盖层**：app 已经 `ui->setOrigin(camera.visibleRect().xy)`，所以 M27 用虚拟坐标
   画面板；统计在右上、日志在中左、控制台在左下。
 - **事件路由**：app 在 `input.poll()` 前把每个事件交给 `DebugTools::handleEvent`；
@@ -60,7 +65,8 @@
 - CVar：四种类型、回调、非法值、重复注册、`list`/`size`。
 - CVar 持久化：内存 `IFileSystem` 的 save/load、注释/未知名字忽略。
 - 日志：最低级别过滤、容量淘汰、`dropped()`、格式化、clear。
-- 统计：`formatStats` 的关键行与数值。
+- 统计：`formatStats` 的关键行与数值；无 AI 时输出 `ai targets none`。
+- 相机/AI：相机位置/视口/跟随目标/死区、agent 状态与 `-> target vis/hid` 文本。
 - 检查器：Transform/Sprite/Collider 快照、无 Transform 实体被忽略、上限 0。
 - 覆盖层：`UiContext` 队列确实收到面板/文字 item。
 - 门面：F3/F4/F5/反引号切换、文本输入、Enter、Escape、控制台关闭后按键透传。
@@ -69,9 +75,10 @@
 实测（三配置一致）：
 
 ```text
-fa_tests.exe "[debug]" → All tests passed (118 assertions in 12 test cases)
-fa_tests.exe           → All tests passed (28826 assertions in 458 test cases, including M14)
-Debug/Development app  → m27: 26 console command(s), 0 cvar(s), F3 stats / F4 log / ` console
+fa_tests.exe "[debug]" → All tests passed (122 assertions in 12 test cases)
+fa_tests.exe           → All tests passed (30281 assertions in 543 test cases)
+Debug/Development app  → m27: 28 console command(s), 0 cvar(s), camera ok, 1 ai target(s),
+                         F3 stats / F4 log / ` console
                        → ...+M27 smoke test OK
 Release app            → m27: disabled (release build)
                        → ... smoke test OK (no +M27)
@@ -132,3 +139,6 @@ foreach ($cfg in @('Debug','Development','Release')) {
 - 覆盖层固定像素布局，非 640×360 需要重新排版。
 - 日志自旋锁在高频日志下会烧 CPU；开发期可接受。
 - `DebugStats` 落后一帧，不能作为玩法判定输入。
+- AI 目标文本最多 6 行，多出的只显示数量；相机/AI 坐标也是上一帧快照。
+- 目标连线只在 F3 统计可见时绘制；没有单独的“AI 调试”开关。
+- 每帧重建 `aiTargets` 快照（调试路径，不在玩法热路径）。

@@ -103,6 +103,10 @@ private:
 TEST_CASE("Player names are stable", "[player]") {
     REQUIRE(fa::player::toString(Facing::North) == "north");
     REQUIRE(fa::player::toString(Facing::West) == "west");
+    REQUIRE(fa::player::toString(Facing::NorthEast) == "north-east");
+    REQUIRE(fa::player::toString(Facing::SouthEast) == "south-east");
+    REQUIRE(fa::player::toString(Facing::SouthWest) == "south-west");
+    REQUIRE(fa::player::toString(Facing::NorthWest) == "north-west");
     REQUIRE(fa::player::toString(PlayerState::Idle) == "idle");
     REQUIRE(fa::player::toString(PlayerState::UseTool) == "use_tool");
     REQUIRE(fa::player::toString(PlayerState::Dead) == "dead");
@@ -110,18 +114,48 @@ TEST_CASE("Player names are stable", "[player]") {
     REQUIRE(fa::player::toString(PlayerActionKind::ActionRejected) == "action_rejected");
 }
 
-TEST_CASE("Facing helpers pick the dominant axis", "[player][facing]") {
+TEST_CASE("Facing helpers pick eight-way sectors", "[player][facing]") {
     REQUIRE(fa::player::facingFromVector(Vec2{1.0f, 0.0f}, Facing::South) == Facing::East);
-    REQUIRE(fa::player::facingFromVector(Vec2{-0.5f, 0.4f}, Facing::South) == Facing::West);
     REQUIRE(fa::player::facingFromVector(Vec2{0.2f, 1.0f}, Facing::East) == Facing::South);
     REQUIRE(fa::player::facingFromVector(Vec2{0.0f, -1.0f}, Facing::South) == Facing::North);
     REQUIRE(fa::player::facingFromVector(Vec2{0.0f, 0.0f}, Facing::West) == Facing::West);
-    REQUIRE(fa::player::facingFromVector(Vec2{0.1f, 0.1f}, Facing::South) == Facing::East);
+
+    // The sector boundaries sit at 22.5 degrees from each cardinal.
+    REQUIRE(fa::player::facingFromVector(Vec2{1.0f, 0.35f}, Facing::South) == Facing::East);
+    REQUIRE(fa::player::facingFromVector(Vec2{1.0f, 0.5f}, Facing::South) == Facing::SouthEast);
+    REQUIRE(fa::player::facingFromVector(Vec2{0.5f, 1.0f}, Facing::West) == Facing::SouthEast);
+    REQUIRE(fa::player::facingFromVector(Vec2{-0.5f, 1.0f}, Facing::East) == Facing::SouthWest);
+    REQUIRE(fa::player::facingFromVector(Vec2{-1.0f, 0.5f}, Facing::East) == Facing::SouthWest);
+    REQUIRE(fa::player::facingFromVector(Vec2{-1.0f, 0.35f}, Facing::South) == Facing::West);
+    REQUIRE(fa::player::facingFromVector(Vec2{-0.5f, -1.0f}, Facing::South) == Facing::NorthWest);
+    REQUIRE(fa::player::facingFromVector(Vec2{0.5f, -1.0f}, Facing::South) == Facing::NorthEast);
+    REQUIRE(fa::player::facingFromVector(Vec2{0.1f, 0.1f}, Facing::South) == Facing::SouthEast);
 
     REQUIRE(fa::player::directionVector(Facing::North) == Vec2{0.0f, -1.0f});
     REQUIRE(fa::player::directionVector(Facing::East) == Vec2{1.0f, 0.0f});
     REQUIRE(fa::player::directionVector(Facing::South) == Vec2{0.0f, 1.0f});
     REQUIRE(fa::player::directionVector(Facing::West) == Vec2{-1.0f, 0.0f});
+    const Vec2 northEast = fa::player::directionVector(Facing::NorthEast);
+    const Vec2 southEast = fa::player::directionVector(Facing::SouthEast);
+    const Vec2 southWest = fa::player::directionVector(Facing::SouthWest);
+    const Vec2 northWest = fa::player::directionVector(Facing::NorthWest);
+    REQUIRE(northEast.x == Approx(0.70710678f));
+    REQUIRE(northEast.y == Approx(-0.70710678f));
+    REQUIRE(southEast.x == Approx(0.70710678f));
+    REQUIRE(southEast.y == Approx(0.70710678f));
+    REQUIRE(southWest.x == Approx(-0.70710678f));
+    REQUIRE(southWest.y == Approx(0.70710678f));
+    REQUIRE(northWest.x == Approx(-0.70710678f));
+    REQUIRE(northWest.y == Approx(-0.70710678f));
+
+    REQUIRE(fa::player::isDiagonal(Facing::NorthEast));
+    REQUIRE(fa::player::isDiagonal(Facing::SouthWest));
+    REQUIRE_FALSE(fa::player::isDiagonal(Facing::North));
+    REQUIRE(fa::player::cardinalFacing(Facing::NorthEast) == Facing::North);
+    REQUIRE(fa::player::cardinalFacing(Facing::SouthEast) == Facing::South);
+    REQUIRE(fa::player::cardinalFacing(Facing::SouthWest) == Facing::South);
+    REQUIRE(fa::player::cardinalFacing(Facing::NorthWest) == Facing::North);
+    REQUIRE(fa::player::cardinalFacing(Facing::East) == Facing::East);
 }
 
 TEST_CASE("Attach adds player components and keeps existing values", "[player][attach]") {
@@ -183,7 +217,7 @@ TEST_CASE("Diagonal movement is normalized", "[player][move]") {
     REQUIRE(velocity.y == Approx(63.64f).margin(0.2f));
     const float speed = std::sqrt(velocity.x * velocity.x + velocity.y * velocity.y);
     REQUIRE(speed == Approx(90.0f).margin(0.2f));
-    REQUIRE(world.tryGet<FacingDir>(id)->value == Facing::East);
+    REQUIRE(world.tryGet<FacingDir>(id)->value == Facing::SouthEast);
 }
 
 TEST_CASE("Run speed applies while run is held", "[player][move]") {
@@ -198,7 +232,7 @@ TEST_CASE("Run speed applies while run is held", "[player][move]") {
     REQUIRE(velocityOf(world, id).linear.x == Approx(150.0f).margin(0.2f));
 }
 
-TEST_CASE("Facing follows the dominant movement axis and persists when idle", "[player][facing]") {
+TEST_CASE("Facing follows eight-way movement and persists when idle", "[player][facing]") {
     World world;
     const EntityId id = makePlayer(world);
     PlayerController controller;
@@ -216,9 +250,13 @@ TEST_CASE("Facing follows the dominant movement axis and persists when idle", "[
     controller.update(world, id, intent, kStep);
     REQUIRE(world.tryGet<FacingDir>(id)->value == Facing::North);
 
+    intent.move = Vec2{-1.0f, -1.0f};
+    controller.update(world, id, intent, kStep);
+    REQUIRE(world.tryGet<FacingDir>(id)->value == Facing::NorthWest);
+
     intent.move = Vec2{0.0f, 0.0f};
     controller.update(world, id, intent, kStep);
-    REQUIRE(world.tryGet<FacingDir>(id)->value == Facing::North);
+    REQUIRE(world.tryGet<FacingDir>(id)->value == Facing::NorthWest);
 }
 
 TEST_CASE("Dodge consumes stamina, moves and has an invulnerability window", "[player][dodge]") {
@@ -250,6 +288,25 @@ TEST_CASE("Dodge consumes stamina, moves and has an invulnerability window", "[p
     }
     REQUIRE_FALSE(PlayerController::isDodging(world, id));
     REQUIRE(world.tryGet<fa::player::DodgeState>(id)->cooldown > 0.0f);
+}
+
+TEST_CASE("Diagonal dodge keeps the configured speed", "[player][dodge][facing]") {
+    World world;
+    const EntityId id = makePlayer(world);
+    PlayerController controller;
+    PlayerIntent intent;
+    intent.move = Vec2{1.0f, 1.0f};
+    intent.dodge = true;
+
+    controller.update(world, id, intent, kStep);
+    REQUIRE(world.tryGet<FacingDir>(id)->value == Facing::SouthEast);
+    REQUIRE(controller.events()[0].facing == Facing::SouthEast);
+
+    const Vec2 velocity = velocityOf(world, id).linear;
+    const float speed = std::sqrt(velocity.x * velocity.x + velocity.y * velocity.y);
+    REQUIRE(speed == Approx(192.0f).margin(0.2f));
+    REQUIRE(velocity.x == Approx(135.76f).margin(0.2f));
+    REQUIRE(velocity.y == Approx(135.76f).margin(0.2f));
 }
 
 TEST_CASE("Dodge rejects missing stamina, no direction, busy and cooldown", "[player][dodge]") {

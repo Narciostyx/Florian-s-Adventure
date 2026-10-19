@@ -279,6 +279,24 @@ core::Status ContentDatabase::loadDocument(std::string_view json) {
                     addError(content_error::kInvalidField, context, "\"category\" must be a non-empty string");
                     continue;
                 }
+                if (entry.contains("tool_kind")) {
+                    if (!readStringField(entry, "tool_kind", def.toolKind) || def.toolKind.empty()) {
+                        addError(content_error::kInvalidField, context,
+                                 "\"tool_kind\" must be a non-empty string");
+                        continue;
+                    }
+                    const bool known = def.toolKind == "none" || def.toolKind == "hoe" ||
+                                       def.toolKind == "watering_can" || def.toolKind == "axe" ||
+                                       def.toolKind == "pickaxe" || def.toolKind == "sword" ||
+                                       def.toolKind == "seed" || def.toolKind == "harvest" ||
+                                       def.toolKind == "placeable";
+                    if (!known) {
+                        addError(content_error::kInvalidField, context,
+                                 "\"tool_kind\" must be one of none/hoe/watering_can/axe/pickaxe/"
+                                 "sword/seed/harvest/placeable");
+                        continue;
+                    }
+                }
                 if (entry.contains("description") && !readStringField(entry, "description", def.description)) {
                     addError(content_error::kInvalidField, context, "\"description\" must be a string");
                     continue;

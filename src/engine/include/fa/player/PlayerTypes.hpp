@@ -17,15 +17,31 @@ namespace fa::player {
 
 /// \brief Direction the player is facing.
 ///
-/// The order matches `fa::interaction::Facing`, so the composition root can convert
-/// with a plain switch or `static_cast` when it routes a target request.
+/// Eight-way: the first four values keep the historical `North`, `East`, `South`,
+/// `West` numeric order, so a composition root that only understands four-way
+/// targeting can still `static_cast` those cardinals to `fa::interaction::Facing`.
+/// Diagonals are appended and must be collapsed explicitly; `isDiagonal()` and
+/// `cardinalFacing()` are provided for that.
 enum class Facing : std::uint8_t {
     North,
     East,
     South,
     West,
+    NorthEast,
+    SouthEast,
+    SouthWest,
+    NorthWest,
     Count,
 };
+
+/// \brief True when the facing is one of the four diagonals.
+[[nodiscard]] constexpr bool isDiagonal(Facing facing) noexcept {
+    return facing == Facing::NorthEast || facing == Facing::SouthEast ||
+           facing == Facing::SouthWest || facing == Facing::NorthWest;
+}
+
+/// \brief Collapses a diagonal to a four-way facing (vertical wins on ties).
+[[nodiscard]] Facing cardinalFacing(Facing facing) noexcept;
 
 /// \brief Coarse state used by animation, input gating and debug overlays.
 enum class PlayerState : std::uint8_t {
@@ -185,7 +201,10 @@ inline constexpr std::string_view kActionNameAttack = "Attack";
 inline constexpr std::string_view kActionNameInteract = "Interact";
 inline constexpr std::string_view kActionNameInventory = "Inventory";
 
-/// \brief Dominant-axis facing, falling back to `fallback` for a zero vector.
+/// \brief Eight-way facing from a movement vector, using 45-degree sectors.
+///
+/// Falls back to \p fallback for a zero vector. The vector is not required to be
+/// normalized; only its angle matters.
 [[nodiscard]] Facing facingFromVector(core::Vec2 move, Facing fallback) noexcept;
 
 /// \brief Unit vector for a facing; y points down, matching world space.

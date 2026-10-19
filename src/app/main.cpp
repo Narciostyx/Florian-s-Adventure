@@ -4,6 +4,8 @@
 /// Wires M02 (platform), M03 (events/jobs), M04 (frame loop), M06 (render) and
 /// M07 (input) so window, event, timing, drawing and input behave end to end.
 
+#include <algorithm>
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -13,6 +15,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include <fa/assets/AssetCatalog.hpp>
@@ -42,6 +45,7 @@
 #include <fa/debug/DebugTools.hpp>
 #endif
 #include <fa/core/Result.hpp>
+#include <fa/core/Rng.hpp>
 #include <fa/core/Version.hpp>
 #include <fa/content/ContentDatabase.hpp>
 #include <fa/economy/EconomyService.hpp>
@@ -118,6 +122,10 @@ struct Options {
     bool visibleWindow = false;
     /// 0 means "run until the user closes the window".
     int frames = 0;
+    /// \brief Skips the scripted demos and starts a clean playable farming session.
+    bool playMode = false;
+    /// \brief Runs the headless play-loop self check instead of waiting for input.
+    bool playTest = false;
 };
 
 Options parseOptions(int argc, char** argv) {
@@ -126,6 +134,11 @@ Options parseOptions(int argc, char** argv) {
         const std::string arg = argv[i];
         if (arg == "--window") {
             options.visibleWindow = true;
+        } else if (arg == "--play") {
+            options.playMode = true;
+        } else if (arg == "--play-test") {
+            options.playMode = true;
+            options.playTest = true;
         } else if (arg == "--frames" && i + 1 < argc) {
             options.frames = std::atoi(argv[++i]);
         }
@@ -166,13 +179,17 @@ constexpr std::string_view kContentText = R"({
   "schema_version": 1,
   "items": [
     {"id": "item.turnip_seed", "display_name": "Turnip Seed", "category": "seed",
-     "max_stack": 99, "sell_price": 5, "tags": ["seed", "spring"]},
+     "tool_kind": "seed", "max_stack": 99, "sell_price": 5, "tags": ["seed", "spring"]},
     {"id": "item.turnip", "display_name": "Turnip", "category": "crop",
      "max_stack": 99, "sell_price": 35, "tags": ["crop", "spring"]},
     {"id": "item.turnip_soup", "display_name": "Turnip Soup", "category": "food",
      "max_stack": 10, "sell_price": 120},
     {"id": "item.hoe", "display_name": "Hoe", "category": "tool",
-     "max_stack": 1, "sell_price": 0, "tags": ["tool"]}
+     "tool_kind": "hoe", "max_stack": 1, "sell_price": 0, "tags": ["tool"]},
+    {"id": "item.watering_can", "display_name": "Watering Can", "category": "tool",
+     "tool_kind": "watering_can", "max_stack": 1, "sell_price": 0, "tags": ["tool"]},
+    {"id": "item.sword", "display_name": "Wooden Sword", "category": "weapon",
+     "tool_kind": "sword", "max_stack": 1, "sell_price": 0, "tags": ["weapon"]}
   ],
   "crops": [
     {"id": "crop.turnip", "seed_item": "item.turnip_seed", "harvest_item": "item.turnip",
@@ -193,6 +210,9 @@ constexpr std::string_view kContentText = R"({
   "loot_tables": [
     {"id": "loot.slime", "entries": [
       {"item": "item.turnip_seed", "min_amount": 1, "max_amount": 2, "chance": 0.5}
+    ]},
+    {"id": "loot.test", "entries": [
+      {"item": "item.turnip_seed", "min_amount": 2, "max_amount": 2, "chance": 1.0}
     ]}
   ]
 })";
@@ -431,6 +451,25 @@ struct NarrativeDemoStats {
     std::size_t events = 0;
 };
 
+/// \brief A dropped item waiting for the player to walk over it.
+struct LootDrop {
+    fa::content::ContentId item;
+    int count = 1;
+};
+
+/// \brief One AI agent's locked target, for the M27 overlay and debug lines.
+struct AiTargetDebugSnapshot {
+    fa::scene::EntityId agent{};
+    fa::scene::EntityId target{};
+    fa::ai::AiState state = fa::ai::AiState::Idle;
+    bool hasTarget = false;
+    bool targetVisible = false;
+    fa::core::Vec2 agentCenter{};
+    fa::core::Vec2 targetCenter{};
+    bool hasAgentCenter = false;
+    bool hasTargetCenter = false;
+};
+
 /// \brief Snapshot of the scripted M21 agent for the smoke summary.
 struct AiDemoStats {
     fa::ai::AiState state = fa::ai::AiState::Idle;
@@ -618,8 +657,8 @@ public:
 
     DemoScene() = delete;
     DemoScene(fa::input::IInput& input, const fa::content::ContentDatabase& content,
-              const fa::narrative::NarrativeDatabase& narrative)
-        : BasicScene("demo"), m_input(input), m_interaction(m_map, &m_placement) {
+              const fa::narrative::NarrativeDatabase& narrative, bool scripted = true)
+        : BasicScene("demo"), m_input(input), m_interaction(m_map, &m_placement), m_scripted(scripted) {
         m_farming.setContentDatabase(&content);
         m_farmInventory.setContentDatabase(&content);
         m_farmingTools.setDebrisLayer(&m_farmDebris);
@@ -659,9 +698,11 @@ public:
     void onEnter() override {
         if (!m_built) {
             buildWorld();
-            runInteractionDemo();
-            runFarmingDemo();
-            runNarrativeDemo();
+            if (m_scripted) {
+                runInteractionDemo();
+                runFarmingDemo();
+                runNarrativeDemo();
+            }
             m_built = true;
         }
 
@@ -698,6 +739,12 @@ public:
     [[nodiscard]] fa::core::Vec2 markerPosition() const {
         const fa::scene::Transform* transform = world().tryGet<fa::scene::Transform>(m_markerEntity);
         return transform != nullptr ? transform->position : fa::core::Vec2{};
+    }
+
+    /// \brief Centre of the player sprite, which is what the camera follows.
+    [[nodiscard]] fa::core::Vec2 markerCenter() const {
+        const fa::core::Vec2 position = markerPosition();
+        return fa::core::Vec2{position.x + kMarkerSize * 0.5f, position.y + kMarkerSize * 0.5f};
     }
 
     /// \brief Debug hook for the `teleport` console command.
@@ -744,6 +791,9 @@ public:
     [[nodiscard]] std::span<const fa::farming::FarmTileEntry> farmingTiles() const noexcept {
         return m_farming.entries();
     }
+
+    /// \brief Live M19 counters, used by the play-mode summary.
+    [[nodiscard]] fa::farming::FarmingStats farmingStats() const noexcept { return m_farming.stats(); }
 
     [[nodiscard]] fa::core::Vec2 farmingCellPosition(fa::tilemap::TileCoord cell) const noexcept {
         return m_map.gridToWorld(cell);
@@ -807,6 +857,132 @@ public:
         }
     }
 
+    /// \brief The entity the camera follows and the debug overlay calls "player".
+    [[nodiscard]] fa::scene::EntityId playerEntity() const noexcept { return m_markerEntity; }
+
+    /// \brief Routes seed costs and harvest output to the player's container.
+    void setFarmingInventory(fa::inventory::Inventory& inventory) noexcept {
+        m_farmingTools.setInventory(inventory);
+    }
+
+    /// \brief Seed consumed by the next `ToolKind::Seed` request.
+    void setSelectedSeed(const fa::content::ContentId& seed) noexcept {
+        m_farmingTools.setSelectedSeed(seed);
+    }
+
+    [[nodiscard]] fa::player::Facing playerFacing() const noexcept {
+        const fa::player::FacingDir* dir = world().tryGet<fa::player::FacingDir>(m_markerEntity);
+        return dir != nullptr ? dir->value : fa::player::Facing::South;
+    }
+
+    void setPlayerFacing(fa::player::Facing facing) {
+        if (fa::player::FacingDir* dir = world().tryGet<fa::player::FacingDir>(m_markerEntity);
+            dir != nullptr) {
+            dir->value = facing;
+        }
+    }
+
+    /// \brief Spawns a melee attack box in front of the player.
+    [[nodiscard]] bool playerAttack(int damage, float reach) {
+        if (m_combat == nullptr) {
+            return false;
+        }
+        const fa::core::Vec2 direction = fa::player::directionVector(playerFacing());
+        fa::combat::AttackHitbox hitbox;
+        // Player transform is the 8x8 sprite's top-left; centre the 20x20 box
+        // `reach` pixels ahead of the player's centre.
+        hitbox.offset = fa::core::Vec2{4.0f + direction.x * reach - 10.0f,
+                                       4.0f + direction.y * reach - 10.0f};
+        hitbox.size = fa::core::Vec2{20.0f, 20.0f};
+        hitbox.activeFrom = 0.0f;
+        hitbox.activeTo = 0.1f;
+        hitbox.damage = damage;
+        hitbox.targetMask = fa::physics::maskOf(fa::physics::CollisionLayer::Enemy);
+        m_combat->spawnAttack(world(), m_markerEntity, hitbox);
+        return true;
+    }
+
+    [[nodiscard]] std::span<const fa::combat::DamageEvent> damageEvents() const noexcept {
+        return m_combat != nullptr ? m_combat->damageEvents()
+                                   : std::span<const fa::combat::DamageEvent>{};
+    }
+
+    [[nodiscard]] std::span<const fa::combat::DeathEvent> deathEvents() const noexcept {
+        return m_combat != nullptr ? m_combat->deathEvents()
+                                   : std::span<const fa::combat::DeathEvent>{};
+    }
+
+    void clearCombatEvents() noexcept {
+        if (m_combat != nullptr) {
+            m_combat->clearEvents();
+        }
+    }
+
+    [[nodiscard]] fa::scene::EntityId combatDummy1() const noexcept { return m_combatDummy1; }
+
+    /// \brief Rebuilds the physics broad phase; used by the headless self check.
+    void syncPhysics() {
+        if (m_physics != nullptr) {
+            m_physics->physics().sync(world());
+        }
+    }
+
+    [[nodiscard]] bool isAlive(fa::scene::EntityId id) const noexcept { return world().isAlive(id); }
+
+    /// \brief The cell and entity directly in front of the player.
+    [[nodiscard]] fa::interaction::GridTarget frontTarget() const {
+        const fa::player::Facing cardinal = fa::player::cardinalFacing(playerFacing());
+        return m_interaction.pickTargetInFront(
+            world(), m_markerEntity, static_cast<fa::interaction::Facing>(cardinal));
+    }
+
+    [[nodiscard]] const fa::farming::CropState* cropAt(fa::tilemap::TileCoord cell) const noexcept {
+        return m_farming.cropAt(cell);
+    }
+
+    [[nodiscard]] fa::core::Status interact(const fa::interaction::InteractionRequest& request) {
+        return m_interaction.interact(world(), request);
+    }
+
+    /// \brief Applies one day of farming growth/weather without advancing the clock.
+    void advanceFarmingDay(const fa::farming::FarmingDayContext& context) {
+        m_farming.setCurrentSeason(context.season);
+        m_farming.onDayChanged(context);
+    }
+
+    /// \brief Copies and clears the controller's action requests for this step.
+    [[nodiscard]] std::vector<fa::player::PlayerActionRequest> takePlayerActions() {
+        std::vector<fa::player::PlayerActionRequest> actions;
+        if (m_playerSystem != nullptr) {
+            const std::span<const fa::player::PlayerActionRequest> events =
+                m_playerSystem->controller().events();
+            actions.assign(events.begin(), events.end());
+            m_playerSystem->controller().clearEvents();
+        }
+        return actions;
+    }
+
+    /// \brief Every AI agent plus the target it currently has locked.
+    [[nodiscard]] std::vector<AiTargetDebugSnapshot> aiTargetDebugSnapshot() const {
+        std::vector<AiTargetDebugSnapshot> result;
+        world().each<fa::ai::AiAgent, fa::scene::Transform>(
+            [&result, this](fa::scene::EntityId id, const fa::ai::AiAgent& agent,
+                            const fa::scene::Transform&) {
+                AiTargetDebugSnapshot snapshot;
+                snapshot.agent = id;
+                snapshot.target = agent.target;
+                snapshot.state = agent.state;
+                snapshot.hasTarget = agent.target.isValid();
+                snapshot.targetVisible = agent.targetVisible;
+                snapshot.hasAgentCenter = entityCenter(id, snapshot.agentCenter);
+                if (snapshot.hasTarget) {
+                    snapshot.hasTargetCenter = entityCenter(agent.target, snapshot.targetCenter);
+                }
+                result.push_back(snapshot);
+            });
+        return result;
+    }
+
     /// \brief Per-frame cursor target, used only for the debug highlight.
     void setCursorWorld(fa::core::Vec2 worldPosition) {
         m_cursorTarget = m_interaction.pickTarget(world(), m_markerEntity, worldPosition);
@@ -865,6 +1041,21 @@ public:
     }
 
 private:
+    /// \brief Centre of an entity's collider, or its transform as a fallback.
+    [[nodiscard]] bool entityCenter(fa::scene::EntityId id, fa::core::Vec2& out) const {
+        const fa::scene::Transform* transform = world().tryGet<fa::scene::Transform>(id);
+        if (transform == nullptr) {
+            return false;
+        }
+        if (const fa::physics::Collider* collider = world().tryGet<fa::physics::Collider>(id);
+            collider != nullptr) {
+            out = fa::core::center(fa::physics::colliderRect(*transform, *collider));
+        } else {
+            out = transform->position;
+        }
+        return true;
+    }
+
     void buildWorld() {
         fa::tilemap::TileDef grass;
         grass.id = fa::tilemap::TileId{kGrassTile};
@@ -1069,7 +1260,7 @@ private:
             return id;
         };
 
-        m_combatDummy1 = makeDummy(fa::core::Vec2{300.0f, 220.0f}, 20, "loot.slime");
+        m_combatDummy1 = makeDummy(fa::core::Vec2{300.0f, 220.0f}, 20, "loot.test");
         m_combatDummy2 = makeDummy(fa::core::Vec2{300.0f, 240.0f}, 30, "loot.slime");
     }
 
@@ -1140,7 +1331,7 @@ private:
         }
 
         const fa::scene::Transform* marker = world().tryGet<fa::scene::Transform>(m_markerEntity);
-        if (m_combatStats.updates == 30 || m_combatStats.updates == 50) {
+        if (m_scripted && (m_combatStats.updates == 30 || m_combatStats.updates == 50)) {
             if (marker != nullptr) {
                 fa::combat::AttackHitbox hitbox;
                 hitbox.offset = fa::core::Vec2{-40.0f, -16.0f};
@@ -1154,7 +1345,7 @@ private:
             }
         }
 
-        if (m_combatStats.updates == 30 && marker != nullptr) {
+        if (m_scripted && m_combatStats.updates == 30 && marker != nullptr) {
             fa::combat::ProjectileDesc projectile;
             projectile.position = marker->position + fa::core::Vec2{0.0f, 20.0f};
             projectile.velocity = fa::core::Vec2{-160.0f, 0.0f};
@@ -1173,7 +1364,7 @@ private:
             }
         }
 
-        if (m_combatStats.updates == 35) {
+        if (m_scripted && m_combatStats.updates == 35) {
             fa::combat::StatusEffect poison;
             poison.kind = fa::combat::StatusKind::Poison;
             poison.duration = 1.0f;
@@ -1199,7 +1390,9 @@ private:
         m_combatStats.deathEvents += m_combat->deathEvents().size();
         m_combatStats.projectileEvents += m_combat->projectileEvents().size();
         m_combatStats.statusEvents += m_combat->statusEvents().size();
-        m_combat->clearEvents();
+        if (m_scripted) {
+            m_combat->clearEvents();
+        }
     }
 
     /// \brief Advances M10 on the fixed step and copies the current source rect.
@@ -1409,6 +1602,8 @@ private:
     fa::scene::EntityId m_npcEntity;
     /// Declared after its map, grid and handlers so those outlive it.
     fa::interaction::InteractionService m_interaction;
+    /// \brief False in `--play` so startup does not run the scripted demos.
+    bool m_scripted = true;
     fa::scene::EntityId m_markerEntity;
     fa::scene::EntityId m_crateEntity;
     fa::scene::EntityId m_placedEntity;
@@ -1472,7 +1667,24 @@ public:
         bindKey(fa::player::kActionNameInventory, fa::platform::Scancode::Tab);
         bindMouse(fa::player::kActionNameUseTool, fa::platform::MouseButton::Left);
         bindMouse(fa::player::kActionNameAttack, fa::platform::MouseButton::Right);
+
+        static constexpr std::array<fa::platform::Scancode, 9> kDigits{
+            fa::platform::Scancode::Digit1, fa::platform::Scancode::Digit2,
+            fa::platform::Scancode::Digit3, fa::platform::Scancode::Digit4,
+            fa::platform::Scancode::Digit5, fa::platform::Scancode::Digit6,
+            fa::platform::Scancode::Digit7, fa::platform::Scancode::Digit8,
+            fa::platform::Scancode::Digit9};
+        for (std::size_t index = 0; index < m_hotbarActions.size(); ++index) {
+            const fa::input::ActionId action =
+                input.registerAction("Hotbar" + std::to_string(index + 1));
+            static_cast<void>(input.bind(fa::input::InputContext::Gameplay, action,
+                                         fa::input::Binding::fromKey(kDigits[index])));
+            m_hotbarActions[index] = action;
+        }
     }
+
+    /// \brief True for `--play`: scripted demos are skipped and input drives tools.
+    bool playMode = false;
 
     /// \brief Creates the GL context the smoke run draws with.
     ///
@@ -1575,7 +1787,7 @@ public:
 
         // M11 takes over from here: the textures go into a scene, and the scene becomes
         // the only source of draw items.
-        auto scene = std::make_unique<DemoScene>(input, content, narrative);
+        auto scene = std::make_unique<DemoScene>(input, content, narrative, !playMode);
         scene->setTextures(fa::render::TextureHandle{grassAsset->gpuTexture},
                            fa::render::TextureHandle{wallAsset->gpuTexture},
                            fa::render::TextureHandle{soilAsset->gpuTexture},
@@ -1585,6 +1797,12 @@ public:
         if (pushed.isError()) {
             demoScene = nullptr;
             return pushed;
+        }
+        if (playMode && playerInventory != nullptr) {
+            // Farming charges seeds to and credits harvests into the hotbar, which
+            // is the container the player is actually selecting from.
+            demoScene->setFarmingInventory(playerInventory->hotbar().inventory());
+            demoScene->setSelectedSeed(fa::content::ContentId::fromName("item.turnip_seed"));
         }
 
 #if defined(FA_ENABLE_EDITOR)
@@ -1642,35 +1860,68 @@ public:
     /// the hotbar, equipping a tool, selection changes and one food use. It is
     /// deliberately data-only: no world entity is resolved, so the synthetic
     /// `EntityId` is just recorded in the use event.
-    fa::core::Status initializeInventory() {
+    fa::core::Status initializeInventory(bool forPlay) {
         playerInventory = std::make_unique<fa::inventory::PlayerInventory>(20, 10, &content);
         itemUse = std::make_unique<fa::inventory::ItemUseService>(content);
         consumable = std::make_unique<ConsumableUseHandler>();
         itemUse->registerHandler(*consumable);
 
-        const auto add = [this](std::string_view name, int count) -> fa::core::Status {
-            const auto result = playerInventory->backpack().add(
+        const auto add = [](fa::inventory::Inventory& target, std::string_view name,
+                            int count) -> fa::core::Status {
+            const auto result = target.add(
                 fa::inventory::ItemStack{fa::content::ContentId::fromName(name), count, -1});
             if (result.isError()) {
                 return fa::core::Status::err(result.error());
             }
             if (result.value() != 0) {
                 return fa::core::errorStatus(fa::inventory::inventory_error::kInventoryFull,
-                                             "the demo backpack is too small");
+                                             "the inventory is too small");
             }
             return fa::core::okStatus();
         };
 
-        if (const fa::core::Status status = add("item.turnip_seed", 120); status.isError()) {
+        if (forPlay) {
+            fa::inventory::Inventory& hotbar = playerInventory->hotbar().inventory();
+            if (const fa::core::Status status = add(hotbar, "item.hoe", 1); status.isError()) {
+                return status;
+            }
+            if (const fa::core::Status status = add(hotbar, "item.watering_can", 1); status.isError()) {
+                return status;
+            }
+            if (const fa::core::Status status = add(hotbar, "item.turnip_seed", 20); status.isError()) {
+                return status;
+            }
+            if (const fa::core::Status status =
+                    add(playerInventory->backpack(), "item.turnip", 3);
+                status.isError()) {
+                return status;
+            }
+            static_cast<void>(playerInventory->hotbar().select(0));
+            inventoryDemo = InventoryDemoStats{};
+            inventoryDemo.backpackItems = playerInventory->backpack().totalItems();
+            inventoryDemo.backpackSlots = playerInventory->backpack().usedSlots();
+            inventoryDemo.hotbarItems = hotbar.totalItems();
+            inventoryDemo.selected = playerInventory->hotbar().selected();
+            const fa::inventory::ItemStack& selected = playerInventory->hotbar().selectedStack();
+            inventoryDemo.toolEquipped = !selected.empty();
+            inventoryDemo.toolId = selected.id;
+            return fa::core::okStatus();
+        }
+
+        if (const fa::core::Status status = add(playerInventory->backpack(), "item.turnip_seed", 120);
+            status.isError()) {
             return status;
         }
-        if (const fa::core::Status status = add("item.turnip", 5); status.isError()) {
+        if (const fa::core::Status status = add(playerInventory->backpack(), "item.turnip", 5);
+            status.isError()) {
             return status;
         }
-        if (const fa::core::Status status = add("item.turnip_soup", 3); status.isError()) {
+        if (const fa::core::Status status = add(playerInventory->backpack(), "item.turnip_soup", 3);
+            status.isError()) {
             return status;
         }
-        if (const fa::core::Status status = add("item.hoe", 1); status.isError()) {
+        if (const fa::core::Status status = add(playerInventory->backpack(), "item.hoe", 1);
+            status.isError()) {
             return status;
         }
 
@@ -1721,14 +1972,20 @@ public:
         return fa::core::okStatus();
     }
 
-    /// \brief Runs the M24 buy/sell/craft/ship sequence on the player backpack.
-    void initializeEconomy() {
+    /// \brief Creates the M24 service and, in smoke mode, runs the scripted sequence.
+    void initializeEconomy(bool scripted) {
         if (playerInventory == nullptr) {
             return;
         }
         economy = std::make_unique<fa::economy::EconomyService>(&content, &shops);
         economy->setGold(100);
         economy->setSeason(fa::content::Season::Spring);
+        if (!scripted) {
+            economyDemo = EconomyDemoStats{};
+            economyDemo.stats = economy->stats();
+            economyDemo.gold = economy->gold();
+            return;
+        }
 
         fa::inventory::Inventory& bag = playerInventory->backpack();
         const fa::content::ContentId shop = fa::content::ContentId::fromName("shop.general");
@@ -1760,11 +2017,13 @@ public:
 
     /// \brief Creates the M22 calendar and two placeholder point lights.
     ///
-    /// The demo runs the clock fast (0.01 real seconds per game minute) so the
-    /// 60-frame smoke shows an hour change; the product default is 0.7.
-    void initializeCalendar() {
+    /// The scripted smoke runs the clock fast (0.01 real seconds per game minute) so
+    /// the 60-frame run shows an hour change; play mode keeps the product default.
+    void initializeCalendar(bool forPlay) {
         calendar = std::make_unique<fa::world::WorldCalendar>(20261018ULL);
-        calendar->setRealSecondsPerGameMinute(0.01f);
+        if (!forPlay) {
+            calendar->setRealSecondsPerGameMinute(0.01f);
+        }
         calendarEvents = 0;
 
         fa::world::PointLight markerLight;
@@ -2129,8 +2388,359 @@ public:
                 const fa::core::Status status = saveService->deleteSlot(args[0]);
                 console.print(status.isOk() ? "deleted " + args[0] : "delete failed: " + status.error().message);
             }}));
+
+        static_cast<void>(debugTools->registerCommand(fa::debug::ConsoleCommand{
+            "time.addDays", "advance N game days: time.addDays <1..365>",
+            [this](fa::debug::DebugConsole& console, std::span<const std::string> args) {
+                if (args.size() != 1 || calendar == nullptr) {
+                    console.print("usage: time.addDays <1..365>");
+                    return;
+                }
+                const int days = std::atoi(args[0].c_str());
+                if (days < 1 || days > 365) {
+                    console.print("days must be 1..365");
+                    return;
+                }
+                advanceDays(days);
+                console.print("advanced " + std::to_string(days) + " day(s)");
+            }}));
+
+        static_cast<void>(debugTools->registerCommand(fa::debug::ConsoleCommand{
+            "time.set", "set the clock: time.set HH:MM",
+            [this](fa::debug::DebugConsole& console, std::span<const std::string> args) {
+                const std::size_t colon = args.size() == 1 ? args[0].find(':') : std::string::npos;
+                if (colon == std::string::npos || calendar == nullptr) {
+                    console.print("usage: time.set HH:MM");
+                    return;
+                }
+                const int hour = std::atoi(args[0].substr(0, colon).c_str());
+                const int minute = std::atoi(args[0].substr(colon + 1).c_str());
+                if (hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+                    console.print("usage: time.set HH:MM");
+                    return;
+                }
+                setClock(hour, minute);
+                console.print("time set");
+            }}));
     }
 
+#endif
+
+    /// \brief Maps the content string to the M17 tool enum.
+    [[nodiscard]] static fa::interaction::ToolKind toolKindFor(const fa::content::ItemDef* def) noexcept {
+        if (def == nullptr) {
+            return fa::interaction::ToolKind::None;
+        }
+        const std::string& kind = def->toolKind;
+        if (kind == "hoe") return fa::interaction::ToolKind::Hoe;
+        if (kind == "watering_can") return fa::interaction::ToolKind::WateringCan;
+        if (kind == "axe") return fa::interaction::ToolKind::Axe;
+        if (kind == "pickaxe") return fa::interaction::ToolKind::Pickaxe;
+        if (kind == "sword") return fa::interaction::ToolKind::Sword;
+        if (kind == "seed") return fa::interaction::ToolKind::Seed;
+        if (kind == "harvest") return fa::interaction::ToolKind::Harvest;
+        if (kind == "placeable") return fa::interaction::ToolKind::Placeable;
+        return fa::interaction::ToolKind::None;
+    }
+
+    void setPlayMessage(std::string message) {
+        playMessage = std::move(message);
+        playMessageTimer = 2.5f;
+    }
+
+    /// \brief Uses the selected hotbar item on the cell in front of the player.
+    [[nodiscard]] fa::core::Status handleUseTool() {
+        if (!playMode || demoScene == nullptr || playerInventory == nullptr) {
+            return fa::core::errorStatus(fa::core::error_code::kUnsupported,
+                                         "play mode is not active");
+        }
+        const fa::inventory::ItemStack& selected = playerInventory->hotbar().selectedStack();
+        if (selected.empty()) {
+            setPlayMessage("NO TOOL IN THE SELECTED SLOT");
+            return fa::core::errorStatus(fa::inventory::inventory_error::kSlotEmpty,
+                                         "the selected slot is empty");
+        }
+        const fa::content::ItemDef* def = content.item(selected.id);
+        fa::interaction::ToolKind tool = toolKindFor(def);
+        if (tool == fa::interaction::ToolKind::None) {
+            setPlayMessage("NOT A TOOL: " + std::string(selected.id.name()));
+            return fa::core::errorStatus(fa::core::error_code::kUnsupported,
+                                         "the selected item is not a tool");
+        }
+
+        const fa::interaction::GridTarget target = demoScene->frontTarget();
+        if (tool == fa::interaction::ToolKind::Seed) {
+            demoScene->setSelectedSeed(selected.id);
+        }
+        if (target.valid) {
+            const fa::farming::CropState* crop = demoScene->cropAt(target.cell);
+            if (crop != nullptr && crop->harvestable) {
+                tool = fa::interaction::ToolKind::Harvest;
+            }
+        }
+
+        fa::interaction::InteractionRequest request;
+        request.actor = demoScene->playerEntity();
+        request.target = target;
+        request.tool = tool;
+        const fa::core::Status status = demoScene->interact(request);
+        const std::string toolName(toString(tool));
+        if (status.isOk()) {
+            setPlayMessage(toolName + " OK");
+        } else {
+            setPlayMessage(toolName + ": " + status.error().message);
+        }
+        return status;
+    }
+
+    /// \brief Spawns one melee attack in front of the player.
+    void handleAttack() {
+        if (!playMode || demoScene == nullptr) {
+            return;
+        }
+        const bool spawned = demoScene->playerAttack(10, 14.0f);
+        setPlayMessage(spawned ? "ATTACK" : "ATTACK UNAVAILABLE");
+    }
+
+    /// \brief Creates a visible drop entity at a world position.
+    void spawnLoot(fa::core::Vec2 position, const fa::content::ContentId& item, int count) {
+        if (demoScene == nullptr) {
+            return;
+        }
+        fa::scene::World& world = demoScene->world();
+        const fa::scene::EntityId id = world.create();
+        fa::scene::Transform transform;
+        transform.position = position;
+        static_cast<void>(world.add<fa::scene::Transform>(id, transform));
+
+        fa::scene::Sprite sprite;
+        sprite.texture = uiWhiteTexture;
+        sprite.size = fa::core::Vec2{6.0f, 6.0f};
+        sprite.layer = fa::render::RenderLayer::Objects;
+        sprite.tint = fa::core::Color{1.0f, 0.85f, 0.25f, 1.0f};
+        static_cast<void>(world.add<fa::scene::Sprite>(id, sprite));
+        static_cast<void>(world.add<LootDrop>(id, LootDrop{item, count}));
+    }
+
+    /// \brief Rolls death loot, destroys dead enemies and reports hits.
+    void processCombatEvents() {
+        if (!playMode || demoScene == nullptr) {
+            return;
+        }
+        for (const fa::combat::DamageEvent& damage : demoScene->damageEvents()) {
+            if (damage.amount > 0) {
+                setPlayMessage("HIT " + std::to_string(damage.amount));
+            }
+        }
+
+        for (const fa::combat::DeathEvent& death : demoScene->deathEvents()) {
+            fa::core::Vec2 position{};
+            if (const fa::scene::Transform* transform =
+                    demoScene->world().tryGet<fa::scene::Transform>(death.entity);
+                transform != nullptr) {
+                position = transform->position;
+            }
+            if (const fa::content::LootTableDef* table = content.lootTable(death.lootTable);
+                table != nullptr) {
+                for (const fa::content::LootEntry& entry : table->entries) {
+                    if (!m_lootRng.chance(entry.chance)) {
+                        continue;
+                    }
+                    const int count = m_lootRng.range(entry.minAmount, entry.maxAmount + 1);
+                    if (count > 0) {
+                        spawnLoot(position, entry.item, count);
+                    }
+                }
+            }
+            if (demoScene->isAlive(death.entity)) {
+                demoScene->world().destroy(death.entity);
+            }
+            setPlayMessage("ENEMY DOWN");
+        }
+        demoScene->clearCombatEvents();
+    }
+
+    /// \brief Picks up drops within 14 px of the player's centre.
+    void collectLoot() {
+        if (!playMode || demoScene == nullptr || playerInventory == nullptr) {
+            return;
+        }
+        fa::inventory::Inventory& bag = playerInventory->backpack();
+        const fa::core::Vec2 player = demoScene->markerCenter();
+        std::vector<fa::scene::EntityId> collected;
+        demoScene->world().each<LootDrop, fa::scene::Transform>(
+            [&](fa::scene::EntityId id, LootDrop& drop, const fa::scene::Transform& transform) {
+                const fa::core::Vec2 center{transform.position.x + 3.0f,
+                                            transform.position.y + 3.0f};
+                const float dx = center.x - player.x;
+                const float dy = center.y - player.y;
+                if (dx * dx + dy * dy > 14.0f * 14.0f) {
+                    return;
+                }
+                const fa::inventory::ItemStack stack{drop.item, drop.count, -1};
+                if (bag.spaceFor(stack) < drop.count) {
+                    setPlayMessage("BAG FULL");
+                    return;
+                }
+                const fa::core::Result<int> added = bag.add(stack);
+                if (added.isError() || added.value() != 0) {
+                    setPlayMessage("BAG FULL");
+                    return;
+                }
+                collected.push_back(id);
+                const fa::content::ItemDef* def = content.item(drop.item);
+                setPlayMessage("PICKED " +
+                               (def != nullptr ? def->displayName : std::string(drop.item.name())) +
+                               " x" + std::to_string(drop.count));
+            });
+        for (const fa::scene::EntityId id : collected) {
+            demoScene->world().destroy(id);
+        }
+    }
+
+    /// \brief Consumes the controller's per-step action records.
+    void processPlayerActions() {
+        if (!playMode || demoScene == nullptr) {
+            return;
+        }
+        for (const fa::player::PlayerActionRequest& action : demoScene->takePlayerActions()) {
+            switch (action.kind) {
+                case fa::player::PlayerActionKind::UseTool:
+                    static_cast<void>(handleUseTool());
+                    break;
+                case fa::player::PlayerActionKind::Attack:
+                    handleAttack();
+                    break;
+                case fa::player::PlayerActionKind::Interact:
+                    setPlayMessage("INTERACT: next increment");
+                    break;
+                case fa::player::PlayerActionKind::OpenInventory:
+                    setPlayMessage("INVENTORY UI: next increment");
+                    break;
+                default:
+                    break;
+            }
+        }
+    }
+
+    [[nodiscard]] static fa::content::Season contentSeason(fa::world::Season season) noexcept {
+        switch (season) {
+            case fa::world::Season::Spring: return fa::content::Season::Spring;
+            case fa::world::Season::Summer: return fa::content::Season::Summer;
+            case fa::world::Season::Fall: return fa::content::Season::Fall;
+            case fa::world::Season::Winter: return fa::content::Season::Winter;
+            case fa::world::Season::Count: break;
+        }
+        return fa::content::Season::Spring;
+    }
+
+    /// \brief Advances N game days and runs the M19/M24/M23 daily steps.
+    void advanceDays(int days) {
+        if (calendar == nullptr || days <= 0) {
+            return;
+        }
+        for (int index = 0; index < days; ++index) {
+            calendar->skipToNextDay();
+            fa::farming::FarmingDayContext context;
+            context.season = contentSeason(calendar->season());
+            context.rain = calendar->isRaining();
+            context.growthMultiplier = calendar->cropGrowthMultiplier();
+            if (demoScene != nullptr) {
+                demoScene->advanceFarmingDay(context);
+                demoScene->narrative().onDayChanged();
+            }
+            if (economy != nullptr) {
+                static_cast<void>(economy->onDayChanged());
+            }
+        }
+        calendar->clearEvents();
+        setPlayMessage("ADVANCED " + std::to_string(days) + " DAY(S)");
+    }
+
+    /// \brief Headless check of the play loop: select -> use -> grow -> harvest.
+    [[nodiscard]] bool runPlaySelfTest() {
+        if (!playMode || demoScene == nullptr || playerInventory == nullptr) {
+            std::printf("play-test: scene or inventory unavailable\n");
+            return false;
+        }
+
+        const fa::core::Rect start = demoScene->mapTileRect(fa::tilemap::TileCoord{4, 8});
+        demoScene->teleportMarker(fa::core::Vec2{start.x, start.y});
+        fa::inventory::Hotbar& hotbar = playerInventory->hotbar();
+        const fa::content::ContentId turnip = fa::content::ContentId::fromName("item.turnip");
+        const auto useSlot = [&](int slot) {
+            static_cast<void>(hotbar.select(slot));
+            return handleUseTool();
+        };
+
+        bool ok = true;
+        const auto report = [&ok](const char* step, const fa::core::Status& status) {
+            if (status.isOk()) {
+                std::printf("play-test: %s ok\n", step);
+            } else {
+                std::printf("play-test: %s failed (%d): %s\n", step, status.error().code,
+                            status.error().message.c_str());
+                ok = false;
+            }
+        };
+
+        report("till", useSlot(0));
+        report("plant", useSlot(2));
+        report("water", useSlot(1));
+
+        for (int day = 0; day < 5; ++day) {
+            report("water", useSlot(1));
+            advanceDays(1);
+        }
+
+        const int before = hotbar.inventory().countOf(turnip);
+        report("harvest", useSlot(0));
+        const int after = hotbar.inventory().countOf(turnip);
+        std::printf("play-test: turnips %d -> %d\n", before, after);
+        if (after <= before) {
+            std::printf("play-test: harvest produced no turnip\n");
+            ok = false;
+        }
+
+        // Combat: face the first dummy, swing until it dies, then pick up loot.
+        demoScene->teleportMarker(fa::core::Vec2{288.0f, 212.0f});
+        demoScene->setPlayerFacing(fa::player::Facing::East);
+        demoScene->syncPhysics();
+        const fa::content::ContentId seed = fa::content::ContentId::fromName("item.turnip_seed");
+        const int seedsBefore = playerInventory->backpack().countOf(seed);
+        const fa::scene::EntityId dummy = demoScene->combatDummy1();
+        for (int attempt = 0; attempt < 6 && demoScene->isAlive(dummy); ++attempt) {
+            handleAttack();
+            for (int step = 0; step < 12; ++step) {
+                demoScene->advanceCombat(1.0f / 60.0f);
+                processCombatEvents();
+                collectLoot();
+            }
+        }
+        const bool killed = !demoScene->isAlive(dummy);
+        const int seedsAfter = playerInventory->backpack().countOf(seed);
+        std::printf("play-test: combat %s, seeds %d -> %d\n", killed ? "killed" : "failed",
+                    seedsBefore, seedsAfter);
+        if (!killed || seedsAfter <= seedsBefore) {
+            ok = false;
+        }
+
+        std::printf("play-test: %s\n", ok ? "OK" : "FAILED");
+        return ok;
+    }
+
+    /// \brief Sets the time of day without changing date or weather.
+    void setClock(int hour, int minute) {
+        if (calendar == nullptr) {
+            return;
+        }
+        const float timeOfDay = static_cast<float>(hour) + static_cast<float>(minute) / 60.0f;
+        calendar->restore(calendar->date(), timeOfDay, calendar->today(), calendar->tomorrow());
+        calendar->clearEvents();
+        setPlayMessage("TIME SET");
+    }
+
+#if defined(FA_ENABLE_DEBUG_TOOLS)
     /// \brief Fills the M27 snapshot from the modules the app already owns.
     void updateDebugStats() {
         if (debugTools == nullptr) {
@@ -2169,6 +2779,35 @@ public:
         const fa::tilemap::TilemapStats mapSnapshot = sceneTilemapStats();
         stats.mapTiles = mapSnapshot.nonEmptyTiles;
         stats.mapSolidTiles = mapSnapshot.solidTiles;
+
+        // The camera belongs to the controlled character: report where it is and
+        // which entity it follows.
+        stats.camera.valid = true;
+        stats.camera.position = camera.position();
+        stats.camera.viewportSize = camera.viewportSize();
+        stats.camera.visible = camera.visibleRect();
+        const fa::render::CameraFollowConfig follow = camera.followConfig();
+        stats.camera.deadzoneX = follow.deadzone.x;
+        stats.camera.deadzoneY = follow.deadzone.y;
+        stats.camera.smoothing = follow.smoothing;
+        if (demoScene != nullptr) {
+            stats.camera.followTarget = demoScene->playerEntity();
+            stats.camera.following = stats.camera.followTarget.isValid();
+            for (const AiTargetDebugSnapshot& snapshot : demoScene->aiTargetDebugSnapshot()) {
+                fa::debug::DebugAiTargetInfo info;
+                info.agent = snapshot.agent;
+                info.target = snapshot.target;
+                info.hasTarget = snapshot.hasTarget;
+                info.targetVisible = snapshot.targetVisible;
+                info.state.assign(fa::ai::toString(snapshot.state));
+                info.agentPosition = snapshot.agentCenter;
+                info.targetPosition = snapshot.targetCenter;
+                info.hasAgentPosition = snapshot.hasAgentCenter;
+                info.hasTargetPosition = snapshot.hasTargetCenter;
+                stats.aiTargets.push_back(std::move(info));
+            }
+        }
+
         debugTools->setStats(stats);
     }
 
@@ -2184,6 +2823,9 @@ public:
     }
     [[nodiscard]] std::size_t debugCVarCount() const {
         return debugTools != nullptr ? debugTools->cvars().size() : 0;
+    }
+    [[nodiscard]] fa::debug::DebugStats debugSnapshot() const {
+        return debugTools != nullptr ? debugTools->stats() : fa::debug::DebugStats{};
     }
 #endif
 
@@ -2414,6 +3056,9 @@ public:
             demoScene->advanceCombat(static_cast<float>(context.fixedDeltaSeconds));
             demoScene->advanceAi(static_cast<float>(context.fixedDeltaSeconds));
         }
+        processPlayerActions();
+        processCombatEvents();
+        collectLoot();
         if (demo != nullptr) {
             demo->beginTick(context.fixedStepIndex);
         }
@@ -2427,6 +3072,37 @@ public:
             // the internal event vector from growing for the life of the process.
             calendarEvents += calendar->events().size();
             calendar->clearEvents();
+        }
+
+        if (playMode && playerInventory != nullptr) {
+            for (std::size_t index = 0; index < m_hotbarActions.size(); ++index) {
+                if (!input.wasPressed(m_hotbarActions[index])) {
+                    continue;
+                }
+                static_cast<void>(playerInventory->hotbar().select(static_cast<int>(index)));
+                const fa::inventory::ItemStack& selected = playerInventory->hotbar().selectedStack();
+                const fa::content::ItemDef* selectedDef =
+                    selected.empty() ? nullptr : content.item(selected.id);
+                setPlayMessage("SLOT " + std::to_string(index + 1) + ": " +
+                               (selectedDef != nullptr ? selectedDef->displayName : "EMPTY"));
+            }
+            const fa::core::Vec2 wheel = input.scroll();
+            if (wheel.y > 0.0f) {
+                static_cast<void>(playerInventory->hotbar().cycle(-1));
+            } else if (wheel.y < 0.0f) {
+                static_cast<void>(playerInventory->hotbar().cycle(1));
+            }
+
+            if (demoScene != nullptr) {
+                const fa::interaction::GridTarget target = demoScene->frontTarget();
+                if (target.valid) {
+                    demoScene->setCursorWorld(fa::core::center(demoScene->mapTileRect(target.cell)));
+                }
+            }
+        }
+        if (playMessageTimer > 0.0f) {
+            playMessageTimer = std::max(0.0f, playMessageTimer -
+                                                 static_cast<float>(context.realDeltaSeconds));
         }
         stack.variableUpdate(context);
     }
@@ -2523,6 +3199,10 @@ public:
     /// \brief Events that were not consumed by the console, forwarded to M07.
     std::vector<fa::platform::PlatformEvent> filteredEvents;
 #endif
+    std::array<fa::input::ActionId, 9> m_hotbarActions{};
+    fa::core::Rng m_lootRng{0x5eed1234ULL};
+    std::string playMessage;
+    float playMessageTimer = 0.0f;
     int quitEvents = 0;
     int resizeEvents = 0;
     int renderedFrames = 0;
@@ -2581,7 +3261,15 @@ public:
         return demoScene != nullptr ? demoScene->combatDemoStats() : CombatDemoStats{};
     }
     FarmingDemoStats sceneFarmingStats() const {
-        return demoScene != nullptr ? demoScene->farmingDemoStats() : FarmingDemoStats{};
+        if (demoScene == nullptr) {
+            return FarmingDemoStats{};
+        }
+        if (playMode) {
+            FarmingDemoStats live;
+            live.stats = demoScene->farmingStats();
+            return live;
+        }
+        return demoScene->farmingDemoStats();
     }
     AiDemoStats sceneAiStats() const {
         return demoScene != nullptr ? demoScene->aiDemoStats() : AiDemoStats{};
@@ -2622,6 +3310,8 @@ public:
     fa::core::Vec2 sceneMarkerPosition() const {
         return demoScene != nullptr ? demoScene->markerPosition() : fa::core::Vec2{};
     }
+    fa::core::Vec2 cameraPosition() const { return camera.position(); }
+    fa::render::CameraFollowConfig cameraFollowConfig() const { return camera.followConfig(); }
     std::size_t sceneSystemCount() const {
         return demoScene != nullptr ? demoScene->systems().size() : 0;
     }
@@ -2707,6 +3397,45 @@ private:
             ui->text(goldText, fa::core::makeRect(254.0f, 74.0f, 150.0f, 7.0f), goldStyle);
         }
 
+        if (playMode && calendar != nullptr) {
+            const fa::core::Rect panel = fa::core::makeRect(254.0f, 96.0f, 214.0f, 62.0f);
+            ui->panel(panel, theme.panel);
+            ui->border(panel, theme.panelBorder);
+
+            fa::ui::TextStyle style;
+            style.color = theme.text;
+            style.scale = 1.0f;
+
+            const std::string seasonName(fa::world::toString(calendar->season()));
+            char clockText[64]{};
+            std::snprintf(clockText, sizeof(clockText), "DAY %d  %02d:%02d  %s",
+                          calendar->date().day, calendar->hour(), calendar->minute(),
+                          seasonName.c_str());
+            ui->text(clockText, fa::core::makeRect(panel.x + 5.0f, panel.y + 5.0f, 204.0f, 7.0f),
+                     style);
+
+            const fa::inventory::ItemStack& selected =
+                playerInventory != nullptr ? playerInventory->hotbar().selectedStack()
+                                           : fa::inventory::ItemStack{};
+            const fa::content::ItemDef* selectedDef =
+                selected.empty() ? nullptr : content.item(selected.id);
+            char toolText[64]{};
+            std::snprintf(toolText, sizeof(toolText), "TOOL %s",
+                          selectedDef != nullptr ? selectedDef->displayName.c_str() : "EMPTY");
+            ui->text(toolText, fa::core::makeRect(panel.x + 5.0f, panel.y + 16.0f, 204.0f, 7.0f),
+                     style);
+            ui->text("1-9 SLOT  WHEEL  LMB USE",
+                     fa::core::makeRect(panel.x + 5.0f, panel.y + 27.0f, 204.0f, 7.0f), style);
+
+            if (playMessageTimer > 0.0f && !playMessage.empty()) {
+                fa::ui::TextStyle messageStyle = style;
+                messageStyle.color = theme.accent;
+                ui->text(playMessage.substr(0, 38),
+                         fa::core::makeRect(panel.x + 5.0f, panel.y + 40.0f, 204.0f, 7.0f),
+                         messageStyle);
+            }
+        }
+
 #if defined(FA_ENABLE_DEBUG_TOOLS)
         if (debugTools != nullptr) {
             debugTools->draw(*ui, camera.visibleRect());
@@ -2775,9 +3504,17 @@ private:
             camera.setBounds(demoScene != nullptr ? demoScene->mapBounds()
                                                   : fa::core::makeRect(0.0f, 0.0f, 40.0f * fa::render::kTileSize,
                                                                        23.0f * fa::render::kTileSize));
+            // A small deadzone avoids distracting micro-movement while walking;
+            // 10/s easing keeps the follow smooth without lagging behind.
+            camera.setFollowConfig(fa::render::CameraFollowConfig{
+                fa::core::Vec2{48.0f, 32.0f}, 10.0f, 0.0f});
+            camera.setPosition(demoScene != nullptr ? demoScene->markerCenter()
+                                                    : fa::core::Vec2{320.0f, 200.0f});
             cameraReady = true;
         }
-        camera.setPosition(fa::core::Vec2{320.0f + static_cast<float>(renderedFrames % 5), 200.0f});
+        if (demoScene != nullptr) {
+            camera.follow(demoScene->markerCenter(), static_cast<float>(lastRealDelta));
+        }
 
         renderer->beginFrame(camera);
 
@@ -2795,7 +3532,7 @@ private:
         // strips the letterbox, the camera removes its own offset.
         const fa::render::Viewport viewport = renderer->viewport();
         const fa::core::Vec2 cursor = camera.viewportToWorld(viewport.windowToVirtual(lastMouse));
-        if (demoScene != nullptr) {
+        if (demoScene != nullptr && !playMode) {
             demoScene->setCursorWorld(cursor);
         }
 #if defined(FA_ENABLE_EDITOR)
@@ -2915,6 +3652,44 @@ private:
 #endif
 
 #if defined(FA_ENABLE_DEBUG_TOOLS)
+        /// F3 (stats) also shows each AI agent and the target it has locked: a dim
+        /// box on the agent, a line to the target, and an orange target box while
+        /// the target is visible through M21's line of sight.
+        if (debugTools != nullptr && debugTools->statsVisible()) {
+            // Cyan marks the camera's follow target and the offset from the view
+            // centre, which makes the deadzone visible while walking.
+            if (demoScene != nullptr && debugTools->stats().camera.following) {
+                const fa::core::Vec2 followCenter = demoScene->markerCenter();
+                const fa::core::Color cameraColor{0.2f, 0.9f, 1.0f, 0.9f};
+                renderer->drawDebugRect(
+                    fa::core::makeRect(followCenter.x - 5.0f, followCenter.y - 5.0f, 10.0f, 10.0f),
+                    cameraColor);
+                renderer->drawDebugLine(camera.position(), followCenter, cameraColor, 1.0f);
+            }
+
+            for (const fa::debug::DebugAiTargetInfo& info : debugTools->stats().aiTargets) {
+                if (!info.hasAgentPosition) {
+                    continue;
+                }
+                const fa::core::Color agentColor{0.55f, 0.75f, 1.0f, 0.9f};
+                renderer->drawDebugRect(
+                    fa::core::makeRect(info.agentPosition.x - 4.0f, info.agentPosition.y - 4.0f,
+                                       8.0f, 8.0f),
+                    agentColor);
+                if (!info.hasTargetPosition) {
+                    continue;
+                }
+                const fa::core::Color targetColor =
+                    info.targetVisible ? fa::core::Color{1.0f, 0.55f, 0.2f, 1.0f}
+                                       : fa::core::Color{0.65f, 0.65f, 0.65f, 0.9f};
+                renderer->drawDebugLine(info.agentPosition, info.targetPosition, targetColor, 1.0f);
+                renderer->drawDebugRect(
+                    fa::core::makeRect(info.targetPosition.x - 4.0f, info.targetPosition.y - 4.0f,
+                                       8.0f, 8.0f),
+                    targetColor);
+            }
+        }
+
         /// F5 toggles collision boxes. M13 produces the shapes, M27 adapts them to
         /// M06's debug draw calls; the renderer still owns the actual quads.
         if (debugTools != nullptr && debugTools->physicsVisible() && demoScene != nullptr) {
@@ -2960,6 +3735,11 @@ int main(int argc, char** argv) {
 
     SmokeSink sink;
     sink.demo = &demo;
+    sink.playMode = options.playMode;
+    if (options.playMode) {
+        std::printf("play mode: WASD move, 1-9 hotbar, wheel cycle, LMB use, E interact\n");
+        std::printf("           console `, F3 stats, time.addDays N / time.set HH:MM\n");
+    }
 
     const fa::core::Status contentStatus = sink.initializeContent();
     if (contentStatus.isError()) {
@@ -2969,7 +3749,7 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    const fa::core::Status inventoryStatus = sink.initializeInventory();
+    const fa::core::Status inventoryStatus = sink.initializeInventory(options.playMode);
     if (inventoryStatus.isError()) {
         std::printf("inventory init failed (%d): %s\n", inventoryStatus.error().code,
                     inventoryStatus.error().message.c_str());
@@ -2977,9 +3757,9 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    sink.initializeEconomy();
+    sink.initializeEconomy(!options.playMode);
     sink.initializeSave(*platform);
-    sink.initializeCalendar();
+    sink.initializeCalendar(options.playMode);
 
     /// Audio is optional in exactly the same way as GL: a CI image without a
     /// sound card must still finish the smoke run.
@@ -3035,8 +3815,9 @@ int main(int argc, char** argv) {
 
     fa::time::FrameLoopConfig config;
     /// A hidden smoke run needs a few frames; a visible window runs until closed.
-    config.maxFrames = options.frames > 0 ? static_cast<std::uint64_t>(options.frames)
-                                         : (options.visibleWindow ? 0u : 3u);
+    config.maxFrames = options.frames > 0
+                           ? static_cast<std::uint64_t>(options.frames)
+                           : (options.playTest ? 1u : (options.visibleWindow ? 0u : 3u));
     /// Software pacing only for headless runs; a real window is paced by vsync (M06).
     config.pacingFramesPerSecond = options.visibleWindow ? 0 : fa::time::kFixedStepsPerSecond;
 
@@ -3047,10 +3828,16 @@ int main(int argc, char** argv) {
 
     const fa::time::FixedStepClock& clock = loop.clock();
     const bool eventsJobsOk = demo.flush();
-    /// M14 runs after the scene has lived for the whole smoke run.
-    sink.runSaveDemo();
-    /// M25 exercises the application flow once the demo state is complete.
-    sink.runFlowDemo();
+    bool playTestOk = true;
+    if (options.playTest) {
+        playTestOk = sink.runPlaySelfTest();
+    }
+    if (!options.playMode) {
+        /// M14 runs after the scene has lived for the whole smoke run.
+        sink.runSaveDemo();
+        /// M25 exercises the application flow once the demo state is complete.
+        sink.runFlowDemo();
+    }
     // Snapshot what the summary reports: the strings and the stats die with the context.
     std::string glVersionText;
     std::string glRendererText;
@@ -3061,6 +3848,8 @@ int main(int argc, char** argv) {
         liveTextures = sink.renderer->liveTextureCount();
     }
     const fa::render::RenderStats renderStats = sink.lastRenderStats();
+    const fa::core::Vec2 cameraPosition = sink.cameraPosition();
+    const fa::render::CameraFollowConfig cameraFollow = sink.cameraFollowConfig();
     const fa::assets::AssetStats assetStats = sink.assetStats();
     const fa::content::ContentStats contentStats = sink.contentStats();
     const int contentStack = sink.contentSampleStack();
@@ -3104,6 +3893,7 @@ int main(int argc, char** argv) {
 #if defined(FA_ENABLE_DEBUG_TOOLS)
     const std::size_t debugCommands = sink.debugCommandCount();
     const std::size_t debugCvars = sink.debugCVarCount();
+    const fa::debug::DebugStats debugSnapshot = sink.debugSnapshot();
     sink.shutdownDebug();
 #endif
     sink.shutdownFlow();
@@ -3155,8 +3945,10 @@ int main(int argc, char** argv) {
                     audioStats.channels, static_cast<unsigned long long>(audioStats.mixedFrames));
     }
 #if defined(FA_ENABLE_DEBUG_TOOLS)
-    std::printf("  m27: %zu console command(s), %zu cvar(s), F3 stats / F4 log / ` console\n",
-                debugCommands, debugCvars);
+    std::printf("  m27: %zu console command(s), %zu cvar(s), camera %s, %zu ai target(s), "
+                "F3 stats / F4 log / ` console\n",
+                debugCommands, debugCvars, debugSnapshot.camera.valid ? "ok" : "none",
+                debugSnapshot.aiTargets.size());
 #else
     std::printf("  m27: disabled (release build)\n");
 #endif
@@ -3179,6 +3971,12 @@ int main(int argc, char** argv) {
                     "%u dropped, %d live texture(s)\n",
                     renderStats.drawCalls, renderStats.quads, renderStats.vertices, renderStats.textureSwitches,
                     renderStats.droppedItems, liveTextures);
+        std::printf("       camera (%.1f, %.1f), follow deadzone %.1fx%.1f, %.1f/s, cap %.1f px/s\n",
+                    static_cast<double>(cameraPosition.x), static_cast<double>(cameraPosition.y),
+                    static_cast<double>(cameraFollow.deadzone.x),
+                    static_cast<double>(cameraFollow.deadzone.y),
+                    static_cast<double>(cameraFollow.smoothing),
+                    static_cast<double>(cameraFollow.maxSpeed));
     }
     std::printf("  m05: %zu catalog entr(ies), %zu texture(s) cached, %zu placeholder(s), %zu CPU byte(s), "
                 "%zu live GPU texture(s), %zu failed\n",
@@ -3386,5 +4184,5 @@ int main(int argc, char** argv) {
 #else
     std::printf("M02+M03+M04+M05+M06+M07+M08+M09+M10+M11+M12+M13+M14+M15+M16+M17+M18+M19+M20+M21+M22+M23+M24+M25 smoke test OK\n");
 #endif
-    return 0;
+    return playTestOk ? 0 : 1;
 }

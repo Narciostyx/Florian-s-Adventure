@@ -27,6 +27,8 @@
 - 事件缓冲：`DamageEvent`、`DeathEvent`、`ProjectileEvent`、`StatusEvent`，由组装根决定是否发布到 M03。
 - `CombatStats`：攻击/命中/伤害/击杀/投射物/状态 tick。
 - app 演示：两个敌人 dummy、两次近战、一支投射物、一次中毒；近战击杀一个 dummy。
+- play 模式：右键在朝向前方生成 20×20 近战盒（伤害 10）；app 消费 `DeathEvent`、
+  按 `LootSource` 掷掉落、销毁敌人，并在玩家靠近时把 `LootDrop` 收进背包。
 
 **未实现 / 后续**
 
@@ -135,9 +137,10 @@ public:
 ## 7. 验收
 
 - `fa_tests.exe "[combat]"` → 7 用例 / 50 断言全绿。
-- 全量 → 469 用例 / 28935 断言全绿。
+- 全量 → 543 用例 / 30281 断言全绿。
 - 三配置 `fa_app.exe --frames 60` 输出
-  `m20: 2 attack(s), 4 hit(s), 46 damage, 1 kill(s), 1 projectile(s)/1 hit(s)/0 wall hit(s), 1 status tick(s), 9 event(s)`。
+  `m20: 3 attack(s), 5 hit(s), 51 damage, 1 kill(s), 1 projectile(s)/1 hit(s)/0 wall hit(s), 1 status tick(s), 10 event(s)`。
+- `fa_app.exe --play-test` → 2 次攻击击杀 dummy，掉落 2 个种子并自动拾取。
 - Debug/Development/Release 构建零 warning。
 
 ## 8. 风险与开放问题
@@ -146,7 +149,7 @@ public:
 - 矩形 hitbox 不跟朝向旋转；需要扇形/朝向偏移时再扩展。
 - 击退直接 `move`，可能被墙夹住；没有速度衰减/受击硬直。
 - 状态同类刷新，不叠加；DoT 按整数 tick，低 dps 可能延迟。
-- 死亡不销毁实体、不掷掉落；需要组装根/M25 接线。
+- M20 本身不销毁实体、不掷掉落；play 模式由 app 消费 `DeathEvent` 完成，脚本冒烟仍保留 dummy。
 - 没有抗性/暴击/连击/蓄力。
 - 投射物每步 `raycast` + `move`；数量大时需要批量查询/对象池。
 - 事件缓冲每帧由调用方清空；忘记清空会持续增长。

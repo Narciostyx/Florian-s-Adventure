@@ -72,6 +72,7 @@ M02+M03+M04+M05+M06+M07+M11+M12+M13+M15+M16+M17 smoke test OK
 | 10 | 季节 | 位掩码 | 作物/配方/温室判定共用 |
 | 11 | 资源校验 | 只校验 `AssetId` 语法 | 需要 catalog 才能查声明与否 |
 | 12 | 错误码 | 6000–6008 | Save/Content 段的前 9 个 |
+| 13 | 玩法工具映射 | `ItemDef::toolKind` 可选字符串 | M15 不依赖 M17 `ToolKind`；组装根在使用点转换，未知值在加载期报 `kInvalidField` |
 
 ## 5. 踩坑
 

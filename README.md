@@ -2,7 +2,9 @@
 
 一款俯视角 2D 像素风的**种植养成 + 实时动作战斗**游戏。
 
-> 当前状态：**架构设计阶段**。代码尚未开始，本仓库目前只包含架构与模块设计文档。
+> 当前状态：**28 个模块已实现并通过三配置实测**。`--play` 可进入最小可操作会话：
+> 种植闭环与近战/掉落拾取已接通；睡眠存档、场景切换与完整读档仍在接线中。
+> 详见 [计划完成情况](docs/plan-status.md) 与 [垂直切片](docs/roadmap/vertical-slice.md)。
 
 ## 目标
 
@@ -21,11 +23,11 @@
 | 包管理 | vcpkg manifest 模式 |
 | 平台 | Windows 10/11 x64（后续再考虑其他平台） |
 | 窗口 / 输入 / 音频 | SDL3 |
-| 图形 | OpenGL 4.1 Core + glad |
+| 图形 | OpenGL 4.1 Core（自研 42 项 GL 函数表，不引 glad） |
 | 数学 | glm |
-| 图像解码 | stb_image / stb_image_write |
+| 图像解码 | v1 无解码器；纹理由 catalog 色块程序化生成 |
 | 数据格式 | nlohmann/json |
-| 调试 UI | Dear ImGui（仅 Debug / 编辑器） |
+| 调试 UI | M09 即时模式 UI（不引 ImGui） |
 | 测试 | Catch2 |
 | 逻辑帧率 | 固定 60 Hz，渲染可变帧率 |
 | 世界单位 | 1 世界单位 = 1 逻辑像素；默认瓦片 16×16 |
@@ -35,6 +37,7 @@
 ## 文档入口
 
 - [文档索引](docs/index.md) —— 全部文档的导航与阅读顺序。
+- [代码速查](docs/code-reference.md) —— 28 个模块的命名空间、依赖、类型、方法与常量。
 - [架构总览](docs/architecture/overview-design.md) —— 分层、主循环、时间、坐标、ECS、线程与存档边界。
 - [愿景与设计支柱](docs/architecture/vision-and-pillars.md) —— 产品定位、核心循环与 v1 范围。
 - [模块地图](docs/architecture/module-map.md) —— 28 个模块的职责、层级与依赖图。
@@ -86,13 +89,42 @@ Florian-s-Adventure/
 └─ FloriansAdventure.sln
 ```
 
-## 构建（待代码落地后补全）
+## 构建
 
-1. 安装 Visual Studio 2026（Desktop development with C++）与 vcpkg。
-2. 设置 `VCPKG_ROOT`，执行 `vcpkg integrate install`。
-3. 打开 `FloriansAdventure.sln`，选择 `x64` 配置构建。
+需要 Visual Studio 2026（Desktop development with C++）与 vcpkg（`x64-windows-static-md`）。
 
-具体命令与 CI 配置将在 M00 实现时写入本文件。
+```powershell
+$env:VCPKG_ROOT='D:\CPPLibraries\vcpkg'
+$msbuild='C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\Bin\MSBuild.exe'
+& $msbuild FloriansAdventure.sln /p:Configuration=Debug /p:Platform=x64 /m /nologo /v:m
+```
+
+三配置：`Debug` / `Development` / `Release` × `x64`；测试在 `build\bin\x64\<Config>\`。
+
+## 运行与验证
+
+```powershell
+# 冒烟（60 帧、隐藏窗口）
+& ".\build\bin\x64\Debug\fa_app.exe" --frames 60
+
+# 可操作种植会话（需要窗口）
+& ".\build\bin\x64\Debug\fa_app.exe" --window --play
+
+# 无头自检：种植闭环 + 击杀 dummy + 拾取掉落；失败返回 1
+& ".\build\bin\x64\Debug\fa_app.exe" --play-test
+```
+
+`--play` 操作：
+
+| 输入 | 动作 |
+|---|---|
+| `WASD` | 移动（八向朝向） |
+| `1`–`9` / 滚轮 | 选择快捷栏（1 锄头、2 浇水壶、3 萝卜种子） |
+| 左键 | 使用当前工具/种子；指向成熟作物自动收获 |
+| 右键 | 近战攻击；敌人死亡后掉落并自动拾取 |
+| `E` | 交互（当前为占位提示） |
+| 反引号 | 调试控制台（`time.addDays N`、`time.set HH:MM`、`give`、`teleport`） |
+| `F3` / `F4` / `F5` | 统计 / 日志 / 物理调试（非 Release） |
 
 ## 许可证
 

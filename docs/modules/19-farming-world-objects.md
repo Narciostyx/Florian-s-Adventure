@@ -102,6 +102,8 @@ class FarmingToolHandler final : public interaction::IToolHandler {
 public:
     bool handles(interaction::ToolKind tool) const noexcept override;
     core::Status use(const interaction::ToolUseContext& context) override;
+    /// 组装根在 play 模式把种子扣费/收获入包切换到玩家快捷栏。
+    void setInventory(inventory::Inventory& inventory) noexcept;
 };
 
 } // namespace fa::farming

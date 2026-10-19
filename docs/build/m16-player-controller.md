@@ -79,7 +79,7 @@ x 始终是 344，m16 的速度/朝向/耐力在三种配置一致。不要逐�
 | 1 | 控制器与系统拆分 | `PlayerController` + `PlayerSystem` | 控制器可无 `IInput` 测试；系统只做输入采样 |
 | 2 | 位置写入者 | 只写 `Velocity` | M13 是唯一位置写入者；闪避也用速度而不是直接 `move` |
 | 3 | 动作输入 | 布尔为按下边沿，`run` 为持续 | 与 M07 的 `wasPressed`/`isDown` 语义一致 |
-| 4 | 朝向 | North/East/South/West，按主导轴 | 与 M17 的 `Facing` 顺序一致，app 可 `static_cast` |
+| 4 | 朝向 | 八向：四个正方向 + 四个斜向，按 45° 扇区 | 前四个枚举值保持历史顺序，四向消费者可 `static_cast`；斜向用 `cardinalFacing()` 折叠 |
 | 5 | 闪避 | 0.25 s 速度平台，不是一帧瞬移 | 保持“只写 Velocity”的规则，碰撞照常求解 |
 | 6 | 动作优先级 | UseTool > Attack > Interact | Interact 不锁移动；工具/攻击互斥 |
 | 7 | 动作锁 | 0.2 s 固定 | 轻/重攻击区分留给 M20 的手感调参 |
@@ -87,7 +87,7 @@ x 始终是 344，m16 的速度/朝向/耐力在三种配置一致。不要逐�
 | 9 | 组件添加 | `attach()` 只补缺失，不覆盖 | 场景/存档可以在 attach 前设置耐力/朝向 |
 | 10 | 动作 id | `PlayerSystem` 构造时缓存 | 热路径不做字符串哈希 |
 | 11 | 内容 ID | 不透明 `payload` | M15 未实现 |
-| 12 | 相机跟随 | 不做 | 当前 app 固定相机；M22/M25 再决定平滑/像素对齐 |
+| 12 | 相机跟随 | 由 M06 `Camera2D::follow()` 负责 | 控制器不持有相机；app 以玩家精灵中心为目标，带死区与平滑 |
 
 ## 5. 踩坑
 
@@ -153,6 +153,19 @@ foreach ($cfg in @('Debug','Development','Release')) {
     /p:Configuration=Debug /p:Platform=x64 /p:SolutionDir="$($PWD.Path)\" /m /nologo /v:m
 ```
 
+## 6.1 八向朝向（v1.1 补充）
+
+- `Facing` 追加 `NorthEast`/`SouthEast`/`SouthWest`/`NorthWest`；前四个枚举值
+  保持 `North=0, East=1, South=2, West=3`，现有四向消费者仍可 `static_cast`。
+- `facingFromVector()` 改为按 `atan2` 的 45° 扇区量化，边界正好在距正方向 22.5°；
+  零向量仍返回 fallback。
+- `directionVector()` 为斜向返回单位对角 `(±1/√2, ±1/√2)`，因此斜向闪避仍保持
+  `dodgeDistance/dodgeDuration` 的总速度。
+- 新增 `isDiagonal()` 与 `cardinalFacing()`（斜向折叠时纵向优先）。
+- `[player][facing]` 覆盖八向选择、22.5° 边界、四个斜向单位向量与折叠；
+  app 摘要的 `facing` 现在会打印 `south-east` 等斜向。
+- M10 的 `Direction` 仍是四向；斜向动画需要在组装根映射到相邻主方向。
+
 ## 7. 遗留风险
 
 1. 冒烟标记是 8×8；真实角色需要 `kPlayerFeetCollider`/16×24 精灵。
@@ -160,7 +173,7 @@ foreach ($cfg in @('Debug','Development','Release')) {
 3. 闪避期间完全禁止其他动作，是否允许取消攻击未定。
 4. 多玩家共享同一 `PlayerIntent`；v1 只支持一个玩家。
 5. `Hurt`/`Menu` 状态保留但未进入；需要 M09/M20/M25。
-6. 相机跟随未实现。
+6. 相机跟随由 M06 实现；控制器本身仍不感知相机。
 7. `payload` 是临时内容 ID；M15 落地后统一替换。
 8. 动作请求只记录不发布；M03 事件化由组装根决定。
 9. 没有动画；M10 落地后消费 `PlayerAnimationParams`。

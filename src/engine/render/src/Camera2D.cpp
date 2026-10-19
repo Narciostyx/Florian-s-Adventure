@@ -1,5 +1,8 @@
 #include <fa/render/Camera2D.hpp>
 
+#include <algorithm>
+#include <cmath>
+
 namespace fa::render {
 namespace {
 
@@ -31,6 +34,64 @@ void Camera2D::setBounds(core::Rect bounds) noexcept {
 void Camera2D::clearBounds() noexcept {
     m_hasBounds = false;
     m_bounds = core::Rect{};
+}
+
+void Camera2D::setFollowConfig(const CameraFollowConfig& config) noexcept {
+    m_follow.deadzone.x = std::max(0.0f, config.deadzone.x);
+    m_follow.deadzone.y = std::max(0.0f, config.deadzone.y);
+    m_follow.smoothing = std::max(0.0f, config.smoothing);
+    m_follow.maxSpeed = std::max(0.0f, config.maxSpeed);
+}
+
+void Camera2D::follow(core::Vec2 target, float deltaSeconds) noexcept {
+    if (!(deltaSeconds > 0.0f)) {
+        return;
+    }
+
+    // The deadzone is a half-extent around the current centre. Inside it the
+    // camera is already "close enough" and stays put; outside it the desired
+    // centre is placed so the target sits exactly on the deadzone edge.
+    core::Vec2 desired = m_position;
+    const float dx = target.x - m_position.x;
+    const float dy = target.y - m_position.y;
+    if (dx > m_follow.deadzone.x) {
+        desired.x = target.x - m_follow.deadzone.x;
+    } else if (dx < -m_follow.deadzone.x) {
+        desired.x = target.x + m_follow.deadzone.x;
+    }
+    if (dy > m_follow.deadzone.y) {
+        desired.y = target.y - m_follow.deadzone.y;
+    } else if (dy < -m_follow.deadzone.y) {
+        desired.y = target.y + m_follow.deadzone.y;
+    }
+
+    const float deltaX = desired.x - m_position.x;
+    const float deltaY = desired.y - m_position.y;
+    const float distance = std::sqrt(deltaX * deltaX + deltaY * deltaY);
+    if (distance <= 0.0f) {
+        return;
+    }
+
+    // Exponential easing is frame-rate independent. Smoothing 0 means a hard
+    // snap, which tests and cut-scenes can use.
+    float step = distance;
+    if (m_follow.smoothing > 0.0f) {
+        const float alpha = 1.0f - std::exp(-m_follow.smoothing * deltaSeconds);
+        step = distance * std::max(0.0f, alpha);
+    }
+    if (m_follow.maxSpeed > 0.0f) {
+        step = std::min(step, m_follow.maxSpeed * deltaSeconds);
+    }
+
+    // Snap the last fraction of a pixel so bounds are reached exactly; otherwise
+    // an exponential approach asymptotically stops just short of the clamp.
+    if (step >= distance - 1.0e-4f) {
+        setPosition(desired);
+        return;
+    }
+
+    const float scale = step / distance;
+    setPosition(core::Vec2{m_position.x + deltaX * scale, m_position.y + deltaY * scale});
 }
 
 void Camera2D::applyBounds() noexcept {

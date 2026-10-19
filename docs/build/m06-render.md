@@ -77,7 +77,7 @@ GitHub 的 Windows runner 走的是另一套图形栈。
 | `RenderError.hpp` | `render_error` 4000–4005（M06 初版误用 5000–5005，与 Ecs/Physics 区间冲突，M05 期间一并改正） |
 | `RenderTypes.hpp` | `TextureHandle`、`TextureFormat`、`bytesPerPixel`、`TextureDesc`、`RenderLayer`、`DrawItem`、`depthKey`、`drawsBefore`、`RenderStats` |
 | `Viewport.hpp` | `Viewport`：整数缩放 + letterbox + 双向坐标换算 |
-| `Camera2D.hpp` | `Camera2D`：只平移、边界夹取、正交投影矩阵 |
+| `Camera2D.hpp` | `Camera2D`：只平移、边界夹取、死区/平滑/限速跟随、正交投影矩阵 |
 | `RenderQueue.hpp` | `RenderQueue` + 静态 `countDrawCalls` / `countTextureSwitches` |
 | `IRenderer.hpp` | `RendererDesc`、`IRenderer`、`createRenderer()` |
 
@@ -93,7 +93,7 @@ GitHub 的 Windows runner 走的是另一套图形栈。
 |---|---|
 | `src/engine/render/src/RenderTypes.cpp` | `toString` 两张名字表、`effectiveRowPitch` |
 | `src/engine/render/src/Viewport.cpp` | `fit` 与坐标换算 |
-| `src/engine/render/src/Camera2D.cpp` | 边界夹取、`projection` 手写列主序矩阵 |
+| `src/engine/render/src/Camera2D.cpp` | 边界夹取、`follow()` 死区/指数平滑/限速、`projection` 手写列主序矩阵 |
 | `src/engine/render/src/RenderQueue.cpp` | `stable_sort` + 两次遍历统计 |
 | `src/engine/render/src/GlApi.hpp` | **私有头**：GL 类型/常量、`FA_GL_FUNCTION_LIST(X)`（42 个入口点）、`GlFunctions` |
 | `src/engine/render/src/GlApi.cpp` | 逐名解析 + `takeGlError` |
@@ -128,6 +128,8 @@ GitHub 的 Windows runner 走的是另一套图形栈。
 | GL 上下文归属 | `fa_platform::IGlContext`，由 `IPlatform::glContext()` 暴露 | 上下文寿命跟着窗口走；`fa_render` 因此零 SDL 依赖，换后端只需换 `IGlContext` |
 | GL 函数解析 | 自研 X-macro 表（42 个入口点），不引 glad | 零新依赖；这张表本身就是「引擎用到的 GL 面」的显式清单，加一个调用必须同时改两处 |
 | `Camera2D` 缩放 | **没有** zoom 字段，只平移 | 像素画缩放系数一旦非整数，精灵边缘就落到半像素；放大窗口是 `Viewport` 的整数倍职责 |
+| `Camera2D` 跟随 | 死区 + 指数平滑 + 可选限速，边界每步夹取 | 死区避免走路时画面抖动；指数平滑与帧率无关；夹取保证 128×128 地图边缘不露空白 |
+| 跟随收敛 | 最后 1e-4 px 直接吸附 | 纯指数逼近永远到不了边界，会让相机的 clamp 看起来「差一点」 |
 | `Viewport::scale` 下限 | 1 | 窗口比 640×360 还小时宁可裁剪边缘，也不缩到 1:1 以下（糊比丢更糟） |
 | letterbox 实现 | 两次 `glClear`（先整窗黑、再 `glViewport` 后清虚拟画布） | 不用 scissor，省一次状态切换；两块区域天然不重叠 |
 | letterbox 颜色 | 永远是黑 | `RendererDesc::clearColor` 只描述虚拟画布，黑边是「画布之外」而不是内容 |
@@ -314,6 +316,17 @@ fa_app.exe   → ran 60 frame(s) in 0.999s
 
 > 注：克隆到 `%TEMP%` 下会额外出现 `MSB8029`（中间目录位于临时目录），
 > 这是存放位置的副作用，与本仓库配置无关；正常路径下无此警告。
+
+## 相机跟随（v1.1 补充）
+
+- `CameraFollowConfig { deadzone, smoothing, maxSpeed }`；`smoothing = 0` 为硬跟随。
+- `follow(target, dt)` 用死区把目标保持在中心附近，再按指数平滑靠近；每步
+  `setPosition()` 继续执行地图边界夹取。
+- 128×128 瓦片地图（2048×2048 世界）测试覆盖：逐格跟随、视野不越界、四角夹取。
+- app 在 `renderFrame()` 里以玩家精灵中心（`markerCenter()`）为目标，死区 48×32、
+  平滑 10/s，冒烟摘要额外打印 `camera (...)` 与跟随参数。
+- 仍未做：像素对齐的整数吸附跟随（渲染端已 `snapped()`，相机位置仍保留亚像素）、
+  相机前瞻/回拉、震动、过场轨道。
 
 ## 遗留风险
 

@@ -33,7 +33,7 @@ constexpr std::string_view kValidDocument = R"({
   "schema_version": 1,
   "items": [
     {"id": "item.turnip_seed", "display_name": "Turnip Seed", "category": "seed",
-     "max_stack": 99, "sell_price": 5, "tags": ["seed", "spring"]},
+     "tool_kind": "seed", "max_stack": 99, "sell_price": 5, "tags": ["seed", "spring"]},
     {"id": "item.turnip", "display_name": "Turnip", "category": "crop",
      "max_stack": 99, "sell_price": 35, "tags": ["crop", "spring"]},
     {"id": "item.turnip_soup", "display_name": "Turnip Soup", "category": "food",
@@ -143,6 +143,7 @@ TEST_CASE("Content database loads every table and answers queries", "[content][l
     REQUIRE(seed != nullptr);
     REQUIRE(seed->displayName == "Turnip Seed");
     REQUIRE(seed->category == "seed");
+    REQUIRE(seed->toolKind == "seed");
     REQUIRE(seed->maxStack == 99);
     REQUIRE(seed->sellPrice == 5);
     REQUIRE(seed->tags.size() == 2);
@@ -259,6 +260,12 @@ TEST_CASE("Content loader collects field and amount errors", "[content][errors]"
         "items": [{"id": "item.a", "display_name": "A", "category": "misc", "max_stack": 0}]})") ==
             err::kValidationFailed);
     REQUIRE(hasErrorCode(db, err::kInvalidAmount));
+
+    db.clear();
+    REQUIRE(loadCode(db, R"({"schema_version": 1,
+        "items": [{"id": "item.a", "display_name": "A", "category": "misc",
+                   "tool_kind": "laser"}]})") == err::kValidationFailed);
+    REQUIRE(hasErrorCode(db, err::kInvalidField));
 
     db.clear();
     REQUIRE(loadCode(db, R"({"schema_version": 1,

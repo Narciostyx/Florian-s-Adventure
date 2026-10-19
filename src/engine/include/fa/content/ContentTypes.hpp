@@ -56,6 +56,12 @@ struct ItemDef {
     int sellPrice = 0;
     /// \brief `seed`, `crop`, `tool`, `weapon`, `material`, `food`, ...
     std::string category;
+    /// \brief Optional gameplay tool mapping: `hoe`, `watering_can`, `seed`,
+    /// `sword`, `axe`, `pickaxe`, `harvest` or `placeable`.
+    ///
+    /// Kept as a string so M15 does not depend on M17's `ToolKind`. The composition
+    /// root converts it once at the use site; an empty string means "not a tool".
+    std::string toolKind;
     std::vector<std::string> tags;
 };
 

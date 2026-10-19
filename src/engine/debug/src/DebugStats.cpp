@@ -1,6 +1,7 @@
 #include "fa/debug/DebugStats.hpp"
 
 #include <cstdio>
+#include <utility>
 
 namespace fa::debug {
 namespace {
@@ -23,11 +24,15 @@ namespace {
     return std::to_string(static_cast<unsigned long long>(value));
 }
 
+[[nodiscard]] std::string formatVector(core::Vec2 value) {
+    return "(" + formatFloat(value.x) + ", " + formatFloat(value.y) + ")";
+}
+
 }  // namespace
 
 std::vector<std::string> formatStats(const DebugStats& stats) {
     std::vector<std::string> lines;
-    lines.reserve(14);
+    lines.reserve(24);
     lines.push_back("FA DEBUG");
     lines.push_back("fps " + formatFloat(stats.fps) + "  frame " + formatFloat(stats.frameMs) + " ms");
     lines.push_back("frame " + formatCount(stats.frameCount) + "  fixed " + formatCount(stats.fixedSteps) +
@@ -49,6 +54,36 @@ std::vector<std::string> formatStats(const DebugStats& stats) {
                     formatCount(static_cast<std::uint64_t>(stats.audioSampleRate)) + " Hz  " +
                     formatCount(stats.audioDropped) + " dropped");
     lines.push_back("map " + formatSize(stats.mapTiles) + " tiles  " + formatSize(stats.mapSolidTiles) + " solid");
+
+    if (stats.camera.valid) {
+        lines.push_back("camera " + formatVector(stats.camera.position) + "  view " +
+                        formatFloat(stats.camera.viewportSize.x) + "x" +
+                        formatFloat(stats.camera.viewportSize.y));
+        std::string follow = "follow ";
+        follow += stats.camera.following
+                      ? "player " + scene::toString(stats.camera.followTarget)
+                      : std::string("none");
+        follow += "  dz " + formatFloat(stats.camera.deadzoneX) + "x" +
+                  formatFloat(stats.camera.deadzoneY) + "  smooth " +
+                  formatFloat(stats.camera.smoothing);
+        lines.push_back(std::move(follow));
+    }
+
+    lines.push_back(stats.aiTargets.empty()
+                        ? std::string("ai targets none")
+                        : "ai targets " + formatSize(stats.aiTargets.size()));
+    constexpr std::size_t kMaxAiLines = 6;
+    const std::size_t shown = stats.aiTargets.size() < kMaxAiLines ? stats.aiTargets.size() : kMaxAiLines;
+    for (std::size_t index = 0; index < shown; ++index) {
+        const DebugAiTargetInfo& info = stats.aiTargets[index];
+        std::string line = "  " + scene::toString(info.agent) + " " + info.state + " -> ";
+        line += info.hasTarget ? scene::toString(info.target) : std::string("none");
+        line += info.targetVisible ? " vis" : " hid";
+        lines.push_back(std::move(line));
+    }
+    if (stats.aiTargets.size() > shown) {
+        lines.push_back("  +" + formatSize(stats.aiTargets.size() - shown) + " more");
+    }
     return lines;
 }
 

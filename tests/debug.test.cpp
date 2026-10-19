@@ -254,6 +254,49 @@ TEST_CASE("DebugStats formats a readable snapshot", "[debug]") {
     CHECK(lines[3].find("entities 3") != std::string::npos);
     CHECK(lines[4].find("12 calls") != std::string::npos);
     CHECK(lines[8].find("2 voices") != std::string::npos);
+    CHECK(lines.back() == "ai targets none");
+
+    stats.camera.valid = true;
+    stats.camera.position = fa::core::Vec2{320.0f, 180.0f};
+    stats.camera.viewportSize = fa::core::Vec2{640.0f, 360.0f};
+    stats.camera.followTarget = fa::scene::EntityId{2u, 1u};
+    stats.camera.following = true;
+    stats.camera.deadzoneX = 48.0f;
+    stats.camera.deadzoneY = 32.0f;
+    stats.camera.smoothing = 10.0f;
+
+    fa::debug::DebugAiTargetInfo ai;
+    ai.agent = fa::scene::EntityId{4u, 1u};
+    ai.target = fa::scene::EntityId{2u, 1u};
+    ai.hasTarget = true;
+    ai.targetVisible = true;
+    ai.state = "chase";
+    ai.agentPosition = fa::core::Vec2{400.0f, 200.0f};
+    ai.targetPosition = fa::core::Vec2{320.0f, 180.0f};
+    ai.hasAgentPosition = true;
+    ai.hasTargetPosition = true;
+    stats.aiTargets.push_back(ai);
+
+    const std::vector<std::string> extended = formatStats(stats);
+    bool foundCamera = false;
+    bool foundFollow = false;
+    bool foundAgent = false;
+    for (const std::string& line : extended) {
+        if (line.find("camera (320.0, 180.0)") != std::string::npos &&
+            line.find("view 640.0x360.0") != std::string::npos) {
+            foundCamera = true;
+        }
+        if (line.find("follow player e2v1") != std::string::npos &&
+            line.find("dz 48.0x32.0") != std::string::npos) {
+            foundFollow = true;
+        }
+        if (line.find("e4v1 chase -> e2v1 vis") != std::string::npos) {
+            foundAgent = true;
+        }
+    }
+    CHECK(foundCamera);
+    CHECK(foundFollow);
+    CHECK(foundAgent);
 }
 
 TEST_CASE("DebugInspector snapshots transforms, sprites and colliders", "[debug]") {

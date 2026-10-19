@@ -58,10 +58,11 @@
 
 ```text
 fa_tests.exe "[combat]" → All tests passed (50 assertions in 7 test cases)
-fa_tests.exe           → All tests passed (28935 assertions in 469 test cases)
-fa_app.exe --frames 60 → m20: 2 attack(s), 4 hit(s), 46 damage, 1 kill(s),
-                         1 projectile(s)/1 hit(s)/0 wall hit(s), 1 status tick(s), 9 event(s)
+fa_tests.exe           → All tests passed (30281 assertions in 543 test cases)
+fa_app.exe --frames 60 → m20: 3 attack(s), 5 hit(s), 51 damage, 1 kill(s),
+                         1 projectile(s)/1 hit(s)/0 wall hit(s), 1 status tick(s), 10 event(s)
                        → ...+M18+M20+M27 smoke test OK
+fa_app.exe --play-test → 2 attack(s), 2 hit(s), 20 damage, 1 kill(s); seeds 0 -> 2
 ```
 
 M20 加入两个 dummy 后，世界实体数从 5 变为 7；`m14` 摘要显示 `7 entities`。
@@ -105,6 +106,13 @@ foreach ($cfg in @('Debug','Development','Release')) {
   & ".\build\bin\x64\$cfg\fa_app.exe" --frames 60
 }
 ```
+
+### 玩法验证补丁
+
+- play 模式右键生成朝向前方的近战盒；app 消费 `DeathEvent`，按 `LootSource` 掷掉落，
+  玩家靠近 14 px 内自动拾取到背包。
+- `--play-test` 增加战斗段：2 次攻击击杀 dummy，确定性掉落 2 个种子。
+- 脚本冒烟仍走原 M20 序列，不改 `m20:` 摘要语义。
 
 ## 5. 已知限制 / 后续
 

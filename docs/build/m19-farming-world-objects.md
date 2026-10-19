@@ -71,7 +71,7 @@
 实测：
 
 ```text
-fa_tests.exe "[farming]" → All tests passed (219 assertions in 13 test cases)
+fa_tests.exe "[farming]" → All tests passed (238 assertions in 14 test cases)
 fa_tests.exe             → All tests passed (29216 assertions in 489 test cases)
 fa_app.exe --frames 60   → m19: 3 tilled, 2 crop(s), 0 harvestable, 1 dead;
                            3 till(s)/7 water(s)/3 plant(s)/1 harvest(s), 1 item(s),
@@ -105,8 +105,16 @@ foreach ($cfg in @('Debug','Development','Release')) {
   & $msbuild FloriansAdventure.sln /t:Rebuild /p:Configuration=$cfg /p:Platform=x64 /m /nologo /v:m
   & ".\build\bin\x64\$cfg\fa_tests.exe"
   & ".\build\bin\x64\$cfg\fa_app.exe" --frames 60
+  & ".\build\bin\x64\$cfg\fa_app.exe" --play-test
 }
 ```
+
+### 玩法验证补丁
+
+- `FarmingToolHandler` 的背包从引用改为指针，并新增 `setInventory()`；组装根在
+  `--play` 模式把它切到玩家快捷栏，种子扣费与收获入包才走玩家的真实容器。
+- app 新增 `--play`（跳过脚本演示）与 `--play-test`（无头耕地→播种→浇水→5 天→收获）。
+- `--play-test` 三配置均通过；测试新增“可重新绑定背包”用例。
 
 ## 5. 已知限制 / 后续
 

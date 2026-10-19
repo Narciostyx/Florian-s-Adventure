@@ -6,7 +6,7 @@
 namespace fa::farming {
 
 FarmingToolHandler::FarmingToolHandler(FarmingService& service, inventory::Inventory& inventory)
-    : m_service(service), m_inventory(inventory) {}
+    : m_service(service), m_inventory(&inventory) {}
 
 bool FarmingToolHandler::handles(interaction::ToolKind tool) const noexcept {
     switch (tool) {
@@ -40,17 +40,20 @@ core::Status FarmingToolHandler::use(const interaction::ToolUseContext& context)
             return status;
         }
         case interaction::ToolKind::Seed: {
+            if (m_inventory == nullptr) {
+                return core::errorStatus(farming_error::kInventoryFull, "no inventory is bound");
+            }
             if (!m_seed.isValid()) {
                 return core::errorStatus(farming_error::kNoSeedSelected, "no seed is selected");
             }
-            if (m_inventory.countOf(m_seed) <= 0) {
+            if (m_inventory->countOf(m_seed) <= 0) {
                 return core::errorStatus(farming_error::kNoSeedSelected, "the selected seed is not in the inventory");
             }
             const core::Status planted = m_service.plant(cell, m_seed);
             if (planted.isError()) {
                 return planted;
             }
-            const core::Result<inventory::ItemStack> removed = m_inventory.remove(m_seed, 1);
+            const core::Result<inventory::ItemStack> removed = m_inventory->remove(m_seed, 1);
             if (removed.isError()) {
                 return core::errorStatus(removed.error().code, removed.error().message);
             }
@@ -58,7 +61,10 @@ core::Status FarmingToolHandler::use(const interaction::ToolUseContext& context)
             return core::okStatus();
         }
         case interaction::ToolKind::Harvest: {
-            const core::Result<inventory::ItemStack> harvested = m_service.harvest(cell, m_inventory);
+            if (m_inventory == nullptr) {
+                return core::errorStatus(farming_error::kInventoryFull, "no inventory is bound");
+            }
+            const core::Result<inventory::ItemStack> harvested = m_service.harvest(cell, *m_inventory);
             if (harvested.isError()) {
                 return core::errorStatus(harvested.error().code, harvested.error().message);
             }
@@ -79,10 +85,13 @@ core::Status FarmingToolHandler::use(const interaction::ToolUseContext& context)
             yield.id = debris->yield;
             yield.count = debris->amount;
             if (!yield.empty()) {
-                if (m_inventory.spaceFor(yield) < yield.count) {
+                if (m_inventory == nullptr) {
+                    return core::errorStatus(farming_error::kInventoryFull, "no inventory is bound");
+                }
+                if (m_inventory->spaceFor(yield) < yield.count) {
                     return core::errorStatus(farming_error::kInventoryFull, "no room for the debris yield");
                 }
-                const core::Result<int> added = m_inventory.add(yield);
+                const core::Result<int> added = m_inventory->add(yield);
                 if (added.isError()) {
                     return core::errorStatus(added.error().code, added.error().message);
                 }

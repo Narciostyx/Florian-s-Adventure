@@ -389,6 +389,43 @@ TEST_CASE("Farming tool handler drives the service", "[farming][tool]") {
     CHECK(stats.clearUses == 1);
 }
 
+TEST_CASE("Farming tool handler can rebind its inventory", "[farming][tool]") {
+    const Tilemap map = makeMap();
+    const ContentDatabase content = makeContent();
+    FarmingService farming(&content);
+    Inventory first(4, 99, &content);
+    Inventory second(4, 99, &content);
+    FarmingToolHandler handler(farming, first);
+    handler.setSelectedSeed(ContentId::fromName("item.seed"));
+    REQUIRE(first.add(fa::inventory::ItemStack{ContentId::fromName("item.seed"), 5, -1}).isOk());
+
+    fa::scene::World world;
+    const auto use = [&](TileCoord cell, fa::interaction::ToolKind tool) {
+        fa::interaction::InteractionRequest request;
+        request.tool = tool;
+        request.target.cell = cell;
+        request.target.tile = map.tileAt(cell.x, cell.y, 0);
+        request.target.valid = true;
+        request.target.reachable = true;
+        const fa::interaction::ToolUseContext context{world, map, nullptr, request};
+        return handler.use(context);
+    };
+
+    const TileCoord cell{1, 1};
+    CHECK(use(cell, fa::interaction::ToolKind::Hoe).isOk());
+    CHECK(use(cell, fa::interaction::ToolKind::Seed).isOk());
+    CHECK(first.countOf(ContentId::fromName("item.seed")) == 4);
+
+    handler.setInventory(second);
+    for (int day = 0; day < 3; ++day) {
+        CHECK(use(cell, fa::interaction::ToolKind::WateringCan).isOk());
+        farming.onDayChanged(springDay());
+    }
+    CHECK(use(cell, fa::interaction::ToolKind::Harvest).isOk());
+    CHECK(second.countOf(ContentId::fromName("item.crop")) == 1);
+    CHECK(first.countOf(ContentId::fromName("item.crop")) == 0);
+}
+
 TEST_CASE("Farming tool handler rejects a missing seed", "[farming][tool]") {
     const Tilemap map = makeMap();
     const ContentDatabase content = makeContent();

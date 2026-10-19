@@ -5,7 +5,42 @@
 #include <string>
 #include <vector>
 
+#include <fa/core/Math.hpp>
+#include <fa/scene/EntityId.hpp>
+
 namespace fa::debug {
+
+/// \brief Camera state of the currently controlled character.
+///
+/// The composition root fills this from its live `Camera2D`; M27 stays unaware of
+/// the render module and only formats/draws the values it is handed.
+struct DebugCameraInfo {
+    bool valid = false;
+    core::Vec2 position{};
+    core::Vec2 viewportSize{};
+    core::Rect visible{};
+    scene::EntityId followTarget{};
+    bool following = false;
+    float deadzoneX = 0.0f;
+    float deadzoneY = 0.0f;
+    float smoothing = 0.0f;
+};
+
+/// \brief One AI agent and the target it currently has locked.
+///
+/// Positions are included so the composition root can draw an enemy-to-target
+/// line without asking M27 to query the world.
+struct DebugAiTargetInfo {
+    scene::EntityId agent{};
+    scene::EntityId target{};
+    bool hasTarget = false;
+    bool targetVisible = false;
+    std::string state;
+    core::Vec2 agentPosition{};
+    core::Vec2 targetPosition{};
+    bool hasAgentPosition = false;
+    bool hasTargetPosition = false;
+};
 
 /// \brief One snapshot for the debug overlay and the smoke summary.
 ///
@@ -46,6 +81,9 @@ struct DebugStats {
 
     std::size_t mapTiles = 0;
     std::size_t mapSolidTiles = 0;
+
+    DebugCameraInfo camera;
+    std::vector<DebugAiTargetInfo> aiTargets;
 };
 
 /// \brief Formats the snapshot as short overlay lines.

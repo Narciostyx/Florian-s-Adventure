@@ -19,7 +19,8 @@
 **已实现**
 
 - 移动：8 向、斜向归一化、走 90 / 跑 150、加速度 900 / 减速度 1200。
-- 朝向：`Facing`（North/East/South/West），按主导轴选择；静止时保持上一次朝向。
+- 朝向：`Facing` 八向（四个正方向 + 四个斜向），按 45° 扇区选择；静止时保持上一次朝向。
+  `isDiagonal()`/`cardinalFacing()` 供只需要四向的消费者折叠斜向。
 - 状态机：`Idle`、`Move`、`UseTool`、`Attack`、`Dead`；`Hurt`/`Menu` 保留。
 - 动作路由：`UseTool`、`Attack`、`Interact`、`OpenInventory`、`Dodge`，
   以及 `ActionRejected`；记录为纯数据，由组装根决定转发给 M17/M18/M19/M20。
@@ -37,13 +38,15 @@
 - 背包扣除/切换：M18。
 - 内容 ID：M15 已实现；`PlayerIntent::payload` 仍是不透明整数，接线时替换。
 - 动画播放：M10；M16 只产出参数。
-- 相机跟随：当前 app 仍用固定相机；跟随逻辑留给 M22/M25 或后续补丁。
+- 相机跟随：已由 M06 `Camera2D::follow()` 实现，app 以玩家精灵中心为目标。
 - 菜单/UI 状态：M09/M25；`Menu` 枚举保留但未被控制器主动进入。
 
 ## 3. 核心概念与数据结构
 
 ```cpp
-enum class Facing : std::uint8_t { North, East, South, West, Count };
+enum class Facing : std::uint8_t {
+    North, East, South, West, NorthEast, SouthEast, SouthWest, NorthWest, Count
+};
 enum class PlayerState : std::uint8_t { Idle, Move, UseTool, Attack, Hurt, Dead, Menu, Count };
 enum class PlayerActionKind : std::uint8_t {
     UseTool, Attack, Interact, OpenInventory, Dodge, ActionRejected, Count
@@ -114,7 +117,7 @@ public:
 
 1. 输入向量归一化；走/跑目标速度为 90/150，斜向不会更快。
 2. 速度用加速度/减速度逼近目标；不是瞬移。
-3. 朝向按主导轴更新；`|x| >= |y|` 选 East/West，否则 South/North；零向量保持不变。
+3. 朝向按 45° 扇区更新为八向；边界在距正方向 22.5°，零向量保持不变。
 4. `UseTool` 优先于 `Attack`；二者都会设置 0.2 s 动作锁并让移动减速到零。
 5. `Interact`/`OpenInventory` 只记录请求，不锁移动。
 6. 闪避期间速度固定为 `dodgeDistance / dodgeDuration`；不能再次闪避/使用工具/攻击。
@@ -140,9 +143,9 @@ src/engine/include/fa/player/   PlayerTypes, PlayerController, PlayerSystem, Pla
 src/engine/player/src/          PlayerTypes.cpp, PlayerController.cpp, PlayerSystem.cpp
 ```
 
-测试：`tests/player.test.cpp`，14 个用例 / 107 条断言，覆盖：
+测试：`tests/player.test.cpp`，15 个用例 / 140 条断言，覆盖：
 
-- 名称、朝向主导轴、方向向量；
+- 名称、八向朝向（含 22.5° 边界与斜向单位向量）；
 - `attach` 只补缺失组件并保留已有耐力/朝向；
 - 走/跑速度、加速度、减速度、斜向归一化；
 - 朝向切换与静止保持；
@@ -173,7 +176,8 @@ src/engine/player/src/          PlayerTypes.cpp, PlayerController.cpp, PlayerSys
 - 无敌窗口只暴露给 M20，M16 不结算伤害；窗口边界是闭区间。
 - 多玩家共享同一个 `PlayerIntent`（`PlayerSystem` 对所有 `PlayerTag` 应用同一意图）；v1 只应有一个。
 - `Menu`/`Hurt` 状态保留但未由控制器主动进入；需要 M09/M20/M25 接入。
-- 相机跟随未实现，app 仍是固定相机；像素对齐下的平滑跟随需要单独设计。
+- 八向朝向已实现，但 M10 的动画 `Direction` 仍是四向；斜向动画需要组装根映射。
+- 相机跟随由 M06 `Camera2D::follow()` 负责；控制器本身不感知相机。
 - 内容 ID 仍是 `payload`；M15 已实现，接线时统一。
 - 动作请求只记录不发布；M03 事件化由组装根决定。
 

@@ -4,6 +4,7 @@
 /// without an OpenGL context; the GL renderer itself is covered by the app smoke
 /// run described in docs/build/m06-render.md.
 
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 #include <cmath>
@@ -22,6 +23,7 @@
 
 namespace {
 
+using Catch::Approx;
 using fa::core::Color;
 using fa::core::makeRect;
 using fa::core::Rect;
@@ -529,6 +531,126 @@ TEST_CASE("Camera2D rejects a degenerate viewport size", "[render]") {
     const Rect visible = camera.visibleRect();
     REQUIRE(visible.w == 320.0f);
     REQUIRE(visible.h == 180.0f);
+}
+
+TEST_CASE("Camera2D follows a character across a 128x128 map", "[render][camera]") {
+    // 128 tiles at 16 px = a 2048x2048 world. The 640x360 viewport is smaller,
+    // so the camera can actually move instead of being pinned by the bounds.
+    const Rect map = makeRect(0.0f, 0.0f, 128.0f * fa::render::kTileSize,
+                              128.0f * fa::render::kTileSize);
+    Camera2D camera;
+    camera.setBounds(map);
+    camera.setPosition(Vec2{320.0f, 180.0f});
+
+    fa::render::CameraFollowConfig config;
+    config.deadzone = Vec2{0.0f, 0.0f};
+    config.smoothing = 0.0f;
+    camera.setFollowConfig(config);
+
+    // Walking one tile at a time keeps the target at the centre.
+    Vec2 target{320.0f, 180.0f};
+    for (int step = 0; step < 48; ++step) {
+        target.x += static_cast<float>(fa::render::kTileSize);
+        target.y += static_cast<float>(fa::render::kTileSize);
+        camera.follow(target, 1.0f / 60.0f);
+        REQUIRE(camera.position().x == target.x);
+        REQUIRE(camera.position().y == target.y);
+        const Rect visible = camera.visibleRect();
+        REQUIRE(visible.x >= map.x);
+        REQUIRE(visible.y >= map.y);
+        REQUIRE(fa::core::right(visible) <= fa::core::right(map));
+        REQUIRE(fa::core::bottom(visible) <= fa::core::bottom(map));
+    }
+
+    // Following past the top-left or bottom-right corner clamps to the map.
+    camera.follow(Vec2{-500.0f, -500.0f}, 1.0f / 60.0f);
+    REQUIRE(camera.position().x == 320.0f);
+    REQUIRE(camera.position().y == 180.0f);
+
+    camera.follow(Vec2{5000.0f, 5000.0f}, 1.0f / 60.0f);
+    REQUIRE(camera.position().x == 1728.0f);
+    REQUIRE(camera.position().y == 1868.0f);
+    REQUIRE(fa::core::right(camera.visibleRect()) == fa::core::right(map));
+    REQUIRE(fa::core::bottom(camera.visibleRect()) == fa::core::bottom(map));
+}
+
+TEST_CASE("Camera2D deadzone ignores small target motion", "[render][camera]") {
+    Camera2D camera;
+    camera.setPosition(Vec2{1000.0f, 1000.0f});
+
+    fa::render::CameraFollowConfig config;
+    config.deadzone = Vec2{32.0f, 24.0f};
+    config.smoothing = 0.0f;
+    camera.setFollowConfig(config);
+
+    camera.follow(Vec2{1020.0f, 1010.0f}, 1.0f / 60.0f);
+    REQUIRE(camera.position().x == 1000.0f);
+    REQUIRE(camera.position().y == 1000.0f);
+
+    // Leaving the horizontal edge places the target on that edge.
+    camera.follow(Vec2{1040.0f, 1000.0f}, 1.0f / 60.0f);
+    REQUIRE(camera.position().x == 1008.0f);
+    REQUIRE(camera.position().y == 1000.0f);
+
+    // Leaving the vertical edge does the same for y.
+    camera.follow(Vec2{1008.0f, 1040.0f}, 1.0f / 60.0f);
+    REQUIRE(camera.position().x == 1008.0f);
+    REQUIRE(camera.position().y == 1016.0f);
+}
+
+TEST_CASE("Camera2D follow smoothing eases toward the target", "[render][camera]") {
+    Camera2D camera;
+    camera.setPosition(Vec2{0.0f, 0.0f});
+
+    fa::render::CameraFollowConfig config;
+    config.deadzone = Vec2{0.0f, 0.0f};
+    config.smoothing = 10.0f;
+    camera.setFollowConfig(config);
+
+    camera.follow(Vec2{100.0f, 0.0f}, 0.1f);
+    const float first = camera.position().x;
+    CHECK(first > 0.0f);
+    CHECK(first < 100.0f);
+    CHECK(first == Approx(63.2121f).margin(0.01f));
+
+    camera.follow(Vec2{100.0f, 0.0f}, 0.1f);
+    CHECK(camera.position().x > first);
+    CHECK(camera.position().x < 100.0f);
+}
+
+TEST_CASE("Camera2D follow respects a maximum speed", "[render][camera]") {
+    Camera2D camera;
+    camera.setPosition(Vec2{0.0f, 0.0f});
+
+    fa::render::CameraFollowConfig config;
+    config.deadzone = Vec2{0.0f, 0.0f};
+    config.smoothing = 0.0f;
+    config.maxSpeed = 200.0f;
+    camera.setFollowConfig(config);
+
+    camera.follow(Vec2{1000.0f, 0.0f}, 0.1f);
+    CHECK(camera.position().x == Approx(20.0f).margin(0.001f));
+    camera.follow(Vec2{1000.0f, 0.0f}, 0.1f);
+    CHECK(camera.position().x == Approx(40.0f).margin(0.001f));
+}
+
+TEST_CASE("Camera2D rejects negative follow tuning", "[render][camera]") {
+    Camera2D camera;
+    fa::render::CameraFollowConfig config;
+    config.deadzone = Vec2{-10.0f, -20.0f};
+    config.smoothing = -1.0f;
+    config.maxSpeed = -5.0f;
+    camera.setFollowConfig(config);
+
+    CHECK(camera.followConfig().deadzone.x == 0.0f);
+    CHECK(camera.followConfig().deadzone.y == 0.0f);
+    CHECK(camera.followConfig().smoothing == 0.0f);
+    CHECK(camera.followConfig().maxSpeed == 0.0f);
+
+    camera.setPosition(Vec2{5.0f, 5.0f});
+    camera.follow(Vec2{10.0f, 10.0f}, 1.0f / 60.0f);
+    CHECK(camera.position().x == 10.0f);
+    CHECK(camera.position().y == 10.0f);
 }
 
 TEST_CASE("DrawItem defaults to an untextured white objects quad", "[render]") {

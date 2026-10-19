@@ -51,6 +51,8 @@ class ContentId {
 struct ItemDef {
     ContentId id;
     std::string displayName, description, category;
+    /// 可选玩法映射：hoe/watering_can/axe/pickaxe/sword/seed/harvest/placeable。
+    std::string toolKind;
     assets::AssetId icon;
     int maxStack = 99, sellPrice = 0;
     std::vector<std::string> tags;
@@ -128,7 +130,7 @@ public:
   "schema_version": 1,
   "items": [
     {"id": "item.turnip_seed", "display_name": "Turnip Seed", "category": "seed",
-     "max_stack": 99, "sell_price": 5, "tags": ["seed", "spring"]},
+     "tool_kind": "seed", "max_stack": 99, "sell_price": 5, "tags": ["seed", "spring"]},
     {"id": "item.turnip", "display_name": "Turnip", "category": "crop",
      "max_stack": 99, "sell_price": 35, "tags": ["crop", "spring"]}
   ],
@@ -159,6 +161,8 @@ public:
 - `stage_sprites` 可选；存在时必须与 `stage_days` 等长。
 - `regrow: true` 要求 `regrow_days > 0`。
 - 掉落 `chance` 在 0..1；`max_amount >= min_amount`。
+- `tool_kind` 可选；只接受 `none/hoe/watering_can/axe/pickaxe/sword/seed/harvest/placeable`。
+  M15 只保存字符串，不依赖 M17 的枚举；组装根在使用时转换。
 - 缺省值：`max_stack` 99、`sell_price` 0、`seasons` any、`required_minutes` 0、
   `amount` 1、敌人 100/0/60、掉落 1/1/1。
 
