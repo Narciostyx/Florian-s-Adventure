@@ -74,6 +74,8 @@ struct CropDef {
     std::vector<int> stageDays;
     /// \brief Optional per-stage sprites; when present must match `stageDays`.
     std::vector<assets::AssetId> stageSprites;
+    /// \brief Optional sprite shown while `growthDays == 0` (just planted).
+    assets::AssetId seedSprite;
     std::uint8_t seasons = seasonMask(Season::Any);
     bool regrow = false;
     int regrowDays = 0;

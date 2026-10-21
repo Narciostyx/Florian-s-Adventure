@@ -397,6 +397,16 @@ core::Status ContentDatabase::loadDocument(std::string_view json) {
                     }
                 }
 
+                if (const auto seedSprite = entry.find("seed_sprite"); seedSprite != entry.end()) {
+                    std::string name;
+                    if (!readStringValue(*seedSprite, name) || name.empty()) {
+                        addError(content_error::kInvalidField, context,
+                                 "\"seed_sprite\" must be a non-empty string");
+                        continue;
+                    }
+                    def.seedSprite = assets::AssetId::fromName(name);
+                }
+
                 if (!readSeasons(entry, def.seasons, context, m_parseErrors)) {
                     continue;
                 }

@@ -150,12 +150,12 @@ foreach ($cfg in @('Debug','Development','Release')) {
 - `GameFlow::saveToSlot(slot)` 新增为公开接口，菜单可写显式手动槽且不改变会话槽。
 - 睡眠改为体力驱动的恢复规则（`fa/flow/Sleep.hpp`）：任意时间可睡，醒来固定
   次日 08:00；满 8 h 回满缺失体力，不足按 `(小时/8)²` 递减，最低 1%。
-  `GameFlow::setDayStartHour()` 让 `endDay()` 在结算与自动存档前把时钟恢复到
-  08:00。不再有 26:00 强制晕倒。
+  `GameFlow::setDayStartHour()` 让 `endDay()` 在结算与自动存档前把时钟恢复成
+  配置值（比默认更早或更晚都可以）。不再有 26:00 强制晕倒。
 - `--play-test` 增加 8 h/7 h/1 h 三档恢复校验（00:00 / 01:00 / 07:00 入睡，
   结果 100 / 76.6 / 1.6）、08:00 醒来校验，以及暂停、显式槽保存、主菜单、
   槽读档的接线校验。
-- 本次实测：`fa_tests.exe` 548 用例 / 30353 断言全绿；`--frames 60`、
+- 本次实测：`fa_tests.exe` 554 用例 / 30416 断言全绿；`--frames 60`、
   `--play-test` 与 `--play --frames 3`（停在 `main-menu`）三配置 exit 0。
 
 ## 5. 已知限制 / 后续
@@ -166,8 +166,9 @@ foreach ($cfg in @('Debug','Development','Release')) {
   与经济；叙事、AI、世界对象仍未从 `SaveFile` 应用。
 - `NewGameHandler` 在 app 里是空实现；真实新游戏还没有重建世界/初始物品。
 - 没有场景切换（传送点、`SceneStack::replace`）与过渡效果。
-- 睡眠已按体力效率结算；死亡晕倒/惩罚与强制起床仍未实现。
-- 死亡只进入 `GameOver`，没有掉落、销毁、复活惩罚与读档选项 UI。
+- 睡眠已按体力效率结算；没有强制起床/晕倒。
+- 死亡路径已接：app 在生命归零时调 `requestGameOver`/`respawn`，床边复活并扣
+  10% 金币；没有死亡菜单/读档选项 UI。
 - 自动存档的“安全状态”判定（战斗中/对话中/过场中挂起）未实现。
 - 没有退出前“距上次存档超过 12 游戏小时”的提示；`autosaveOnQuit` 是显式开关。
 - 输入上下文没有按 `AppState` 自动切换；app 仍未屏蔽暂停/对话时的玩法输入。

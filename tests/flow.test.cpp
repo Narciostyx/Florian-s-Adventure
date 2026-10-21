@@ -350,6 +350,12 @@ TEST_CASE("Configurable day start hour resumes the clock after the rollover", "[
     CHECK(calendar.hour() == 9);
     REQUIRE(saves.slots.count("autosave") == 1);
     CHECK(saves.slots.at("autosave").inGameDay == 2);
+
+    // An earlier wake hour also has to move the clock backwards from the default.
+    flow.setDayStartHour(7.0f);
+    REQUIRE(flow.endDay().isOk());
+    CHECK(calendar.timeOfDay() == Catch::Approx(7.0f));
+    CHECK(calendar.hour() == 7);
 }
 
 TEST_CASE("End-of-day hook runs after the clock and before autosave", "[flow]") {

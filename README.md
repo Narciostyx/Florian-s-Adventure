@@ -2,8 +2,9 @@
 
 一款俯视角 2D 像素风的**种植养成 + 实时动作战斗**游戏。
 
-> 当前状态：**28 个模块已实现并通过三配置实测**。`--play` 可进入最小可操作会话：
-> 种植闭环与近战/掉落拾取已接通；睡眠存档、场景切换与完整读档仍在接线中。
+> 当前状态：**28 个模块已实现并通过三配置实测**。`--play` 可进入可操作会话：
+> 主菜单/暂停/存档槽、种植、近战/掉落、睡眠日终、棋盘与商店、农场↔林地传送、
+> 背包面板、荆棘死亡/床边复活、数据/配置/PNG 纹理均已接通；独立场景替换仍待接。
 > 详见 [计划完成情况](docs/plan-status.md) 与 [垂直切片](docs/roadmap/vertical-slice.md)。
 
 ## 目标
@@ -81,7 +82,9 @@ Florian-s-Adventure/
 │  ├─ engine/        # 引擎层：core / platform / render / input / audio / ecs ...
 │  ├─ game/          # 玩法层：player / farming / combat / ai / npc ...
 │  └─ app/           # 唯一 composition root 与 main
-├─ assets/           # 原始资源与内容 JSON
+├─ assets/           # 纹理 PNG（当前为纯色/棋盘占位）
+├─ data/             # 内容/商店/叙事/资源目录/实体生成表 JSON
+├─ config/           # game.json（窗口/UI 缩放/路径/玩法参数）
 ├─ tools/            # 资源导入、校验、打包工具
 ├─ tests/            # 单元测试与集成测试
 ├─ docs/             # 架构、模块、路线图、ADR
@@ -100,6 +103,7 @@ $msbuild='C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\
 ```
 
 三配置：`Debug` / `Development` / `Release` × `x64`；测试在 `build\bin\x64\<Config>\`。
+运行时从 `data/`、`config/`、`assets/` 读取数据/配置/图片；删除任意文件都会回落到内置默认值。
 
 ## 运行与验证
 
@@ -122,7 +126,9 @@ $msbuild='C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\
 | `1`–`9` / 滚轮 | 选择快捷栏（1 锄头、2 浇水壶、3 萝卜种子） |
 | 左键 | 使用当前工具/种子；指向成熟作物自动收获 |
 | 右键 | 近战攻击；敌人死亡后掉落并自动拾取 |
-| `E` | 交互（当前为占位提示） |
+| `E` | 床边睡觉；出货箱出货；商人开商店 |
+| `I` | 打开背包面板（点击 MOVE 在背包/快捷栏间移动） |
+| `Esc` | 关闭面板 / 暂停（继续/保存/存档槽/主菜单） |
 | 反引号 | 调试控制台（`time.addDays N`、`time.set HH:MM`、`give`、`teleport`） |
 | `F3` / `F4` / `F5` | 统计 / 日志 / 物理调试（非 Release） |
 

@@ -261,7 +261,7 @@ core::Status GameFlow::settleDay(bool skipClock) {
     if (skipClock) {
         if (m_calendar != nullptr) {
             m_calendar->skipToNextDay();
-            if (m_dayStartHour > world::kStartHour) {
+            if (m_dayStartHour != world::kStartHour) {
                 // Sleep resumes later than the calendar's default start; restore the
                 // clock before the day handlers and autosave so the save agrees.
                 m_calendar->restore(m_calendar->date(), m_dayStartHour, m_calendar->today(),

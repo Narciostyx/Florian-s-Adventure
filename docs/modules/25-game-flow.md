@@ -140,9 +140,11 @@ M23 重置每日上限 → 自动存档；
   `autosaveIntervalDays` 写 `autosave`；`onDayChanged()` 供外部日变化（如自然跨天）
   复用同一结算路径。
 - 睡眠规则：`fa/flow/Sleep.hpp` 提供 `sleepHoursUntil()` 与 `sleepRecovery()`。
-  任意时间可睡，醒来固定次日 `kWakeHour`（08:00）；满 `kFullSleepHours`（8 h）
-  恢复全部缺失体力，不足时按 `(小时/8)²` 衰减，最低 `kMinSleepRecovery`（1%）。
-  `setDayStartHour()` 决定结算后恢复的时刻（play 设为 08:00），且在自动存档前生效。
+  任意时间可睡，醒来为次日 `wakeHour`；满 `fullHours` 恢复全部缺失体力，
+  不足时按 `(小时/满时长)²` 衰减，最低 `kMinSleepRecovery`（1%）。
+  默认值是 `kWakeHour=8`、`kFullSleepHours=8`；app 从 `config/game.json` 传入
+  `gameplay.wake_hour`/`full_sleep_hours`。`setDayStartHour()` 在自动存档前生效，
+  早于或晚于默认 08:00 都会正确恢复。
   睡眠本身不消耗体力，也不存在强制晕倒时刻。
 - 存档：`saveGame()` 写当前会话槽；`saveToSlot(slot)` 供菜单显式写 `slot1..3`，
   不改变会话槽。
@@ -152,4 +154,6 @@ M23 重置每日上限 → 自动存档；
   （继续/保存/存档槽/主菜单），`Esc` 切换暂停；菜单只调用本模块的公开状态接口。
 - 已知缺口：app 已把日期/时间/天气、玩家位置/朝向/耐力、背包/快捷栏/装备、农田
   与经济接入 `SaveBuilder`/`LoadHandler`，但叙事、AI、世界对象仍未持久化；
-  `SceneStack` 切场景、输入上下文与死亡惩罚仍待接线。
+  同图农场/林地传送已由 app 消费 `portalAt` 完成；`SceneStack` 独立场景替换、
+  输入上下文仍待接线。死亡路径已接：生命归零 → `requestGameOver`/`respawn` →
+  床边复活 + 10% 金币；死亡菜单/读档选项 UI 仍缺。

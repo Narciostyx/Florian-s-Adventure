@@ -75,7 +75,7 @@ nlohmann/json，因此本工程打开 `/EHsc`。
 
 ```text
 fa_tests.exe "[economy]" → All tests passed (105 assertions in 11 test cases)
-fa_tests.exe             → All tests passed (30368 assertions in 549 test cases)
+fa_tests.exe             → All tests passed (30416 assertions in 553 test cases)
 fa_app.exe --frames 60   → m24: gold 170 (+60 settled), seed 102, turnip 1, soup 2,
                            buy ok, sell ok, craft ok, collect ok, ship ok;
                            1 bought / 1 sold / 1 crafted / 1 shipped,
@@ -123,7 +123,7 @@ foreach ($cfg in @('Debug','Development','Release')) {
   `--play-test` 校验金币、出货结算（3 个萝卜 +51）与读档金币一致。
 - 修复：遍历背包出货时不能在 `ship()` 修改 `vector` 后继续持有 `ItemStack&`，
   改为倒序 + 值拷贝。
-- 本次实测：`fa_tests.exe` 549 用例 / 30368 断言全绿；`--frames 60` 与
+- 本次实测：`fa_tests.exe` 554 用例 / 30416 断言全绿；`--frames 60` 与
   `--play-test` 三配置 exit 0。
 
 ## 5. 已知限制 / 后续

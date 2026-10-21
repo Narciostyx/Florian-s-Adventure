@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "entities": [
+    {
+      "id": "bed",
+      "kind": "bed",
+      "position": {
+        "x": 336,
+        "y": 200
+      },
+      "texture": "tex.ground.soil",
+      "tint": "#5aa6ff",
+      "payload": 99,
+      "radius": 28
+    },
+    {
+      "id": "shipping",
+      "kind": "shipping",
+      "position": {
+        "x": 352,
+        "y": 216
+      },
+      "texture": "tex.ground.soil",
+      "tint": "#e68c33",
+      "payload": 100,
+      "radius": 28
+    },
+    {
+      "id": "merchant",
+      "kind": "merchant",
+      "position": {
+        "x": 288,
+        "y": 232
+      },
+      "texture": "tex.ground.soil",
+      "tint": "#cc66e6",
+      "payload": 101,
+      "radius": 32
+    },
+    {
+      "id": "forest_slime_a",
+      "kind": "enemy",
+      "position": {
+        "x": 832,
+        "y": 128
+      },
+      "health": 25,
+      "loot": "loot.slime"
+    },
+    {
+      "id": "forest_slime_b",
+      "kind": "enemy",
+      "position": {
+        "x": 912,
+        "y": 224
+      },
+      "health": 20,
+      "loot": "loot.test"
+    },
+    {
+      "id": "bramble_a",
+      "kind": "hazard",
+      "cell": {
+        "x": 48,
+        "y": 14
+      },
+      "damage": 5
+    },
+    {
+      "id": "bramble_b",
+      "kind": "hazard",
+      "cell": {
+        "x": 49,
+        "y": 14
+      },
+      "damage": 5
+    },
+    {
+      "id": "bramble_c",
+      "kind": "hazard",
+      "cell": {
+        "x": 50,
+        "y": 14
+      },
+      "damage": 5
+    }
+  ]
+}

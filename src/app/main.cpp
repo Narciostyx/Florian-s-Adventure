@@ -4,8 +4,12 @@
 /// Wires M02 (platform), M03 (events/jobs), M04 (frame loop), M06 (render) and
 /// M07 (input) so window, event, timing, drawing and input behave end to end.
 
+#include "GameConfig.hpp"
+#include "StbImageDecoder.hpp"
+
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -169,7 +173,21 @@ constexpr std::string_view kCatalogText = R"({
      "color": "#3d465e", "altColor": "#55627e"},
     {"id": "tex.actor.player", "kind": "texture", "size": [16, 24],
      "color": "#e8c39e", "altColor": "#c79a74"},
-    {"id": "tex.marker", "kind": "texture", "size": [8, 8], "color": "#ffffff"}
+    {"id": "tex.marker", "kind": "texture", "size": [8, 8], "color": "#ffffff"},
+    {"id": "tex.ground.soil_wet", "kind": "texture", "path": "soil_wet.png", "size": [16, 16],
+     "tile": 4, "color": "#4a3322", "altColor": "#372418"},
+    {"id": "tex.crop.turnip_seed", "kind": "texture", "path": "turnip_seed.png", "size": [16, 16],
+     "color": "#6b4a2f", "altColor": "#a97c4f"},
+    {"id": "tex.crop.turnip_sprout", "kind": "texture", "path": "turnip_sprout.png",
+     "size": [16, 16], "color": "#3f7d32", "altColor": "#5fae45"},
+    {"id": "tex.crop.turnip_young", "kind": "texture", "path": "turnip_young.png",
+     "size": [16, 16], "color": "#3f7d32", "altColor": "#7ac95a"},
+    {"id": "tex.crop.turnip_mature", "kind": "texture", "path": "turnip_mature.png",
+     "size": [16, 16], "color": "#9a6fb0", "altColor": "#efe6f0"},
+    {"id": "tex.object.chest", "kind": "texture", "path": "chest.png", "size": [16, 16],
+     "color": "#8a5a2b", "altColor": "#5d3a1a"},
+    {"id": "tex.enemy.slime", "kind": "texture", "path": "slime.png", "size": [16, 16],
+     "color": "#4fa84a", "altColor": "#2f7a36"}
   ]
 })";
 
@@ -197,7 +215,8 @@ constexpr std::string_view kContentText = R"({
   "crops": [
     {"id": "crop.turnip", "seed_item": "item.turnip_seed", "harvest_item": "item.turnip",
      "stage_days": [1, 2, 2],
-     "stage_sprites": ["tex.ground.soil", "tex.ground.grass", "tex.ground.grass"],
+     "stage_sprites": ["tex.crop.turnip_sprout", "tex.crop.turnip_young", "tex.crop.turnip_mature"],
+     "seed_sprite": "tex.crop.turnip_seed",
      "seasons": ["spring", "fall"], "regrow": false, "regrow_days": 0}
   ],
   "recipes": [
@@ -460,6 +479,79 @@ struct LootDrop {
     int count = 1;
 };
 
+/// \brief One play-mode entity from `data/entities.json`.
+struct EntitySpawn {
+    std::string id;
+    std::string kind;
+    fa::core::Vec2 position{};
+    bool hasPosition = false;
+    fa::tilemap::TileCoord cell{};
+    bool hasCell = false;
+    std::string texture;
+    fa::core::Color tint{1.0f, 1.0f, 1.0f, 1.0f};
+    int payload = 0;
+    float radius = 28.0f;
+    int health = 20;
+    std::string loot;
+    int damage = 5;
+};
+
+/// \brief Parses and validates the entity spawn table; bad rows are skipped.
+[[nodiscard]] std::vector<EntitySpawn> parseEntitySpawns(const fa::save::SaveArchive& root) {
+    std::vector<EntitySpawn> spawns;
+    const fa::save::SaveArchive list = root.child("entities");
+    if (!list.isArray()) {
+        return spawns;
+    }
+    const auto knownKind = [](std::string_view kind) {
+        return kind == "bed" || kind == "shipping" || kind == "merchant" || kind == "enemy" ||
+               kind == "hazard";
+    };
+    for (std::size_t index = 0; index < list.size(); ++index) {
+        const fa::save::SaveArchive entry = list.at(index);
+        if (!entry.isObject()) {
+            continue;
+        }
+        EntitySpawn spawn;
+        static_cast<void>(entry.getString("id", spawn.id));
+        static_cast<void>(entry.getString("kind", spawn.kind));
+        if (spawn.id.empty() || !knownKind(spawn.kind)) {
+            continue;
+        }
+        spawn.hasPosition = entry.getVec2("position", spawn.position);
+        fa::core::Vec2 cell{};
+        spawn.hasCell = entry.getVec2("cell", cell);
+        if (spawn.hasCell) {
+            spawn.cell = fa::tilemap::TileCoord{static_cast<int>(cell.x), static_cast<int>(cell.y)};
+        }
+        if (!spawn.hasPosition && !spawn.hasCell) {
+            continue;
+        }
+        static_cast<void>(entry.getString("texture", spawn.texture));
+        std::string tint;
+        if (entry.getString("tint", tint)) {
+            const fa::core::Result<fa::core::Color> parsed = fa::assets::parseColorText(tint);
+            if (parsed.isOk()) {
+                spawn.tint = parsed.value();
+            }
+        }
+        static_cast<void>(entry.getInt("payload", spawn.payload));
+        static_cast<void>(entry.getFloat("radius", spawn.radius));
+        static_cast<void>(entry.getInt("health", spawn.health));
+        static_cast<void>(entry.getString("loot", spawn.loot));
+        static_cast<void>(entry.getInt("damage", spawn.damage));
+
+        const bool duplicate =
+            std::any_of(spawns.begin(), spawns.end(), [&spawn](const EntitySpawn& existing) {
+                return existing.id == spawn.id;
+            });
+        if (!duplicate) {
+            spawns.push_back(std::move(spawn));
+        }
+    }
+    return spawns;
+}
+
 /// \brief One AI agent's locked target, for the M27 overlay and debug lines.
 struct AiTargetDebugSnapshot {
     fa::scene::EntityId agent{};
@@ -638,8 +730,13 @@ public:
 /// per-frame pass only updates the cursor highlight.
 class DemoScene final : public fa::scene::BasicScene {
 public:
-    static constexpr int kColumns = 40;
+    static constexpr int kFarmColumns = 40;
+    /// \brief Play mode appends the forest region to the right of the farm.
+    static constexpr int kForestColumns = 80;
+    static constexpr int kForestStartColumn = 40;
     static constexpr int kRows = 23;
+    static constexpr int kGateFirstRow = 10;
+    static constexpr int kGateLastRow = 13;
     /// \brief Column of the one-tile wall the marker drives into.
     static constexpr int kWallColumn = 22;
     static constexpr float kMarkerSize = 8.0f;
@@ -647,6 +744,7 @@ public:
     static constexpr std::uint16_t kGrassTile = 1;
     static constexpr std::uint16_t kWallTile = 2;
     static constexpr std::uint16_t kSoilTile = 3;
+    static constexpr std::uint16_t kBrambleTile = 4;
 
     /// \brief Cell of the interactable crate, reachable from the marker's start.
     static constexpr int kCrateColumn = 19;
@@ -660,16 +758,22 @@ public:
 
     DemoScene() = delete;
     DemoScene(fa::input::IInput& input, const fa::content::ContentDatabase& content,
-              const fa::narrative::NarrativeDatabase& narrative, bool scripted = true)
-        : BasicScene("demo"), m_input(input), m_interaction(m_map, &m_placement), m_scripted(scripted) {
+              const fa::narrative::NarrativeDatabase& narrative, bool scripted = true,
+              const std::vector<EntitySpawn>* spawns = nullptr)
+        : BasicScene("demo"),
+          m_input(input),
+          m_interaction(m_map, &m_placement),
+          m_scripted(scripted),
+          m_spawns(spawns) {
         m_farming.setContentDatabase(&content);
         m_farmInventory.setContentDatabase(&content);
         m_farmingTools.setDebrisLayer(&m_farmDebris);
         m_narrative.setDatabase(&narrative);
         m_narrative.setInventory(&m_farmInventory);
         m_narrative.setSeason(fa::content::Season::Spring);
-        static_cast<void>(m_map.reset(kColumns, kRows, fa::render::kTileSize));
-        static_cast<void>(m_placement.resize(kColumns, kRows));
+        m_columns = scripted ? kFarmColumns : kForestColumns;
+        static_cast<void>(m_map.reset(m_columns, kRows, fa::render::kTileSize));
+        static_cast<void>(m_placement.resize(m_columns, kRows));
         m_interaction.addHandler(m_toolHandler);
         m_interaction.addHandler(m_farmingTools);
     }
@@ -685,6 +789,21 @@ public:
         m_wall = wall;
         m_soil = soil;
         m_marker = marker;
+    }
+
+    /// \brief Extra gameplay textures; invalid handles keep the procedural fallbacks.
+    void setDetailTextures(fa::render::TextureHandle soilWet, fa::render::TextureHandle cropSeed,
+                           fa::render::TextureHandle cropSprout,
+                           fa::render::TextureHandle cropYoung,
+                           fa::render::TextureHandle cropMature, fa::render::TextureHandle chest,
+                           fa::render::TextureHandle slime) {
+        m_soilWet = soilWet;
+        m_cropSeed = cropSeed;
+        m_cropSprout = cropSprout;
+        m_cropYoung = cropYoung;
+        m_cropMature = cropMature;
+        m_chest = chest;
+        m_slime = slime;
     }
 
     /// \brief Turns the scripted/input axis into the controller's intent.
@@ -925,10 +1044,89 @@ public:
     }
 
     [[nodiscard]] fa::scene::EntityId combatDummy1() const noexcept { return m_combatDummy1; }
+    [[nodiscard]] fa::scene::EntityId forestDummy1() const noexcept { return m_forestDummy1; }
+
+    /// \brief True when the marker is in the appended forest region.
+    [[nodiscard]] bool markerInForest() const {
+        return markerPosition().x >= static_cast<float>(kForestStartColumn * fa::render::kTileSize);
+    }
+
+    /// \brief Portal containing the marker's centre, if any.
+    [[nodiscard]] const fa::tilemap::MapPortal* portalAtMarker() const {
+        return m_map.portalAt(m_map.worldToGrid(markerCenter()));
+    }
+
+    /// \brief World position of a tile's top-left corner.
+    [[nodiscard]] fa::core::Vec2 cellPosition(fa::tilemap::TileCoord cell) const {
+        return m_map.gridToWorld(cell);
+    }
 
     [[nodiscard]] fa::core::Vec2 bedPosition() const {
         const fa::scene::Transform* bed = world().tryGet<fa::scene::Transform>(m_bedEntity);
         return bed != nullptr ? bed->position : fa::core::Vec2{};
+    }
+
+    /// \brief Spawn rows of \p kind; empty when the table is absent.
+    [[nodiscard]] std::vector<const EntitySpawn*> findSpawns(std::string_view kind) const {
+        std::vector<const EntitySpawn*> result;
+        if (m_spawns == nullptr) {
+            return result;
+        }
+        for (const EntitySpawn& spawn : *m_spawns) {
+            if (spawn.kind == kind) {
+                result.push_back(&spawn);
+            }
+        }
+        return result;
+    }
+
+    [[nodiscard]] const EntitySpawn* findSpawn(std::string_view kind) const {
+        const std::vector<const EntitySpawn*> matches = findSpawns(kind);
+        return matches.empty() ? nullptr : matches.front();
+    }
+
+    [[nodiscard]] fa::core::Vec2 spawnPosition(const EntitySpawn& spawn) const {
+        return spawn.hasPosition ? spawn.position : m_map.gridToWorld(spawn.cell);
+    }
+
+    /// \brief Maps a catalog texture name to one of the handles the scene owns.
+    [[nodiscard]] fa::render::TextureHandle textureForName(std::string_view name) const {
+        if (name == "tex.ground.grass") {
+            return m_grass;
+        }
+        if (name == "tex.ground.wall") {
+            return m_wall;
+        }
+        if (name == "tex.ground.soil_wet") {
+            return m_soilWet;
+        }
+        if (name == "tex.crop.turnip_seed") {
+            return m_cropSeed;
+        }
+        if (name == "tex.crop.turnip_sprout") {
+            return m_cropSprout;
+        }
+        if (name == "tex.crop.turnip_young") {
+            return m_cropYoung;
+        }
+        if (name == "tex.crop.turnip_mature") {
+            return m_cropMature;
+        }
+        if (name == "tex.object.chest") {
+            return m_chest;
+        }
+        if (name == "tex.enemy.slime") {
+            return m_slime;
+        }
+        if (name == "tex.marker" || name == "tex.actor.player") {
+            return m_marker;
+        }
+        return m_soil;
+    }
+
+    [[nodiscard]] fa::render::TextureHandle textureForAsset(
+        const fa::assets::AssetId& id) const {
+        return textureForName(id.name());
     }
 
     /// \brief Whether the player is within \p radius of an entity's 16x16 centre.
@@ -1057,6 +1255,46 @@ public:
         return stamina != nullptr ? stamina->current : 0.0f;
     }
 
+    /// \brief Sets current health, clamped to `[0, max]`.
+    void setPlayerHealth(float value) {
+        fa::player::Health* health = world().tryGet<fa::player::Health>(m_markerEntity);
+        if (health != nullptr) {
+            const float clamped = fa::core::clampf(value, 0.0f, static_cast<float>(health->max));
+            health->current = static_cast<int>(clamped);
+        }
+    }
+
+    /// \brief Subtracts health; returns the remaining value.
+    int damagePlayer(int amount) {
+        fa::player::Health* health = world().tryGet<fa::player::Health>(m_markerEntity);
+        if (health == nullptr || amount <= 0) {
+            return health != nullptr ? health->current : 0;
+        }
+        health->current = std::max(0, health->current - amount);
+        return health->current;
+    }
+
+    /// \brief The marker's current tile, used by portals and hazards.
+    [[nodiscard]] fa::tilemap::TileCoord markerCell() const {
+        return m_map.worldToGrid(markerCenter());
+    }
+
+    /// \brief Where a passed-out player wakes up: beside the bed.
+    [[nodiscard]] fa::core::Vec2 respawnPoint() const {
+        const fa::core::Vec2 bed = bedPosition();
+        return fa::core::Vec2{bed.x - 16.0f, bed.y};
+    }
+
+    [[nodiscard]] float playerHealth() const {
+        const fa::player::Health* health = world().tryGet<fa::player::Health>(m_markerEntity);
+        return health != nullptr ? static_cast<float>(health->current) : 0.0f;
+    }
+
+    [[nodiscard]] float playerMaxHealth() const {
+        const fa::player::Health* health = world().tryGet<fa::player::Health>(m_markerEntity);
+        return health != nullptr ? static_cast<float>(health->max) : 0.0f;
+    }
+
     /// \brief Sets current stamina, clamped to the component's maximum.
     void setPlayerStamina(float value) {
         fa::player::Stamina* stamina = world().tryGet<fa::player::Stamina>(m_markerEntity);
@@ -1168,6 +1406,72 @@ private:
         greenhouse.bounds = fa::tilemap::TileBounds{7, 11, 1, 1};
         m_map.addArea(greenhouse);
 
+        if (!m_scripted) {
+            fa::tilemap::TileDef bramble;
+            bramble.id = fa::tilemap::TileId{kBrambleTile};
+            bramble.name = "bramble";
+            bramble.textureName = "tex.ground.soil";
+            bramble.walkable = true;
+            bramble.tag = "hazard";
+            static_cast<void>(m_map.addTileDef(bramble));
+            static_cast<void>(m_map.setTileTexture(bramble.id, m_soil));
+            std::vector<fa::tilemap::TileCoord> hazardTiles;
+            for (const EntitySpawn* spawn : findSpawns("hazard")) {
+                if (spawn->hasCell) {
+                    hazardTiles.push_back(spawn->cell);
+                }
+            }
+            if (hazardTiles.empty()) {
+                for (int column = 48; column <= 50; ++column) {
+                    hazardTiles.push_back(fa::tilemap::TileCoord{column, 14});
+                }
+            }
+            for (const fa::tilemap::TileCoord& cell : hazardTiles) {
+                static_cast<void>(m_map.setTile(cell.x, cell.y, 0, fa::tilemap::TileId{kBrambleTile}));
+            }
+
+            // Play mode extends the same Tilemap with a forest region so farming,
+            // physics and the save format stay unchanged. Both gates are walkable.
+            for (int row = kGateFirstRow; row <= kGateLastRow; ++row) {
+                static_cast<void>(
+                    m_map.setTile(kWallColumn, row, 0, fa::tilemap::TileId{kGrassTile}));
+            }
+            for (int row = 0; row < kRows; ++row) {
+                if (row >= kGateFirstRow && row <= kGateLastRow) {
+                    continue;
+                }
+                static_cast<void>(
+                    m_map.setTile(kForestStartColumn, row, 0, fa::tilemap::TileId{kWallTile}));
+            }
+
+            // Tree clusters; the gate corridor (rows 10-12) stays clear.
+            const fa::tilemap::TileCoord trees[] = {
+                {45, 4}, {46, 4}, {45, 5}, {52, 3}, {53, 3}, {60, 5}, {61, 5}, {68, 3},
+                {75, 5}, {76, 5}, {49, 8}, {55, 8}, {62, 9}, {70, 8}, {77, 9},  {47, 15},
+                {54, 16}, {61, 15}, {68, 16}, {75, 15}, {44, 20}, {51, 20}, {58, 20},
+                {65, 20}, {72, 20},
+            };
+            for (const fa::tilemap::TileCoord& cell : trees) {
+                static_cast<void>(m_map.setTile(cell.x, cell.y, 0, fa::tilemap::TileId{kWallTile}));
+            }
+
+            fa::tilemap::MapPortal toForest;
+            toForest.id = "to_forest";
+            toForest.bounds = fa::tilemap::TileBounds{39, kGateFirstRow, 1,
+                                                     kGateLastRow - kGateFirstRow + 1};
+            toForest.targetMap = "forest";
+            toForest.targetTile = fa::tilemap::TileCoord{43, 11};
+            m_map.addPortal(toForest);
+
+            fa::tilemap::MapPortal toFarm;
+            toFarm.id = "to_farm";
+            toFarm.bounds = fa::tilemap::TileBounds{41, kGateFirstRow, 1,
+                                                    kGateLastRow - kGateFirstRow + 1};
+            toFarm.targetMap = "farm";
+            toFarm.targetTile = fa::tilemap::TileCoord{37, 11};
+            m_map.addPortal(toFarm);
+        }
+
         m_markerEntity = world().create();
         fa::scene::Transform marker;
         marker.position = fa::core::Vec2{320.0f, 200.0f};
@@ -1192,26 +1496,30 @@ private:
         // A bed beside the start position: E within 28 px advances the day and
         // triggers M25's end-of-day settlement + autosave.
         m_bedEntity = world().create();
+        const EntitySpawn* bedSpawn = m_scripted ? nullptr : findSpawn("bed");
         fa::scene::Transform bedTransform;
-        bedTransform.position = fa::core::Vec2{336.0f, 200.0f};
+        bedTransform.position =
+            bedSpawn != nullptr ? spawnPosition(*bedSpawn) : fa::core::Vec2{336.0f, 200.0f};
         static_cast<void>(world().add<fa::scene::Transform>(m_bedEntity, bedTransform));
 
         fa::scene::Sprite bedSprite;
-        bedSprite.texture = m_soil;
+        bedSprite.texture = bedSpawn != nullptr ? textureForName(bedSpawn->texture) : m_soil;
         bedSprite.size = fa::core::Vec2{16.0f, 16.0f};
         bedSprite.layer = fa::render::RenderLayer::Objects;
-        bedSprite.tint = fa::core::Color{0.35f, 0.65f, 1.0f, 1.0f};
+        bedSprite.tint = bedSpawn != nullptr ? bedSpawn->tint
+                                            : fa::core::Color{0.35f, 0.65f, 1.0f, 1.0f};
         static_cast<void>(world().add<fa::scene::Sprite>(m_bedEntity, bedSprite));
 
         fa::interaction::Interactable bedInteractable;
         bedInteractable.area = fa::core::Rect{0.0f, 0.0f, 16.0f, 16.0f};
         bedInteractable.priority = 10;
-        bedInteractable.payload = 99;
+        bedInteractable.payload = bedSpawn != nullptr ? bedSpawn->payload : 99;
         static_cast<void>(world().add<fa::interaction::Interactable>(m_bedEntity, bedInteractable));
 
         if (!m_scripted) {
             // Play-only props: a shipping box for crops and a merchant for the shop.
-            const auto addProp = [this](fa::core::Vec2 position, fa::core::Color tint,
+            const auto addProp = [this](fa::core::Vec2 position,
+                                        fa::render::TextureHandle texture, fa::core::Color tint,
                                         int payload, fa::scene::EntityId& out) {
                 out = world().create();
                 fa::scene::Transform transform;
@@ -1219,7 +1527,7 @@ private:
                 static_cast<void>(world().add<fa::scene::Transform>(out, transform));
 
                 fa::scene::Sprite sprite;
-                sprite.texture = m_soil;
+                sprite.texture = texture;
                 sprite.size = fa::core::Vec2{16.0f, 16.0f};
                 sprite.layer = fa::render::RenderLayer::Objects;
                 sprite.tint = tint;
@@ -1231,10 +1539,19 @@ private:
                 interactable.payload = payload;
                 static_cast<void>(world().add<fa::interaction::Interactable>(out, interactable));
             };
-            addProp(fa::core::Vec2{352.0f, 216.0f}, fa::core::Color{0.90f, 0.55f, 0.20f, 1.0f}, 100,
-                    m_shippingEntity);
-            addProp(fa::core::Vec2{288.0f, 232.0f}, fa::core::Color{0.80f, 0.40f, 0.90f, 1.0f}, 101,
-                    m_merchantEntity);
+            const auto addSpawnProp = [&](const char* kind, fa::core::Vec2 fallbackPosition,
+                                          fa::core::Color fallbackTint, int fallbackPayload,
+                                          fa::scene::EntityId& out) {
+                const EntitySpawn* spawn = findSpawn(kind);
+                addProp(spawn != nullptr ? spawnPosition(*spawn) : fallbackPosition,
+                        spawn != nullptr ? textureForName(spawn->texture) : m_soil,
+                        spawn != nullptr ? spawn->tint : fallbackTint,
+                        spawn != nullptr ? spawn->payload : fallbackPayload, out);
+            };
+            addSpawnProp("shipping", fa::core::Vec2{352.0f, 216.0f},
+                         fa::core::Color{0.90f, 0.55f, 0.20f, 1.0f}, 100, m_shippingEntity);
+            addSpawnProp("merchant", fa::core::Vec2{288.0f, 232.0f},
+                         fa::core::Color{0.80f, 0.40f, 0.90f, 1.0f}, 101, m_merchantEntity);
         }
 
         // A trigger volume on the marker's path, tall enough that the marker cannot slip
@@ -1258,7 +1575,7 @@ private:
         static_cast<void>(world().add<fa::scene::Transform>(m_crateEntity, crateTransform));
 
         fa::scene::Sprite crateSprite;
-        crateSprite.texture = m_soil;
+        crateSprite.texture = m_chest.isValid() ? m_chest : m_soil;
         crateSprite.size = fa::core::Vec2{static_cast<float>(fa::render::kTileSize),
                                           static_cast<float>(fa::render::kTileSize)};
         crateSprite.layer = fa::render::RenderLayer::Objects;
@@ -1342,10 +1659,12 @@ private:
             static_cast<void>(world().add<fa::scene::Transform>(id, transform));
 
             fa::scene::Sprite sprite;
-            sprite.texture = m_wall;
+            const bool hasSlime = m_slime.isValid();
+            sprite.texture = hasSlime ? m_slime : m_wall;
             sprite.size = fa::core::Vec2{16.0f, 16.0f};
             sprite.layer = fa::render::RenderLayer::Objects;
-            sprite.tint = fa::core::Color{1.0f, 0.55f, 0.55f, 1.0f};
+            sprite.tint = hasSlime ? fa::core::Color{1.0f, 1.0f, 1.0f, 1.0f}
+                                   : fa::core::Color{1.0f, 0.55f, 0.55f, 1.0f};
             static_cast<void>(world().add<fa::scene::Sprite>(id, sprite));
 
             fa::physics::Collider collider;
@@ -1368,6 +1687,23 @@ private:
 
         m_combatDummy1 = makeDummy(fa::core::Vec2{300.0f, 220.0f}, 20, "loot.test");
         m_combatDummy2 = makeDummy(fa::core::Vec2{300.0f, 240.0f}, 30, "loot.slime");
+
+        if (!m_scripted) {
+            const std::vector<const EntitySpawn*> enemies = findSpawns("enemy");
+            if (enemies.empty()) {
+                m_forestDummy1 = makeDummy(fa::core::Vec2{832.0f, 128.0f}, 25, "loot.slime");
+                m_forestDummy2 = makeDummy(fa::core::Vec2{912.0f, 224.0f}, 20, "loot.test");
+            } else {
+                if (enemies.size() >= 1) {
+                    m_forestDummy1 = makeDummy(spawnPosition(*enemies[0]), enemies[0]->health,
+                                               enemies[0]->loot);
+                }
+                if (enemies.size() >= 2) {
+                    m_forestDummy2 = makeDummy(spawnPosition(*enemies[1]), enemies[1]->health,
+                                               enemies[1]->loot);
+                }
+            }
+        }
     }
 
     /// \brief Creates one M21 agent and a stationary decoy target.
@@ -1688,6 +2024,13 @@ private:
     fa::render::TextureHandle m_wall;
     fa::render::TextureHandle m_soil;
     fa::render::TextureHandle m_marker;
+    fa::render::TextureHandle m_soilWet;
+    fa::render::TextureHandle m_cropSeed;
+    fa::render::TextureHandle m_cropSprout;
+    fa::render::TextureHandle m_cropYoung;
+    fa::render::TextureHandle m_cropMature;
+    fa::render::TextureHandle m_chest;
+    fa::render::TextureHandle m_slime;
     /// \brief Borrowed; the scene's PlayerSystem reads the same input as the app.
     fa::input::IInput& m_input;
     /// Declared before the systems are created so it outlives them: both systems
@@ -1710,6 +2053,10 @@ private:
     fa::interaction::InteractionService m_interaction;
     /// \brief False in `--play` so startup does not run the scripted demos.
     bool m_scripted = true;
+    /// \brief Optional spawn table loaded from `data/entities.json`.
+    const std::vector<EntitySpawn>* m_spawns = nullptr;
+    /// \brief Active map width; play mode includes the forest region.
+    int m_columns = kFarmColumns;
     fa::scene::EntityId m_markerEntity;
     fa::scene::EntityId m_crateEntity;
     fa::scene::EntityId m_bedEntity;
@@ -1723,6 +2070,8 @@ private:
     std::unique_ptr<fa::combat::CombatService> m_combat;
     fa::scene::EntityId m_combatDummy1;
     fa::scene::EntityId m_combatDummy2;
+    fa::scene::EntityId m_forestDummy1;
+    fa::scene::EntityId m_forestDummy2;
     CombatDemoStats m_combatStats;
     /// \brief M21 service and the scripted agent/decoy pair.
     std::unique_ptr<fa::ai::AiService> m_ai;
@@ -1792,6 +2141,57 @@ public:
         }
     }
 
+    /// \brief Resolved app configuration; defaults until `initializeConfig` runs.
+    fa::app::GameConfig config;
+    /// \brief Validated play-mode spawn table from `data/entities.json`.
+    std::vector<EntitySpawn> entitySpawns;
+    /// \brief Hazard cells derived from the spawn table; empty means built-in.
+    std::vector<fa::tilemap::TileCoord> hazardCells;
+    fa::app::StbImageDecoder imageDecoder;
+
+    /// \brief Loads config/game.json and data/entities.json, warning on fallback.
+    void initializeConfig(fa::platform::IPlatform& platform) {
+        fa::platform::IFileSystem& files = platform.files();
+        fileSystem = &files;
+        const fa::core::Result<std::string> configText = files.readText(config.paths.config);
+        if (configText.isOk()) {
+            fa::core::Result<fa::app::GameConfig> loaded =
+                fa::app::GameConfig::loadFromText(configText.value());
+            if (loaded.isOk()) {
+                config = std::move(loaded).take();
+            } else {
+                std::printf("config: %s, using defaults\n", loaded.error().message.c_str());
+            }
+        } else {
+            std::printf("config: %s not found, using defaults\n", config.paths.config.c_str());
+        }
+
+        const std::string entitiesPath = config.paths.data + "/entities.json";
+        const fa::core::Result<std::string> entitiesText = files.readText(entitiesPath);
+        if (entitiesText.isOk()) {
+            const fa::core::Result<fa::save::SaveArchive> parsed =
+                fa::save::SaveArchive::parse(entitiesText.value());
+            if (parsed.isOk()) {
+                entitySpawns = parseEntitySpawns(parsed.value());
+            } else {
+                std::printf("entities: %s, using built-in spawns\n",
+                            parsed.error().message.c_str());
+            }
+        } else {
+            std::printf("entities: %s not found, using built-in spawns\n", entitiesPath.c_str());
+        }
+        hazardCells.clear();
+        for (const EntitySpawn& spawn : entitySpawns) {
+            if (spawn.kind == "hazard" && spawn.hasCell) {
+                hazardCells.push_back(spawn.cell);
+            }
+        }
+        std::printf("config: window %dx%d (min %dx%d), ui scale %.2f, %zu entity spawn(s)\n",
+                    config.window.width, config.window.height, config.window.minWidth,
+                    config.window.minHeight, static_cast<double>(config.ui.scale),
+                    entitySpawns.size());
+    }
+
     /// \brief True for `--play`: scripted demos are skipped and input drives tools.
     bool playMode = false;
     /// \brief True for `--play-test`: initializeFlow uses the `playtest` slot.
@@ -1809,6 +2209,15 @@ public:
     /// \brief Last shop action result, shown inside the panel.
     std::string shopMessage;
     float shopMessageTimer = 0.0f;
+    /// \brief Debounces a portal until the player has stepped off it.
+    float portalCooldown = 0.0f;
+    /// \brief Debounces thorn damage while standing on brambles.
+    float hazardCooldown = 0.0f;
+    /// \brief True while the backpack panel owns input.
+    bool inventoryOpen = false;
+    /// \brief Last inventory action result.
+    std::string inventoryMessage;
+    float inventoryMessageTimer = 0.0f;
 
     /// \brief Creates the GL context the smoke run draws with.
     ///
@@ -1826,9 +2235,23 @@ public:
         return status;
     }
 
-    /// \brief Loads the inline content pack and prints every collected error.
+    /// \brief Reads `data/<name>`, falling back to the built-in text.
+    [[nodiscard]] std::string readDataText(const char* name, std::string_view fallback) const {
+        if (fileSystem != nullptr) {
+            const std::string path = config.paths.data + "/" + name;
+            const fa::core::Result<std::string> text = fileSystem->readText(path);
+            if (text.isOk()) {
+                return text.value();
+            }
+            std::printf("data: %s missing, using built-in fallback\n", path.c_str());
+        }
+        return std::string(fallback);
+    }
+
+    /// \brief Loads the content pack from `data/` and prints every collected error.
     fa::core::Status initializeContent() {
-        const fa::core::Status status = content.loadDocument(kContentText);
+        const std::string contentText = readDataText("content.json", kContentText);
+        const fa::core::Status status = content.loadDocument(contentText);
         if (status.isError()) {
             for (const fa::content::ContentError& error : content.errors()) {
                 std::printf("content error %d [%s]: %s\n", error.code, error.context.c_str(),
@@ -1836,13 +2259,15 @@ public:
             }
             return status;
         }
-        const fa::core::Status narrativeStatus = narrative.loadDocument(kNarrativeText);
+        const std::string narrativeText = readDataText("narrative.json", kNarrativeText);
+        const fa::core::Status narrativeStatus = narrative.loadDocument(narrativeText);
         if (narrativeStatus.isError()) {
             std::printf("narrative init failed (%d): %s\n", narrativeStatus.error().code,
                         narrativeStatus.error().message.c_str());
             return narrativeStatus;
         }
-        const fa::core::Status shopStatus = shops.loadDocument(kShopText);
+        const std::string shopText = readDataText("shops.json", kShopText);
+        const fa::core::Status shopStatus = shops.loadDocument(shopText);
         if (shopStatus.isError()) {
             std::printf("shop init failed (%d): %s\n", shopStatus.error().code,
                         shopStatus.error().message.c_str());
@@ -1858,7 +2283,8 @@ public:
         if (renderer == nullptr) {
             return fa::core::errorStatus(fa::assets::asset_error::kNotInitialized, "no renderer to upload through");
         }
-        const fa::core::Status catalogStatus = catalog.loadFromText(kCatalogText);
+        const std::string catalogText = readDataText("catalog.json", kCatalogText);
+        const fa::core::Status catalogStatus = catalog.loadFromText(catalogText);
         if (catalogStatus.isError()) {
             return catalogStatus;
         }
@@ -1869,6 +2295,9 @@ public:
         desc.fileSystem = fileSystem;
         desc.catalog = &catalog;
         desc.uploader = uploader.get();
+        desc.rootPath = config.paths.assets;
+        fa::assets::IImageDecoder* decoders[] = {&imageDecoder};
+        desc.decoders = decoders;
         assets = fa::assets::createAssetManager(desc);
         if (assets == nullptr) {
             return fa::core::errorStatus(fa::assets::asset_error::kNotInitialized, "asset manager creation failed");
@@ -1901,6 +2330,33 @@ public:
             return status;
         }
 
+        const auto loadOptional = [this](const char* name,
+                                         fa::assets::AssetHandle<fa::assets::TextureAsset>& out) {
+            fa::core::Result<fa::assets::AssetHandle<fa::assets::TextureAsset>> loaded =
+                assets->loadTexture(fa::assets::AssetId::fromName(name));
+            if (loaded.isError()) {
+                std::printf("asset: %s unavailable (%s), using fallback\n", name,
+                            loaded.error().message.c_str());
+                return;
+            }
+            out = std::move(loaded).take();
+            if (!out) {
+                std::printf("asset: %s stayed unusable, using fallback\n", name);
+            }
+        };
+        loadOptional("tex.ground.soil_wet", soilWetTexture);
+        loadOptional("tex.crop.turnip_seed", cropSeedTexture);
+        loadOptional("tex.crop.turnip_sprout", cropSproutTexture);
+        loadOptional("tex.crop.turnip_young", cropYoungTexture);
+        loadOptional("tex.crop.turnip_mature", cropMatureTexture);
+        loadOptional("tex.object.chest", chestTexture);
+        loadOptional("tex.enemy.slime", slimeTexture);
+
+        const auto gpuTexture = [](const auto& handle) {
+            const fa::assets::TextureAsset* asset = handle.get();
+            return fa::render::TextureHandle{asset != nullptr ? asset->gpuTexture : 0};
+        };
+
         const fa::assets::TextureAsset* grassAsset = grassTexture.get();
         const fa::assets::TextureAsset* wallAsset = wallTexture.get();
         const fa::assets::TextureAsset* soilAsset = soilTexture.get();
@@ -1911,11 +2367,16 @@ public:
 
         // M11 takes over from here: the textures go into a scene, and the scene becomes
         // the only source of draw items.
-        auto scene = std::make_unique<DemoScene>(input, content, narrative, !playMode);
+        auto scene = std::make_unique<DemoScene>(input, content, narrative, !playMode,
+                                                 &entitySpawns);
         scene->setTextures(fa::render::TextureHandle{grassAsset->gpuTexture},
                            fa::render::TextureHandle{wallAsset->gpuTexture},
                            fa::render::TextureHandle{soilAsset->gpuTexture},
                            fa::render::TextureHandle{markerAsset->gpuTexture});
+        scene->setDetailTextures(gpuTexture(soilWetTexture), gpuTexture(cropSeedTexture),
+                                 gpuTexture(cropSproutTexture), gpuTexture(cropYoungTexture),
+                                 gpuTexture(cropMatureTexture), gpuTexture(chestTexture),
+                                 gpuTexture(slimeTexture));
         demoScene = scene.get();
         const fa::core::Status pushed = stack.push(std::move(scene));
         if (pushed.isError()) {
@@ -2136,7 +2597,7 @@ public:
 
     /// \brief Creates the M14 save service rooted at the ignored `saves/` directory.
     void initializeSave(fa::platform::IPlatform& platform) {
-        saveService = std::make_unique<fa::save::SaveService>(platform.files(), "saves");
+        saveService = std::make_unique<fa::save::SaveService>(platform.files(), config.paths.saves);
     }
 
     /// \brief Creates the M22 calendar and two placeholder point lights.
@@ -2441,6 +2902,18 @@ public:
         if (demoScene != nullptr) {
             writeFarming(context.world, demoScene->farmingTiles());
             context.world.setInt("facing", static_cast<int>(demoScene->playerFacing()));
+
+            fa::save::SaveArchive loot = fa::save::SaveArchive::array();
+            demoScene->world().each<LootDrop, fa::scene::Transform>(
+                [&loot](fa::scene::EntityId, const LootDrop& drop,
+                        const fa::scene::Transform& transform) {
+                    fa::save::SaveArchive entry = fa::save::SaveArchive::object();
+                    entry.setString("id", drop.item.name());
+                    entry.setInt("count", drop.count);
+                    entry.setVec2("position", transform.position);
+                    loot.push(std::move(entry));
+                });
+            context.world.setChild("loot", std::move(loot));
         }
         if (calendar != nullptr) {
             context.world.setInt("dateYear", calendar->date().year);
@@ -2510,6 +2983,22 @@ public:
             float stamina = demoScene->playerStamina();
             if (file.player.getFloat("stamina", stamina)) {
                 demoScene->setPlayerStamina(stamina);
+            }
+
+            clearLootDrops();
+            const fa::save::SaveArchive lootArray = file.world.child("loot");
+            if (lootArray.isArray()) {
+                for (std::size_t index = 0; index < lootArray.size(); ++index) {
+                    const fa::save::SaveArchive entry = lootArray.at(index);
+                    std::string id;
+                    int count = 0;
+                    fa::core::Vec2 position{};
+                    if (entry.isObject() && entry.getString("id", id) &&
+                        entry.getInt("count", count) && count > 0 &&
+                        entry.getVec2("position", position)) {
+                        spawnLoot(position, fa::content::ContentId::fromName(id), count);
+                    }
+                }
             }
         }
 
@@ -2676,12 +3165,12 @@ public:
             context.growthMultiplier = calendar->cropGrowthMultiplier();
             demoScene->advanceFarmingDay(context);
         });
-        flow->setAutosaveIntervalDays(1);
+        flow->setAutosaveIntervalDays(config.gameplay.autosaveDays);
         flow->setAutosaveOnQuit(true);
 
         if (playMode) {
-            // Sleep resumes at 08:00, matching the calendar's default day start.
-            flow->setDayStartHour(fa::flow::kWakeHour);
+            // Sleep resumes at the configured wake hour.
+            flow->setDayStartHour(config.gameplay.wakeHour);
             if (playTest) {
                 static_cast<void>(flow->startNewGame("playtest"));
             } else {
@@ -3248,6 +3737,127 @@ public:
         }
     }
 
+    void setInventoryMessage(std::string message) {
+        inventoryMessage = std::move(message);
+        inventoryMessageTimer = 2.5f;
+    }
+
+    /// \brief Opens the backpack panel and pauses the clock through Dialogue.
+    void openInventoryPanel() {
+        if (!playMode || flow == nullptr ||
+            flow->state() != fa::flow::AppState::Playing || inventoryOpen) {
+            return;
+        }
+        if (flow->enterDialogue().isOk()) {
+            inventoryOpen = true;
+            inventoryMessage.clear();
+            inventoryMessageTimer = 0.0f;
+        }
+    }
+
+    void closeInventoryPanel() {
+        inventoryOpen = false;
+        if (flow != nullptr && flow->state() == fa::flow::AppState::Dialogue) {
+            static_cast<void>(flow->exitDialogue());
+        }
+    }
+
+    [[nodiscard]] bool isHazardCell(fa::tilemap::TileCoord cell) const {
+        if (!hazardCells.empty()) {
+            return std::any_of(hazardCells.begin(), hazardCells.end(),
+                               [cell](fa::tilemap::TileCoord value) {
+                                   return value.x == cell.x && value.y == cell.y;
+                               });
+        }
+        return cell.y == 14 && cell.x >= 48 && cell.x <= 50;
+    }
+
+    /// \brief Applies one thorn tick when the marker stands on brambles.
+    [[nodiscard]] bool tickHazard() {
+        if (!playMode || demoScene == nullptr || flow == nullptr ||
+            flow->state() != fa::flow::AppState::Playing || hazardCooldown > 0.0f) {
+            return false;
+        }
+        if (!isHazardCell(demoScene->markerCell())) {
+            return false;
+        }
+        demoScene->damagePlayer(config.gameplay.hazardDamage);
+        hazardCooldown = config.gameplay.hazardInterval;
+        if (demoScene->playerHealth() <= 0.0f) {
+            handlePassOut();
+            return true;
+        }
+        setPlayMessage("THORNS -" + std::to_string(config.gameplay.hazardDamage));
+        return true;
+    }
+
+    /// \brief Respawns beside the bed and takes a 10% gold penalty.
+    void handlePassOut() {
+        if (flow == nullptr || demoScene == nullptr) {
+            return;
+        }
+        int penalty = 0;
+        if (economy != nullptr) {
+            penalty = static_cast<int>(static_cast<float>(economy->gold()) *
+                                       config.gameplay.deathGoldPenalty);
+            if (penalty > 0) {
+                economy->addGold(-penalty);
+            }
+        }
+        demoScene->teleportMarker(demoScene->respawnPoint());
+        demoScene->setPlayerHealth(demoScene->playerMaxHealth());
+        demoScene->setPlayerStamina(demoScene->playerMaxStamina());
+        demoScene->syncPhysics();
+        static_cast<void>(flow->requestGameOver("thorns"));
+        static_cast<void>(flow->respawn());
+        setPlayMessage("PASSED OUT  -" + std::to_string(penalty) + " GOLD");
+    }
+
+    void clearLootDrops() {
+        if (demoScene == nullptr) {
+            return;
+        }
+        std::vector<fa::scene::EntityId> drops;
+        demoScene->world().each<LootDrop, fa::scene::Transform>(
+            [&drops](fa::scene::EntityId id, LootDrop&, const fa::scene::Transform&) {
+                drops.push_back(id);
+            });
+        for (const fa::scene::EntityId id : drops) {
+            demoScene->world().destroy(id);
+        }
+    }
+
+    [[nodiscard]] int countLoot(const fa::content::ContentId& item, int count) const {
+        int total = 0;
+        if (demoScene == nullptr) {
+            return total;
+        }
+        demoScene->world().each<LootDrop, fa::scene::Transform>(
+            [&total, &item, count](fa::scene::EntityId, const LootDrop& drop,
+                                   const fa::scene::Transform&) {
+                if (drop.item == item && drop.count == count) {
+                    total += drop.count;
+                }
+            });
+        return total;
+    }
+
+    /// \brief Teleports through a portal under the marker, with a short cooldown.
+    [[nodiscard]] bool checkPortal() {
+        if (!playMode || demoScene == nullptr || portalCooldown > 0.0f) {
+            return false;
+        }
+        const fa::tilemap::MapPortal* portal = demoScene->portalAtMarker();
+        if (portal == nullptr) {
+            return false;
+        }
+        demoScene->teleportMarker(demoScene->cellPosition(portal->targetTile));
+        demoScene->syncPhysics();
+        portalCooldown = 0.6f;
+        setPlayMessage(portal->targetMap == "forest" ? "ENTERED FOREST" : "ENTERED FARM");
+        return true;
+    }
+
     /// \brief Sleeps until the next wake hour and applies the recovery rule.
     ///
     /// A sleep always ends at `flow::kWakeHour`; going to bed later than
@@ -3258,9 +3868,11 @@ public:
             return fa::core::errorStatus(fa::flow::flow_error::kNotInitialized,
                                          "sleep needs an active session");
         }
-        const float hours = calendar != nullptr ? fa::flow::sleepHoursUntil(calendar->timeOfDay())
-                                                : fa::flow::kFullSleepHours;
-        const float recovery = fa::flow::sleepRecovery(hours);
+        const float hours =
+            calendar != nullptr
+                ? fa::flow::sleepHoursUntil(calendar->timeOfDay(), config.gameplay.wakeHour)
+                : config.gameplay.fullSleepHours;
+        const float recovery = fa::flow::sleepRecovery(hours, config.gameplay.fullSleepHours);
         const fa::core::Status slept = flow->endDay();
         if (slept.isError()) {
             return slept;
@@ -3403,6 +4015,67 @@ public:
         // full crop state, not just the tilled flag.
         report("replant", useSlot(2));
 
+        const fa::content::CropDef* turnipDef =
+            content.crop(fa::content::ContentId::fromName("crop.turnip"));
+        const bool cropDataOk =
+            turnipDef != nullptr && turnipDef->seedSprite.name() == "tex.crop.turnip_seed" &&
+            turnipDef->stageSprites.size() == 3;
+        const bool textureOk =
+            demoScene->textureForName("tex.ground.soil_wet").isValid() &&
+            demoScene->textureForName("tex.crop.turnip_seed").isValid() &&
+            demoScene->textureForName("tex.crop.turnip_sprout").isValid() &&
+            demoScene->textureForName("tex.crop.turnip_young").isValid() &&
+            demoScene->textureForName("tex.crop.turnip_mature").isValid() &&
+            demoScene->textureForName("tex.object.chest").isValid() &&
+            demoScene->textureForName("tex.enemy.slime").isValid();
+        std::printf("play-test: crop sprites %s, detail textures %s\n",
+                    cropDataOk ? "ok" : "bad", textureOk ? "ok" : "bad");
+        ok = ok && cropDataOk && textureOk;
+
+        // Backpack panel: transfer one turnip each way and pause via Dialogue.
+        const int bagTurnips = playerInventory->backpack().countOf(turnip);
+        const int hotTurnips = hotbar.inventory().countOf(turnip);
+        int bagSlot = -1;
+        for (int slot = 0; slot < playerInventory->backpack().slotCount(); ++slot) {
+            const fa::inventory::ItemStack& itemStack = playerInventory->backpack().at(slot);
+            if (!itemStack.empty() && itemStack.id == turnip) {
+                bagSlot = slot;
+                break;
+            }
+        }
+        bool invMoveOk = false;
+        if (bagSlot >= 0) {
+            const fa::core::Result<int> toHot =
+                playerInventory->moveToHotbar(bagSlot, 1);
+            if (toHot.isOk() && toHot.value() == 1) {
+                int hotSlot = -1;
+                for (int slot = 0; slot < hotbar.inventory().slotCount(); ++slot) {
+                    const fa::inventory::ItemStack& itemStack = hotbar.inventory().at(slot);
+                    if (!itemStack.empty() && itemStack.id == turnip) {
+                        hotSlot = slot;
+                        break;
+                    }
+                }
+                if (hotSlot >= 0) {
+                    const fa::core::Result<int> toBag =
+                        playerInventory->moveToBackpack(hotSlot, 1);
+                    invMoveOk = toBag.isOk() && toBag.value() == 1 &&
+                                playerInventory->backpack().countOf(turnip) == bagTurnips &&
+                                hotbar.inventory().countOf(turnip) == hotTurnips;
+                }
+            }
+        }
+        openInventoryPanel();
+        const bool invOpenOk = inventoryOpen && flow->state() == fa::flow::AppState::Dialogue;
+        closeInventoryPanel();
+        const bool invCloseOk = !inventoryOpen && flow->state() == fa::flow::AppState::Playing;
+        const bool healthOk = demoScene->playerHealth() >= 99.0f;
+        std::printf("play-test: inventory move %s, panel %s/%s, health %.0f -> %s\n",
+                    invMoveOk ? "ok" : "bad", invOpenOk ? "ok" : "bad",
+                    invCloseOk ? "ok" : "bad", static_cast<double>(demoScene->playerHealth()),
+                    (invMoveOk && invOpenOk && invCloseOk && healthOk) ? "ok" : "bad");
+        ok = ok && invMoveOk && invOpenOk && invCloseOk && healthOk;
+
         // Combat: face the first dummy, swing until it dies, then pick up loot.
         demoScene->teleportMarker(fa::core::Vec2{288.0f, 212.0f});
         demoScene->setPlayerFacing(fa::player::Facing::East);
@@ -3445,19 +4118,33 @@ public:
             demoScene->setPlayerStamina(0.0f);
             return sleepAtBed();
         };
-        report("sleep8", sleepFrom(0.0f));
+        const auto sleepWithHours = [&](float hours) {
+            float hour = config.gameplay.wakeHour - hours;
+            while (hour < 0.0f) {
+                hour += 24.0f;
+            }
+            return sleepFrom(hour);
+        };
+        const float fullHours = config.gameplay.fullSleepHours;
+        const float shortHours = std::max(1.0f, fullHours - 1.0f);
+        report("sleep-full", sleepWithHours(fullHours));
         const float fullStamina = demoScene->playerStamina();
-        report("sleep7", sleepFrom(1.0f));
+        report("sleep-short", sleepWithHours(shortHours));
         const float shortStamina = demoScene->playerStamina();
-        report("sleep1", sleepFrom(7.0f));
+        report("sleep-nap", sleepWithHours(1.0f));
         const float napStamina = demoScene->playerStamina();
         const bool wakeOk =
-            calendar->timeOfDay() > fa::flow::kWakeHour - 0.01f &&
-            calendar->timeOfDay() < fa::flow::kWakeHour + 0.01f;
-        const bool sleepOk = fullStamina >= 99.0f && shortStamina > 72.0f &&
-                             shortStamina < 82.0f && napStamina >= 0.5f && napStamina <= 2.0f;
-        std::printf("play-test: sleep wake %02d:%02d, 8h %.1f, 7h %.1f, 1h %.1f -> %s\n",
-                    calendar->hour(), calendar->minute(), static_cast<double>(fullStamina),
+            calendar->timeOfDay() > config.gameplay.wakeHour - 0.01f &&
+            calendar->timeOfDay() < config.gameplay.wakeHour + 0.01f;
+        const float shortFraction = shortHours / fullHours;
+        const float expectedShort = shortFraction * shortFraction * 100.0f;
+        const bool sleepOk = fullStamina >= 99.0f &&
+                             std::abs(shortStamina - expectedShort) < 2.0f &&
+                             napStamina >= 0.5f && napStamina <= 2.0f;
+        std::printf("play-test: sleep wake %02d:%02d, full %.0fh %.1f, short %.0fh %.1f, "
+                    "1h %.1f -> %s\n",
+                    calendar->hour(), calendar->minute(), static_cast<double>(fullHours),
+                    static_cast<double>(fullStamina), static_cast<double>(shortHours),
                     static_cast<double>(shortStamina), static_cast<double>(napStamina),
                     (sleepOk && wakeOk) ? "ok" : "bad");
         ok = ok && sleepOk && wakeOk;
@@ -3490,6 +4177,49 @@ public:
                     shipPropOk ? "ok" : "bad", merchantPropOk ? "ok" : "bad");
         ok = ok && shipPropOk && merchantPropOk;
 
+        bool spawnOk = true;
+        for (const EntitySpawn& spawn : entitySpawns) {
+            if (spawn.kind == "bed" && spawn.hasPosition) {
+                const fa::core::Vec2 spawnBed = demoScene->bedPosition();
+                spawnOk = spawnBed.x == spawn.position.x && spawnBed.y == spawn.position.y;
+            }
+        }
+        std::printf("play-test: %zu entity spawn(s), bed from table %s\n", entitySpawns.size(),
+                    spawnOk ? "ok" : "bad");
+        ok = ok && spawnOk;
+
+        // Two-region map: the farm-side portal leads to the forest and back.
+        demoScene->teleportMarker(demoScene->cellPosition(fa::tilemap::TileCoord{39, 11}));
+        const bool toForest = checkPortal() && demoScene->markerInForest();
+        portalCooldown = 0.0f;
+        demoScene->teleportMarker(demoScene->cellPosition(fa::tilemap::TileCoord{41, 11}));
+        const bool toFarm = checkPortal() && !demoScene->markerInForest();
+        const bool forestDummyOk = demoScene->isAlive(demoScene->forestDummy1());
+        std::printf("play-test: portal farm->forest %s, forest->farm %s, forest dummy %s\n",
+                    toForest ? "ok" : "bad", toFarm ? "ok" : "bad",
+                    forestDummyOk ? "ok" : "bad");
+        ok = ok && toForest && toFarm && forestDummyOk;
+
+        // Brambles knock the player out: respawn at the bed with a 10% gold loss.
+        const int goldBeforeDeath = economy->gold();
+        demoScene->teleportMarker(demoScene->cellPosition(fa::tilemap::TileCoord{49, 14}));
+        demoScene->setPlayerHealth(10.0f);
+        hazardCooldown = 0.0f;
+        static_cast<void>(tickHazard());
+        hazardCooldown = 0.0f;
+        static_cast<void>(tickHazard());
+        const int expectedGold = goldBeforeDeath - goldBeforeDeath / 10;
+        const bool deathOk = demoScene->playerHealth() >= 99.0f &&
+                             flow->state() == fa::flow::AppState::Playing &&
+                             economy->gold() == expectedGold;
+        std::printf("play-test: thorns death %s, gold %d -> %d\n", deathOk ? "ok" : "bad",
+                    goldBeforeDeath, economy->gold());
+        ok = ok && deathOk;
+
+        // Loot persistence: leave one drop in the world for the save round-trip.
+        spawnLoot(fa::core::Vec2{700.0f, 300.0f}, turnip, 2);
+        const int lootBefore = countLoot(turnip, 2);
+
         const fa::core::Vec2 savedMarker = demoScene->markerPosition();
         const int savedTurnips = playerInventory->backpack().countOf(turnip) +
                                  hotbar.inventory().countOf(turnip);
@@ -3514,6 +4244,8 @@ public:
         const bool bagOk = loadedTurnips == savedTurnips && loadedSeeds == savedSeeds;
         const bool dayOk = calendar->date().day == savedDay;
         const bool goldOk = economy->gold() == savedGold;
+        const int loadedLoot = countLoot(turnip, 2);
+        const bool lootOk = lootBefore == 2 && loadedLoot == 2;
         bool farmOk = false;
         for (const fa::farming::FarmTileEntry& entry : demoScene->farmingTiles()) {
             if (entry.cell.x == 4 && entry.cell.y == 9 && entry.tile.tilled && entry.hasCrop &&
@@ -3521,10 +4253,10 @@ public:
                 farmOk = true;
             }
         }
-        std::printf("play-test: load marker %s, bag %s, day %s, farm %s, gold %s\n",
+        std::printf("play-test: load marker %s, bag %s, day %s, farm %s, gold %s, loot %s\n",
                     markerOk ? "ok" : "bad", bagOk ? "ok" : "bad", dayOk ? "ok" : "bad",
-                    farmOk ? "ok" : "bad", goldOk ? "ok" : "bad");
-        ok = ok && markerOk && bagOk && dayOk && farmOk && goldOk;
+                    farmOk ? "ok" : "bad", goldOk ? "ok" : "bad", lootOk ? "ok" : "bad");
+        ok = ok && markerOk && bagOk && dayOk && farmOk && goldOk && lootOk;
 
         // Menu wiring: pause, explicit slot save, main menu and slot load.
         flow->requestPause(true);
@@ -3683,8 +4415,22 @@ public:
             return status;
         }
 
-        ui = std::make_unique<fa::ui::UiContext>(uiFont, uiWhiteTexture);
+        fa::ui::UiTheme theme;
+        theme.textScale = 2.0f * config.ui.scale;
+        theme.padding = 4.0f * config.ui.scale;
+        ui = std::make_unique<fa::ui::UiContext>(uiFont, uiWhiteTexture, theme);
         return fa::core::okStatus();
+    }
+
+    /// \brief Centres a rectangle in the 640x360 virtual UI space.
+    [[nodiscard]] static fa::core::Rect centeredRect(float width, float height) {
+        return fa::core::makeRect((640.0f - width) * 0.5f, (360.0f - height) * 0.5f, width,
+                                  height);
+    }
+
+    /// \brief Scales a base size with `ui.scale`, then centres it.
+    [[nodiscard]] fa::core::Rect scaledCenteredRect(float width, float height) const {
+        return centeredRect(width * config.ui.scale, height * config.ui.scale);
     }
 
     /// \brief Drops the renderer, and with it the GL context, before the window closes.
@@ -3705,6 +4451,13 @@ public:
         wallTexture = fa::assets::AssetHandle<fa::assets::TextureAsset>{};
         soilTexture = fa::assets::AssetHandle<fa::assets::TextureAsset>{};
         markerTexture = fa::assets::AssetHandle<fa::assets::TextureAsset>{};
+        soilWetTexture = fa::assets::AssetHandle<fa::assets::TextureAsset>{};
+        cropSeedTexture = fa::assets::AssetHandle<fa::assets::TextureAsset>{};
+        cropSproutTexture = fa::assets::AssetHandle<fa::assets::TextureAsset>{};
+        cropYoungTexture = fa::assets::AssetHandle<fa::assets::TextureAsset>{};
+        cropMatureTexture = fa::assets::AssetHandle<fa::assets::TextureAsset>{};
+        chestTexture = fa::assets::AssetHandle<fa::assets::TextureAsset>{};
+        slimeTexture = fa::assets::AssetHandle<fa::assets::TextureAsset>{};
         assets.reset();
         uploader.reset();
         fileSystem = nullptr;
@@ -3834,6 +4587,10 @@ public:
                     event.scancode != fa::platform::Scancode::Escape) {
                     continue;
                 }
+                if (inventoryOpen) {
+                    closeInventoryPanel();
+                    continue;
+                }
                 if (shopOpen) {
                     shopOpen = false;
                     static_cast<void>(flow->exitDialogue());
@@ -3847,6 +4604,18 @@ public:
                     flow->requestPause(true);
                 } else if (flow->state() == fa::flow::AppState::Paused) {
                     flow->requestPause(false);
+                }
+            }
+        }
+
+        // I opens the backpack panel; like the shop, it pauses via Dialogue.
+        if (playMode && flow != nullptr && !editorActive && !dialogueOpen && !shopOpen &&
+            !inventoryOpen && flow->state() == fa::flow::AppState::Playing) {
+            for (const fa::platform::PlatformEvent& event : events) {
+                if (event.type == fa::platform::PlatformEventType::KeyDown &&
+                    event.scancode == fa::platform::Scancode::I) {
+                    openInventoryPanel();
+                    break;
                 }
             }
         }
@@ -3898,6 +4667,16 @@ public:
             demoScene->setScriptedMove(scripted);
         }
         if (gameplayActive()) {
+            if (portalCooldown > 0.0f) {
+                portalCooldown = std::max(
+                    0.0f, portalCooldown - static_cast<float>(context.fixedDeltaSeconds));
+            }
+            static_cast<void>(checkPortal());
+            if (hazardCooldown > 0.0f) {
+                hazardCooldown = std::max(
+                    0.0f, hazardCooldown - static_cast<float>(context.fixedDeltaSeconds));
+            }
+            static_cast<void>(tickHazard());
             stack.fixedUpdate(context);
             if (demoScene != nullptr) {
                 demoScene->advanceAnimation(static_cast<float>(context.fixedDeltaSeconds));
@@ -3957,6 +4736,10 @@ public:
             shopMessageTimer = std::max(0.0f, shopMessageTimer -
                                                   static_cast<float>(context.realDeltaSeconds));
         }
+        if (inventoryMessageTimer > 0.0f) {
+            inventoryMessageTimer = std::max(
+                0.0f, inventoryMessageTimer - static_cast<float>(context.realDeltaSeconds));
+        }
         stack.variableUpdate(context);
     }
 
@@ -3999,6 +4782,13 @@ public:
     fa::assets::AssetHandle<fa::assets::TextureAsset> wallTexture;
     fa::assets::AssetHandle<fa::assets::TextureAsset> soilTexture;
     fa::assets::AssetHandle<fa::assets::TextureAsset> markerTexture;
+    fa::assets::AssetHandle<fa::assets::TextureAsset> soilWetTexture;
+    fa::assets::AssetHandle<fa::assets::TextureAsset> cropSeedTexture;
+    fa::assets::AssetHandle<fa::assets::TextureAsset> cropSproutTexture;
+    fa::assets::AssetHandle<fa::assets::TextureAsset> cropYoungTexture;
+    fa::assets::AssetHandle<fa::assets::TextureAsset> cropMatureTexture;
+    fa::assets::AssetHandle<fa::assets::TextureAsset> chestTexture;
+    fa::assets::AssetHandle<fa::assets::TextureAsset> slimeTexture;
     /// Owns the scene graph. Cleared before the renderer goes away: the scenes only
     /// store texture handles, but their sprites should not outlive the GPU textures.
     fa::scene::SceneStack stack;
@@ -4177,6 +4967,101 @@ public:
     float uiSliderValue() const { return sliderValue; }
 
 private:
+    /// \brief Draws the backpack panel: one stack moves per click.
+    void buildInventoryPanel(const fa::ui::UiTheme& theme) {
+        if (!inventoryOpen || ui == nullptr || flow == nullptr || playerInventory == nullptr) {
+            return;
+        }
+        if (flow->state() != fa::flow::AppState::Dialogue) {
+            inventoryOpen = false;
+            return;
+        }
+
+        const float scale = config.ui.scale;
+        fa::ui::TextStyle title;
+        title.color = theme.text;
+        title.scale = 2.0f * scale;
+        fa::ui::TextStyle label;
+        label.color = theme.text;
+        label.scale = scale;
+
+        const fa::core::Rect panel = centeredRect(500.0f, 270.0f);
+        ui->panel(panel, theme.panel);
+        ui->border(panel, theme.panelBorder);
+        ui->text("BACKPACK", fa::core::makeRect(panel.x + 12.0f, panel.y + 8.0f, 300.0f, 16.0f),
+                 title);
+        ui->text("BAG -> HOTBAR",
+                 fa::core::makeRect(panel.x + 12.0f, panel.y + 30.0f, 180.0f, 8.0f), label);
+        ui->text("HOTBAR -> BAG",
+                 fa::core::makeRect(panel.x + 262.0f, panel.y + 30.0f, 180.0f, 8.0f), label);
+
+        int moveBag = -1;
+        int moveHot = -1;
+        const auto drawColumn = [&](fa::inventory::Inventory& inventory, float labelOffset,
+                                    float buttonOffset, const char* idPrefix, int& moveSlot) {
+            float y = panel.y + 46.0f;
+            int shown = 0;
+            for (int slot = 0; slot < inventory.slotCount() && shown < 8; ++slot) {
+                const fa::inventory::ItemStack& stack = inventory.at(slot);
+                if (stack.empty()) {
+                    continue;
+                }
+                const fa::content::ItemDef* def = content.item(stack.id);
+                char line[64]{};
+                std::snprintf(line, sizeof(line), "%s x%d",
+                              def != nullptr ? def->displayName.c_str() : stack.id.name().c_str(),
+                              stack.count);
+                ui->text(line, fa::core::makeRect(panel.x + labelOffset, y + 4.0f, 180.0f, 8.0f),
+                         label);
+
+                char id[32]{};
+                std::snprintf(id, sizeof(id), "%s.%d", idPrefix, slot);
+                if (ui->button(fa::ui::UiId::fromName(id), "MOVE",
+                               fa::core::makeRect(panel.x + buttonOffset, y, 52.0f, 18.0f))
+                        .pressed) {
+                    ++uiPresses;
+                    moveSlot = slot;
+                }
+                y += 20.0f;
+                ++shown;
+            }
+            if (shown == 0) {
+                ui->text("EMPTY", fa::core::makeRect(panel.x + labelOffset, y + 4.0f, 120.0f,
+                                                     8.0f),
+                         label);
+            }
+        };
+
+        drawColumn(playerInventory->backpack(), 12.0f, 198.0f, "inv.bag", moveBag);
+        drawColumn(playerInventory->hotbar().inventory(), 262.0f, 442.0f, "inv.hot", moveHot);
+
+        if (ui->button(fa::ui::UiId::fromName("inv.close"), "CLOSE",
+                       fa::core::makeRect(panel.x + 12.0f, panel.y + 208.0f, 90.0f, 20.0f))
+                .pressed) {
+            ++uiPresses;
+            closeInventoryPanel();
+            return;
+        }
+
+        if (moveBag >= 0) {
+            const fa::core::Result<int> moved = playerInventory->moveToHotbar(moveBag, 1);
+            setInventoryMessage(moved.isOk() && moved.value() > 0 ? "MOVED TO HOTBAR"
+                                                                  : "HOTBAR IS FULL");
+        }
+        if (moveHot >= 0) {
+            const fa::core::Result<int> moved = playerInventory->moveToBackpack(moveHot, 1);
+            setInventoryMessage(moved.isOk() && moved.value() > 0 ? "MOVED TO BACKPACK"
+                                                                  : "BACKPACK IS FULL");
+        }
+        if (inventoryMessageTimer > 0.0f && !inventoryMessage.empty()) {
+            fa::ui::TextStyle message = label;
+            message.color = theme.accent;
+            ui->text(inventoryMessage,
+                     fa::core::makeRect(panel.x + 120.0f, panel.y + 212.0f, 360.0f, 8.0f),
+                     message);
+        }
+    }
+
     /// \brief Draws the merchant panel while it is open.
     void buildShopPanel(const fa::ui::UiTheme& theme) {
         if (!shopOpen || ui == nullptr || flow == nullptr) {
@@ -4187,21 +5072,26 @@ private:
             return;
         }
 
+        const float scale = config.ui.scale;
         fa::ui::TextStyle title;
         title.color = theme.text;
-        title.scale = 2.0f;
+        title.scale = 2.0f * scale;
+        title.align = fa::ui::TextAlign::Center;
         fa::ui::TextStyle label;
         label.color = theme.text;
-        label.scale = 1.0f;
+        label.scale = scale;
 
-        const fa::core::Rect panel = fa::core::makeRect(180.0f, 90.0f, 280.0f, 170.0f);
+        const fa::core::Rect panel = centeredRect(280.0f, 190.0f);
         ui->panel(panel, theme.panel);
         ui->border(panel, theme.panelBorder);
-        ui->text("GENERAL STORE", fa::core::makeRect(190.0f, 98.0f, 260.0f, 14.0f), title);
+        ui->text("GENERAL STORE", fa::core::makeRect(panel.x + 10.0f, panel.y + 8.0f,
+                                                    panel.w - 20.0f, 16.0f),
+                 title);
 
         char goldText[48]{};
         std::snprintf(goldText, sizeof(goldText), "GOLD %d", economy != nullptr ? economy->gold() : 0);
-        ui->text(goldText, fa::core::makeRect(192.0f, 120.0f, 240.0f, 7.0f), label);
+        ui->text(goldText, fa::core::makeRect(panel.x + 12.0f, panel.y + 30.0f, 240.0f, 8.0f),
+                 label);
 
         const fa::content::ContentId seed = fa::content::ContentId::fromName("item.turnip_seed");
         const fa::content::ContentId turnip = fa::content::ContentId::fromName("item.turnip");
@@ -4218,11 +5108,15 @@ private:
 
         char seedText[64]{};
         std::snprintf(seedText, sizeof(seedText), "SEEDS %d   BUY 1 = %dg", seedCount, seedPrice);
-        ui->text(seedText, fa::core::makeRect(192.0f, 136.0f, 250.0f, 7.0f), label);
+        ui->text(seedText, fa::core::makeRect(panel.x + 12.0f, panel.y + 46.0f,
+                                              panel.w - 24.0f, 8.0f),
+                 label);
         char turnipText[64]{};
         std::snprintf(turnipText, sizeof(turnipText), "TURNIPS %d   SELL 1 = %dg", turnipCount,
                       turnipPrice);
-        ui->text(turnipText, fa::core::makeRect(192.0f, 148.0f, 250.0f, 7.0f), label);
+        ui->text(turnipText, fa::core::makeRect(panel.x + 12.0f, panel.y + 58.0f,
+                                                panel.w - 24.0f, 8.0f),
+                 label);
 
         const auto press = [this](const char* id, const char* text, float x, float y, float w) {
             const bool pressed = ui->button(fa::ui::UiId::fromName(id), text,
@@ -4234,15 +5128,15 @@ private:
             return pressed;
         };
 
-        if (press("shop.buy", "BUY SEED", 192.0f, 166.0f, 110.0f)) {
+        if (press("shop.buy", "BUY SEED", panel.x + 12.0f, panel.y + 78.0f, 110.0f)) {
             const fa::core::Status status = buyFromShop(seed, 1);
             setShopMessage(status.isOk() ? "BOUGHT 1 SEED" : status.error().message);
         }
-        if (press("shop.sell", "SELL TURNIP", 310.0f, 166.0f, 138.0f)) {
+        if (press("shop.sell", "SELL TURNIP", panel.x + 130.0f, panel.y + 78.0f, 138.0f)) {
             const fa::core::Status status = sellToShop(turnip, 1);
             setShopMessage(status.isOk() ? "SOLD 1 TURNIP" : status.error().message);
         }
-        if (press("shop.close", "CLOSE", 192.0f, 194.0f, 90.0f)) {
+        if (press("shop.close", "CLOSE", panel.x + 12.0f, panel.y + 104.0f, 90.0f)) {
             shopOpen = false;
             static_cast<void>(flow->exitDialogue());
             return;
@@ -4251,7 +5145,8 @@ private:
         if (shopMessageTimer > 0.0f && !shopMessage.empty()) {
             fa::ui::TextStyle message = label;
             message.color = theme.accent;
-            ui->text(shopMessage.substr(0, 40), fa::core::makeRect(192.0f, 222.0f, 250.0f, 7.0f),
+            ui->text(shopMessage.substr(0, 40),
+                     fa::core::makeRect(panel.x + 12.0f, panel.y + 132.0f, panel.w - 24.0f, 8.0f),
                      message);
         }
     }
@@ -4267,13 +5162,17 @@ private:
             return;
         }
 
+        const float scale = config.ui.scale;
         fa::ui::TextStyle title;
         title.color = theme.text;
-        title.scale = 2.0f;
+        title.scale = 2.0f * scale;
+        title.align = fa::ui::TextAlign::Center;
         fa::ui::TextStyle label;
         label.color = theme.text;
-        label.scale = 1.0f;
-        fa::ui::TextStyle dim = label;
+        label.scale = scale;
+        fa::ui::TextStyle centeredLabel = label;
+        centeredLabel.align = fa::ui::TextAlign::Center;
+        fa::ui::TextStyle dim = centeredLabel;
         dim.color = theme.textDisabled;
 
         const auto press = [this](const char* id, const char* text, float x, float y, float w,
@@ -4296,64 +5195,82 @@ private:
         };
 
         if (showMainMenu && !slotsOpen) {
-            const fa::core::Rect panel = fa::core::makeRect(170.0f, 60.0f, 300.0f, 220.0f);
+            const fa::core::Rect panel = centeredRect(300.0f, 220.0f);
             ui->panel(panel, theme.panel);
             ui->border(panel, theme.panelBorder);
             ui->text("FLORIAN'S ADVENTURE",
-                     fa::core::makeRect(178.0f, 70.0f, 284.0f, 14.0f), title);
+                     fa::core::makeRect(panel.x + 8.0f, panel.y + 10.0f, panel.w - 16.0f, 16.0f),
+                     title);
             char dayText[48]{};
             std::snprintf(dayText, sizeof(dayText), "SPRING DAY %d",
                           calendar != nullptr ? calendar->date().day : 1);
-            ui->text(dayText, fa::core::makeRect(182.0f, 92.0f, 280.0f, 7.0f), label);
+            ui->text(dayText,
+                     fa::core::makeRect(panel.x + 8.0f, panel.y + 38.0f, panel.w - 16.0f, 8.0f),
+                     centeredLabel);
 
-            if (press("menu.new", "NEW GAME", 185.0f, 120.0f, 130.0f, 18.0f)) {
+            const float buttonWidth = 160.0f;
+            const float buttonX = panel.x + (panel.w - buttonWidth) * 0.5f;
+            if (press("menu.new", "NEW GAME", buttonX, panel.y + 64.0f, buttonWidth, 20.0f)) {
                 static_cast<void>(flow->startNewGame("play"));
             }
-            if (press("menu.continue", "CONTINUE", 185.0f, 144.0f, 130.0f, 18.0f)) {
+            if (press("menu.continue", "CONTINUE", buttonX, panel.y + 90.0f, buttonWidth,
+                      20.0f)) {
                 continueGame();
             }
-            if (press("menu.slots", "SAVE SLOTS", 185.0f, 168.0f, 130.0f, 18.0f)) {
+            if (press("menu.slots", "SAVE SLOTS", buttonX, panel.y + 116.0f, buttonWidth,
+                      20.0f)) {
                 refreshSlots();
                 slotsOpen = true;
             }
-            if (press("menu.quit", "QUIT", 185.0f, 192.0f, 130.0f, 18.0f)) {
+            if (press("menu.quit", "QUIT", buttonX, panel.y + 142.0f, buttonWidth, 20.0f)) {
                 flow->requestQuit();
                 if (requestAppQuit) {
                     requestAppQuit();
                 }
             }
-            ui->text("E SLEEP AT THE BED", fa::core::makeRect(182.0f, 246.0f, 280.0f, 7.0f), dim);
+            ui->text("E SLEEP AT THE BED",
+                     fa::core::makeRect(panel.x + 8.0f, panel.y + 184.0f, panel.w - 16.0f, 8.0f),
+                     dim);
         }
 
         if (showPause && !slotsOpen) {
-            const fa::core::Rect panel = fa::core::makeRect(200.0f, 100.0f, 240.0f, 160.0f);
+            const fa::core::Rect panel = centeredRect(240.0f, 160.0f);
             ui->panel(panel, theme.panel);
             ui->border(panel, theme.panelBorder);
-            ui->text("PAUSED", fa::core::makeRect(210.0f, 108.0f, 220.0f, 14.0f), title);
+            ui->text("PAUSED",
+                     fa::core::makeRect(panel.x + 12.0f, panel.y + 8.0f, panel.w - 24.0f, 16.0f),
+                     title);
 
-            if (press("pause.resume", "RESUME", 218.0f, 136.0f, 148.0f, 18.0f)) {
+            const float buttonWidth = 150.0f;
+            const float buttonX = panel.x + (panel.w - buttonWidth) * 0.5f;
+            if (press("pause.resume", "RESUME", buttonX, panel.y + 36.0f, buttonWidth, 20.0f)) {
                 flow->requestPause(false);
             }
-            if (press("pause.save", "SAVE", 218.0f, 160.0f, 148.0f, 18.0f)) {
+            if (press("pause.save", "SAVE", buttonX, panel.y + 60.0f, buttonWidth, 20.0f)) {
                 static_cast<void>(flow->saveGame());
                 refreshSlots();
             }
-            if (press("pause.slots", "SAVE SLOTS", 218.0f, 184.0f, 148.0f, 18.0f)) {
+            if (press("pause.slots", "SAVE SLOTS", buttonX, panel.y + 84.0f, buttonWidth,
+                      20.0f)) {
                 refreshSlots();
                 slotsOpen = true;
             }
-            if (press("pause.menu", "MAIN MENU", 218.0f, 208.0f, 148.0f, 18.0f)) {
+            if (press("pause.menu", "MAIN MENU", buttonX, panel.y + 108.0f, buttonWidth,
+                      20.0f)) {
                 static_cast<void>(flow->enterMainMenu());
                 slotsOpen = false;
             }
-            ui->text("ESC RESUME", fa::core::makeRect(210.0f, 240.0f, 220.0f, 7.0f), dim);
+            ui->text("ESC RESUME",
+                     fa::core::makeRect(panel.x + 12.0f, panel.y + 138.0f, panel.w - 24.0f, 8.0f),
+                     dim);
         }
 
         if (slotsOpen) {
-            const fa::core::Rect panel = fa::core::makeRect(80.0f, 50.0f, 480.0f, 230.0f);
+            const fa::core::Rect panel = centeredRect(480.0f, 240.0f);
             ui->panel(panel, theme.panel);
             ui->border(panel, theme.panelBorder);
-            ui->text("SAVE SLOTS", fa::core::makeRect(90.0f, 58.0f, 300.0f, 14.0f), title);
+            ui->text("SAVE SLOTS",
+                     fa::core::makeRect(panel.x + 10.0f, panel.y + 8.0f, 300.0f, 16.0f), title);
 
             std::vector<std::string> names;
             names.emplace_back(fa::flow::kAutosaveSlot);
@@ -4362,7 +5279,7 @@ private:
             }
 
             const bool canSave = !showMainMenu;
-            float y = 92.0f;
+            float y = panel.y + 42.0f;
             for (std::size_t index = 0; index < names.size(); ++index) {
                 const std::string& name = names[index];
                 const fa::save::SaveMetadata* meta = findSlot(name);
@@ -4373,26 +5290,27 @@ private:
                 } else {
                     std::snprintf(line, sizeof(line), "%s  EMPTY", name.c_str());
                 }
-                ui->text(line, fa::core::makeRect(92.0f, y, 270.0f, 7.0f),
+                ui->text(line, fa::core::makeRect(panel.x + 12.0f, y, 270.0f, 8.0f),
                          meta != nullptr ? label : dim);
 
                 char loadId[32]{};
                 std::snprintf(loadId, sizeof(loadId), "slot.load.%zu", index);
-                if (press(loadId, "LOAD", 372.0f, y - 4.0f, 58.0f, 16.0f)) {
+                if (press(loadId, "LOAD", panel.x + 300.0f, y - 4.0f, 58.0f, 18.0f)) {
                     loadSlot(name);
                     return;
                 }
                 if (canSave && index > 0) {
                     char saveId[32]{};
                     std::snprintf(saveId, sizeof(saveId), "slot.save.%zu", index);
-                    if (press(saveId, "SAVE", 438.0f, y - 4.0f, 58.0f, 16.0f)) {
+                    if (press(saveId, "SAVE", panel.x + 366.0f, y - 4.0f, 58.0f, 18.0f)) {
                         saveSlot(name);
                     }
                 }
-                y += 32.0f;
+                y += 30.0f;
             }
 
-            if (press("slots.back", "BACK", 90.0f, 246.0f, 70.0f, 18.0f)) {
+            if (press("slots.back", "BACK", panel.x + 10.0f, panel.y + 206.0f, 70.0f,
+                      20.0f)) {
                 slotsOpen = false;
             }
         }
@@ -4421,28 +5339,28 @@ private:
         const bool inMenu = playMode && flow != nullptr &&
                             menuState != fa::flow::AppState::Playing;
         if (showHud && !inMenu) {
-            const fa::core::Rect panel = fa::core::makeRect(8.0f, 8.0f, 236.0f, 62.0f);
+            const fa::core::Rect panel = fa::core::makeRect(8.0f, 8.0f, 236.0f, 86.0f);
             ui->panel(panel, theme.panel);
             ui->border(panel, theme.panelBorder);
 
             fa::ui::TextStyle title;
             title.color = theme.text;
-            title.scale = 2.0f;
+            title.scale = 2.0f * config.ui.scale;
             ui->text("FLORIAN'S ADVENTURE", fa::core::makeRect(14.0f, 13.0f, 220.0f, 14.0f), title);
 
             fa::ui::TextStyle label;
             label.color = theme.text;
-            label.scale = 1.0f;
-            ui->text("STAMINA", fa::core::makeRect(14.0f, 33.0f, 44.0f, 7.0f), label);
-            const float stamina = demoScene != nullptr ? demoScene->playerStamina() : 0.0f;
-            ui->progressBar(fa::core::makeRect(62.0f, 34.0f, 108.0f, 5.0f), stamina, 0.0f, 100.0f,
-                            theme.accent);
+            label.scale = config.ui.scale;
+            ui->text("HEALTH", fa::core::makeRect(14.0f, 33.0f, 40.0f, 7.0f), label);
+            const float health = demoScene != nullptr ? demoScene->playerHealth() : 0.0f;
+            const float maxHealth = demoScene != nullptr ? demoScene->playerMaxHealth() : 100.0f;
+            ui->progressBar(fa::core::makeRect(62.0f, 34.0f, 108.0f, 5.0f), health, 0.0f, maxHealth,
+                            fa::core::Color{0.85f, 0.30f, 0.30f, 1.0f});
 
-            char info[48]{};
-            const fa::core::Vec2 marker = sceneMarkerPosition();
-            std::snprintf(info, sizeof(info), "MARKER %d %d", static_cast<int>(marker.x),
-                          static_cast<int>(marker.y));
-            ui->text(info, fa::core::makeRect(14.0f, 46.0f, 180.0f, 7.0f), label);
+            ui->text("STAMINA", fa::core::makeRect(14.0f, 45.0f, 44.0f, 7.0f), label);
+            const float stamina = demoScene != nullptr ? demoScene->playerStamina() : 0.0f;
+            ui->progressBar(fa::core::makeRect(62.0f, 46.0f, 108.0f, 5.0f), stamina, 0.0f, 100.0f,
+                            theme.accent);
 
             if (playerInventory != nullptr) {
                 const fa::inventory::ItemStack& selected = playerInventory->hotbar().selectedStack();
@@ -4454,20 +5372,22 @@ private:
                               playerInventory->hotbar().inventory().slotCount(),
                               selectedDef != nullptr ? selectedDef->displayName.c_str() : "EMPTY",
                               selected.count);
-                ui->text(hotbarText, fa::core::makeRect(14.0f, 58.0f, 220.0f, 7.0f), label);
+                ui->text(hotbarText, fa::core::makeRect(14.0f, 60.0f, 220.0f, 7.0f), label);
+            }
+
+            if (playMode && calendar != nullptr) {
+                const std::string seasonName(fa::world::toString(calendar->season()));
+                const char* region =
+                    demoScene != nullptr && demoScene->markerInForest() ? "FOREST" : "FARM";
+                char clockText[80]{};
+                std::snprintf(clockText, sizeof(clockText), "DAY %d  %02d:%02d  %s  %s",
+                              calendar->date().day, calendar->hour(), calendar->minute(),
+                              seasonName.c_str(), region);
+                ui->text(clockText, fa::core::makeRect(14.0f, 72.0f, 220.0f, 8.0f), label);
             }
         }
 
         if (!inMenu) {
-            if (ui->button(fa::ui::UiId::fromName("pause"), "PAUSE",
-                           fa::core::makeRect(254.0f, 8.0f, 96.0f, 16.0f))
-                    .pressed) {
-                ++uiPresses;
-                if (playMode && flow != nullptr &&
-                    flow->state() == fa::flow::AppState::Playing) {
-                    flow->requestPause(true);
-                }
-            }
             static_cast<void>(ui->checkbox(fa::ui::UiId::fromName("hud"), "HUD", showHud,
                                            fa::core::makeRect(254.0f, 30.0f, 150.0f, 16.0f)));
             static_cast<void>(ui->slider(fa::ui::UiId::fromName("scale"), sliderValue, 1.0f, 4.0f,
@@ -4475,29 +5395,21 @@ private:
             if (economy != nullptr) {
                 fa::ui::TextStyle goldStyle;
                 goldStyle.color = theme.text;
-                goldStyle.scale = 1.0f;
+                goldStyle.scale = config.ui.scale;
                 char goldText[32]{};
                 std::snprintf(goldText, sizeof(goldText), "GOLD %d", economy->gold());
                 ui->text(goldText, fa::core::makeRect(254.0f, 74.0f, 150.0f, 7.0f), goldStyle);
             }
         }
 
-        if (playMode && calendar != nullptr && !inMenu) {
-            const fa::core::Rect panel = fa::core::makeRect(254.0f, 96.0f, 214.0f, 62.0f);
+        if (playMode && !inMenu) {
+            const fa::core::Rect panel = fa::core::makeRect(254.0f, 96.0f, 214.0f, 52.0f);
             ui->panel(panel, theme.panel);
             ui->border(panel, theme.panelBorder);
 
             fa::ui::TextStyle style;
             style.color = theme.text;
-            style.scale = 1.0f;
-
-            const std::string seasonName(fa::world::toString(calendar->season()));
-            char clockText[64]{};
-            std::snprintf(clockText, sizeof(clockText), "DAY %d  %02d:%02d  %s",
-                          calendar->date().day, calendar->hour(), calendar->minute(),
-                          seasonName.c_str());
-            ui->text(clockText, fa::core::makeRect(panel.x + 5.0f, panel.y + 5.0f, 204.0f, 7.0f),
-                     style);
+            style.scale = config.ui.scale;
 
             const fa::inventory::ItemStack& selected =
                 playerInventory != nullptr ? playerInventory->hotbar().selectedStack()
@@ -4507,16 +5419,16 @@ private:
             char toolText[64]{};
             std::snprintf(toolText, sizeof(toolText), "TOOL %s",
                           selectedDef != nullptr ? selectedDef->displayName.c_str() : "EMPTY");
-            ui->text(toolText, fa::core::makeRect(panel.x + 5.0f, panel.y + 16.0f, 204.0f, 7.0f),
+            ui->text(toolText, fa::core::makeRect(panel.x + 5.0f, panel.y + 5.0f, 204.0f, 8.0f),
                      style);
             ui->text("1-9 SLOT  WHEEL  LMB USE",
-                     fa::core::makeRect(panel.x + 5.0f, panel.y + 27.0f, 204.0f, 7.0f), style);
+                     fa::core::makeRect(panel.x + 5.0f, panel.y + 16.0f, 204.0f, 8.0f), style);
 
             if (playMessageTimer > 0.0f && !playMessage.empty()) {
                 fa::ui::TextStyle messageStyle = style;
                 messageStyle.color = theme.accent;
                 ui->text(playMessage.substr(0, 38),
-                         fa::core::makeRect(panel.x + 5.0f, panel.y + 40.0f, 204.0f, 7.0f),
+                         fa::core::makeRect(panel.x + 5.0f, panel.y + 29.0f, 204.0f, 8.0f),
                          messageStyle);
             }
         }
@@ -4540,7 +5452,7 @@ private:
                 ui->border(panel, theme.panelBorder);
                 fa::ui::TextStyle style;
                 style.color = theme.text;
-                style.scale = 1.0f;
+                style.scale = config.ui.scale;
                 ui->text(node->speaker,
                          fa::core::makeRect(panel.x + 8.0f, panel.y + 5.0f, 300.0f, 7.0f), style);
                 ui->text(node->text,
@@ -4561,6 +5473,7 @@ private:
                 }
             }
         }
+        buildInventoryPanel(theme);
         buildShopPanel(theme);
         buildFlowMenus(theme, menuState);
         uiItems = ui->itemCount();
@@ -4650,28 +5563,61 @@ private:
                 const fa::core::Vec2 cellPosition = demoScene->farmingCellPosition(entry.cell);
                 if (entry.tile.tilled) {
                     fa::render::DrawItem soil;
-                    soil.texture = uiWhiteTexture;
+                    const fa::render::TextureHandle wet =
+                        demoScene->textureForName("tex.ground.soil_wet");
+                    if (entry.tile.watered && wet.isValid()) {
+                        soil.texture = wet;
+                        soil.tint = fa::core::Color{1.0f, 1.0f, 1.0f, 1.0f};
+                    } else {
+                        soil.texture = uiWhiteTexture;
+                        soil.tint = entry.tile.watered
+                                        ? fa::core::Color{0.16f, 0.22f, 0.34f, 0.72f}
+                                        : fa::core::Color{0.34f, 0.23f, 0.13f, 0.55f};
+                    }
                     soil.position = cellPosition;
                     soil.size = fa::core::Vec2{16.0f, 16.0f};
-                    soil.tint = entry.tile.watered
-                                    ? fa::core::Color{0.16f, 0.22f, 0.34f, 0.72f}
-                                    : fa::core::Color{0.34f, 0.23f, 0.13f, 0.55f};
                     soil.layer = fa::render::RenderLayer::GroundDetail;
                     soil.sortY = cellPosition.y;
                     renderQueue.submit(soil);
                 }
                 if (entry.hasCrop) {
                     fa::render::DrawItem crop;
-                    crop.texture = uiWhiteTexture;
-                    crop.position = fa::core::Vec2{cellPosition.x + 3.0f, cellPosition.y + 4.0f};
-                    crop.size = fa::core::Vec2{10.0f, 10.0f};
-                    if (entry.crop.dead) {
-                        crop.tint = fa::core::Color{0.45f, 0.38f, 0.32f, 0.95f};
-                    } else if (entry.crop.harvestable) {
-                        crop.tint = fa::core::Color{1.0f, 0.85f, 0.25f, 1.0f};
+                    const fa::content::CropDef* cropDef = content.crop(entry.crop.crop);
+                    fa::assets::AssetId spriteId;
+                    if (cropDef != nullptr) {
+                        if (entry.crop.growthDays <= 0.0f && cropDef->seedSprite.isValid()) {
+                            spriteId = cropDef->seedSprite;
+                        } else if (!cropDef->stageSprites.empty()) {
+                            const std::size_t index = static_cast<std::size_t>(
+                                std::max(0, std::min(entry.crop.stage,
+                                                     static_cast<int>(cropDef->stageSprites.size()) - 1)));
+                            spriteId = cropDef->stageSprites[index];
+                        }
+                    }
+                    const fa::render::TextureHandle cropTexture =
+                        spriteId.isValid() ? demoScene->textureForAsset(spriteId)
+                                           : fa::render::TextureHandle{};
+                    if (cropTexture.isValid()) {
+                        crop.texture = cropTexture;
+                        crop.position = cellPosition;
+                        crop.size = fa::core::Vec2{16.0f, 16.0f};
+                        crop.tint = entry.crop.dead
+                                        ? fa::core::Color{0.55f, 0.50f, 0.45f, 1.0f}
+                                        : fa::core::Color{1.0f, 1.0f, 1.0f, 1.0f};
                     } else {
-                        crop.tint = fa::core::Color{
-                            0.25f + 0.12f * static_cast<float>(entry.crop.stage), 0.65f, 0.25f, 1.0f};
+                        crop.texture = uiWhiteTexture;
+                        crop.position =
+                            fa::core::Vec2{cellPosition.x + 3.0f, cellPosition.y + 4.0f};
+                        crop.size = fa::core::Vec2{10.0f, 10.0f};
+                        if (entry.crop.dead) {
+                            crop.tint = fa::core::Color{0.45f, 0.38f, 0.32f, 0.95f};
+                        } else if (entry.crop.harvestable) {
+                            crop.tint = fa::core::Color{1.0f, 0.85f, 0.25f, 1.0f};
+                        } else {
+                            crop.tint = fa::core::Color{
+                                0.25f + 0.12f * static_cast<float>(entry.crop.stage), 0.65f, 0.25f,
+                                1.0f};
+                        }
                     }
                     crop.layer = fa::render::RenderLayer::Objects;
                     crop.sortY = cellPosition.y + 16.0f;
@@ -4802,10 +5748,21 @@ int main(int argc, char** argv) {
 
     std::unique_ptr<fa::platform::IPlatform> platform = fa::platform::createPlatform();
 
+    EventsAndJobsDemo demo;
+    SmokeSink sink;
+    sink.demo = &demo;
+    sink.playMode = options.playMode;
+    sink.playTest = options.playTest;
+    sink.initializeConfig(*platform);
+
     fa::platform::WindowDesc desc;
     desc.title = "Florian's Adventure";
-    desc.width = 1280;
-    desc.height = 720;
+    desc.width = sink.config.window.width;
+    desc.height = sink.config.window.height;
+    desc.minWidth = sink.config.window.minWidth;
+    desc.minHeight = sink.config.window.minHeight;
+    desc.resizable = sink.config.window.resizable;
+    desc.highDpi = sink.config.window.highDpi;
     desc.hidden = !options.visibleWindow;
 
     const fa::core::Status initialized = platform->initialize(desc);
@@ -4818,12 +5775,6 @@ int main(int argc, char** argv) {
     std::printf("window %dx%d px, dpi scale %.2f\n", window.width(), window.height(),
                 static_cast<double>(window.dpiScale()));
 
-    EventsAndJobsDemo demo;
-
-    SmokeSink sink;
-    sink.demo = &demo;
-    sink.playMode = options.playMode;
-    sink.playTest = options.playTest;
     if (options.playMode) {
         std::printf("play mode: WASD move, 1-9 hotbar, wheel cycle, LMB use, E interact\n");
         std::printf("           console `, F3 stats, time.addDays N / time.set HH:MM\n");
@@ -4864,7 +5815,8 @@ int main(int argc, char** argv) {
 
     // A hidden window may still get a software GL context, but CI images that have
     // none must not fail the smoke run; a visible run has to be able to draw.
-    const fa::core::Status renderStatus = sink.initializeRenderer(*platform, options.visibleWindow);
+    const fa::core::Status renderStatus =
+        sink.initializeRenderer(*platform, options.visibleWindow && sink.config.window.vsync);
     if (renderStatus.isError()) {
         std::printf("render init failed (%d): %s\n", renderStatus.error().code, renderStatus.error().message.c_str());
         if (options.visibleWindow) {

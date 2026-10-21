@@ -197,6 +197,60 @@ TEST_CASE("Content database loads every table and answers queries", "[content][l
     REQUIRE(db.lootTables().size() == 1);
 }
 
+TEST_CASE("Crop seed_sprite is optional and parsed", "[content][load]") {
+    constexpr std::string_view withSeed = R"({
+      "schema_version": 1,
+      "items": [
+        {"id": "item.seed", "display_name": "Seed", "category": "seed"},
+        {"id": "item.crop", "display_name": "Crop", "category": "crop"}
+      ],
+      "crops": [
+        {"id": "crop.test", "seed_item": "item.seed", "harvest_item": "item.crop",
+         "stage_days": [1], "stage_sprites": ["tex.crop.turnip_sprout"],
+         "seed_sprite": "tex.crop.turnip_seed"}
+      ]
+    })";
+    ContentDatabase content;
+    REQUIRE(content.loadDocument(withSeed).isOk());
+    const fa::content::CropDef* crop = content.crop(ContentId::fromName("crop.test"));
+    REQUIRE(crop != nullptr);
+    CHECK(crop->seedSprite.name() == "tex.crop.turnip_seed");
+    REQUIRE(crop->stageSprites.size() == 1);
+    CHECK(crop->stageSprites.front().name() == "tex.crop.turnip_sprout");
+
+    constexpr std::string_view withoutSeed = R"({
+      "schema_version": 1,
+      "items": [
+        {"id": "item.seed", "display_name": "Seed", "category": "seed"},
+        {"id": "item.crop", "display_name": "Crop", "category": "crop"}
+      ],
+      "crops": [
+        {"id": "crop.test", "seed_item": "item.seed", "harvest_item": "item.crop",
+         "stage_days": [1], "stage_sprites": ["tex.crop.turnip_sprout"]}
+      ]
+    })";
+    ContentDatabase legacy;
+    REQUIRE(legacy.loadDocument(withoutSeed).isOk());
+    const fa::content::CropDef* legacyCrop = legacy.crop(ContentId::fromName("crop.test"));
+    REQUIRE(legacyCrop != nullptr);
+    CHECK_FALSE(legacyCrop->seedSprite.isValid());
+
+    constexpr std::string_view emptySeed = R"({
+      "schema_version": 1,
+      "items": [
+        {"id": "item.seed", "display_name": "Seed", "category": "seed"},
+        {"id": "item.crop", "display_name": "Crop", "category": "crop"}
+      ],
+      "crops": [
+        {"id": "crop.test", "seed_item": "item.seed", "harvest_item": "item.crop",
+         "stage_days": [1], "seed_sprite": ""}
+      ]
+    })";
+    ContentDatabase broken;
+    static_cast<void>(broken.loadDocument(emptySeed));
+    CHECK(hasErrorCode(broken, err::kInvalidField));
+}
+
 TEST_CASE("Content database merges documents and rejects duplicate ids", "[content][load]") {
     ContentDatabase db;
     REQUIRE(db.loadDocument(R"({"schema_version": 1,

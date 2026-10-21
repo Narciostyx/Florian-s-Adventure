@@ -13,6 +13,9 @@ struct WindowDesc {
     std::string title = "Florian's Adventure";
     int width = 640;
     int height = 360;
+    /// \brief Minimum logical client size; zero disables the constraint.
+    int minWidth = 0;
+    int minHeight = 0;
     bool resizable = true;
     bool highDpi = true;
     bool fullscreen = false;

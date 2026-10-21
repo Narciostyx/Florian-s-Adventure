@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "npcs": [
+    {"id": "npc.elder", "name": "Elder", "liked_items": ["item.turnip"]}
+  ],
+  "dialogues": [
+    {"id": "dialogue.elder", "npc": "npc.elder", "start": "greet", "nodes": [
+      {"id": "greet", "speaker": "Elder",
+       "text": "The soil remembers every season. Will you help?",
+       "choices": [
+         {"text": "I will bring a turnip.", "next": "quest"},
+         {"text": "Not now.", "next": "bye"}
+       ]},
+      {"id": "quest", "speaker": "Elder",
+       "text": "Bring me one turnip and I will trade seeds.",
+       "actions": [{"kind": "start_quest", "id": "quest.turnip"}],
+       "next": "bye"},
+      {"id": "bye", "speaker": "Elder",
+       "text": "Come back when the sun is high.", "next": ""}
+    ]}
+  ],
+  "quests": [
+    {"id": "quest.turnip", "title": "A Turnip for the Elder",
+     "description": "Bring one turnip.",
+     "objectives": [{"kind": "collect", "target": "item.turnip", "required": 1}],
+     "rewards": [{"item": "item.turnip_seed", "amount": 2}], "gold": 10}
+  ]
+}

@@ -73,7 +73,7 @@ catalog 有 4 条，但只请求了 2 条——`tex.ground.soil` 与 `tex.actor.
 | `ImageData.hpp` | `ImageFormat`、`ImageData`、占位与颜色文本辅助函数 |
 | `AssetTypes.hpp` | `AssetKind`、`TextureAsset`、`JsonAsset`、`AssetStats` |
 | `ITextureUploader.hpp` | 反向 GPU 桥 |
-| `IImageDecoder.hpp` | 解码器接口（v1 无实现） |
+| `IImageDecoder.hpp` | 解码器接口；app 注册 stb_image 实现 |
 | `AssetCatalog.hpp` | `AssetEntry`、`AssetCatalog` |
 | `AssetManager.hpp` | `AssetManagerDesc`、`IAssetManager`、`createAssetManager()` |
 
@@ -93,7 +93,7 @@ catalog 有 4 条，但只请求了 2 条——`tex.ground.soil` 与 `tex.actor.
 |---|---|
 | `src/engine/assets/fa_assets.vcxproj` | `ExceptionHandling=Sync`；新增 `fa_events` 引用 |
 | `tests/fa_tests.vcxproj` | 引用 `fa_assets` |
-| `src/app/main.cpp` | `kCatalogText` + `AssetUploaderAdapter` + `initializeAssets()` + `m05:` 行 |
+| `src/app/main.cpp` | `data/catalog.json` + `StbImageDecoder` + `AssetUploaderAdapter` + `initializeAssets()` + `m05:` 行 |
 | `src/engine/include/fa/render/RenderError.hpp` | `render_error` 5000–5005 → 4000–4005（见坑 #8） |
 
 `fa_app.vcxproj` 在 M00 骨架期就已经引用了 `fa_assets`，本轮无需改动。
@@ -372,11 +372,22 @@ fa_app.exe   → ran 60 frame(s)
 > 注：克隆到 `%TEMP%` 下会额外出现 `MSB8029`（中间目录位于临时目录），
 > 这是存放位置的副作用，与本仓库配置无关；正常路径下无此警告。
 
+## 图片接入增量
+
+- catalog 移到 `data/catalog.json`，五条都带 `path`（`grass.png`/`soil.png`/`wall.png`/
+  `player.png`/`marker.png`），`rootPath` 取 `config.paths.assets`。
+- app 新增 `StbImageDecoder`（独立 TU，编译期屏蔽 stb 的 /W4 警告）并在
+  `AssetManagerDesc::decoders` 注册；支持 PNG/JPG/TGA/BMP。
+- 缺图、无解码器、解码失败仍由 M05 回落到 `color`/`altColor`/`tile`：
+  - 删除整个 `assets/`：`m05: ... 4 placeholder(s)`，程序正常；
+  - 只删 `grass.png`：`1 placeholder(s)`，其余纹理继续走 PNG。
+- 正常运行时 `m05: ... 0 placeholder(s)`，说明 4 张实际使用的纹理都来自 PNG。
+
 ## 遗留风险
 
 | 风险 | 影响 | 处理 |
 |---|---|---|
-| 没有任何真实解码器 | 只能画色块与程序化图像 | v1 有意；接入真实美术时注册 `IImageDecoder`，`AssetManager` 不改 |
+| 解码器由宿主注册 | M05 自带无解码器；app 注册 stb_image（PNG/JPG/TGA/BMP） | 设计取舍；缺解码器仍回落占位 |
 | `retainCpuPixels = true` 常驻内存 | 每张纹理占 `w*h*bpp` 字节 | 真实美术到位后可关掉；`reload` 与 CPU 采样需要它 |
 | 上传失败只留 `uploadFailed` 标记 | 调用方可能一直画不出东西 | `stats().liveGpuTextures` 与 `m05:` 行可观测 |
 | 槽位是指针 | `releaseAll()` 后旧句柄读 `Unloaded`，同槽位复用语义需小心 | 契约限定 `releaseAll()` 只在拆解时调用，其余靠引用计数 |

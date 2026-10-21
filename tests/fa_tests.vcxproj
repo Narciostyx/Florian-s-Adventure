@@ -56,6 +56,7 @@
     <ClCompile Include="assets.test.cpp" />
     <ClCompile Include="audio.test.cpp" />
     <ClCompile Include="combat.test.cpp" />
+    <ClCompile Include="config.test.cpp" />
     <ClCompile Include="content.test.cpp" />
     <ClCompile Include="core.test.cpp" />
     <ClCompile Include="debug.test.cpp" />

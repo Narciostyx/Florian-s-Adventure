@@ -194,7 +194,7 @@ L4  fa::editor  fa::debug
 | `IGlContext` | `createContext`、`destroyContext`、`hasContext`、`makeCurrent`、`swapBuffers`、`setSwapInterval`、`swapInterval`、`procAddress` |
 | `IAudioDevice` | `initialize`、`shutdown`、`isOpen`、`sampleRate`、`channels` |
 | `PlatformEvent` | `type`、`scancode`、`keycode`、`repeat`、`button`、`x/y`、`dx/dy`、`width/height`、`text` |
-| `WindowDesc` / `GlContextDesc` | 窗口与 GL 创建参数 |
+| `WindowDesc` / `GlContextDesc` | 窗口与 GL 创建参数；`WindowDesc` 含 `minWidth`/`minHeight`/`resizable` |
 
 - **枚举**：`PlatformEventType`、`MouseButton`、`Scancode`、`MessageBoxKind`。
 - **常量**：`kScancodeCount`；错误码 2000–2010。
@@ -685,16 +685,19 @@ L4  fa::editor  fa::debug
 | 类型 | 作用 |
 |---|---|
 | `AssetUploaderAdapter` | 把 M05 的 `ITextureUploader` 桥到 M06 `IRenderer` |
+| `fa::app::GameConfig` | `config/game.json` → 窗口/UI 缩放/路径/玩法参数，缺失逐项回落 |
+| `fa::app::StbImageDecoder` | 注册给 M05 的 PNG/JPG/TGA/BMP 解码器（独立 TU） |
+| `EntitySpawn` / `parseEntitySpawns` | `data/entities.json` 的 bed/shipping/merchant/enemy/hazard 生成表 |
 | `EventsAndJobsDemo` | 演示 M03 的 tick/upload 事件与作业完成 |
 | `CountingToolHandler` | 记录一次 M17 工具调用（Sword），避免与 M19 冲突 |
 | `ConsumableUseHandler` | 记录一次 M18 食物使用 |
-| `DemoScene` | 构建 40×23 地图、玩家/敌人/触发器/农田，注册 Player/Physics/Tilemap/SpriteExtract 系统，运行 M17/M19/M23 脚本 |
+| `DemoScene` | 构建地图（scripted 40×23；play 80×23 农场+林地）、实体/农田/传送/荆棘，注册 Player/Physics/Tilemap/SpriteExtract 系统，运行 M17/M19/M23 脚本 |
 | `SmokeSink` | `IFrameSink` 实现：事件路由、固定步、日历推进、渲染与 HUD，持有全部服务 |
 | 各 `*DemoStats` | 每个模块的冒烟摘要快照 |
 
 **启动选项**：`--window` 显示窗口；`--frames N` 跑 N 帧；`--play` 进入可操作会话（种植 + 近战/掉落，跳过脚本演示）；`--play-test` 无头跑通种植闭环 + 击杀 dummy + 拾取掉落并返回失败码。
 
-**play 运行时**：`LootDrop` 是 app-local 组件；`processPlayerActions()` 消费 UseTool/Attack，`processCombatEvents()` 掷掉落/销毁敌人，`collectLoot()` 在 14 px 内自动拾取。
+**play 运行时**：`LootDrop` 是 app-local 组件并写入 `world.loot`；`processPlayerActions()` 消费 UseTool/Attack/Interact（床/出货箱/商人），`I` 开背包面板；`processCombatEvents()` 掷掉落/销毁敌人，`collectLoot()` 在 14 px 内自动拾取；`checkPortal()` 做双向传送，`tickHazard()` 处理荆棘与晕倒复活。
 
 **主循环顺序**（`SmokeSink`）：
 

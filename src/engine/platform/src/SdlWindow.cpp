@@ -33,6 +33,9 @@ bool SdlWindow::create(const WindowDesc& desc) {
 
     const std::string title = desc.title.empty() ? std::string("Florian's Adventure") : desc.title;
     m_window = SDL_CreateWindow(title.c_str(), desc.width, desc.height, buildFlags(desc));
+    if (m_window != nullptr && desc.minWidth > 0 && desc.minHeight > 0) {
+        static_cast<void>(SDL_SetWindowMinimumSize(m_window, desc.minWidth, desc.minHeight));
+    }
     return m_window != nullptr;
 }
 

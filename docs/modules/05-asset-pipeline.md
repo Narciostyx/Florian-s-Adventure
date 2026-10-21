@@ -13,7 +13,7 @@
 
 为所有资源提供统一的稳定 ID、异步加载、缓存、引用计数句柄与重载，并把「拿不到资源怎么办」变成一条**确定的、可测的**规则。
 
-玩法与渲染都不直接读文件，也不关心资源来自磁盘、pak 还是内存。资源缺失时游戏仍然能跑起来——这一点在 v1 尤其重要，因为**真实美术资源在所有模块完成之前都不存在**，全部由色块占位（见 [美术资源策略](../architecture/art-policy.md)）。
+玩法与渲染都不直接读文件，也不关心资源来自磁盘、pak 还是内存。资源缺失时游戏仍然能跑起来：当前优先读 `assets/*.png` 占位图，缺文件/解码失败再回落到色块占位（见 [美术资源策略](../architecture/art-policy.md)）。
 
 ## 2. 范围
 
@@ -31,7 +31,7 @@
 **不负责**
 
 - OpenGL 纹理对象的创建/销毁（M06）——M05 只经 `ITextureUploader` 要一个不透明 token。
-- 真实图片格式的解码（PNG/JPEG）——解码器是注入的 `IImageDecoder` 实现，v1 一个都没有。
+- 真实图片格式的解码（PNG/JPEG）——解码器是注入的 `IImageDecoder` 实现；app 已注册 stb_image 版本，M05 本身仍不自带解码器。
 - 内容语义与校验（M15）：JSON 文本原样交出，解析与合法性归内容模块。
 - 存档文件（M14）。
 - 资源编辑器 UI（M26）。
@@ -187,18 +187,22 @@ struct AssetEntry {
 `AssetCatalog` 是**独立的** id→文件表，不挂在缓存里：换一份 catalog 就是换一整套内容，
 这是后续内容包 / mod 的挂钩点，而不是资源系统的改动。
 
-v1 现用的 catalog（`src/app/main.cpp` 的 `kCatalogText`，四条全是 path-less 色块）：
+v1 现用的 catalog 在 `data/catalog.json`，五条都带 `path` 指向 `assets/` 占位 PNG，
+同时保留 `color`/`altColor`/`tile` 作为缺图兜底：
 
 ```json
 {
   "assets": [
-    {"id": "tex.ground.grass", "kind": "texture", "size": [16, 16], "tile": 8,
-     "color": "#4a8250", "altColor": "#5c8a42"},
-    {"id": "tex.ground.soil", "kind": "texture", "size": [16, 16], "tile": 4,
-     "color": "#6b4a2f", "altColor": "#7d5a3a"},
-    {"id": "tex.actor.player", "kind": "texture", "size": [16, 24],
+    {"id": "tex.ground.grass", "kind": "texture", "path": "grass.png", "size": [16, 16],
+     "tile": 8, "color": "#4a8250", "altColor": "#5c8a42"},
+    {"id": "tex.ground.soil", "kind": "texture", "path": "soil.png", "size": [16, 16],
+     "tile": 4, "color": "#6b4a2f", "altColor": "#7d5a3a"},
+    {"id": "tex.ground.wall", "kind": "texture", "path": "wall.png", "size": [16, 16],
+     "tile": 4, "color": "#3d465e", "altColor": "#55627e"},
+    {"id": "tex.actor.player", "kind": "texture", "path": "player.png", "size": [16, 24],
      "color": "#e8c39e", "altColor": "#c79a74"},
-    {"id": "tex.marker", "kind": "texture", "size": [8, 8], "color": "#ffffff"}
+    {"id": "tex.marker", "kind": "texture", "path": "marker.png", "size": [8, 8],
+     "color": "#ffffff"}
   ]
 }
 ```
@@ -311,8 +315,8 @@ public:
 };
 ```
 
-v1 **没有任何真实解码器**。这是设计使然：美术资源全部是 catalog 里的色块，`path` 为空。
-等真实 PNG 进来时注册一个解码器即可，`AssetManager` 不需要改。
+M05 本身**不带解码器**；app 在 `AssetManagerDesc::decoders` 里注册了 stb_image
+版本（PNG/JPG/TGA/BMP）。缺少解码器时仍走占位降级，`AssetManager` 不需要改。
 
 ## 6. 使用范式
 
@@ -475,7 +479,7 @@ m05: 4 catalog entr(ies), 2 texture(s) cached, 2 placeholder(s), 1280 CPU byte(s
 
 | 风险 | 影响 | 处理 |
 |---|---|---|
-| 没有任何真实解码器 | 只能画色块与程序化图像 | v1 有意；真实美术接入时注册 `IImageDecoder`，`AssetManager` 不改 |
+| 解码器由宿主注册 | M05 自带无解码器；app 注册 stb_image（PNG/JPG/TGA/BMP） | 设计取舍；缺解码器仍回落占位 |
 | `retainCpuPixels = true` 是默认值 | 每张纹理常驻 `w*h*bpp` 字节 | 换真实美术后可关掉；`reload` 与 CPU 采样需要它 |
 | 上传失败只留 `uploadFailed` 标记 | 调用方可能一直画不出东西 | `stats().liveGpuTextures` 与 `m05:` 行可观测；M27 面板可高亮 |
 | 槽位是指针 | `releaseAll()` 后旧句柄读 `Unloaded`，但同槽位复用时语义要小心 | 契约限定 `releaseAll()` 只在拆解 composition root 时调用，其余靠引用计数 |
