@@ -103,7 +103,7 @@ Florian's Adventure 的全部设计文档入口。当前状态：**28 个模块 
 | M27 Debug Tools | 已实现 | 451 用例 / 28744 断言 | `DebugConsole` 命令/引号/历史、`CVarRegistry` 四种类型与持久化、`DebugLogSink` 环形日志、`DebugStats`（含角色相机与 AI 锁定目标）、实体快照、`UiContext` 覆盖层、M13 `DebugShape` 适配、F3/F4/F5/控制台事件路由；Release 不链接 |
 
 各模块按 ID 排序，实际落地顺序为 M01 → M02 → M04 → M03 → M07 → M06 → M05 → M11 → M13 → M12 → M17 → M16 → M15 → M09 → M18 → M08 → M27 → M14 → M10 → M20 → M22 → M19 → M21 → M26 → M23 → M24 → M25，因此「完成时累计」栏不是单调递增的；
-当前总计 **543 用例 / 30281 断言**。逐模块状态与下一步建议见 [计划完成情况](plan-status.md)。
+当前总计 **549 用例 / 30368 断言**。逐模块状态与下一步建议见 [计划完成情况](plan-status.md)。
 
 三配置（Debug / Development / Release × x64）Rebuild 均零警告零错误。
 

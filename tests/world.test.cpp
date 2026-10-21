@@ -35,12 +35,12 @@ bool hasEvent(const WorldCalendar& calendar, CalendarEventKind kind) {
 
 }  // namespace
 
-TEST_CASE("WorldCalendar starts at year 1 spring day 1 06:00", "[world]") {
+TEST_CASE("WorldCalendar starts at year 1 spring day 1 08:00", "[world]") {
     WorldCalendar calendar;
     CHECK(calendar.date().year == 1);
     CHECK(calendar.date().season == Season::Spring);
     CHECK(calendar.date().day == 1);
-    CHECK(calendar.hour() == 6);
+    CHECK(calendar.hour() == 8);
     CHECK(calendar.minute() == 0);
     CHECK_FALSE(calendar.isNight());
     CHECK(fa::world::toString(Season::Winter) == "winter");
@@ -52,12 +52,12 @@ TEST_CASE("WorldCalendar advances minutes and hours", "[world]") {
     calendar.setRealSecondsPerGameMinute(0.7f);
 
     calendar.advance(0.7f);
-    CHECK(calendar.hour() == 6);
+    CHECK(calendar.hour() == 8);
     CHECK(calendar.minute() == 1);
 
     calendar.clearEvents();
     calendar.advance(0.7f * 60.0f);
-    CHECK(calendar.hour() == 7);
+    CHECK(calendar.hour() == 9);
     CHECK(calendar.minute() == 1);
     CHECK(hasEvent(calendar, CalendarEventKind::HourChanged));
     CHECK(calendar.stats().hoursElapsed >= 1);
@@ -74,7 +74,7 @@ TEST_CASE("WorldCalendar rolls days, seasons and years", "[world]") {
     calendar.clearEvents();
     calendar.skipToNextDay();
     CHECK(calendar.date().day == 3);
-    CHECK(calendar.hour() == 6);
+    CHECK(calendar.hour() == 8);
 
     for (int index = 0; index < 26; ++index) {
         calendar.skipToNextDay();
@@ -138,12 +138,12 @@ TEST_CASE("WorldCalendar pause and weather state", "[world]") {
     WorldCalendar calendar;
     calendar.setPaused(true);
     calendar.advance(10.0f);
-    CHECK(calendar.timeOfDay() == Approx(6.0f));
+    CHECK(calendar.timeOfDay() == Approx(8.0f));
 
     calendar.setPaused(false);
     calendar.setRealSecondsPerGameMinute(1.0f);
     calendar.advance(60.0f);
-    CHECK(calendar.hour() == 7);
+    CHECK(calendar.hour() == 9);
 
     calendar.setRealSecondsPerGameMinute(0.0f);
     CHECK(calendar.realSecondsPerGameMinute() == Approx(0.001f));

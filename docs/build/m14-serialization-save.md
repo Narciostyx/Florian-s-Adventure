@@ -115,7 +115,7 @@ foreach ($cfg in @('Debug','Development','Release')) {
 
 ## 5. 已知限制 / 后续
 
-- 没有 World/Inventory/Quest/Economy 的现成 serializer；app 只写摘要字段。
+- 没有 World/Inventory/Quest/Economy 的通用 serializer；app 在 `--play` 手写背包/快捷栏/装备/农田字段，其余玩法仍只写摘要。
 - 没有地图差异、截图、CRC、压缩、加密与云存档。
 - `.bak` 只保留一份；连续两次写坏仍可能丢失。
 - 自动存档的 12 游戏小时调度与“安全状态”判定归 M25。

@@ -6,6 +6,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <string_view>
+#include <vector>
 
 #include "fa/content/ContentDatabase.hpp"
 #include "fa/farming/FarmingService.hpp"
@@ -424,6 +425,45 @@ TEST_CASE("Farming tool handler can rebind its inventory", "[farming][tool]") {
     CHECK(use(cell, fa::interaction::ToolKind::Harvest).isOk());
     CHECK(second.countOf(ContentId::fromName("item.crop")) == 1);
     CHECK(first.countOf(ContentId::fromName("item.crop")) == 0);
+}
+
+TEST_CASE("Farming restore replaces the persisted field state", "[farming]") {
+    const Tilemap map = makeMap();
+    const ContentDatabase content = makeContent();
+    FarmingService farming(&content);
+    const TileCoord cell{1, 1};
+
+    REQUIRE(farming.till(cell, map).isOk());
+    REQUIRE(farming.plant(cell, ContentId::fromName("item.seed")).isOk());
+    REQUIRE(farming.water(cell).isOk());
+    farming.onDayChanged(springDay());
+    REQUIRE(farming.cropAt(cell) != nullptr);
+
+    const std::vector<fa::farming::FarmTileEntry> snapshot(farming.entries().begin(),
+                                                          farming.entries().end());
+    REQUIRE(snapshot.size() == 1);
+
+    FarmingService restored(&content);
+    REQUIRE(restored.till(TileCoord{2, 1}, map).isOk());
+    restored.restore(snapshot);
+
+    CHECK(restored.events().empty());
+    CHECK(restored.entries().size() == 1);
+    REQUIRE(restored.tileAt(cell) != nullptr);
+    CHECK(restored.tileAt(cell)->tilled);
+    CHECK(restored.tileAt(cell)->watered == farming.tileAt(cell)->watered);
+    CHECK(restored.tileAt(cell)->daysSinceWatered == farming.tileAt(cell)->daysSinceWatered);
+    CHECK(restored.tileAt(cell)->greenhouse == farming.tileAt(cell)->greenhouse);
+    REQUIRE(restored.cropAt(cell) != nullptr);
+    CHECK(restored.cropAt(cell)->crop == farming.cropAt(cell)->crop);
+    CHECK(restored.cropAt(cell)->seed == ContentId::fromName("item.seed"));
+    CHECK(restored.cropAt(cell)->stage == farming.cropAt(cell)->stage);
+    CHECK(restored.cropAt(cell)->growthDays == Approx(farming.cropAt(cell)->growthDays));
+    CHECK(restored.cropAt(TileCoord{2, 1}) == nullptr);
+
+    restored.restore({});
+    CHECK(restored.entries().empty());
+    CHECK(restored.tileAt(cell) == nullptr);
 }
 
 TEST_CASE("Farming tool handler rejects a missing seed", "[farming][tool]") {

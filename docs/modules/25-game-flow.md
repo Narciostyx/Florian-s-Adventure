@@ -101,7 +101,8 @@ public:
 ## 6. 扩展点
 
 - 新增流程状态（过场、教程、多人大厅）在状态机中加入。
-- 新增结算步骤（出货箱、任务、成就）作为 `IEndOfDayStep` 链。
+- 新增结算步骤（作物生长、出货箱、任务、成就）先挂到 `EndOfDayHandler`；
+  需要多个独立步骤时再引入 `IEndOfDayStep` 链。
 - 新增存档策略（退出自动保存、云同步）。
 - 新增开场/过场播放器。
 
@@ -109,7 +110,7 @@ public:
 
 P1，Phase E。先实现主菜单→新游戏→暂停→保存→退出；再实现日终结算、死亡、读档。验收：完整循环可跑通；读档后状态一致；日终自动存档不丢数据。
 
-**v1 状态：已完成。** 状态机、新游戏/读档、暂停/对话、日终结算、死亡/复活、自动存档与退出均落地；app smoke 按“新游戏 → 暂停 → 保存 → 日终 → 死亡 → 复活 → 主菜单 → 读档 → 退出”跑通。菜单/暂停界面仍由后续 UI 接线。
+**v1 状态：已完成。** 状态机、新游戏/读档、暂停/对话、日终结算、死亡/复活、自动存档与退出均落地；app smoke 按“新游戏 → 暂停 → 保存 → 日终 → 死亡 → 复活 → 主菜单 → 读档 → 退出”跑通。主菜单/暂停/存档槽界面已由 M09 接线（鼠标操作）。
 
 ## 8. 风险与开放问题
 
@@ -120,22 +121,35 @@ P1，Phase E。先实现主菜单→新游戏→暂停→保存→退出；再�
 
 **v1 落地结论**：`GameFlow` 只持有 M14/M22/M23/M24 的公开接口指针，世界重建、
 存档内容构建与存档应用通过 composition root 回调完成，因此没有把玩法规则吸进
-流程层。日终结算同步执行：推进时钟 → M24 结算 → M23 重置每日上限 → 自动存档；
+流程层。日终结算同步执行：推进时钟 → `EndOfDayHandler`（M19 生长）→ M24 结算 →
+M23 重置每日上限 → 自动存档；
 若自动存档失败，日期推进已发生且不回滚，调用方会收到错误状态。
 
 ## 9. 实际落地（v1）
 
 - `fa/flow/FlowTypes.hpp`：`AppState`、`GameSession`、`FlowEvent`/`FlowStats`、
   7400 错误段、`autosave`/`slot1..3` 槽位约定。
+- `fa/flow/Sleep.hpp`：`sleepHoursUntil()`、`sleepRecovery()` 与睡眠常量。
 - `fa/flow/GameFlow.hpp` + `src/GameFlow.cpp`：`IGameFlow` 与 `GameFlow`；
   状态转换集中在 `transition()`，非法转换返回 `flow_error::kInvalidTransition`。
 - 回调：`NewGameHandler`（重建世界/初始物品）、`SaveBuilder`（填 `SaveContext`）、
-  `LoadHandler`（应用 `SaveFile`）、`PauseHandler`（暂停 UI/输入上下文）。
-- 日终：`endDay()` 调用 `WorldCalendar::skipToNextDay()`、`EconomyService::onDayChanged()`、
-  `NarrativeService::onDayChanged()`，再按 `autosaveIntervalDays` 写 `autosave`；
-  `onDayChanged()` 供外部日变化（如 26:00 强制睡眠）复用同一结算路径。
-- 自动存档：按天间隔与“退出时若脏则写自动槽”两种触发；手动保存使用当前会话槽。
+  `LoadHandler`（应用 `SaveFile`）、`PauseHandler`（暂停 UI/输入上下文）、
+  `EndOfDayHandler`（时钟推进后、经济/叙事/自动存档前运行，供 M19 等按天逻辑挂接）。
+- 日终：`endDay()` 调用 `WorldCalendar::skipToNextDay()`、`EndOfDayHandler`、
+  `EconomyService::onDayChanged()`、`NarrativeService::onDayChanged()`，再按
+  `autosaveIntervalDays` 写 `autosave`；`onDayChanged()` 供外部日变化（如自然跨天）
+  复用同一结算路径。
+- 睡眠规则：`fa/flow/Sleep.hpp` 提供 `sleepHoursUntil()` 与 `sleepRecovery()`。
+  任意时间可睡，醒来固定次日 `kWakeHour`（08:00）；满 `kFullSleepHours`（8 h）
+  恢复全部缺失体力，不足时按 `(小时/8)²` 衰减，最低 `kMinSleepRecovery`（1%）。
+  `setDayStartHour()` 决定结算后恢复的时刻（play 设为 08:00），且在自动存档前生效。
+  睡眠本身不消耗体力，也不存在强制晕倒时刻。
+- 存档：`saveGame()` 写当前会话槽；`saveToSlot(slot)` 供菜单显式写 `slot1..3`，
+  不改变会话槽。
 - 暂停：`Playing` 以外的状态统一暂停 M22 时钟；`Dialogue`/`GameOver`/`Paused`
   之间不会误开玩法。
-- 已知缺口：没有主菜单/暂停菜单 UI；app 尚未把 `SceneStack` 切场景、输入上下文、
-  完整世界/背包/叙事/经济存档接到回调上；26:00 强制睡眠与死亡惩罚仍是产品规则。
+- 菜单：composition root 用 M09 绘制主菜单（新游戏/继续/存档槽/退出）与暂停面板
+  （继续/保存/存档槽/主菜单），`Esc` 切换暂停；菜单只调用本模块的公开状态接口。
+- 已知缺口：app 已把日期/时间/天气、玩家位置/朝向/耐力、背包/快捷栏/装备、农田
+  与经济接入 `SaveBuilder`/`LoadHandler`，但叙事、AI、世界对象仍未持久化；
+  `SceneStack` 切场景、输入上下文与死亡惩罚仍待接线。

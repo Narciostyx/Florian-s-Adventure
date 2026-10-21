@@ -95,7 +95,9 @@ int WorldCalendar::hour() const noexcept {
 
 int WorldCalendar::minute() const noexcept {
     const float fraction = m_clock.timeOfDay - std::floor(m_clock.timeOfDay);
-    int value = static_cast<int>(fraction * 60.0f);
+    /// A tiny epsilon keeps an exact minute boundary from flooring to the
+    /// previous minute after `advance()` accumulates float error (e.g. 8:01).
+    int value = static_cast<int>(fraction * 60.0f + 1.0e-3f);
     return value < 0 ? 0 : (value > 59 ? 59 : value);
 }
 

@@ -116,9 +116,19 @@ foreach ($cfg in @('Debug','Development','Release')) {
 - app 新增 `--play`（跳过脚本演示）与 `--play-test`（无头耕地→播种→浇水→5 天→收获）。
 - `--play-test` 三配置均通过；测试新增“可重新绑定背包”用例。
 
+### 睡眠与存档补丁
+
+- `FarmingService::restore(span<const FarmTileEntry>)` 整体替换农田并清空待处理事件；
+  不校验格子是否在当前地图内，由调用方过滤。
+- 组装根把 `entries()` 展开成 `world.farming` 数组：格子、耕地/浇水/温室、
+  `daysSinceWatered` 与完整 `CropState` 都写入；读档时按格重建。
+- `--play-test` 在收获后重新播种，保存→读档后校验作物仍在（不只是耕地标志）。
+- 单元测试新增“restore 替换农田快照”，覆盖事件清空、越界条目不进入、空快照清田。
+- 三配置 `fa_tests.exe` 545 用例 / 30324 断言全绿。
+
 ## 5. 已知限制 / 后续
 
-- 没有 M19 存档序列化：`FarmingService` 还不能写入/读取 `SaveArchive`。
+- M19 本身仍不认识 `SaveArchive`；JSON 格式与越界过滤由组装根负责。
 - 箱子存储、熔炉/工作台加工、洒水器行为属于 M24；v1 只有占用层。
 - 没有动物、品质、产量表、多次收获次数与作物行为策略。
 - app 的作物/耕地是色块 quad，不是 `CropDef::stageSprites` 的真实阶段精灵。

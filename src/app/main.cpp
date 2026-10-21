@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <span>
@@ -44,6 +45,7 @@
 #include <fa/debug/DebugStats.hpp>
 #include <fa/debug/DebugTools.hpp>
 #endif
+#include <fa/core/Math.hpp>
 #include <fa/core/Result.hpp>
 #include <fa/core/Rng.hpp>
 #include <fa/core/Version.hpp>
@@ -51,6 +53,7 @@
 #include <fa/economy/EconomyService.hpp>
 #include <fa/economy/ShopDatabase.hpp>
 #include <fa/flow/GameFlow.hpp>
+#include <fa/flow/Sleep.hpp>
 #include <fa/ai/AiService.hpp>
 #include <fa/ai/AiTypes.hpp>
 #if defined(FA_ENABLE_EDITOR)
@@ -585,7 +588,7 @@ struct CalendarDemoStats {
     int year = 1;
     fa::world::Season season = fa::world::Season::Spring;
     int day = 1;
-    int hour = 6;
+    int hour = 8;
     int minute = 0;
     fa::world::Weather today = fa::world::Weather::Sunny;
     fa::world::Weather tomorrow = fa::world::Weather::Sunny;
@@ -795,6 +798,9 @@ public:
     /// \brief Live M19 counters, used by the play-mode summary.
     [[nodiscard]] fa::farming::FarmingStats farmingStats() const noexcept { return m_farming.stats(); }
 
+    /// \brief Mutable farming state, used by save/load.
+    [[nodiscard]] fa::farming::FarmingService& farming() noexcept { return m_farming; }
+
     [[nodiscard]] fa::core::Vec2 farmingCellPosition(fa::tilemap::TileCoord cell) const noexcept {
         return m_map.gridToWorld(cell);
     }
@@ -920,6 +926,33 @@ public:
 
     [[nodiscard]] fa::scene::EntityId combatDummy1() const noexcept { return m_combatDummy1; }
 
+    [[nodiscard]] fa::core::Vec2 bedPosition() const {
+        const fa::scene::Transform* bed = world().tryGet<fa::scene::Transform>(m_bedEntity);
+        return bed != nullptr ? bed->position : fa::core::Vec2{};
+    }
+
+    /// \brief Whether the player is within \p radius of an entity's 16x16 centre.
+    [[nodiscard]] bool isNearEntity(fa::scene::EntityId id, float radius) const {
+        const fa::scene::Transform* transform = world().tryGet<fa::scene::Transform>(id);
+        if (transform == nullptr) {
+            return false;
+        }
+        const fa::core::Vec2 center{transform->position.x + 8.0f, transform->position.y + 8.0f};
+        const fa::core::Vec2 player = markerCenter();
+        const float dx = center.x - player.x;
+        const float dy = center.y - player.y;
+        return dx * dx + dy * dy <= radius * radius;
+    }
+
+    /// \brief Whether the player is close enough to the bed to sleep.
+    [[nodiscard]] bool isNearBed() const { return isNearEntity(m_bedEntity, 28.0f); }
+    /// \brief Whether the player is close enough to the shipping box.
+    [[nodiscard]] bool isNearShippingBox() const { return isNearEntity(m_shippingEntity, 28.0f); }
+    /// \brief Whether the player is close enough to the merchant.
+    [[nodiscard]] bool isNearMerchant() const { return isNearEntity(m_merchantEntity, 32.0f); }
+    [[nodiscard]] fa::scene::EntityId shippingBoxEntity() const noexcept { return m_shippingEntity; }
+    [[nodiscard]] fa::scene::EntityId merchantEntity() const noexcept { return m_merchantEntity; }
+
     /// \brief Rebuilds the physics broad phase; used by the headless self check.
     void syncPhysics() {
         if (m_physics != nullptr) {
@@ -1022,6 +1055,31 @@ public:
     [[nodiscard]] float playerStamina() const {
         const fa::player::Stamina* stamina = world().tryGet<fa::player::Stamina>(m_markerEntity);
         return stamina != nullptr ? stamina->current : 0.0f;
+    }
+
+    /// \brief Sets current stamina, clamped to the component's maximum.
+    void setPlayerStamina(float value) {
+        fa::player::Stamina* stamina = world().tryGet<fa::player::Stamina>(m_markerEntity);
+        if (stamina != nullptr) {
+            stamina->current = fa::core::clampf(value, 0.0f, stamina->max);
+        }
+    }
+
+    /// \brief Restores \p efficiency of the missing stamina; 1 refills completely.
+    void recoverStamina(float efficiency) {
+        fa::player::Stamina* stamina = world().tryGet<fa::player::Stamina>(m_markerEntity);
+        if (stamina == nullptr) {
+            return;
+        }
+        const float clamped = fa::core::clampf(efficiency, 0.0f, 1.0f);
+        const float restored = (stamina->max - stamina->current) * clamped;
+        stamina->current = std::min(stamina->max, stamina->current + restored);
+    }
+
+    /// \brief Full stamina, used by HUD and save summaries.
+    [[nodiscard]] float playerMaxStamina() const {
+        const fa::player::Stamina* stamina = world().tryGet<fa::player::Stamina>(m_markerEntity);
+        return stamina != nullptr ? stamina->max : 0.0f;
     }
 
     /// \brief Distance from the marker to the wall straight ahead, or -1 on no hit.
@@ -1130,6 +1188,54 @@ private:
         static_cast<void>(world().add<fa::physics::Collider>(m_markerEntity, body));
         static_cast<void>(world().add<fa::physics::Velocity>(m_markerEntity, fa::physics::Velocity{}));
         fa::player::PlayerController::attach(world(), m_markerEntity);
+
+        // A bed beside the start position: E within 28 px advances the day and
+        // triggers M25's end-of-day settlement + autosave.
+        m_bedEntity = world().create();
+        fa::scene::Transform bedTransform;
+        bedTransform.position = fa::core::Vec2{336.0f, 200.0f};
+        static_cast<void>(world().add<fa::scene::Transform>(m_bedEntity, bedTransform));
+
+        fa::scene::Sprite bedSprite;
+        bedSprite.texture = m_soil;
+        bedSprite.size = fa::core::Vec2{16.0f, 16.0f};
+        bedSprite.layer = fa::render::RenderLayer::Objects;
+        bedSprite.tint = fa::core::Color{0.35f, 0.65f, 1.0f, 1.0f};
+        static_cast<void>(world().add<fa::scene::Sprite>(m_bedEntity, bedSprite));
+
+        fa::interaction::Interactable bedInteractable;
+        bedInteractable.area = fa::core::Rect{0.0f, 0.0f, 16.0f, 16.0f};
+        bedInteractable.priority = 10;
+        bedInteractable.payload = 99;
+        static_cast<void>(world().add<fa::interaction::Interactable>(m_bedEntity, bedInteractable));
+
+        if (!m_scripted) {
+            // Play-only props: a shipping box for crops and a merchant for the shop.
+            const auto addProp = [this](fa::core::Vec2 position, fa::core::Color tint,
+                                        int payload, fa::scene::EntityId& out) {
+                out = world().create();
+                fa::scene::Transform transform;
+                transform.position = position;
+                static_cast<void>(world().add<fa::scene::Transform>(out, transform));
+
+                fa::scene::Sprite sprite;
+                sprite.texture = m_soil;
+                sprite.size = fa::core::Vec2{16.0f, 16.0f};
+                sprite.layer = fa::render::RenderLayer::Objects;
+                sprite.tint = tint;
+                static_cast<void>(world().add<fa::scene::Sprite>(out, sprite));
+
+                fa::interaction::Interactable interactable;
+                interactable.area = fa::core::Rect{0.0f, 0.0f, 16.0f, 16.0f};
+                interactable.priority = 10;
+                interactable.payload = payload;
+                static_cast<void>(world().add<fa::interaction::Interactable>(out, interactable));
+            };
+            addProp(fa::core::Vec2{352.0f, 216.0f}, fa::core::Color{0.90f, 0.55f, 0.20f, 1.0f}, 100,
+                    m_shippingEntity);
+            addProp(fa::core::Vec2{288.0f, 232.0f}, fa::core::Color{0.80f, 0.40f, 0.90f, 1.0f}, 101,
+                    m_merchantEntity);
+        }
 
         // A trigger volume on the marker's path, tall enough that the marker cannot slip
         // around it, so both entering and leaving are observed in the same run.
@@ -1606,6 +1712,9 @@ private:
     bool m_scripted = true;
     fa::scene::EntityId m_markerEntity;
     fa::scene::EntityId m_crateEntity;
+    fa::scene::EntityId m_bedEntity;
+    fa::scene::EntityId m_shippingEntity;
+    fa::scene::EntityId m_merchantEntity;
     fa::scene::EntityId m_placedEntity;
     fa::scene::EntityId m_animEntity;
     fa::anim::AnimationService m_animService;
@@ -1685,6 +1794,21 @@ public:
 
     /// \brief True for `--play`: scripted demos are skipped and input drives tools.
     bool playMode = false;
+    /// \brief True for `--play-test`: initializeFlow uses the `playtest` slot.
+    bool playTest = false;
+    /// \brief Set by main once the frame loop exists; the menu's Quit calls it.
+    std::function<void()> requestAppQuit;
+    /// \brief True while the save-slot panel is open.
+    bool slotsOpen = false;
+    /// \brief Save-slot metadata cached when the panel opens.
+    std::vector<fa::save::SaveMetadata> slotList;
+    /// \brief Count of slot-menu buttons pressed, mirrored into the smoke summary.
+    int slotActions = 0;
+    /// \brief True while the merchant panel owns input.
+    bool shopOpen = false;
+    /// \brief Last shop action result, shown inside the panel.
+    std::string shopMessage;
+    float shopMessageTimer = 0.0f;
 
     /// \brief Creates the GL context the smoke run draws with.
     ///
@@ -2070,10 +2194,189 @@ public:
         lights.clear();
     }
 
-    /// \brief Builds a snapshot of the current demo state and writes one slot.
+    /// \brief Serializes one item stack.
+    static void writeStack(fa::save::SaveArchive& parent, std::string_view key,
+                           const fa::inventory::ItemStack& stack) {
+        fa::save::SaveArchive entry = fa::save::SaveArchive::object();
+        if (!stack.empty()) {
+            entry.setString("id", stack.id.name());
+            entry.setInt("count", stack.count);
+            entry.setInt("durability", stack.durability);
+        }
+        parent.setChild(key, std::move(entry));
+    }
+
+    [[nodiscard]] static fa::inventory::ItemStack readStack(const fa::save::SaveArchive& parent,
+                                                            std::string_view key) {
+        const fa::save::SaveArchive entry = parent.child(key);
+        fa::inventory::ItemStack stack;
+        std::string id;
+        int count = 0;
+        if (entry.isObject() && entry.getString("id", id) && entry.getInt("count", count) && count > 0) {
+            stack.id = fa::content::ContentId::fromName(id);
+            stack.count = count;
+            static_cast<void>(entry.getInt("durability", stack.durability));
+        }
+        return stack;
+    }
+
+    /// \brief Serializes every slot, including empty ones, to keep slot indices.
+    static void writeInventory(fa::save::SaveArchive& parent, std::string_view key,
+                               const fa::inventory::Inventory& inventory) {
+        fa::save::SaveArchive slots = fa::save::SaveArchive::array();
+        for (int slot = 0; slot < inventory.slotCount(); ++slot) {
+            fa::save::SaveArchive entry = fa::save::SaveArchive::object();
+            const fa::inventory::ItemStack& stack = inventory.at(slot);
+            if (!stack.empty()) {
+                entry.setString("id", stack.id.name());
+                entry.setInt("count", stack.count);
+                entry.setInt("durability", stack.durability);
+            }
+            slots.push(std::move(entry));
+        }
+        parent.setChild(key, std::move(slots));
+    }
+
+    static void readInventory(const fa::save::SaveArchive& parent, std::string_view key,
+                              fa::inventory::Inventory& inventory) {
+        const fa::save::SaveArchive slots = parent.child(key);
+        if (!slots.isArray()) {
+            return;
+        }
+        std::vector<fa::inventory::ItemStack> stacks(
+            static_cast<std::size_t>(inventory.slotCount()));
+        const std::size_t count =
+            slots.size() < stacks.size() ? slots.size() : stacks.size();
+        for (std::size_t index = 0; index < count; ++index) {
+            const fa::save::SaveArchive entry = slots.at(index);
+            std::string id;
+            int amount = 0;
+            if (entry.isObject() && entry.getString("id", id) &&
+                entry.getInt("count", amount) && amount > 0) {
+                fa::inventory::ItemStack stack;
+                stack.id = fa::content::ContentId::fromName(id);
+                stack.count = amount;
+                static_cast<void>(entry.getInt("durability", stack.durability));
+                stacks[index] = stack;
+            }
+        }
+        static_cast<void>(inventory.restore(stacks));
+    }
+
+    [[nodiscard]] static std::vector<int> parseIntList(std::string_view text) {
+        std::vector<int> values;
+        std::size_t start = 0;
+        while (start < text.size()) {
+            const std::size_t comma = text.find(',', start);
+            const std::string_view part =
+                text.substr(start, comma == std::string_view::npos ? text.size() - start
+                                                                   : comma - start);
+            if (!part.empty()) {
+                values.push_back(std::atoi(std::string(part).c_str()));
+            }
+            if (comma == std::string_view::npos) {
+                break;
+            }
+            start = comma + 1;
+        }
+        return values;
+    }
+
+    static void writeFarming(fa::save::SaveArchive& parent,
+                             std::span<const fa::farming::FarmTileEntry> entries) {
+        fa::save::SaveArchive array = fa::save::SaveArchive::array();
+        for (const fa::farming::FarmTileEntry& entry : entries) {
+            fa::save::SaveArchive object = fa::save::SaveArchive::object();
+            object.setInt("x", entry.cell.x);
+            object.setInt("y", entry.cell.y);
+            object.setBool("tilled", entry.tile.tilled);
+            object.setBool("watered", entry.tile.watered);
+            object.setBool("greenhouse", entry.tile.greenhouse);
+            object.setInt("daysSinceWatered", entry.tile.daysSinceWatered);
+            object.setBool("hasCrop", entry.hasCrop);
+            if (entry.hasCrop) {
+                object.setString("crop", entry.crop.crop.name());
+                object.setString("seed", entry.crop.seed.name());
+                object.setString("harvestItem", entry.crop.harvestItem.name());
+                std::string stageDays;
+                for (std::size_t index = 0; index < entry.crop.stageDays.size(); ++index) {
+                    if (index != 0) {
+                        stageDays += ',';
+                    }
+                    stageDays += std::to_string(entry.crop.stageDays[index]);
+                }
+                object.setString("stageDays", stageDays);
+                object.setInt("seasons", static_cast<int>(entry.crop.seasons));
+                object.setBool("regrow", entry.crop.regrow);
+                object.setInt("regrowDays", entry.crop.regrowDays);
+                object.setFloat("growthDays", entry.crop.growthDays);
+                object.setInt("stage", entry.crop.stage);
+                object.setBool("harvestable", entry.crop.harvestable);
+                object.setBool("dead", entry.crop.dead);
+                object.setBool("wateredToday", entry.crop.wateredToday);
+            }
+            array.push(std::move(object));
+        }
+        parent.setChild("farming", std::move(array));
+    }
+
+    static void readFarming(const fa::save::SaveArchive& parent, const fa::tilemap::Tilemap& map,
+                            fa::farming::FarmingService& farming) {
+        const fa::save::SaveArchive array = parent.child("farming");
+        if (!array.isArray()) {
+            return;
+        }
+        std::vector<fa::farming::FarmTileEntry> entries;
+        for (std::size_t index = 0; index < array.size(); ++index) {
+            const fa::save::SaveArchive object = array.at(index);
+            int x = 0;
+            int y = 0;
+            if (!object.isObject() || !object.getInt("x", x) || !object.getInt("y", y) ||
+                !map.contains(x, y)) {
+                continue;
+            }
+            fa::farming::FarmTileEntry entry;
+            entry.cell = fa::tilemap::TileCoord{x, y};
+            static_cast<void>(object.getBool("tilled", entry.tile.tilled));
+            static_cast<void>(object.getBool("watered", entry.tile.watered));
+            static_cast<void>(object.getBool("greenhouse", entry.tile.greenhouse));
+            static_cast<void>(object.getInt("daysSinceWatered", entry.tile.daysSinceWatered));
+            static_cast<void>(object.getBool("hasCrop", entry.hasCrop));
+            if (entry.hasCrop) {
+                std::string id;
+                if (object.getString("crop", id)) {
+                    entry.crop.crop = fa::content::ContentId::fromName(id);
+                }
+                if (object.getString("seed", id)) {
+                    entry.crop.seed = fa::content::ContentId::fromName(id);
+                }
+                if (object.getString("harvestItem", id)) {
+                    entry.crop.harvestItem = fa::content::ContentId::fromName(id);
+                }
+                std::string stageDays;
+                if (object.getString("stageDays", stageDays)) {
+                    entry.crop.stageDays = parseIntList(stageDays);
+                }
+                int seasons = 0;
+                static_cast<void>(object.getInt("seasons", seasons));
+                entry.crop.seasons = static_cast<std::uint8_t>(seasons);
+                static_cast<void>(object.getBool("regrow", entry.crop.regrow));
+                static_cast<void>(object.getInt("regrowDays", entry.crop.regrowDays));
+                static_cast<void>(object.getFloat("growthDays", entry.crop.growthDays));
+                static_cast<void>(object.getInt("stage", entry.crop.stage));
+                static_cast<void>(object.getBool("harvestable", entry.crop.harvestable));
+                static_cast<void>(object.getBool("dead", entry.crop.dead));
+                static_cast<void>(object.getBool("wateredToday", entry.crop.wateredToday));
+            }
+            entries.push_back(std::move(entry));
+        }
+        farming.restore(entries);
+    }
+
     /// \brief Fills the shared M14/M25 save context from the live demo.
     fa::core::Status fillSaveContext(fa::save::SaveContext& context) {
         context.sceneId = "demo";
+        context.world.setBool("play", playMode);
         context.inGameDay = calendar != nullptr ? calendar->date().day : 1;
         context.playSeconds = flow != nullptr && !flow->session().slot.empty()
                                   ? flow->session().playSeconds
@@ -2088,6 +2391,56 @@ public:
             context.inventories.setInt("backpackSlots", playerInventory->backpack().usedSlots());
             context.inventories.setInt("hotbarItems", playerInventory->hotbar().inventory().totalItems());
             context.inventories.setInt("selected", playerInventory->hotbar().selected());
+            writeInventory(context.inventories, "backpack", playerInventory->backpack());
+            writeInventory(context.inventories, "hotbar", playerInventory->hotbar().inventory());
+            writeStack(context.inventories, "tool",
+                       playerInventory->equipment().at(fa::inventory::EquipmentSlot::Tool));
+            writeStack(context.inventories, "weapon",
+                       playerInventory->equipment().at(fa::inventory::EquipmentSlot::Weapon));
+        }
+        if (economy != nullptr) {
+            context.economy.setInt("gold", economy->gold());
+
+            fa::save::SaveArchive shipping = fa::save::SaveArchive::array();
+            for (const fa::inventory::ItemStack& itemStack : economy->shipping()) {
+                fa::save::SaveArchive entry = fa::save::SaveArchive::object();
+                entry.setString("id", itemStack.id.name());
+                entry.setInt("count", itemStack.count);
+                shipping.push(std::move(entry));
+            }
+            context.economy.setChild("shipping", std::move(shipping));
+
+            fa::save::SaveArchive jobs = fa::save::SaveArchive::array();
+            for (const fa::economy::ProcessingJob& job : economy->jobs()) {
+                fa::save::SaveArchive entry = fa::save::SaveArchive::object();
+                entry.setString("recipe", job.recipe.name());
+                entry.setString("output", job.output.name());
+                entry.setInt("outputCount", job.outputCount);
+                entry.setString("machine", job.machineKind);
+                entry.setInt("remainingMinutes", job.remainingMinutes);
+                entry.setBool("ready", job.ready);
+                jobs.push(std::move(entry));
+            }
+            context.economy.setChild("jobs", std::move(jobs));
+
+            fa::save::SaveArchive stockList = fa::save::SaveArchive::array();
+            for (const fa::economy::ShopDef& shop : shops.shops()) {
+                for (const fa::economy::ShopEntry& listed : shop.stock) {
+                    if (listed.dailyLimit < 0) {
+                        continue;
+                    }
+                    fa::save::SaveArchive entry = fa::save::SaveArchive::object();
+                    entry.setString("shop", shop.id.name());
+                    entry.setString("item", listed.item.name());
+                    entry.setInt("remaining", economy->remaining(shop.id, listed.item));
+                    stockList.push(std::move(entry));
+                }
+            }
+            context.economy.setChild("stock", std::move(stockList));
+        }
+        if (demoScene != nullptr) {
+            writeFarming(context.world, demoScene->farmingTiles());
+            context.world.setInt("facing", static_cast<int>(demoScene->playerFacing()));
         }
         if (calendar != nullptr) {
             context.world.setInt("dateYear", calendar->date().year);
@@ -2113,35 +2466,142 @@ public:
         return saveService->save(slot, context);
     }
 
-    /// \brief Restores the calendar section written by fillSaveContext().
+    /// \brief Restores the calendar, scene, farming and inventory sections.
     fa::core::Status applySaveFile(const fa::save::SaveFile& file) {
-        if (calendar == nullptr) {
-            return fa::core::okStatus();
-        }
-        int year = calendar->date().year;
-        int season = static_cast<int>(calendar->season());
-        int day = calendar->date().day;
-        float timeOfDay = calendar->timeOfDay();
-        int today = static_cast<int>(calendar->today());
-        int tomorrow = static_cast<int>(calendar->tomorrow());
-        static_cast<void>(file.world.getInt("dateYear", year));
-        static_cast<void>(file.world.getInt("dateSeason", season));
-        static_cast<void>(file.world.getInt("dateDay", day));
-        static_cast<void>(file.world.getFloat("timeOfDay", timeOfDay));
-        static_cast<void>(file.world.getInt("weatherToday", today));
-        static_cast<void>(file.world.getInt("weatherTomorrow", tomorrow));
+        if (calendar != nullptr) {
+            int year = calendar->date().year;
+            int season = static_cast<int>(calendar->season());
+            int day = calendar->date().day;
+            float timeOfDay = calendar->timeOfDay();
+            int today = static_cast<int>(calendar->today());
+            int tomorrow = static_cast<int>(calendar->tomorrow());
+            static_cast<void>(file.world.getInt("dateYear", year));
+            static_cast<void>(file.world.getInt("dateSeason", season));
+            static_cast<void>(file.world.getInt("dateDay", day));
+            static_cast<void>(file.world.getFloat("timeOfDay", timeOfDay));
+            static_cast<void>(file.world.getInt("weatherToday", today));
+            static_cast<void>(file.world.getInt("weatherTomorrow", tomorrow));
 
-        fa::world::GameDate date;
-        date.year = year > 0 ? year : 1;
-        const int seasonCount = static_cast<int>(fa::world::Season::Count);
-        date.season = static_cast<fa::world::Season>(season >= 0 && season < seasonCount ? season : 0);
-        date.day = day > 0 ? day : 1;
-        const int weatherCount = static_cast<int>(fa::world::Weather::Count);
-        const fa::world::Weather weatherToday =
-            static_cast<fa::world::Weather>(today >= 0 && today < weatherCount ? today : 0);
-        const fa::world::Weather weatherTomorrow =
-            static_cast<fa::world::Weather>(tomorrow >= 0 && tomorrow < weatherCount ? tomorrow : 0);
-        calendar->restore(date, timeOfDay, weatherToday, weatherTomorrow);
+            fa::world::GameDate date;
+            date.year = year > 0 ? year : 1;
+            const int seasonCount = static_cast<int>(fa::world::Season::Count);
+            date.season =
+                static_cast<fa::world::Season>(season >= 0 && season < seasonCount ? season : 0);
+            date.day = day > 0 ? day : 1;
+            const int weatherCount = static_cast<int>(fa::world::Weather::Count);
+            const fa::world::Weather weatherToday =
+                static_cast<fa::world::Weather>(today >= 0 && today < weatherCount ? today : 0);
+            const fa::world::Weather weatherTomorrow =
+                static_cast<fa::world::Weather>(tomorrow >= 0 && tomorrow < weatherCount ? tomorrow : 0);
+            calendar->restore(date, timeOfDay, weatherToday, weatherTomorrow);
+        }
+
+        if (demoScene != nullptr) {
+            fa::core::Vec2 marker;
+            if (file.world.getVec2("marker", marker)) {
+                demoScene->teleportMarker(marker);
+            }
+            int facing = 0;
+            if (file.world.getInt("facing", facing) && facing >= 0 &&
+                facing < static_cast<int>(fa::player::Facing::Count)) {
+                demoScene->setPlayerFacing(static_cast<fa::player::Facing>(facing));
+            }
+            readFarming(file.world, demoScene->editableMap(), demoScene->farming());
+            float stamina = demoScene->playerStamina();
+            if (file.player.getFloat("stamina", stamina)) {
+                demoScene->setPlayerStamina(stamina);
+            }
+        }
+
+        if (playerInventory != nullptr) {
+            readInventory(file.inventories, "backpack", playerInventory->backpack());
+            readInventory(file.inventories, "hotbar", playerInventory->hotbar().inventory());
+            const fa::inventory::ItemStack tool = readStack(file.inventories, "tool");
+            if (!tool.empty()) {
+                static_cast<void>(
+                    playerInventory->equipment().equip(fa::inventory::EquipmentSlot::Tool, tool));
+            } else {
+                static_cast<void>(
+                    playerInventory->equipment().unequip(fa::inventory::EquipmentSlot::Tool));
+            }
+            const fa::inventory::ItemStack weapon = readStack(file.inventories, "weapon");
+            if (!weapon.empty()) {
+                static_cast<void>(playerInventory->equipment().equip(
+                    fa::inventory::EquipmentSlot::Weapon, weapon));
+            } else {
+                static_cast<void>(
+                    playerInventory->equipment().unequip(fa::inventory::EquipmentSlot::Weapon));
+            }
+            int selected = playerInventory->hotbar().selected();
+            if (file.inventories.getInt("selected", selected)) {
+                static_cast<void>(playerInventory->hotbar().select(selected));
+            }
+        }
+
+        if (economy != nullptr) {
+            int gold = economy->gold();
+            if (file.economy.getInt("gold", gold)) {
+                economy->setGold(gold);
+            }
+
+            std::vector<fa::inventory::ItemStack> shipping;
+            const fa::save::SaveArchive shippingArray = file.economy.child("shipping");
+            if (shippingArray.isArray()) {
+                for (std::size_t index = 0; index < shippingArray.size(); ++index) {
+                    const fa::save::SaveArchive entry = shippingArray.at(index);
+                    std::string id;
+                    int count = 0;
+                    if (entry.isObject() && entry.getString("id", id) &&
+                        entry.getInt("count", count) && count > 0) {
+                        shipping.push_back(fa::inventory::ItemStack{
+                            fa::content::ContentId::fromName(id), count, -1});
+                    }
+                }
+            }
+            economy->restoreShipping(shipping);
+
+            std::vector<fa::economy::ProcessingJob> jobs;
+            const fa::save::SaveArchive jobsArray = file.economy.child("jobs");
+            if (jobsArray.isArray()) {
+                for (std::size_t index = 0; index < jobsArray.size(); ++index) {
+                    const fa::save::SaveArchive entry = jobsArray.at(index);
+                    if (!entry.isObject()) {
+                        continue;
+                    }
+                    fa::economy::ProcessingJob job;
+                    std::string id;
+                    if (entry.getString("recipe", id)) {
+                        job.recipe = fa::content::ContentId::fromName(id);
+                    }
+                    if (entry.getString("output", id)) {
+                        job.output = fa::content::ContentId::fromName(id);
+                    }
+                    if (entry.getString("machine", id)) {
+                        job.machineKind = id;
+                    }
+                    static_cast<void>(entry.getInt("outputCount", job.outputCount));
+                    static_cast<void>(entry.getInt("remainingMinutes", job.remainingMinutes));
+                    static_cast<void>(entry.getBool("ready", job.ready));
+                    jobs.push_back(std::move(job));
+                }
+            }
+            economy->restoreJobs(jobs);
+
+            const fa::save::SaveArchive stockArray = file.economy.child("stock");
+            if (stockArray.isArray()) {
+                for (std::size_t index = 0; index < stockArray.size(); ++index) {
+                    const fa::save::SaveArchive entry = stockArray.at(index);
+                    std::string shop;
+                    std::string item;
+                    int remaining = 0;
+                    if (entry.isObject() && entry.getString("shop", shop) &&
+                        entry.getString("item", item) && entry.getInt("remaining", remaining)) {
+                        economy->restoreRemaining(fa::content::ContentId::fromName(shop),
+                                                  fa::content::ContentId::fromName(item), remaining);
+                    }
+                }
+            }
+        }
         return fa::core::okStatus();
     }
 
@@ -2206,8 +2666,87 @@ public:
         flow->setLoadHandler([this](const fa::save::SaveFile& file) {
             return applySaveFile(file);
         });
+        flow->setEndOfDayHandler([this] {
+            if (demoScene == nullptr || calendar == nullptr) {
+                return;
+            }
+            fa::farming::FarmingDayContext context;
+            context.season = contentSeason(calendar->season());
+            context.rain = calendar->isRaining();
+            context.growthMultiplier = calendar->cropGrowthMultiplier();
+            demoScene->advanceFarmingDay(context);
+        });
         flow->setAutosaveIntervalDays(1);
         flow->setAutosaveOnQuit(true);
+
+        if (playMode) {
+            // Sleep resumes at 08:00, matching the calendar's default day start.
+            flow->setDayStartHour(fa::flow::kWakeHour);
+            if (playTest) {
+                static_cast<void>(flow->startNewGame("playtest"));
+            } else {
+                // The pause/main-menu overlays drive New Game and Continue;
+                // starting in MainMenu keeps every manual run behind the UI.
+                static_cast<void>(flow->enterMainMenu());
+            }
+        }
+    }
+
+    /// \brief True when gameplay simulation and player input should run.
+    [[nodiscard]] bool gameplayActive() const {
+        if (!playMode || flow == nullptr) {
+            return true;
+        }
+        return flow->state() == fa::flow::AppState::Playing;
+    }
+
+    /// \brief Refreshes the cached save-slot metadata for the menu.
+    void refreshSlots() {
+        slotList = saveService != nullptr ? saveService->listSlots()
+                                         : std::vector<fa::save::SaveMetadata>{};
+    }
+
+    /// \brief Continues the autosave when it belongs to a play session.
+    void continueGame() {
+        if (flow == nullptr) {
+            return;
+        }
+        if (saveService != nullptr) {
+            const fa::core::Result<fa::save::SaveFile> existing =
+                saveService->load(fa::flow::kAutosaveSlot);
+            bool playSave = false;
+            if (existing.isOk() && existing.value().world.getBool("play", playSave) && playSave &&
+                existing.value().inventories.child("backpack").isArray() &&
+                flow->loadGame(fa::flow::kAutosaveSlot).isOk()) {
+                return;
+            }
+        }
+        static_cast<void>(flow->startNewGame("play"));
+    }
+
+    /// \brief Loads a slot from the menu, leaving the current session first.
+    void loadSlot(std::string_view slot) {
+        if (flow == nullptr) {
+            return;
+        }
+        if (flow->state() != fa::flow::AppState::MainMenu) {
+            if (flow->enterMainMenu().isError()) {
+                return;
+            }
+        }
+        static_cast<void>(flow->loadGame(slot));
+        slotsOpen = false;
+    }
+
+    /// \brief Saves the active session into a manual slot.
+    void saveSlot(std::string_view slot) {
+        if (flow == nullptr) {
+            return;
+        }
+        if (flow->saveToSlot(slot).isOk()) {
+            ++slotActions;
+        }
+        refreshSlots();
     }
 
     /// \brief Walks new game, pause, save, day end, death, menu, load and quit.
@@ -2237,7 +2776,23 @@ public:
 
     void shutdownFlow() { flow.reset(); }
 
-    [[nodiscard]] FlowDemoStats flowDemoStats() const { return flowDemo; }
+    [[nodiscard]] FlowDemoStats flowDemoStats() const {
+        if (playMode && flow != nullptr) {
+            FlowDemoStats live = flowDemo;
+            live.stats = flow->stats();
+            live.newGameOk = flow->stats().newGames > 0 || flow->stats().loads > 0;
+            live.saveOk = flow->stats().saves > 0 || flow->stats().autosaves > 0;
+            live.dayEndOk = flow->stats().dayEnds > 0;
+            live.menuOk = flow->stats().menuReturns > 0;
+            live.loadOk = flow->stats().loads > 0;
+            live.pauseOk = flow->stats().pauses > 0;
+            live.gameOverOk = flow->stats().deaths > 0;
+            live.respawnOk = flow->stats().respawns > 0;
+            live.quitOk = flow->stats().quitRequests > 0;
+            return live;
+        }
+        return flowDemo;
+    }
 
     /// \brief Opens the platform audio device and starts the scripted M08 voices.
     ///
@@ -2401,7 +2956,17 @@ public:
                     console.print("days must be 1..365");
                     return;
                 }
-                advanceDays(days);
+                if (playMode && flow != nullptr) {
+                    for (int index = 0; index < days; ++index) {
+                        const fa::core::Status status = flow->endDay();
+                        if (status.isError()) {
+                            console.print("time.addDays failed: " + status.error().message);
+                            return;
+                        }
+                    }
+                } else {
+                    advanceDays(days);
+                }
                 console.print("advanced " + std::to_string(days) + " day(s)");
             }}));
 
@@ -2446,6 +3011,91 @@ public:
     void setPlayMessage(std::string message) {
         playMessage = std::move(message);
         playMessageTimer = 2.5f;
+    }
+
+    void setShopMessage(std::string message) {
+        shopMessage = std::move(message);
+        shopMessageTimer = 2.5f;
+    }
+
+    [[nodiscard]] static fa::content::ContentId shopGeneralId() {
+        return fa::content::ContentId::fromName("shop.general");
+    }
+
+    /// \brief Unit buy price for an item listed in the general store; 0 when absent.
+    [[nodiscard]] int shopBuyPrice(const fa::content::ContentId& item) const {
+        if (economy == nullptr) {
+            return 0;
+        }
+        const fa::economy::ShopDef* shop = shops.shop(shopGeneralId());
+        if (shop == nullptr) {
+            return 0;
+        }
+        for (const fa::economy::ShopEntry& entry : shop->stock) {
+            if (entry.item == item) {
+                return economy->buyPrice(*shop, entry, 1);
+            }
+        }
+        return 0;
+    }
+
+    /// \brief Unit sell price for an item in the general store.
+    [[nodiscard]] int shopSellPrice(const fa::content::ContentId& item) const {
+        if (economy == nullptr) {
+            return 0;
+        }
+        const fa::economy::ShopDef* shop = shops.shop(shopGeneralId());
+        return shop != nullptr ? economy->sellPrice(*shop, item) : 0;
+    }
+
+    [[nodiscard]] fa::core::Status buyFromShop(const fa::content::ContentId& item, int count) {
+        if (economy == nullptr || playerInventory == nullptr) {
+            return fa::core::errorStatus(fa::economy::economy_error::kNotLoaded,
+                                         "the shop is not available");
+        }
+        return economy->buy(shopGeneralId(), item, count, playerInventory->backpack());
+    }
+
+    /// \brief Sells from the hotbar first, then the backpack.
+    [[nodiscard]] fa::core::Status sellToShop(const fa::content::ContentId& item, int count) {
+        if (economy == nullptr || playerInventory == nullptr) {
+            return fa::core::errorStatus(fa::economy::economy_error::kNotLoaded,
+                                         "the shop is not available");
+        }
+        const fa::core::Status hotbar =
+            economy->sell(shopGeneralId(), item, count, playerInventory->hotbar().inventory());
+        if (hotbar.isOk()) {
+            return hotbar;
+        }
+        return economy->sell(shopGeneralId(), item, count, playerInventory->backpack());
+    }
+
+    /// \brief Ships every crop stack in the hotbar and backpack.
+    [[nodiscard]] int shipAllCrops() {
+        if (economy == nullptr || playerInventory == nullptr) {
+            return 0;
+        }
+        int shipped = 0;
+        const auto shipFrom = [this, &shipped](fa::inventory::Inventory& inventory) {
+            // Backwards with a value copy: ship() removes slots, so a live reference
+            // or a forward index would skip or dangle.
+            for (int slot = inventory.slotCount() - 1; slot >= 0; --slot) {
+                const fa::inventory::ItemStack itemStack = inventory.at(slot);
+                if (itemStack.empty()) {
+                    continue;
+                }
+                const fa::content::ItemDef* def = content.item(itemStack.id);
+                if (def == nullptr || def->category != "crop") {
+                    continue;
+                }
+                if (economy->ship(itemStack.id, itemStack.count, inventory).isOk()) {
+                    shipped += itemStack.count;
+                }
+            }
+        };
+        shipFrom(playerInventory->hotbar().inventory());
+        shipFrom(playerInventory->backpack());
+        return shipped;
     }
 
     /// \brief Uses the selected hotbar item on the cell in front of the player.
@@ -2598,6 +3248,32 @@ public:
         }
     }
 
+    /// \brief Sleeps until the next wake hour and applies the recovery rule.
+    ///
+    /// A sleep always ends at `flow::kWakeHour`; going to bed later than
+    /// `kWakeHour + 24 - kFullSleepHours` (22:00) restores less than full
+    /// stamina, down to the 1% floor for a very short nap.
+    [[nodiscard]] fa::core::Status sleepAtBed() {
+        if (flow == nullptr || demoScene == nullptr) {
+            return fa::core::errorStatus(fa::flow::flow_error::kNotInitialized,
+                                         "sleep needs an active session");
+        }
+        const float hours = calendar != nullptr ? fa::flow::sleepHoursUntil(calendar->timeOfDay())
+                                                : fa::flow::kFullSleepHours;
+        const float recovery = fa::flow::sleepRecovery(hours);
+        const fa::core::Status slept = flow->endDay();
+        if (slept.isError()) {
+            return slept;
+        }
+        demoScene->recoverStamina(recovery);
+        char message[64]{};
+        std::snprintf(message, sizeof(message), "SLEPT %.1fh  STAMINA +%d%%",
+                      static_cast<double>(hours),
+                      static_cast<int>(recovery * 100.0f + 0.5f));
+        setPlayMessage(message);
+        return slept;
+    }
+
     /// \brief Consumes the controller's per-step action records.
     void processPlayerActions() {
         if (!playMode || demoScene == nullptr) {
@@ -2612,7 +3288,26 @@ public:
                     handleAttack();
                     break;
                 case fa::player::PlayerActionKind::Interact:
-                    setPlayMessage("INTERACT: next increment");
+                    if (demoScene->isNearBed()) {
+                        const fa::core::Status slept = sleepAtBed();
+                        if (slept.isError()) {
+                            setPlayMessage("SLEEP FAILED: " + slept.error().message);
+                        }
+                    } else if (demoScene->isNearShippingBox()) {
+                        const int shipped = shipAllCrops();
+                        setPlayMessage(shipped > 0
+                                           ? "SHIPPED " + std::to_string(shipped) + " CROP(S)"
+                                           : "NOTHING TO SHIP");
+                    } else if (demoScene->isNearMerchant() && flow != nullptr &&
+                               flow->state() == fa::flow::AppState::Playing) {
+                        if (flow->enterDialogue().isOk()) {
+                            shopOpen = true;
+                            shopMessage.clear();
+                            shopMessageTimer = 0.0f;
+                        }
+                    } else {
+                        setPlayMessage("INTERACT: bed, shipping box or merchant");
+                    }
                     break;
                 case fa::player::PlayerActionKind::OpenInventory:
                     setPlayMessage("INVENTORY UI: next increment");
@@ -2690,7 +3385,9 @@ public:
 
         for (int day = 0; day < 5; ++day) {
             report("water", useSlot(1));
-            advanceDays(1);
+            if (flow != nullptr) {
+                report("day", flow->endDay());
+            }
         }
 
         const int before = hotbar.inventory().countOf(turnip);
@@ -2701,6 +3398,10 @@ public:
             std::printf("play-test: harvest produced no turnip\n");
             ok = false;
         }
+
+        // Leave a live crop in the field so the save/load round-trip exercises the
+        // full crop state, not just the tilled flag.
+        report("replant", useSlot(2));
 
         // Combat: face the first dummy, swing until it dies, then pick up loot.
         demoScene->teleportMarker(fa::core::Vec2{288.0f, 212.0f});
@@ -2724,6 +3425,125 @@ public:
         if (!killed || seedsAfter <= seedsBefore) {
             ok = false;
         }
+
+        // Bed proximity + save/load round-trip.
+        const fa::core::Vec2 bed = demoScene->bedPosition();
+        demoScene->teleportMarker(fa::core::Vec2{bed.x - 16.0f, bed.y});
+        const bool nearBed = demoScene->isNearBed();
+        std::printf("play-test: bed %s\n", nearBed ? "near" : "far");
+        ok = ok && nearBed;
+
+        if (flow == nullptr || calendar == nullptr) {
+            std::printf("play-test: flow/calendar unavailable\n");
+            return false;
+        }
+
+        // Sleep rule: an 8 h night refills stamina, 7 h restores about 77%,
+        // and a 1 h nap is floored at 1%.
+        const auto sleepFrom = [&](float hour) {
+            calendar->restore(calendar->date(), hour, calendar->today(), calendar->tomorrow());
+            demoScene->setPlayerStamina(0.0f);
+            return sleepAtBed();
+        };
+        report("sleep8", sleepFrom(0.0f));
+        const float fullStamina = demoScene->playerStamina();
+        report("sleep7", sleepFrom(1.0f));
+        const float shortStamina = demoScene->playerStamina();
+        report("sleep1", sleepFrom(7.0f));
+        const float napStamina = demoScene->playerStamina();
+        const bool wakeOk =
+            calendar->timeOfDay() > fa::flow::kWakeHour - 0.01f &&
+            calendar->timeOfDay() < fa::flow::kWakeHour + 0.01f;
+        const bool sleepOk = fullStamina >= 99.0f && shortStamina > 72.0f &&
+                             shortStamina < 82.0f && napStamina >= 0.5f && napStamina <= 2.0f;
+        std::printf("play-test: sleep wake %02d:%02d, 8h %.1f, 7h %.1f, 1h %.1f -> %s\n",
+                    calendar->hour(), calendar->minute(), static_cast<double>(fullStamina),
+                    static_cast<double>(shortStamina), static_cast<double>(napStamina),
+                    (sleepOk && wakeOk) ? "ok" : "bad");
+        ok = ok && sleepOk && wakeOk;
+
+        // Economy: buy a seed, sell a turnip, ship the rest, then settle next day.
+        if (economy == nullptr) {
+            std::printf("play-test: economy unavailable\n");
+            return false;
+        }
+        const int goldBeforeShop = economy->gold();
+        report("shop-buy", buyFromShop(seed, 1));
+        report("shop-sell", sellToShop(turnip, 1));
+        const int shippedCrops = shipAllCrops();
+        const bool shopOk = economy->gold() == goldBeforeShop + 10;
+        const int goldBeforeSettle = economy->gold();
+        report("ship-settle", sleepAtBed());
+        const int settlement = economy->gold() - goldBeforeSettle;
+        const bool shipOk = shippedCrops >= 2 && settlement > 0 && economy->shipping().empty();
+        std::printf("play-test: shop gold %d, shipped %d, settled +%d -> %s\n",
+                    economy->gold(), shippedCrops, settlement,
+                    (shopOk && shipOk) ? "ok" : "bad");
+        ok = ok && shopOk && shipOk;
+
+        // The shipping box and merchant must exist and be reachable in play mode.
+        demoScene->teleportMarker(fa::core::Vec2{352.0f, 216.0f});
+        const bool shipPropOk = demoScene->isNearShippingBox();
+        demoScene->teleportMarker(fa::core::Vec2{288.0f, 232.0f});
+        const bool merchantPropOk = demoScene->isNearMerchant();
+        std::printf("play-test: props shipping %s, merchant %s\n",
+                    shipPropOk ? "ok" : "bad", merchantPropOk ? "ok" : "bad");
+        ok = ok && shipPropOk && merchantPropOk;
+
+        const fa::core::Vec2 savedMarker = demoScene->markerPosition();
+        const int savedTurnips = playerInventory->backpack().countOf(turnip) +
+                                 hotbar.inventory().countOf(turnip);
+        const int savedSeeds = playerInventory->backpack().countOf(seed) +
+                               hotbar.inventory().countOf(seed);
+        const int savedDay = calendar->date().day;
+        const int savedGold = economy->gold();
+        report("save", flow->saveGame());
+        demoScene->teleportMarker(fa::core::Vec2{0.0f, 0.0f});
+        static_cast<void>(playerInventory->backpack().add(
+            fa::inventory::ItemStack{turnip, 5, -1}));
+        economy->addGold(1000);
+        report("menu", flow->enterMainMenu());
+        report("load", flow->loadGame("playtest"));
+
+        const fa::core::Vec2 loadedMarker = demoScene->markerPosition();
+        const bool markerOk = loadedMarker.x == savedMarker.x && loadedMarker.y == savedMarker.y;
+        const int loadedTurnips = playerInventory->backpack().countOf(turnip) +
+                                  hotbar.inventory().countOf(turnip);
+        const int loadedSeeds = playerInventory->backpack().countOf(seed) +
+                                hotbar.inventory().countOf(seed);
+        const bool bagOk = loadedTurnips == savedTurnips && loadedSeeds == savedSeeds;
+        const bool dayOk = calendar->date().day == savedDay;
+        const bool goldOk = economy->gold() == savedGold;
+        bool farmOk = false;
+        for (const fa::farming::FarmTileEntry& entry : demoScene->farmingTiles()) {
+            if (entry.cell.x == 4 && entry.cell.y == 9 && entry.tile.tilled && entry.hasCrop &&
+                entry.crop.seed == seed) {
+                farmOk = true;
+            }
+        }
+        std::printf("play-test: load marker %s, bag %s, day %s, farm %s, gold %s\n",
+                    markerOk ? "ok" : "bad", bagOk ? "ok" : "bad", dayOk ? "ok" : "bad",
+                    farmOk ? "ok" : "bad", goldOk ? "ok" : "bad");
+        ok = ok && markerOk && bagOk && dayOk && farmOk && goldOk;
+
+        // Menu wiring: pause, explicit slot save, main menu and slot load.
+        flow->requestPause(true);
+        const bool pausedOk = flow->state() == fa::flow::AppState::Paused;
+        flow->requestPause(false);
+        report("pause", pausedOk ? fa::core::okStatus()
+                                 : fa::core::errorStatus(fa::flow::flow_error::kNotPlaying,
+                                                         "pause did not take"));
+        report("slot-save", flow->saveToSlot("slot1"));
+        refreshSlots();
+        const bool slotListed = !slotList.empty();
+        report("main-menu", flow->enterMainMenu());
+        const bool menuOk = flow->state() == fa::flow::AppState::MainMenu;
+        report("slot-load", flow->loadGame("slot1"));
+        const bool resumedOk = flow->state() == fa::flow::AppState::Playing;
+        std::printf("play-test: menu paused %s, slot listed %s, menu %s, resumed %s\n",
+                    pausedOk ? "ok" : "bad", slotListed ? "ok" : "bad", menuOk ? "ok" : "bad",
+                    resumedOk ? "ok" : "bad");
+        ok = ok && pausedOk && slotListed && menuOk && resumedOk;
 
         std::printf("play-test: %s\n", ok ? "OK" : "FAILED");
         return ok;
@@ -3003,6 +3823,33 @@ public:
                 }
             }
         }
+
+        // Escape opens/closes the pause overlay; the browser-style slot panel
+        // consumes it first so it never resumes gameplay by accident.
+        const bool dialogueOpen =
+            demoScene != nullptr && demoScene->narrative().dialogueActive();
+        if (playMode && flow != nullptr && !editorActive && !dialogueOpen) {
+            for (const fa::platform::PlatformEvent& event : events) {
+                if (event.type != fa::platform::PlatformEventType::KeyDown ||
+                    event.scancode != fa::platform::Scancode::Escape) {
+                    continue;
+                }
+                if (shopOpen) {
+                    shopOpen = false;
+                    static_cast<void>(flow->exitDialogue());
+                    continue;
+                }
+                if (slotsOpen) {
+                    slotsOpen = false;
+                    continue;
+                }
+                if (flow->state() == fa::flow::AppState::Playing) {
+                    flow->requestPause(true);
+                } else if (flow->state() == fa::flow::AppState::Paused) {
+                    flow->requestPause(false);
+                }
+            }
+        }
 #if defined(FA_ENABLE_DEBUG_TOOLS)
         /// The console swallows text/keys while it is open; everything else still
         /// reaches M07, so closing the console restores gameplay input exactly.
@@ -3050,15 +3897,17 @@ public:
                                                                             : fa::core::Vec2{0.35f, 0.2f};
             demoScene->setScriptedMove(scripted);
         }
-        stack.fixedUpdate(context);
-        if (demoScene != nullptr) {
-            demoScene->advanceAnimation(static_cast<float>(context.fixedDeltaSeconds));
-            demoScene->advanceCombat(static_cast<float>(context.fixedDeltaSeconds));
-            demoScene->advanceAi(static_cast<float>(context.fixedDeltaSeconds));
+        if (gameplayActive()) {
+            stack.fixedUpdate(context);
+            if (demoScene != nullptr) {
+                demoScene->advanceAnimation(static_cast<float>(context.fixedDeltaSeconds));
+                demoScene->advanceCombat(static_cast<float>(context.fixedDeltaSeconds));
+                demoScene->advanceAi(static_cast<float>(context.fixedDeltaSeconds));
+            }
+            processPlayerActions();
+            processCombatEvents();
+            collectLoot();
         }
-        processPlayerActions();
-        processCombatEvents();
-        collectLoot();
         if (demo != nullptr) {
             demo->beginTick(context.fixedStepIndex);
         }
@@ -3074,7 +3923,7 @@ public:
             calendar->clearEvents();
         }
 
-        if (playMode && playerInventory != nullptr) {
+        if (playMode && playerInventory != nullptr && gameplayActive()) {
             for (std::size_t index = 0; index < m_hotbarActions.size(); ++index) {
                 if (!input.wasPressed(m_hotbarActions[index])) {
                     continue;
@@ -3103,6 +3952,10 @@ public:
         if (playMessageTimer > 0.0f) {
             playMessageTimer = std::max(0.0f, playMessageTimer -
                                                  static_cast<float>(context.realDeltaSeconds));
+        }
+        if (shopMessageTimer > 0.0f) {
+            shopMessageTimer = std::max(0.0f, shopMessageTimer -
+                                                  static_cast<float>(context.realDeltaSeconds));
         }
         stack.variableUpdate(context);
     }
@@ -3324,6 +4177,227 @@ public:
     float uiSliderValue() const { return sliderValue; }
 
 private:
+    /// \brief Draws the merchant panel while it is open.
+    void buildShopPanel(const fa::ui::UiTheme& theme) {
+        if (!shopOpen || ui == nullptr || flow == nullptr) {
+            return;
+        }
+        if (flow->state() != fa::flow::AppState::Dialogue) {
+            shopOpen = false;
+            return;
+        }
+
+        fa::ui::TextStyle title;
+        title.color = theme.text;
+        title.scale = 2.0f;
+        fa::ui::TextStyle label;
+        label.color = theme.text;
+        label.scale = 1.0f;
+
+        const fa::core::Rect panel = fa::core::makeRect(180.0f, 90.0f, 280.0f, 170.0f);
+        ui->panel(panel, theme.panel);
+        ui->border(panel, theme.panelBorder);
+        ui->text("GENERAL STORE", fa::core::makeRect(190.0f, 98.0f, 260.0f, 14.0f), title);
+
+        char goldText[48]{};
+        std::snprintf(goldText, sizeof(goldText), "GOLD %d", economy != nullptr ? economy->gold() : 0);
+        ui->text(goldText, fa::core::makeRect(192.0f, 120.0f, 240.0f, 7.0f), label);
+
+        const fa::content::ContentId seed = fa::content::ContentId::fromName("item.turnip_seed");
+        const fa::content::ContentId turnip = fa::content::ContentId::fromName("item.turnip");
+        const int seedPrice = shopBuyPrice(seed);
+        const int turnipPrice = shopSellPrice(turnip);
+        const int seedCount =
+            playerInventory != nullptr ? playerInventory->backpack().countOf(seed) +
+                                             playerInventory->hotbar().inventory().countOf(seed)
+                                       : 0;
+        const int turnipCount =
+            playerInventory != nullptr ? playerInventory->backpack().countOf(turnip) +
+                                             playerInventory->hotbar().inventory().countOf(turnip)
+                                       : 0;
+
+        char seedText[64]{};
+        std::snprintf(seedText, sizeof(seedText), "SEEDS %d   BUY 1 = %dg", seedCount, seedPrice);
+        ui->text(seedText, fa::core::makeRect(192.0f, 136.0f, 250.0f, 7.0f), label);
+        char turnipText[64]{};
+        std::snprintf(turnipText, sizeof(turnipText), "TURNIPS %d   SELL 1 = %dg", turnipCount,
+                      turnipPrice);
+        ui->text(turnipText, fa::core::makeRect(192.0f, 148.0f, 250.0f, 7.0f), label);
+
+        const auto press = [this](const char* id, const char* text, float x, float y, float w) {
+            const bool pressed = ui->button(fa::ui::UiId::fromName(id), text,
+                                            fa::core::makeRect(x, y, w, 18.0f))
+                                     .pressed;
+            if (pressed) {
+                ++uiPresses;
+            }
+            return pressed;
+        };
+
+        if (press("shop.buy", "BUY SEED", 192.0f, 166.0f, 110.0f)) {
+            const fa::core::Status status = buyFromShop(seed, 1);
+            setShopMessage(status.isOk() ? "BOUGHT 1 SEED" : status.error().message);
+        }
+        if (press("shop.sell", "SELL TURNIP", 310.0f, 166.0f, 138.0f)) {
+            const fa::core::Status status = sellToShop(turnip, 1);
+            setShopMessage(status.isOk() ? "SOLD 1 TURNIP" : status.error().message);
+        }
+        if (press("shop.close", "CLOSE", 192.0f, 194.0f, 90.0f)) {
+            shopOpen = false;
+            static_cast<void>(flow->exitDialogue());
+            return;
+        }
+
+        if (shopMessageTimer > 0.0f && !shopMessage.empty()) {
+            fa::ui::TextStyle message = label;
+            message.color = theme.accent;
+            ui->text(shopMessage.substr(0, 40), fa::core::makeRect(192.0f, 222.0f, 250.0f, 7.0f),
+                     message);
+        }
+    }
+
+    /// \brief Draws the main menu, pause overlay and the save-slot list.
+    void buildFlowMenus(const fa::ui::UiTheme& theme, fa::flow::AppState state) {
+        if (!playMode || flow == nullptr || ui == nullptr) {
+            return;
+        }
+        const bool showMainMenu = state == fa::flow::AppState::MainMenu;
+        const bool showPause = state == fa::flow::AppState::Paused;
+        if (!showMainMenu && !showPause && !slotsOpen) {
+            return;
+        }
+
+        fa::ui::TextStyle title;
+        title.color = theme.text;
+        title.scale = 2.0f;
+        fa::ui::TextStyle label;
+        label.color = theme.text;
+        label.scale = 1.0f;
+        fa::ui::TextStyle dim = label;
+        dim.color = theme.textDisabled;
+
+        const auto press = [this](const char* id, const char* text, float x, float y, float w,
+                                  float h) {
+            const bool pressed = ui->button(fa::ui::UiId::fromName(id), text,
+                                            fa::core::makeRect(x, y, w, h))
+                                     .pressed;
+            if (pressed) {
+                ++uiPresses;
+            }
+            return pressed;
+        };
+        const auto findSlot = [this](std::string_view name) -> const fa::save::SaveMetadata* {
+            for (const fa::save::SaveMetadata& meta : slotList) {
+                if (meta.slotName == name) {
+                    return &meta;
+                }
+            }
+            return nullptr;
+        };
+
+        if (showMainMenu && !slotsOpen) {
+            const fa::core::Rect panel = fa::core::makeRect(170.0f, 60.0f, 300.0f, 220.0f);
+            ui->panel(panel, theme.panel);
+            ui->border(panel, theme.panelBorder);
+            ui->text("FLORIAN'S ADVENTURE",
+                     fa::core::makeRect(178.0f, 70.0f, 284.0f, 14.0f), title);
+            char dayText[48]{};
+            std::snprintf(dayText, sizeof(dayText), "SPRING DAY %d",
+                          calendar != nullptr ? calendar->date().day : 1);
+            ui->text(dayText, fa::core::makeRect(182.0f, 92.0f, 280.0f, 7.0f), label);
+
+            if (press("menu.new", "NEW GAME", 185.0f, 120.0f, 130.0f, 18.0f)) {
+                static_cast<void>(flow->startNewGame("play"));
+            }
+            if (press("menu.continue", "CONTINUE", 185.0f, 144.0f, 130.0f, 18.0f)) {
+                continueGame();
+            }
+            if (press("menu.slots", "SAVE SLOTS", 185.0f, 168.0f, 130.0f, 18.0f)) {
+                refreshSlots();
+                slotsOpen = true;
+            }
+            if (press("menu.quit", "QUIT", 185.0f, 192.0f, 130.0f, 18.0f)) {
+                flow->requestQuit();
+                if (requestAppQuit) {
+                    requestAppQuit();
+                }
+            }
+            ui->text("E SLEEP AT THE BED", fa::core::makeRect(182.0f, 246.0f, 280.0f, 7.0f), dim);
+        }
+
+        if (showPause && !slotsOpen) {
+            const fa::core::Rect panel = fa::core::makeRect(200.0f, 100.0f, 240.0f, 160.0f);
+            ui->panel(panel, theme.panel);
+            ui->border(panel, theme.panelBorder);
+            ui->text("PAUSED", fa::core::makeRect(210.0f, 108.0f, 220.0f, 14.0f), title);
+
+            if (press("pause.resume", "RESUME", 218.0f, 136.0f, 148.0f, 18.0f)) {
+                flow->requestPause(false);
+            }
+            if (press("pause.save", "SAVE", 218.0f, 160.0f, 148.0f, 18.0f)) {
+                static_cast<void>(flow->saveGame());
+                refreshSlots();
+            }
+            if (press("pause.slots", "SAVE SLOTS", 218.0f, 184.0f, 148.0f, 18.0f)) {
+                refreshSlots();
+                slotsOpen = true;
+            }
+            if (press("pause.menu", "MAIN MENU", 218.0f, 208.0f, 148.0f, 18.0f)) {
+                static_cast<void>(flow->enterMainMenu());
+                slotsOpen = false;
+            }
+            ui->text("ESC RESUME", fa::core::makeRect(210.0f, 240.0f, 220.0f, 7.0f), dim);
+        }
+
+        if (slotsOpen) {
+            const fa::core::Rect panel = fa::core::makeRect(80.0f, 50.0f, 480.0f, 230.0f);
+            ui->panel(panel, theme.panel);
+            ui->border(panel, theme.panelBorder);
+            ui->text("SAVE SLOTS", fa::core::makeRect(90.0f, 58.0f, 300.0f, 14.0f), title);
+
+            std::vector<std::string> names;
+            names.emplace_back(fa::flow::kAutosaveSlot);
+            for (int index = 1; index <= fa::flow::kManualSlotCount; ++index) {
+                names.push_back(fa::flow::manualSlotName(index));
+            }
+
+            const bool canSave = !showMainMenu;
+            float y = 92.0f;
+            for (std::size_t index = 0; index < names.size(); ++index) {
+                const std::string& name = names[index];
+                const fa::save::SaveMetadata* meta = findSlot(name);
+                char line[64]{};
+                if (meta != nullptr) {
+                    std::snprintf(line, sizeof(line), "%s  DAY %d", name.c_str(),
+                                  meta->inGameDay);
+                } else {
+                    std::snprintf(line, sizeof(line), "%s  EMPTY", name.c_str());
+                }
+                ui->text(line, fa::core::makeRect(92.0f, y, 270.0f, 7.0f),
+                         meta != nullptr ? label : dim);
+
+                char loadId[32]{};
+                std::snprintf(loadId, sizeof(loadId), "slot.load.%zu", index);
+                if (press(loadId, "LOAD", 372.0f, y - 4.0f, 58.0f, 16.0f)) {
+                    loadSlot(name);
+                    return;
+                }
+                if (canSave && index > 0) {
+                    char saveId[32]{};
+                    std::snprintf(saveId, sizeof(saveId), "slot.save.%zu", index);
+                    if (press(saveId, "SAVE", 438.0f, y - 4.0f, 58.0f, 16.0f)) {
+                        saveSlot(name);
+                    }
+                }
+                y += 32.0f;
+            }
+
+            if (press("slots.back", "BACK", 90.0f, 246.0f, 70.0f, 18.0f)) {
+                slotsOpen = false;
+            }
+        }
+    }
+
     /// \brief Builds the M09 HUD and the widget row, then appends their draw items.
     void buildHud(const fa::core::Vec2& cursor) {
         if (ui == nullptr) {
@@ -3342,7 +4416,11 @@ private:
         ui->beginFrame(state);
 
         const fa::ui::UiTheme& theme = ui->theme();
-        if (showHud) {
+        const fa::flow::AppState menuState =
+            flow != nullptr ? flow->state() : fa::flow::AppState::Boot;
+        const bool inMenu = playMode && flow != nullptr &&
+                            menuState != fa::flow::AppState::Playing;
+        if (showHud && !inMenu) {
             const fa::core::Rect panel = fa::core::makeRect(8.0f, 8.0f, 236.0f, 62.0f);
             ui->panel(panel, theme.panel);
             ui->border(panel, theme.panelBorder);
@@ -3380,24 +4458,31 @@ private:
             }
         }
 
-        if (ui->button(fa::ui::UiId::fromName("pause"), "PAUSE", fa::core::makeRect(254.0f, 8.0f, 96.0f, 16.0f))
-                .pressed) {
-            ++uiPresses;
-        }
-        static_cast<void>(ui->checkbox(fa::ui::UiId::fromName("hud"), "HUD", showHud,
-                                       fa::core::makeRect(254.0f, 30.0f, 150.0f, 16.0f)));
-        static_cast<void>(ui->slider(fa::ui::UiId::fromName("scale"), sliderValue, 1.0f, 4.0f,
-                                     fa::core::makeRect(254.0f, 52.0f, 150.0f, 10.0f)));
-        if (economy != nullptr) {
-            fa::ui::TextStyle goldStyle;
-            goldStyle.color = theme.text;
-            goldStyle.scale = 1.0f;
-            char goldText[32]{};
-            std::snprintf(goldText, sizeof(goldText), "GOLD %d", economy->gold());
-            ui->text(goldText, fa::core::makeRect(254.0f, 74.0f, 150.0f, 7.0f), goldStyle);
+        if (!inMenu) {
+            if (ui->button(fa::ui::UiId::fromName("pause"), "PAUSE",
+                           fa::core::makeRect(254.0f, 8.0f, 96.0f, 16.0f))
+                    .pressed) {
+                ++uiPresses;
+                if (playMode && flow != nullptr &&
+                    flow->state() == fa::flow::AppState::Playing) {
+                    flow->requestPause(true);
+                }
+            }
+            static_cast<void>(ui->checkbox(fa::ui::UiId::fromName("hud"), "HUD", showHud,
+                                           fa::core::makeRect(254.0f, 30.0f, 150.0f, 16.0f)));
+            static_cast<void>(ui->slider(fa::ui::UiId::fromName("scale"), sliderValue, 1.0f, 4.0f,
+                                         fa::core::makeRect(254.0f, 52.0f, 150.0f, 10.0f)));
+            if (economy != nullptr) {
+                fa::ui::TextStyle goldStyle;
+                goldStyle.color = theme.text;
+                goldStyle.scale = 1.0f;
+                char goldText[32]{};
+                std::snprintf(goldText, sizeof(goldText), "GOLD %d", economy->gold());
+                ui->text(goldText, fa::core::makeRect(254.0f, 74.0f, 150.0f, 7.0f), goldStyle);
+            }
         }
 
-        if (playMode && calendar != nullptr) {
+        if (playMode && calendar != nullptr && !inMenu) {
             const fa::core::Rect panel = fa::core::makeRect(254.0f, 96.0f, 214.0f, 62.0f);
             ui->panel(panel, theme.panel);
             ui->border(panel, theme.panelBorder);
@@ -3476,6 +4561,8 @@ private:
                 }
             }
         }
+        buildShopPanel(theme);
+        buildFlowMenus(theme, menuState);
         uiItems = ui->itemCount();
         ui->submit(renderQueue);
     }
@@ -3736,6 +4823,7 @@ int main(int argc, char** argv) {
     SmokeSink sink;
     sink.demo = &demo;
     sink.playMode = options.playMode;
+    sink.playTest = options.playTest;
     if (options.playMode) {
         std::printf("play mode: WASD move, 1-9 hotbar, wheel cycle, LMB use, E interact\n");
         std::printf("           console `, F3 stats, time.addDays N / time.set HH:MM\n");
@@ -3822,6 +4910,7 @@ int main(int argc, char** argv) {
     config.pacingFramesPerSecond = options.visibleWindow ? 0 : fa::time::kFixedStepsPerSecond;
 
     fa::time::FrameLoop loop(*platform, sink, config);
+    sink.requestAppQuit = [&loop] { loop.requestQuit(); };
     const double startedSeconds = platform->monotonicSeconds();
     const int exitCode = loop.run();
     const double elapsedSeconds = platform->monotonicSeconds() - startedSeconds;
@@ -4016,7 +5105,12 @@ int main(int argc, char** argv) {
                 static_cast<unsigned long long>(physicsStats.triggerBegins),
                 static_cast<unsigned long long>(physicsStats.triggerEnds), physicsStats.triggerEvents);
     std::printf("       nearest wall straight ahead: %g px\n", static_cast<double>(probeDistance));
-    if (!saveDemo.ok) {
+    if (options.playMode) {
+        std::printf("  m14: play slot %s, %llu save(s), %llu autosave(s), day %d\n",
+                    flowStats.stats.slot.empty() ? "-" : flowStats.stats.slot.c_str(),
+                    static_cast<unsigned long long>(flowStats.stats.saves),
+                    static_cast<unsigned long long>(flowStats.stats.autosaves), flowStats.stats.day);
+    } else if (!saveDemo.ok) {
         std::printf("  m14: save/load unavailable (%s)\n", saveDemo.error.c_str());
     } else {
         std::printf("  m14: slot %s, v%d, scene %s, day %d, %.2fs, %zu entities, marker (%g, %g), "

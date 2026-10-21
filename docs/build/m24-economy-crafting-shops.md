@@ -74,8 +74,8 @@ nlohmann/json，因此本工程打开 `/EHsc`。
 实测：
 
 ```text
-fa_tests.exe "[economy]" → All tests passed (90 assertions in 10 test cases)
-fa_tests.exe             → All tests passed (29791 assertions in 530 test cases)
+fa_tests.exe "[economy]" → All tests passed (105 assertions in 11 test cases)
+fa_tests.exe             → All tests passed (30368 assertions in 549 test cases)
 fa_app.exe --frames 60   → m24: gold 170 (+60 settled), seed 102, turnip 1, soup 2,
                            buy ok, sell ok, craft ok, collect ok, ship ok;
                            1 bought / 1 sold / 1 crafted / 1 shipped,
@@ -112,15 +112,29 @@ foreach ($cfg in @('Debug','Development','Release')) {
 }
 ```
 
+### 商店 / 出货 / 存档增量
+
+- play 场景新增橙色出货箱与紫色商人（仅 `!m_scripted`）：床边 `E` 睡觉之外，
+  出货箱旁 `E` 把快捷栏/背包里所有 `category == "crop"` 的堆叠送入 pending，
+  商人旁 `E` 进入 `Dialogue` 状态并打开 M09 商店面板（买种子/卖萝卜/关闭）。
+- `EconomyService` 新增 `shipping()`、`restoreShipping()`、`restoreJobs()`、
+  `restoreRemaining()`；金币用现有 `setGold()`。
+- app 的经济段写入 `gold`、`shipping[]`、`jobs[]` 与每日 `stock[]`，读档时恢复；
+  `--play-test` 校验金币、出货结算（3 个萝卜 +51）与读档金币一致。
+- 修复：遍历背包出货时不能在 `ship()` 修改 `vector` 后继续持有 `ItemStack&`，
+  改为倒序 + 值拷贝。
+- 本次实测：`fa_tests.exe` 549 用例 / 30368 断言全绿；`--frames 60` 与
+  `--play-test` 三配置 exit 0。
+
 ## 5. 已知限制 / 后续
 
-- 没有商店 UI/交易确认；当前只有服务与脚本演示。
+- 商店是基础面板（买种子/卖萝卜），没有交易确认、分类与季节库存。
 - 没有按季节重建库存/价格；`onSeasonChanged` 尚未实现。
 - 没有品质、供需、节日溢价、温室产物差异。
 - 金币没有统一钱包；`player::Wallet` 尚未接入。
 - 加工站是字符串 `machineKind`，没有设备实体、燃料、队列上限、多输出。
-- 出货箱没有实体/容量；pending 只在服务内存里。
-- 没有经济存档：金币、库存剩余、加工任务、出货 pending 都不能保存。
+- 出货箱只是单格实体与立即入箱，没有容量限制；pending 已随经济段存档。
+- 经济存档覆盖金币/出货/加工/每日余量；统计与季节库存不保存。
 - `onDayChanged` 与 M22 的 `DayChanged` 尚未自动接线。
 - M23 的任务金币奖励仍是事件，没有走 M24 钱包。
 - 没有交易日志持久化、订单板、拍卖或成就挂钩。

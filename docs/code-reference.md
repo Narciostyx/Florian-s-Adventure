@@ -521,7 +521,7 @@ L4  fa::editor  fa::debug
 
 | 类型 | 关键公开 API |
 |---|---|
-| `FarmingService` | `till`、`water`、`plant`、`harvest`、`onDayChanged`、`setCurrentSeason`、`cropForSeed`、`entryAt`、`tileAt`、`cropAt`、`entries`、`stats`、`events`、`clear` |
+| `FarmingService` | `till`、`water`、`plant`、`harvest`、`onDayChanged`、`setCurrentSeason`、`cropForSeed`、`entryAt`、`tileAt`、`cropAt`、`entries`、`restore`、`stats`、`events`、`clear` |
 | `FarmingDayContext` | 日期/季节/天气/生长倍率/自动浇水 |
 | `FarmTile` / `CropState` / `FarmTileEntry` | 耕地、作物阶段/浇水/再生、按格条目 |
 | `FarmingToolHandler` | 实现 M17 `IToolHandler`：Hoe/WateringCan/Seed/Harvest/Axe/Pickaxe；`setInventory` 可切到玩家快捷栏 |
@@ -611,7 +611,7 @@ L4  fa::editor  fa::debug
 
 | 类型 | 关键公开 API |
 |---|---|
-| `EconomyService` | `setContentDatabase`、`setShopDatabase`、`setSeason`、`setGold`、`gold`、`addGold`、`buyPrice`、`sellPrice`、`buy`、`sell`、`startCraft`、`update`、`collectCraft`、`ship`、`onDayChanged`、`jobs`、`readyJobCount`、`remaining`、`events`、`stats`、`clear` |
+| `EconomyService` | `setContentDatabase`、`setShopDatabase`、`setSeason`、`setGold`、`gold`、`addGold`、`buyPrice`、`sellPrice`、`buy`、`sell`、`startCraft`、`update`、`collectCraft`、`ship`、`onDayChanged`、`jobs`、`shipping`、`restoreShipping`、`restoreJobs`、`restoreRemaining`、`readyJobCount`、`remaining`、`events`、`stats`、`clear` |
 | `ShopDatabase` | `loadDocument`、`clear`、`shop`、`shops`、`size` |
 | `ShopDef` / `ShopEntry` | 商店、库存条目（价格/每日限购） |
 | `ProcessingJob` | 配方/产物/工作站/剩余分钟/ready |
@@ -619,25 +619,26 @@ L4  fa::editor  fa::debug
 
 - **枚举**：`EconomyEventKind { ItemBought, ItemSold, CraftStarted, CraftReady, CraftCollected, ItemShipped, ShippingSettled, DailyRefresh, Count }`。
 - **错误码**：7300–7313。
-- **要点**：交易先检查金币/容量/库存再修改；失败路径不改状态；金币由服务持有，尚未写回 `player::Wallet`；商店表未进 M15。
+- **要点**：交易先检查金币/容量/库存再修改；失败路径不改状态；金币由服务持有，尚未写回 `player::Wallet`；商店表未进 M15；app 用 `shipping`/`restore*` 把金币、出货清单、加工任务与每日余量写入 `SaveFile.economy`。
 
 ### M25 Game Flow
 
 - **工程/依赖**：`fa_flow` ← `fa_core`、`fa_save`、`fa_world`、`fa_economy`、`fa_narrative`。
 - **命名空间**：`fa::flow`、`fa::flow::flow_error`。
-- **头文件**：`GameFlow.hpp`、`FlowTypes.hpp`。
+- **头文件**：`GameFlow.hpp`、`FlowTypes.hpp`、`Sleep.hpp`。
 
 | 类型 | 关键公开 API |
 |---|---|
-| `IGameFlow` / `GameFlow` | `startNewGame`、`loadGame`、`saveGame`、`requestPause`、`endDay`、`requestQuit`、`state`、`session`、`onDayChanged`、`enterMainMenu`、`enterDialogue`、`exitDialogue`、`requestGameOver`、`respawn`、`update`、`markDirty`、`setAutosaveEnabled`、`setAutosaveIntervalDays`、`setAutosaveOnQuit`、`events`、`stats`、`reset` |
-| 回调 | `setNewGameHandler`、`setSaveBuilder`、`setLoadHandler`、`setPauseHandler`；类型 `NewGameHandler`、`SaveBuilder`、`LoadHandler`、`PauseHandler` |
+| `IGameFlow` / `GameFlow` | `startNewGame`、`loadGame`、`saveGame`、`saveToSlot`、`requestPause`、`endDay`、`requestQuit`、`state`、`session`、`onDayChanged`、`enterMainMenu`、`enterDialogue`、`exitDialogue`、`requestGameOver`、`respawn`、`update`、`markDirty`、`setSaveBuilder`、`setLoadHandler`、`setPauseHandler`、`setEndOfDayHandler`、`setDayStartHour`、`setAutosaveEnabled`、`setAutosaveIntervalDays`、`setAutosaveOnQuit`、`events`、`stats`、`reset` |
+| 回调 | `setNewGameHandler`、`setSaveBuilder`、`setLoadHandler`、`setPauseHandler`、`setEndOfDayHandler`；类型 `NewGameHandler`、`SaveBuilder`、`LoadHandler`、`PauseHandler`、`EndOfDayHandler` |
 | `GameSession` | `slot`、`playSeconds`、`dirty`、`autosaveIntervalDays` |
 | `FlowEvent` / `FlowStats` | 状态/存档/日终/死亡事件与统计 |
+| `Sleep` | `sleepHoursUntil`、`sleepRecovery`；常量 `kWakeHour=8`、`kFullSleepHours=8`、`kMinSleepRecovery=0.01` |
 
 - **枚举**：`AppState { Boot, MainMenu, Loading, Playing, Paused, Dialogue, GameOver, Quit, Count }`、`FlowEventKind`。
 - **常量**：`kAutosaveSlot="autosave"`、`kManualSlotCount=3`、`manualSlotName(i)`。
 - **错误码**：7400–7410。
-- **要点**：`Playing` 以外状态暂停 M22 时钟；日终顺序“推进时钟 → M24 → M23 → 自动存档”；世界重建/存档应用走回调。
+- **要点**：`Playing` 以外状态暂停 M22 时钟；日终顺序“推进时钟 → M19 → M24 → M23 → 自动存档”；睡眠满 8 h 全恢复、不足按 `(h/8)²` 衰减（最低 1%）；世界重建/存档应用走回调。
 
 ### M26 Editor Tools
 
@@ -751,7 +752,7 @@ L4  fa::editor  fa::debug
 | M22 world | `world/Calendar.hpp`、`world/Lighting.hpp` |
 | M23 narrative | `narrative/NarrativeDatabase.hpp`、`narrative/NarrativeService.hpp`、`narrative/NarrativeTypes.hpp` |
 | M24 economy | `economy/EconomyService.hpp`、`economy/EconomyTypes.hpp`、`economy/ShopDatabase.hpp` |
-| M25 flow | `flow/FlowTypes.hpp`、`flow/GameFlow.hpp` |
+| M25 flow | `flow/FlowTypes.hpp`、`flow/GameFlow.hpp`、`flow/Sleep.hpp` |
 | M26 editor | `editor/EditorHistory.hpp`、`editor/EditorOverlay.hpp`、`editor/EditorTypes.hpp`、`editor/MapEditor.hpp` |
 | M27 debug | `debug/DebugConsole.hpp`、`debug/DebugCVar.hpp`、`debug/DebugDraw.hpp`、`debug/DebugInspector.hpp`、`debug/DebugLog.hpp`、`debug/DebugOverlay.hpp`、`debug/DebugStats.hpp`、`debug/DebugTools.hpp` |
 

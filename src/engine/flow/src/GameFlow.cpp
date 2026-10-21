@@ -178,6 +178,14 @@ core::Status GameFlow::saveGame() {
     return saveToSlot(m_session.slot, false);
 }
 
+core::Status GameFlow::saveToSlot(std::string_view slot) {
+    if (m_state != AppState::Playing && m_state != AppState::Paused &&
+        m_state != AppState::Dialogue) {
+        return core::errorStatus(flow_error::kNotPlaying, "saving is only available during play");
+    }
+    return saveToSlot(slot, false);
+}
+
 core::Status GameFlow::saveToSlot(std::string_view slot, bool autosave) {
     if (m_saves == nullptr) {
         return core::errorStatus(flow_error::kSaveUnavailable, "save service is not available");
@@ -253,11 +261,23 @@ core::Status GameFlow::settleDay(bool skipClock) {
     if (skipClock) {
         if (m_calendar != nullptr) {
             m_calendar->skipToNextDay();
+            if (m_dayStartHour > world::kStartHour) {
+                // Sleep resumes later than the calendar's default start; restore the
+                // clock before the day handlers and autosave so the save agrees.
+                m_calendar->restore(m_calendar->date(), m_dayStartHour, m_calendar->today(),
+                                    m_calendar->tomorrow());
+            }
         } else {
             ++m_day;
         }
     }
     m_day = currentDay();
+
+    // M19 farming growth runs after the clock has rolled the new date/weather,
+    // and before M24/M23/autosave so the save contains the grown state.
+    if (m_endOfDay) {
+        m_endOfDay();
+    }
 
     if (m_economy != nullptr) {
         static_cast<void>(m_economy->onDayChanged());

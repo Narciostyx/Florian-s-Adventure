@@ -15,7 +15,7 @@ inline constexpr int kDaysPerSeason = 28;
 inline constexpr int kSeasonsPerYear = 4;
 inline constexpr int kHoursPerDay = 24;
 inline constexpr float kMidnightHour = 0.0f;
-inline constexpr float kStartHour = 6.0f;
+inline constexpr float kStartHour = 8.0f;
 inline constexpr float kDefaultRealSecondsPerGameMinute = 0.7f;
 
 /// \brief Calendar season. Numeric values are stable for save files.
@@ -46,7 +46,7 @@ struct GameDate {
     int day = 1;
 };
 
-/// \brief Mutable clock state. Time is 0..24; the day starts at 06:00.
+/// \brief Mutable clock state. Time is 0..24; the day starts at 08:00.
 struct WorldClock {
     GameDate date;
     float timeOfDay = kStartHour;
@@ -93,7 +93,7 @@ public:
 
     /// \brief Advances by real seconds; wraps days and rolls weather per day.
     void advance(float realDeltaSeconds);
-    /// \brief Moves to 06:00 the next day (sleep/skip), rolling weather.
+    /// \brief Moves to 08:00 the next day (sleep/skip), rolling weather.
     void skipToNextDay();
 
     void setPaused(bool paused) noexcept { m_clock.paused = paused; }

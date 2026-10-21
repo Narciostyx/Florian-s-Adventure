@@ -94,6 +94,7 @@ public:
     const FarmTile* tileAt(tilemap::TileCoord cell) const noexcept;
     const CropState* cropAt(tilemap::TileCoord cell) const noexcept;
     std::span<const FarmTileEntry> entries() const noexcept;
+    void restore(std::span<const FarmTileEntry> entries);
     FarmingStats stats() const noexcept;
     std::span<const FarmingEvent> events() const noexcept;
 };
@@ -155,6 +156,8 @@ P1，Phase C，已完成：
 - `FarmingToolHandler` 覆盖 Hoe/WateringCan/Seed/Harvest/Axe/Pickaxe；
   M17 新增 `ToolKind::Harvest`。
 - `WorldObjectLayer` 与 `DebrisLayer` 提供单格占用/清理与产出。
+- `entries()`/`restore()` 把整块农田作为快照导出/替换；组装根负责过滤越界格子，
+  序列化格式由 M14 调用方决定，M19 不依赖 JSON。
 - app 用萝卜跑通 5 天生长与收获，并分别验证温室存活和室外枯萎；
   摘要 `m19:` 行与 smoke OK 的 `+M19`。
 
@@ -164,5 +167,6 @@ P1，Phase C，已完成：
 
 - 按格存储与 ECS 并存，需明确哪类对象用哪种表示。
 - 每日结算的原子性：中途崩溃可能导致状态不一致；存档只在结算后写。
+- `restore()` 是整体替换，不校验格子在当前地图或是否可耕地；调用方需先过滤。
 - 季节/温室/动物等深度未定，影响数据模型扩展。
 - 作物数量大时的渲染批次与剔除需要优化。

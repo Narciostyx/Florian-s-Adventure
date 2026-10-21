@@ -32,7 +32,7 @@
 - **日终同步结算**：`endDay()` 依次调用 `WorldCalendar::skipToNextDay()`、
   `EconomyService::onDayChanged()`、`NarrativeService::onDayChanged()`，然后按
   `autosaveIntervalDays` 写自动槽。`onDayChanged()` 复用同一路径但不推进时钟，
-  供 26:00 强制睡眠等外部日变化使用。
+  供自然跨天等外部日变化使用。
 - **槽位**：手动槽 `slot1..slot3`，自动槽 `autosave`；槽名校验与 M14 一致
   （字母/数字/`_`/`-`，1..64）。`setAutosaveIntervalDays()` 最小为 1。
 - **自动存档**：平时按天间隔触发；`autosaveOnQuit` 为真且会话脏时，退出前写
@@ -43,8 +43,9 @@
   - `initializeFlow()` 用 `fillSaveContext()`/`applySaveFile()` 接 M14；
     `fillSaveContext()` 同时服务 M14 的 `autosave` smoke。
   - `runFlowDemo()` 在 M14/M22/M23/M24 的脚本之后运行，最后读回 `slot1`，
-    因此 M22 摘要仍停在保存时的 `day 1 07:40`。
-  - HUD 不新增菜单；摘要新增 `m25:` 行，smoke OK 加入 `+M25`（Release 也包含）。
+    因此 M22 摘要仍停在保存时的 `day 1 09:40`。
+  - HUD 不再新增菜单；摘要新增 `m25:` 行，smoke OK 加入 `+M25`（Release 也包含）。
+  - `--play` 由 M09 绘制主菜单/暂停/存档槽，`Esc` 切换暂停。
 
 ### 状态转换表
 
@@ -102,9 +103,9 @@ fa_app.exe --frames 60 → m25: quit, slot slot1, day 1, 1.50s, dirty no;
    `applyPauseState()` 后，只有 `Playing` 解冻时钟。
 6. **app 的 smoke 顺序。** `runFlowDemo()` 放在 M14/M22/M23/M24 脚本之后，
    并在最后读回 `slot1`；`applySaveFile()` 恢复日历，所以摘要里的 M22 仍是
-   `day 1 07:40`，不会因为 M25 的日终测试漂到第二天。
-7. **M25 不实现菜单 UI。** 状态机、槽位和回调已就绪，但主菜单/暂停菜单仍要
-   M09 接线；app 目前只在摘要里演示流程。
+   `day 1 09:40`，不会因为 M25 的日终测试漂到第二天。
+7. **M25 本身不实现菜单 UI。** 状态机、槽位和回调由 M09 面板消费；
+   app 的 `--play` 已接入主菜单、暂停与存档槽。
 
 ## 4. 验证命令
 
@@ -125,14 +126,47 @@ foreach ($cfg in @('Debug','Development','Release')) {
 - `fa_app.exe --frames 60`：三配置 exit 0，smoke OK 包含 M25。
 - Release 不链接 M26/M27，但 M25 正常参与。
 
+### 睡眠与存档增量
+
+- `GameFlow` 新增 `EndOfDayHandler`，在时钟推进之后、M24/M23 与自动存档之前运行；
+  app 用它把 M19 的作物生长放进日终结算。
+- app 的 `--play` 在床边按 `E` 调 `endDay()`；日终后自动写 `autosave`。
+- 启动 `--play` 时先尝试 `loadGame("autosave")`，只有存档带 `world.play == true`
+  且含背包数组才恢复，否则开新会话。
+- `SaveBuilder` 现在写入：日期/时间/天气、玩家位置/朝向/耐力、背包/快捷栏/装备、
+  整块农田与经济段（金币/出货清单/加工任务/每日商店余量）；
+  `LoadHandler` 按相同顺序应用，读档后位置、朝向、容器、作物与日期一致。
+- `--play-test` 增加床铺邻近、保存→主菜单→读档往返，并校验位置、种子/萝卜数量、
+  日期与**仍在生长的作物**；Debug / Development / Release 全通过。
+- 本次实测：`fa_tests.exe` 545 用例 / 30324 断言全绿；`--frames 60` 与 `--play-test`
+  三配置 exit 0。
+
+### 菜单与睡眠规则增量
+
+- `--play` 不再自动开局：启动进入 `MainMenu`，由 M09 面板提供「新游戏 / 继续 /
+  存档槽 / 退出」；`Esc` 在 `Playing` 与 `Paused` 之间切换。
+- 暂停面板提供「继续 / 保存 / 存档槽 / 主菜单」；存档槽面板列出 `autosave` 与
+  `slot1..3`，支持 LOAD，暂停时支持 SAVE。
+- `GameFlow::saveToSlot(slot)` 新增为公开接口，菜单可写显式手动槽且不改变会话槽。
+- 睡眠改为体力驱动的恢复规则（`fa/flow/Sleep.hpp`）：任意时间可睡，醒来固定
+  次日 08:00；满 8 h 回满缺失体力，不足按 `(小时/8)²` 递减，最低 1%。
+  `GameFlow::setDayStartHour()` 让 `endDay()` 在结算与自动存档前把时钟恢复到
+  08:00。不再有 26:00 强制晕倒。
+- `--play-test` 增加 8 h/7 h/1 h 三档恢复校验（00:00 / 01:00 / 07:00 入睡，
+  结果 100 / 76.6 / 1.6）、08:00 醒来校验，以及暂停、显式槽保存、主菜单、
+  槽读档的接线校验。
+- 本次实测：`fa_tests.exe` 548 用例 / 30353 断言全绿；`--frames 60`、
+  `--play-test` 与 `--play --frames 3`（停在 `main-menu`）三配置 exit 0。
+
 ## 5. 已知限制 / 后续
 
-- 没有主菜单、暂停菜单、存档槽选择界面；只有状态机与回调。
-- `LoadHandler` 在 app 里只恢复日历；世界实体、背包、农田、叙事、经济仍未从
-  `SaveFile` 应用。
+- 菜单与存档槽只支持鼠标；`UiInputState` 的键盘/手柄焦点链仍是后续项。
+- 菜单打开时 M09 不会自动屏蔽底层 HUD 点击（本版直接隐藏 HUD 规避）。
+- `LoadHandler` 在 app 里已恢复日历、场景位置/朝向/耐力、背包/快捷栏/装备、农田
+  与经济；叙事、AI、世界对象仍未从 `SaveFile` 应用。
 - `NewGameHandler` 在 app 里是空实现；真实新游戏还没有重建世界/初始物品。
 - 没有场景切换（传送点、`SceneStack::replace`）与过渡效果。
-- 没有 26:00 强制睡眠/晕倒触发；`endDay()` 仍需外部调用。
+- 睡眠已按体力效率结算；死亡晕倒/惩罚与强制起床仍未实现。
 - 死亡只进入 `GameOver`，没有掉落、销毁、复活惩罚与读档选项 UI。
 - 自动存档的“安全状态”判定（战斗中/对话中/过场中挂起）未实现。
 - 没有退出前“距上次存档超过 12 游戏小时”的提示；`autosaveOnQuit` 是显式开关。

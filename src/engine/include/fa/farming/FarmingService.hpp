@@ -71,6 +71,11 @@ public:
     [[nodiscard]] const CropState* cropAt(tilemap::TileCoord cell) const noexcept;
     [[nodiscard]] std::span<const FarmTileEntry> entries() const noexcept { return m_entries; }
 
+    /// \brief Replaces every farmland entry from a save snapshot.
+    ///
+    /// The caller is responsible for dropping cells outside the current map.
+    void restore(std::span<const FarmTileEntry> entries);
+
     [[nodiscard]] FarmingStats stats() const noexcept;
     [[nodiscard]] std::span<const FarmingEvent> events() const noexcept { return m_events; }
     void clearEvents() noexcept { m_events.clear(); }

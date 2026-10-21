@@ -63,7 +63,7 @@
 - 初始日期/时刻/季节/天气 toString。
 - 分钟/小时推进与 `HourChanged` 计数。
 - 跨日、跨季、跨年，`DayChanged`/`SeasonChanged`/`WeatherChanged` 与统计。
-- `skipToNextDay()` 回到 06:00。
+- `skipToNextDay()` 回到 08:00。
 - 雨天/风暴自动浇水与各天气生长倍率。
 - 正午/夜晚/风暴环境光强度、室内固定值。
 - 暂停、时间流速夹取、天气 RNG 状态保存/恢复。
@@ -74,7 +74,7 @@
 ```text
 fa_tests.exe "[world]" → All tests passed (122 assertions in 22 test cases)
 fa_tests.exe           → All tests passed (28997 assertions in 476 test cases)
-fa_app.exe --frames 60 → m22: year 1 spring day 1 07:39–07:40, sunny -> sunny,
+fa_app.exe --frames 60 → m22: year 1 spring day 1 09:39–09:40, sunny -> sunny,
                          ambient 0.91–0.92, auto-water no, growth x1.00,
                          0 day(s)/1 hour(s)/0 season(s)/0 weather change(s), 1 event(s)
                        → M02+…+M20+M22+M27 smoke test OK
@@ -83,8 +83,8 @@ fa_app.exe --frames 60 → m22: year 1 spring day 1 07:39–07:40, sunny -> sunn
 ## 3. 遇到的问题与结论
 
 1. **设计里的 6:00–26:00 与 0–24 小时制冲突。** 实现采用 `0..24` 的
-   `timeOfDay`，`hour()` 取模；06:00 仍是默认起点。26:00 的“强制睡眠”留给
-   M25 通过 `skipToNextDay()` 表达，不在日历内部硬编码。
+   `timeOfDay`，`hour()` 取模；08:00 是默认起点。M25 最终选择体力驱动的睡眠
+   恢复（睡到次日 08:00，按实际时长衰减），不实现 26:00 强制晕倒。
 2. **跨日事件顺序必须固定。** 先 `WeatherChanged` 再 `DayChanged`，否则订阅
    `DayChanged` 的作物系统会读到旧的天气。跨季再补 `SeasonChanged`。
 3. **天气随机性要能存档。** 只保存 `today/tomorrow` 不够，读档后下一次掷点会
@@ -111,7 +111,7 @@ foreach ($cfg in @('Debug','Development','Release')) {
 
 ## 5. 已知限制 / 后续
 
-- 没有 26:00 强制睡眠/晕倒惩罚；需要 M25 决定规则。
+- 睡眠规则由 M25 的 `Sleep.hpp` 决定（睡到 08:00、按 8 h 衰减恢复），没有晕倒惩罚。
 - 天气只按季节权重，没有连续天气、天气预报准确率或区域差异。
 - 环境光是近似暗化，不是真正的乘法光照；没有法线/阴影/彩色光通道。
 - 点光没有遮挡与加法混合，只是半透明 quad。

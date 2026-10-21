@@ -210,6 +210,11 @@ void FarmingService::onDayChanged(const FarmingDayContext& context) {
     }
 }
 
+void FarmingService::restore(std::span<const FarmTileEntry> entries) {
+    m_entries.assign(entries.begin(), entries.end());
+    m_events.clear();
+}
+
 const content::CropDef* FarmingService::cropForSeed(const content::ContentId& seed) const noexcept {
     if (m_content == nullptr) {
         return nullptr;

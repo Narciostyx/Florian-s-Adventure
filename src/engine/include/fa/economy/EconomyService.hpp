@@ -70,6 +70,17 @@ public:
     int onDayChanged();
 
     [[nodiscard]] std::span<const ProcessingJob> jobs() const noexcept { return m_jobs; }
+    /// \brief Pending shipping items, exposed for saves.
+    [[nodiscard]] std::span<const inventory::ItemStack> shipping() const noexcept {
+        return m_shipping;
+    }
+    /// \brief Replaces pending shipping items from a save snapshot.
+    void restoreShipping(std::span<const inventory::ItemStack> items);
+    /// \brief Replaces processing jobs from a save snapshot.
+    void restoreJobs(std::span<const ProcessingJob> jobs);
+    /// \brief Restores one item's remaining daily stock; unlimited items ignore it.
+    void restoreRemaining(const content::ContentId& shop, const content::ContentId& item,
+                          int remaining);
     [[nodiscard]] std::size_t readyJobCount() const noexcept;
     [[nodiscard]] int remaining(const content::ContentId& shop, const content::ContentId& item) const;
 

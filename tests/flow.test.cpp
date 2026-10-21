@@ -12,6 +12,7 @@
 
 #include "fa/economy/EconomyService.hpp"
 #include "fa/flow/GameFlow.hpp"
+#include "fa/flow/Sleep.hpp"
 #include "fa/save/SaveError.hpp"
 #include "fa/save/SaveService.hpp"
 #include "fa/save/SaveTypes.hpp"
@@ -243,6 +244,27 @@ TEST_CASE("Saving and loading use the builder and apply handler", "[flow]") {
     CHECK(flow.stats().loadFailures == 2);
 }
 
+TEST_CASE("Explicit slot save writes the requested slot during play", "[flow]") {
+    FakeSaveService saves;
+    GameFlow flow(&saves);
+    flow.setSaveBuilder([](SaveContext& context) {
+        context.inGameDay = 3;
+        return fa::core::okStatus();
+    });
+
+    REQUIRE(flow.startNewGame("slot1").isOk());
+    REQUIRE(flow.saveToSlot("slot2").isOk());
+    CHECK(saves.slots.count("slot2") == 1);
+    CHECK(flow.session().slot == "slot1");
+
+    flow.requestPause(true);
+    REQUIRE(flow.saveToSlot("slot3").isOk());
+    CHECK(saves.slots.count("slot3") == 1);
+
+    REQUIRE(flow.enterMainMenu().isOk());
+    CHECK(flow.saveToSlot("slot1").error().code == flow_error::kNotPlaying);
+}
+
 TEST_CASE("Save and load reject missing services, sessions and bad slots", "[flow]") {
     GameFlow empty;
     CHECK(empty.saveGame().error().code == flow_error::kSaveUnavailable);
@@ -272,7 +294,7 @@ TEST_CASE("Day end advances the calendar, settles economy and autosaves", "[flow
     REQUIRE(flow.startNewGame("slot1").isOk());
     REQUIRE(flow.endDay().isOk());
     CHECK(calendar.date().day == 2);
-    CHECK(calendar.timeOfDay() == Catch::Approx(6.0f));
+    CHECK(calendar.timeOfDay() == Catch::Approx(8.0f));
     CHECK(flow.state() == AppState::Playing);
     CHECK(flow.stats().dayEnds == 1);
     CHECK(flow.stats().daysSinceAutosave == 0);
@@ -308,6 +330,86 @@ TEST_CASE("Day end advances the calendar, settles economy and autosaves", "[flow
 
     REQUIRE(flow.enterMainMenu().isOk());
     CHECK(flow.endDay().error().code == flow_error::kNotPlaying);
+}
+
+TEST_CASE("Configurable day start hour resumes the clock after the rollover", "[flow]") {
+    FakeSaveService saves;
+    WorldCalendar calendar(20261018ULL);
+    GameFlow flow(&saves, &calendar);
+
+    flow.setDayStartHour(9.0f);
+    flow.setSaveBuilder([&calendar](SaveContext& context) {
+        context.inGameDay = calendar.date().day;
+        return fa::core::okStatus();
+    });
+
+    REQUIRE(flow.startNewGame("slot1").isOk());
+    REQUIRE(flow.endDay().isOk());
+    CHECK(calendar.date().day == 2);
+    CHECK(calendar.timeOfDay() == Catch::Approx(9.0f));
+    CHECK(calendar.hour() == 9);
+    REQUIRE(saves.slots.count("autosave") == 1);
+    CHECK(saves.slots.at("autosave").inGameDay == 2);
+}
+
+TEST_CASE("End-of-day hook runs after the clock and before autosave", "[flow]") {
+    FakeSaveService saves;
+    WorldCalendar calendar(20261018ULL);
+    GameFlow flow(&saves, &calendar);
+
+    int calls = 0;
+    int observedDay = 0;
+    int observedHour = -1;
+    flow.setAutosaveIntervalDays(1);
+    flow.setEndOfDayHandler([&] {
+        ++calls;
+        observedDay = calendar.date().day;
+        observedHour = calendar.hour();
+    });
+    flow.setSaveBuilder([&calendar, &observedDay](SaveContext& context) {
+        context.inGameDay = calendar.date().day;
+        context.world.setInt("hookDay", observedDay);
+        return fa::core::okStatus();
+    });
+
+    REQUIRE(flow.startNewGame("slot1").isOk());
+    REQUIRE(flow.endDay().isOk());
+
+    CHECK(calls == 1);
+    CHECK(observedDay == 2);
+    CHECK(observedHour == 8);
+    REQUIRE(saves.slots.count("autosave") == 1);
+    int hookDay = 0;
+    CHECK(saves.slots.at("autosave").world.getInt("hookDay", hookDay));
+    CHECK(hookDay == 2);
+
+    REQUIRE(flow.onDayChanged().isOk());
+    CHECK(calls == 2);
+
+    REQUIRE(flow.enterMainMenu().isOk());
+    CHECK(flow.endDay().error().code == flow_error::kNotPlaying);
+    CHECK(calls == 2);
+}
+
+TEST_CASE("Sleep wraps to the wake hour and scales stamina recovery", "[flow]") {
+    using fa::flow::sleepHoursUntil;
+    using fa::flow::sleepRecovery;
+
+    CHECK(sleepHoursUntil(0.0f) == Catch::Approx(8.0f));
+    CHECK(sleepHoursUntil(1.0f) == Catch::Approx(7.0f));
+    CHECK(sleepHoursUntil(4.5f) == Catch::Approx(3.5f));
+    CHECK(sleepHoursUntil(7.0f) == Catch::Approx(1.0f));
+    CHECK(sleepHoursUntil(8.0f) == Catch::Approx(24.0f));
+    CHECK(sleepHoursUntil(22.0f) == Catch::Approx(10.0f));
+    CHECK(sleepHoursUntil(23.0f) == Catch::Approx(9.0f));
+
+    CHECK(sleepRecovery(8.0f) == Catch::Approx(1.0f));
+    CHECK(sleepRecovery(12.0f) == Catch::Approx(1.0f));
+    CHECK(sleepRecovery(7.0f) == Catch::Approx(0.765625f));
+    CHECK(sleepRecovery(4.0f) == Catch::Approx(0.25f));
+    CHECK(sleepRecovery(1.0f) == Catch::Approx(0.015625f));
+    CHECK(sleepRecovery(0.1f) == Catch::Approx(fa::flow::kMinSleepRecovery));
+    CHECK(sleepRecovery(0.0f) == Catch::Approx(fa::flow::kMinSleepRecovery));
 }
 
 TEST_CASE("Autosave on quit writes the automatic slot", "[flow]") {

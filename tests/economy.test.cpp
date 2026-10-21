@@ -239,6 +239,36 @@ TEST_CASE("Shipping settles on the next day", "[economy]") {
     CHECK(economy.stats().goldEarned == 34);
 }
 
+TEST_CASE("Economy state restores from a save snapshot", "[economy]") {
+    const ContentDatabase content = makeContent();
+    const ShopDatabase shops = makeShops();
+    Inventory inventory = makeInventory(content);
+    REQUIRE(inventory.add(ItemStack{kTurnip, 4, -1}).isOk());
+    EconomyService economy(&content, &shops);
+    economy.setGold(20);
+
+    REQUIRE(economy.ship(kTurnip, 2, inventory).isOk());
+    REQUIRE(economy.startCraft(kRecipe, "kitchen", inventory).isOk());
+    REQUIRE(economy.buy(kShop, kSeed, 1, inventory).isOk());
+    const int remaining = economy.remaining(kShop, kSeed);
+
+    EconomyService restored(&content, &shops);
+    restored.setGold(economy.gold());
+    restored.restoreShipping(economy.shipping());
+    restored.restoreJobs(economy.jobs());
+    restored.restoreRemaining(kShop, kSeed, remaining);
+
+    CHECK(restored.gold() == 10);
+    CHECK(restored.stats().shippingItems == 2);
+    REQUIRE(restored.jobs().size() == 1);
+    CHECK(restored.jobs().front().recipe == kRecipe);
+    CHECK(restored.jobs().front().machineKind == "kitchen");
+    CHECK(restored.remaining(kShop, kSeed) == remaining);
+    CHECK(restored.onDayChanged() == 34);
+    CHECK(restored.gold() == 44);
+    CHECK(restored.stats().shippingItems == 0);
+}
+
 TEST_CASE("Economy events and clear", "[economy]") {
     const ContentDatabase content = makeContent();
     const ShopDatabase shops = makeShops();

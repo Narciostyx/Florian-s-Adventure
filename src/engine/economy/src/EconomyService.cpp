@@ -265,6 +265,33 @@ int EconomyService::onDayChanged() {
     return shippingGold;
 }
 
+void EconomyService::restoreShipping(std::span<const inventory::ItemStack> items) {
+    m_shipping.assign(items.begin(), items.end());
+}
+
+void EconomyService::restoreJobs(std::span<const ProcessingJob> jobs) {
+    m_jobs.assign(jobs.begin(), jobs.end());
+}
+
+void EconomyService::restoreRemaining(const content::ContentId& shopId,
+                                      const content::ContentId& item, int remaining) {
+    if (m_shops == nullptr || remaining < 0) {
+        return;
+    }
+    const ShopDef* shop = m_shops->shop(shopId);
+    if (shop == nullptr) {
+        return;
+    }
+    const auto entry = std::find_if(shop->stock.begin(), shop->stock.end(),
+                                    [&item](const ShopEntry& value) { return value.item == item; });
+    if (entry == shop->stock.end() || entry->dailyLimit < 0) {
+        return;
+    }
+    ensureRemaining(*shop);
+    const std::size_t index = static_cast<std::size_t>(std::distance(shop->stock.begin(), entry));
+    m_remaining[shopId][index] = std::min(remaining, entry->dailyLimit);
+}
+
 std::size_t EconomyService::readyJobCount() const noexcept {
     return static_cast<std::size_t>(
         std::count_if(m_jobs.begin(), m_jobs.end(), [](const ProcessingJob& job) { return job.ready; }));
