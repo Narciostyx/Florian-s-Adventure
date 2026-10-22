@@ -37,6 +37,11 @@ fa_app.exe --frames 60
                M02+M03+M04+M05+M06+M07+M11 smoke test OK               exit = 0
 ```
 
+> 后续的独立地图补丁让 app 在 `--play` 真正使用 `replace()`：农场/林地门口换图后
+> 栈深仍为 1，`--play-test` 结束时的统计是
+> `stack: 1 push(es), 0 pop(s), 5 replace(s), 0 pause(s), 0 resume(s)`；
+> 跨场景可存活的状态放在组装根的 `GameState`，不放在被替换的场景里。
+
 `[scene]` 与 `~[scene]` 的用例数和断言数相加正好等于全量（78 + 215 = 293，286 + 17092 = 17378），
 说明新增用例没有漏打标签。
 

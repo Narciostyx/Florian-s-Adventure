@@ -251,7 +251,10 @@ src/engine/tilemap/src/          Tilemap.cpp, TilemapExtract.cpp,
 - `stats()` 会遍历所有图层所有格子；调试/冒烟可用，不应每帧调用。
 - 全量载入内存：128×128×3 层可接受；更大需要分块。
 - 自动瓦片在编辑后必须重新烘焙，运行时不自动重算。
-- app 已用 `portalAt` 做农场/林地同图双向传送；独立场景切换由 M25 后续消费。
+- app 从 `data/maps/*.json` 载入农场/林地（含 tile defs、图层、area、portal），
+  缺文件或解析失败时回落到代码内布局；`TileDef::textureName` 由组装根绑定纹理。
+- app 用 `portalAt` 检测农场/林地的双向门，并用 `SceneStack::replace` 换独立场景；
+  跨场景状态由组装根的 `GameState` 持有。
 - JSON 的图层数据是扁平数组，手写大图不便；M26 编辑器或导入器负责生成。
 - `kVirtualHeight = 360` 仍是 22.5 格；演示地图取 23 行，相机夹取会裁掉底部
   半格。更大的地图要么按 23 行布局，要么改 `640×352`（M10/M12）。

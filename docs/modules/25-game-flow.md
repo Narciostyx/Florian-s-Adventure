@@ -154,6 +154,6 @@ M23 重置每日上限 → 自动存档；
   （继续/保存/存档槽/主菜单），`Esc` 切换暂停；菜单只调用本模块的公开状态接口。
 - 已知缺口：app 已把日期/时间/天气、玩家位置/朝向/耐力、背包/快捷栏/装备、农田
   与经济接入 `SaveBuilder`/`LoadHandler`，但叙事、AI、世界对象仍未持久化；
-  同图农场/林地传送已由 app 消费 `portalAt` 完成；`SceneStack` 独立场景替换、
-  输入上下文仍待接线。死亡路径已接：生命归零 → `requestGameOver`/`respawn` →
-  床边复活 + 10% 金币；死亡菜单/读档选项 UI 仍缺。
+  农场/林地已由 `portalAt` + `SceneStack::replace` 切换，跨场景状态放在
+  `GameState`；输入上下文仍待接线。死亡路径已接：生命归零 → `requestGameOver`/
+  `respawn` → 切回农场床边复活 + 10% 金币；死亡菜单/读档选项 UI 仍缺。

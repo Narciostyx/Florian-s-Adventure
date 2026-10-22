@@ -41,7 +41,7 @@
       "id": "forest_slime_a",
       "kind": "enemy",
       "position": {
-        "x": 832,
+        "x": 320,
         "y": 128
       },
       "health": 25,
@@ -51,7 +51,7 @@
       "id": "forest_slime_b",
       "kind": "enemy",
       "position": {
-        "x": 912,
+        "x": 400,
         "y": 224
       },
       "health": 20,
@@ -61,7 +61,7 @@
       "id": "bramble_a",
       "kind": "hazard",
       "cell": {
-        "x": 48,
+        "x": 8,
         "y": 14
       },
       "damage": 5
@@ -70,7 +70,7 @@
       "id": "bramble_b",
       "kind": "hazard",
       "cell": {
-        "x": 49,
+        "x": 9,
         "y": 14
       },
       "damage": 5
@@ -79,7 +79,7 @@
       "id": "bramble_c",
       "kind": "hazard",
       "cell": {
-        "x": 50,
+        "x": 10,
         "y": 14
       },
       "damage": 5

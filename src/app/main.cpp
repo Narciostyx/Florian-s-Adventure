@@ -715,6 +715,27 @@ public:
     fa::content::ContentId last;
 };
 
+/// \brief Which map a `DemoScene` builds.
+enum class DemoMap { Farm, Forest };
+
+/// \brief Long-lived state shared by every map scene.
+///
+/// `SceneStack::replace` destroys the old scene whenever the player walks through
+/// a portal, so farmland, the demo inventory, quest state and player vitals cannot
+/// live on the scene. They live here, in the composition root, and each scene
+/// borrows them.
+struct GameState {
+    fa::farming::FarmingService farming;
+    fa::inventory::Inventory demoInventory{4, 99, nullptr};
+    fa::farming::DebrisLayer debris;
+    fa::farming::FarmingToolHandler farmingTools{farming, demoInventory};
+    fa::narrative::NarrativeService narrative;
+    int playerHealth = 100;
+    int playerMaxHealth = 100;
+    float playerStamina = 100.0f;
+    fa::player::Facing playerFacing = fa::player::Facing::South;
+};
+
 /// \brief The demo world: a tile map with a solid wall, a trigger, and one body.
 ///
 /// This is the smallest scene that shows M11, M12 and M13 working together. The map
@@ -728,12 +749,12 @@ public:
 /// M17 gets a crate to target and a free cell to place a prop into. The sequence runs
 /// once at startup and records the exact target, tool dispatch and occupancy; the
 /// per-frame pass only updates the cursor highlight.
+///
+/// Play mode builds one map per `DemoMap`; the composition root swaps scenes with
+/// `SceneStack::replace` when a portal is used.
 class DemoScene final : public fa::scene::BasicScene {
 public:
-    static constexpr int kFarmColumns = 40;
-    /// \brief Play mode appends the forest region to the right of the farm.
-    static constexpr int kForestColumns = 80;
-    static constexpr int kForestStartColumn = 40;
+    static constexpr int kColumns = 40;
     static constexpr int kRows = 23;
     static constexpr int kGateFirstRow = 10;
     static constexpr int kGateLastRow = 13;
@@ -758,24 +779,60 @@ public:
 
     DemoScene() = delete;
     DemoScene(fa::input::IInput& input, const fa::content::ContentDatabase& content,
-              const fa::narrative::NarrativeDatabase& narrative, bool scripted = true,
-              const std::vector<EntitySpawn>* spawns = nullptr)
-        : BasicScene("demo"),
+              const fa::narrative::NarrativeDatabase& narrative, GameState& state,
+              DemoMap map, bool scripted = true,
+              const std::vector<EntitySpawn>* spawns = nullptr,
+              std::optional<fa::core::Vec2> spawn = std::nullopt,
+              std::string_view mapText = {})
+        : BasicScene(map == DemoMap::Forest ? "forest" : "farm"),
           m_input(input),
+          m_state(state),
+          m_farming(state.farming),
+          m_farmInventory(state.demoInventory),
+          m_farmDebris(state.debris),
+          m_farmingTools(state.farmingTools),
+          m_narrative(state.narrative),
           m_interaction(m_map, &m_placement),
           m_scripted(scripted),
-          m_spawns(spawns) {
+          m_spawns(spawns),
+          m_mapKind(map),
+          m_spawn(spawn) {
         m_farming.setContentDatabase(&content);
         m_farmInventory.setContentDatabase(&content);
         m_farmingTools.setDebrisLayer(&m_farmDebris);
         m_narrative.setDatabase(&narrative);
         m_narrative.setInventory(&m_farmInventory);
         m_narrative.setSeason(fa::content::Season::Spring);
-        m_columns = scripted ? kFarmColumns : kForestColumns;
-        static_cast<void>(m_map.reset(m_columns, kRows, fa::render::kTileSize));
-        static_cast<void>(m_placement.resize(m_columns, kRows));
+        // Maps are data. A missing or malformed file falls back to the built-in
+        // layout so the smoke app still runs from a bare checkout.
+        if (!mapText.empty()) {
+            fa::core::Result<fa::tilemap::Tilemap> loaded =
+                fa::tilemap::loadTilemapFromJson(mapText);
+            if (loaded.isOk()) {
+                m_map = std::move(loaded).take();
+                m_mapLoaded = true;
+            } else {
+                std::printf("map: %s parse failed (%s), using built-in fallback\n",
+                            map == DemoMap::Forest ? "forest" : "farm",
+                            loaded.error().message.c_str());
+            }
+        }
+        if (m_mapLoaded) {
+            static_cast<void>(m_placement.resize(m_map.width(), m_map.height()));
+        } else {
+            static_cast<void>(m_map.reset(kColumns, kRows, fa::render::kTileSize));
+            static_cast<void>(m_placement.resize(kColumns, kRows));
+        }
         m_interaction.addHandler(m_toolHandler);
         m_interaction.addHandler(m_farmingTools);
+    }
+
+    /// \brief Which map this scene owns.
+    [[nodiscard]] DemoMap mapKind() const noexcept { return m_mapKind; }
+    [[nodiscard]] bool isForest() const noexcept { return m_mapKind == DemoMap::Forest; }
+    [[nodiscard]] bool isFarm() const noexcept { return m_mapKind == DemoMap::Farm; }
+    [[nodiscard]] std::string_view mapName() const noexcept {
+        return m_mapKind == DemoMap::Forest ? "forest" : "farm";
     }
 
     /// \brief Hands the scene the textures the map and the marker draw with.
@@ -842,9 +899,26 @@ public:
         m_tileSystem = tiles.get();
         systems().add(std::move(tiles));
         systems().add(std::make_unique<fa::scene::SpriteExtractSystem>());
+
+        if (!m_scripted) {
+            // Player vitals belong to the session, not to one map.
+            setPlayerHealth(static_cast<float>(m_state.playerHealth));
+            setPlayerStamina(m_state.playerStamina);
+            setPlayerFacing(m_state.playerFacing);
+            if (m_spawn.has_value()) {
+                teleportMarker(*m_spawn);
+            }
+            syncPhysics();
+        }
     }
 
     void onExit() override {
+        if (!m_scripted && m_markerEntity.isValid()) {
+            m_state.playerHealth = static_cast<int>(playerHealth());
+            m_state.playerMaxHealth = static_cast<int>(playerMaxHealth());
+            m_state.playerStamina = playerStamina();
+            m_state.playerFacing = playerFacing();
+        }
         // The AI service borrows the physics world and the combat service.
         m_ai.reset();
         // `CombatService` borrows the physics world owned by `PhysicsSystem`.
@@ -1045,11 +1119,6 @@ public:
 
     [[nodiscard]] fa::scene::EntityId combatDummy1() const noexcept { return m_combatDummy1; }
     [[nodiscard]] fa::scene::EntityId forestDummy1() const noexcept { return m_forestDummy1; }
-
-    /// \brief True when the marker is in the appended forest region.
-    [[nodiscard]] bool markerInForest() const {
-        return markerPosition().x >= static_cast<float>(kForestStartColumn * fa::render::kTileSize);
-    }
 
     /// \brief Portal containing the marker's centre, if any.
     [[nodiscard]] const fa::tilemap::MapPortal* portalAtMarker() const {
@@ -1352,129 +1421,143 @@ private:
         return true;
     }
 
+    /// \brief Binds catalog textures to the defs loaded from the map JSON.
+    void bindMapTextures() {
+        for (const fa::tilemap::TileDef& def : m_map.tileDefs()) {
+            static_cast<void>(
+                m_map.setTileTexture(def.id, textureForName(def.textureName), def.source));
+        }
+    }
+
     void buildWorld() {
-        fa::tilemap::TileDef grass;
-        grass.id = fa::tilemap::TileId{kGrassTile};
-        grass.name = "grass";
-        grass.textureName = "tex.ground.grass";
-        grass.tag = "ground";
-        static_cast<void>(m_map.addTileDef(grass));
+        if (!m_mapLoaded) {
+            fa::tilemap::TileDef grass;
+            grass.id = fa::tilemap::TileId{kGrassTile};
+            grass.name = "grass";
+            grass.textureName = "tex.ground.grass";
+            grass.tag = "ground";
+            static_cast<void>(m_map.addTileDef(grass));
 
-        fa::tilemap::TileDef wall;
-        wall.id = fa::tilemap::TileId{kWallTile};
-        wall.name = "wall";
-        wall.textureName = "tex.ground.wall";
-        wall.walkable = false;
-        wall.solid = true;
-        wall.tag = "wall";
-        static_cast<void>(m_map.addTileDef(wall));
+            fa::tilemap::TileDef wall;
+            wall.id = fa::tilemap::TileId{kWallTile};
+            wall.name = "wall";
+            wall.textureName = "tex.ground.wall";
+            wall.walkable = false;
+            wall.solid = true;
+            wall.tag = "wall";
+            static_cast<void>(m_map.addTileDef(wall));
 
-        fa::tilemap::TileDef soil;
-        soil.id = fa::tilemap::TileId{kSoilTile};
-        soil.name = "soil";
-        soil.textureName = "tex.ground.soil";
-        soil.tillable = true;
-        soil.tag = "farmland";
-        static_cast<void>(m_map.addTileDef(soil));
+            fa::tilemap::TileDef soil;
+            soil.id = fa::tilemap::TileId{kSoilTile};
+            soil.name = "soil";
+            soil.textureName = "tex.ground.soil";
+            soil.tillable = true;
+            soil.tag = "farmland";
+            static_cast<void>(m_map.addTileDef(soil));
 
-        static_cast<void>(m_map.setTileTexture(grass.id, m_grass));
-        static_cast<void>(m_map.setTileTexture(wall.id, m_wall));
-        static_cast<void>(m_map.setTileTexture(soil.id, m_soil));
+            static_cast<void>(m_map.setTileTexture(grass.id, m_grass));
+            static_cast<void>(m_map.setTileTexture(wall.id, m_wall));
+            static_cast<void>(m_map.setTileTexture(soil.id, m_soil));
 
-        fa::tilemap::TileLayer ground;
-        ground.name = "ground";
-        ground.renderLayer = fa::render::RenderLayer::Ground;
-        ground.tiles.assign(m_map.cellCount(), fa::tilemap::TileId{kGrassTile});
-        static_cast<void>(m_map.addLayer(std::move(ground)));
+            fa::tilemap::TileLayer ground;
+            ground.name = "ground";
+            ground.renderLayer = fa::render::RenderLayer::Ground;
+            ground.tiles.assign(m_map.cellCount(), fa::tilemap::TileId{kGrassTile});
+            static_cast<void>(m_map.addLayer(std::move(ground)));
 
-        static_cast<void>(m_map.setBorder(0, fa::tilemap::TileId{kWallTile}));
-        for (int row = 0; row < kRows; ++row) {
-            static_cast<void>(m_map.setTile(kWallColumn, row, 0, fa::tilemap::TileId{kWallTile}));
-        }
-        // A tilled patch proves the tillable flag travels with the layer data and that
-        // more than one tile definition can be drawn from the same map.
-        for (int row = 8; row <= 11; ++row) {
-            for (int column = 4; column <= 7; ++column) {
-                static_cast<void>(m_map.setTile(column, row, 0, fa::tilemap::TileId{kSoilTile}));
-            }
-        }
+            static_cast<void>(m_map.setBorder(0, fa::tilemap::TileId{kWallTile}));
 
-        // M19 reads the greenhouse property from the map, not from a hard-coded cell.
-        fa::tilemap::MapArea greenhouse;
-        greenhouse.areaId = 1;
-        greenhouse.kind = fa::tilemap::AreaKind::Greenhouse;
-        greenhouse.bounds = fa::tilemap::TileBounds{7, 11, 1, 1};
-        m_map.addArea(greenhouse);
+            if (isFarm()) {
+                for (int row = 0; row < kRows; ++row) {
+                    static_cast<void>(
+                        m_map.setTile(kWallColumn, row, 0, fa::tilemap::TileId{kWallTile}));
+                }
+                // A tilled patch proves the tillable flag travels with the layer data and
+                // that more than one tile definition can be drawn from the same map.
+                for (int row = 8; row <= 11; ++row) {
+                    for (int column = 4; column <= 7; ++column) {
+                        static_cast<void>(m_map.setTile(column, row, 0, fa::tilemap::TileId{kSoilTile}));
+                    }
+                }
 
-        if (!m_scripted) {
-            fa::tilemap::TileDef bramble;
-            bramble.id = fa::tilemap::TileId{kBrambleTile};
-            bramble.name = "bramble";
-            bramble.textureName = "tex.ground.soil";
-            bramble.walkable = true;
-            bramble.tag = "hazard";
-            static_cast<void>(m_map.addTileDef(bramble));
-            static_cast<void>(m_map.setTileTexture(bramble.id, m_soil));
-            std::vector<fa::tilemap::TileCoord> hazardTiles;
-            for (const EntitySpawn* spawn : findSpawns("hazard")) {
-                if (spawn->hasCell) {
-                    hazardTiles.push_back(spawn->cell);
+                // M19 reads the greenhouse property from the map, not a hard-coded cell.
+                fa::tilemap::MapArea greenhouse;
+                greenhouse.areaId = 1;
+                greenhouse.kind = fa::tilemap::AreaKind::Greenhouse;
+                greenhouse.bounds = fa::tilemap::TileBounds{7, 11, 1, 1};
+                m_map.addArea(greenhouse);
+
+                if (!m_scripted) {
+                    // East gate to the forest; the west border stays solid.
+                    for (int row = kGateFirstRow; row <= kGateLastRow; ++row) {
+                        static_cast<void>(m_map.setTile(kColumns - 1, row, 0,
+                                                        fa::tilemap::TileId{kGrassTile}));
+                    }
+                    fa::tilemap::MapPortal toForest;
+                    toForest.id = "to_forest";
+                    toForest.bounds = fa::tilemap::TileBounds{
+                        kColumns - 1, kGateFirstRow, 1, kGateLastRow - kGateFirstRow + 1};
+                    toForest.targetMap = "forest";
+                    toForest.targetTile = fa::tilemap::TileCoord{1, 11};
+                    m_map.addPortal(toForest);
+                }
+            } else {
+                // The forest is a separate map; the west gate returns to the farm.
+                for (int row = kGateFirstRow; row <= kGateLastRow; ++row) {
+                    static_cast<void>(m_map.setTile(0, row, 0, fa::tilemap::TileId{kGrassTile}));
+                }
+                fa::tilemap::MapPortal toFarm;
+                toFarm.id = "to_farm";
+                toFarm.bounds = fa::tilemap::TileBounds{0, kGateFirstRow, 1,
+                                                        kGateLastRow - kGateFirstRow + 1};
+                toFarm.targetMap = "farm";
+                toFarm.targetTile = fa::tilemap::TileCoord{kColumns - 3, 11};
+                m_map.addPortal(toFarm);
+
+                fa::tilemap::TileDef bramble;
+                bramble.id = fa::tilemap::TileId{kBrambleTile};
+                bramble.name = "bramble";
+                bramble.textureName = "tex.ground.soil";
+                bramble.walkable = true;
+                bramble.tag = "hazard";
+                static_cast<void>(m_map.addTileDef(bramble));
+                static_cast<void>(m_map.setTileTexture(bramble.id, m_soil));
+                std::vector<fa::tilemap::TileCoord> hazardTiles;
+                for (const EntitySpawn* spawn : findSpawns("hazard")) {
+                    if (spawn->hasCell) {
+                        hazardTiles.push_back(spawn->cell);
+                    }
+                }
+                if (hazardTiles.empty()) {
+                    for (int column = 8; column <= 10; ++column) {
+                        hazardTiles.push_back(fa::tilemap::TileCoord{column, 14});
+                    }
+                }
+                for (const fa::tilemap::TileCoord& cell : hazardTiles) {
+                    static_cast<void>(m_map.setTile(cell.x, cell.y, 0, fa::tilemap::TileId{kBrambleTile}));
+                }
+
+                // Tree clusters; the gate corridor (rows 10-13) stays clear.
+                const fa::tilemap::TileCoord trees[] = {
+                    {5, 4},  {6, 4},  {5, 5},  {12, 3}, {13, 3}, {20, 5}, {21, 5},
+                    {28, 3}, {35, 5}, {36, 5}, {9, 8},  {15, 8}, {22, 9}, {30, 8},
+                    {37, 9}, {7, 15}, {14, 16}, {21, 15}, {28, 16}, {35, 15},
+                    {4, 20}, {11, 20}, {18, 20}, {25, 20}, {32, 20},
+                };
+                for (const fa::tilemap::TileCoord& cell : trees) {
+                    static_cast<void>(m_map.setTile(cell.x, cell.y, 0, fa::tilemap::TileId{kWallTile}));
                 }
             }
-            if (hazardTiles.empty()) {
-                for (int column = 48; column <= 50; ++column) {
-                    hazardTiles.push_back(fa::tilemap::TileCoord{column, 14});
-                }
-            }
-            for (const fa::tilemap::TileCoord& cell : hazardTiles) {
-                static_cast<void>(m_map.setTile(cell.x, cell.y, 0, fa::tilemap::TileId{kBrambleTile}));
-            }
-
-            // Play mode extends the same Tilemap with a forest region so farming,
-            // physics and the save format stay unchanged. Both gates are walkable.
-            for (int row = kGateFirstRow; row <= kGateLastRow; ++row) {
-                static_cast<void>(
-                    m_map.setTile(kWallColumn, row, 0, fa::tilemap::TileId{kGrassTile}));
-            }
-            for (int row = 0; row < kRows; ++row) {
-                if (row >= kGateFirstRow && row <= kGateLastRow) {
-                    continue;
-                }
-                static_cast<void>(
-                    m_map.setTile(kForestStartColumn, row, 0, fa::tilemap::TileId{kWallTile}));
-            }
-
-            // Tree clusters; the gate corridor (rows 10-12) stays clear.
-            const fa::tilemap::TileCoord trees[] = {
-                {45, 4}, {46, 4}, {45, 5}, {52, 3}, {53, 3}, {60, 5}, {61, 5}, {68, 3},
-                {75, 5}, {76, 5}, {49, 8}, {55, 8}, {62, 9}, {70, 8}, {77, 9},  {47, 15},
-                {54, 16}, {61, 15}, {68, 16}, {75, 15}, {44, 20}, {51, 20}, {58, 20},
-                {65, 20}, {72, 20},
-            };
-            for (const fa::tilemap::TileCoord& cell : trees) {
-                static_cast<void>(m_map.setTile(cell.x, cell.y, 0, fa::tilemap::TileId{kWallTile}));
-            }
-
-            fa::tilemap::MapPortal toForest;
-            toForest.id = "to_forest";
-            toForest.bounds = fa::tilemap::TileBounds{39, kGateFirstRow, 1,
-                                                     kGateLastRow - kGateFirstRow + 1};
-            toForest.targetMap = "forest";
-            toForest.targetTile = fa::tilemap::TileCoord{43, 11};
-            m_map.addPortal(toForest);
-
-            fa::tilemap::MapPortal toFarm;
-            toFarm.id = "to_farm";
-            toFarm.bounds = fa::tilemap::TileBounds{41, kGateFirstRow, 1,
-                                                    kGateLastRow - kGateFirstRow + 1};
-            toFarm.targetMap = "farm";
-            toFarm.targetTile = fa::tilemap::TileCoord{37, 11};
-            m_map.addPortal(toFarm);
         }
+
+        bindMapTextures();
 
         m_markerEntity = world().create();
         fa::scene::Transform marker;
-        marker.position = fa::core::Vec2{320.0f, 200.0f};
+        marker.position = m_spawn.has_value()
+                              ? *m_spawn
+                              : (isFarm() ? fa::core::Vec2{320.0f, 200.0f}
+                                          : m_map.gridToWorld(fa::tilemap::TileCoord{1, 11}));
         static_cast<void>(world().add<fa::scene::Transform>(m_markerEntity, marker));
 
         fa::scene::Sprite sprite;
@@ -1493,122 +1576,126 @@ private:
         static_cast<void>(world().add<fa::physics::Velocity>(m_markerEntity, fa::physics::Velocity{}));
         fa::player::PlayerController::attach(world(), m_markerEntity);
 
-        // A bed beside the start position: E within 28 px advances the day and
-        // triggers M25's end-of-day settlement + autosave.
-        m_bedEntity = world().create();
-        const EntitySpawn* bedSpawn = m_scripted ? nullptr : findSpawn("bed");
-        fa::scene::Transform bedTransform;
-        bedTransform.position =
-            bedSpawn != nullptr ? spawnPosition(*bedSpawn) : fa::core::Vec2{336.0f, 200.0f};
-        static_cast<void>(world().add<fa::scene::Transform>(m_bedEntity, bedTransform));
+        if (isFarm()) {
+            // A bed beside the start position: E within 28 px advances the day and
+            // triggers M25's end-of-day settlement + autosave.
+            m_bedEntity = world().create();
+            const EntitySpawn* bedSpawn = m_scripted ? nullptr : findSpawn("bed");
+            fa::scene::Transform bedTransform;
+            bedTransform.position =
+                bedSpawn != nullptr ? spawnPosition(*bedSpawn) : fa::core::Vec2{336.0f, 200.0f};
+            static_cast<void>(world().add<fa::scene::Transform>(m_bedEntity, bedTransform));
 
-        fa::scene::Sprite bedSprite;
-        bedSprite.texture = bedSpawn != nullptr ? textureForName(bedSpawn->texture) : m_soil;
-        bedSprite.size = fa::core::Vec2{16.0f, 16.0f};
-        bedSprite.layer = fa::render::RenderLayer::Objects;
-        bedSprite.tint = bedSpawn != nullptr ? bedSpawn->tint
-                                            : fa::core::Color{0.35f, 0.65f, 1.0f, 1.0f};
-        static_cast<void>(world().add<fa::scene::Sprite>(m_bedEntity, bedSprite));
+            fa::scene::Sprite bedSprite;
+            bedSprite.texture = bedSpawn != nullptr ? textureForName(bedSpawn->texture) : m_soil;
+            bedSprite.size = fa::core::Vec2{16.0f, 16.0f};
+            bedSprite.layer = fa::render::RenderLayer::Objects;
+            bedSprite.tint = bedSpawn != nullptr ? bedSpawn->tint
+                                                : fa::core::Color{0.35f, 0.65f, 1.0f, 1.0f};
+            static_cast<void>(world().add<fa::scene::Sprite>(m_bedEntity, bedSprite));
 
-        fa::interaction::Interactable bedInteractable;
-        bedInteractable.area = fa::core::Rect{0.0f, 0.0f, 16.0f, 16.0f};
-        bedInteractable.priority = 10;
-        bedInteractable.payload = bedSpawn != nullptr ? bedSpawn->payload : 99;
-        static_cast<void>(world().add<fa::interaction::Interactable>(m_bedEntity, bedInteractable));
+            fa::interaction::Interactable bedInteractable;
+            bedInteractable.area = fa::core::Rect{0.0f, 0.0f, 16.0f, 16.0f};
+            bedInteractable.priority = 10;
+            bedInteractable.payload = bedSpawn != nullptr ? bedSpawn->payload : 99;
+            static_cast<void>(world().add<fa::interaction::Interactable>(m_bedEntity, bedInteractable));
 
-        if (!m_scripted) {
-            // Play-only props: a shipping box for crops and a merchant for the shop.
-            const auto addProp = [this](fa::core::Vec2 position,
-                                        fa::render::TextureHandle texture, fa::core::Color tint,
-                                        int payload, fa::scene::EntityId& out) {
-                out = world().create();
-                fa::scene::Transform transform;
-                transform.position = position;
-                static_cast<void>(world().add<fa::scene::Transform>(out, transform));
+            if (!m_scripted) {
+                // Play-only props: a shipping box for crops and a merchant for the shop.
+                const auto addProp = [this](fa::core::Vec2 position,
+                                            fa::render::TextureHandle texture, fa::core::Color tint,
+                                            int payload, fa::scene::EntityId& out) {
+                    out = world().create();
+                    fa::scene::Transform transform;
+                    transform.position = position;
+                    static_cast<void>(world().add<fa::scene::Transform>(out, transform));
 
-                fa::scene::Sprite sprite;
-                sprite.texture = texture;
-                sprite.size = fa::core::Vec2{16.0f, 16.0f};
-                sprite.layer = fa::render::RenderLayer::Objects;
-                sprite.tint = tint;
-                static_cast<void>(world().add<fa::scene::Sprite>(out, sprite));
+                    fa::scene::Sprite sprite;
+                    sprite.texture = texture;
+                    sprite.size = fa::core::Vec2{16.0f, 16.0f};
+                    sprite.layer = fa::render::RenderLayer::Objects;
+                    sprite.tint = tint;
+                    static_cast<void>(world().add<fa::scene::Sprite>(out, sprite));
 
-                fa::interaction::Interactable interactable;
-                interactable.area = fa::core::Rect{0.0f, 0.0f, 16.0f, 16.0f};
-                interactable.priority = 10;
-                interactable.payload = payload;
-                static_cast<void>(world().add<fa::interaction::Interactable>(out, interactable));
-            };
-            const auto addSpawnProp = [&](const char* kind, fa::core::Vec2 fallbackPosition,
-                                          fa::core::Color fallbackTint, int fallbackPayload,
-                                          fa::scene::EntityId& out) {
-                const EntitySpawn* spawn = findSpawn(kind);
-                addProp(spawn != nullptr ? spawnPosition(*spawn) : fallbackPosition,
-                        spawn != nullptr ? textureForName(spawn->texture) : m_soil,
-                        spawn != nullptr ? spawn->tint : fallbackTint,
-                        spawn != nullptr ? spawn->payload : fallbackPayload, out);
-            };
-            addSpawnProp("shipping", fa::core::Vec2{352.0f, 216.0f},
-                         fa::core::Color{0.90f, 0.55f, 0.20f, 1.0f}, 100, m_shippingEntity);
-            addSpawnProp("merchant", fa::core::Vec2{288.0f, 232.0f},
-                         fa::core::Color{0.80f, 0.40f, 0.90f, 1.0f}, 101, m_merchantEntity);
+                    fa::interaction::Interactable interactable;
+                    interactable.area = fa::core::Rect{0.0f, 0.0f, 16.0f, 16.0f};
+                    interactable.priority = 10;
+                    interactable.payload = payload;
+                    static_cast<void>(world().add<fa::interaction::Interactable>(out, interactable));
+                };
+                const auto addSpawnProp = [&](const char* kind, fa::core::Vec2 fallbackPosition,
+                                              fa::core::Color fallbackTint, int fallbackPayload,
+                                              fa::scene::EntityId& out) {
+                    const EntitySpawn* spawn = findSpawn(kind);
+                    addProp(spawn != nullptr ? spawnPosition(*spawn) : fallbackPosition,
+                            spawn != nullptr ? textureForName(spawn->texture) : m_soil,
+                            spawn != nullptr ? spawn->tint : fallbackTint,
+                            spawn != nullptr ? spawn->payload : fallbackPayload, out);
+                };
+                addSpawnProp("shipping", fa::core::Vec2{352.0f, 216.0f},
+                             fa::core::Color{0.90f, 0.55f, 0.20f, 1.0f}, 100, m_shippingEntity);
+                addSpawnProp("merchant", fa::core::Vec2{288.0f, 232.0f},
+                             fa::core::Color{0.80f, 0.40f, 0.90f, 1.0f}, 101, m_merchantEntity);
+            }
+
+            // A trigger volume on the marker's path, tall enough that the marker cannot slip
+            // around it, so both entering and leaving are observed in the same run.
+            const fa::scene::EntityId trigger = world().create();
+            fa::scene::Transform triggerTransform;
+            triggerTransform.position = fa::core::Vec2{330.0f, 196.0f};
+            static_cast<void>(world().add<fa::scene::Transform>(trigger, triggerTransform));
+
+            fa::physics::Collider volume;
+            volume.size = fa::core::Vec2{8.0f, 40.0f};
+            volume.layer = fa::physics::CollisionLayer::Trigger;
+            volume.mask = fa::physics::maskOf(fa::physics::CollisionLayer::Player);
+            volume.isTrigger = true;
+            static_cast<void>(world().add<fa::physics::Collider>(trigger, volume));
+
+            // M17: one crate to target and one prop entity whose cell the demo claims.
+            m_crateEntity = world().create();
+            fa::scene::Transform crateTransform;
+            crateTransform.position = m_map.gridToWorld(fa::tilemap::TileCoord{kCrateColumn, kCrateRow});
+            static_cast<void>(world().add<fa::scene::Transform>(m_crateEntity, crateTransform));
+
+            fa::scene::Sprite crateSprite;
+            crateSprite.texture = m_chest.isValid() ? m_chest : m_soil;
+            crateSprite.size = fa::core::Vec2{static_cast<float>(fa::render::kTileSize),
+                                              static_cast<float>(fa::render::kTileSize)};
+            crateSprite.layer = fa::render::RenderLayer::Objects;
+            static_cast<void>(world().add<fa::scene::Sprite>(m_crateEntity, crateSprite));
+
+            fa::interaction::Interactable crate;
+            crate.area = fa::core::makeRect(0.0f, 0.0f, static_cast<float>(fa::render::kTileSize),
+                                            static_cast<float>(fa::render::kTileSize));
+            crate.priority = 1;
+            crate.payload = kCratePayload;
+            static_cast<void>(world().add<fa::interaction::Interactable>(m_crateEntity, crate));
+
+            m_placedEntity = world().create();
+            fa::scene::Transform placedTransform;
+            placedTransform.position = m_map.gridToWorld(fa::tilemap::TileCoord{kPlacedColumn, kPlacedRow});
+            static_cast<void>(world().add<fa::scene::Transform>(m_placedEntity, placedTransform));
+
+            fa::scene::Sprite placedSprite;
+            placedSprite.texture = m_wall;
+            placedSprite.size = crateSprite.size;
+            placedSprite.layer = fa::render::RenderLayer::Objects;
+            static_cast<void>(world().add<fa::scene::Sprite>(m_placedEntity, placedSprite));
+
+            fa::physics::Collider placedCollider;
+            placedCollider.size = placedSprite.size;
+            placedCollider.layer = fa::physics::CollisionLayer::World;
+            placedCollider.mask = fa::physics::maskOf(fa::physics::CollisionLayer::Player);
+            static_cast<void>(world().add<fa::physics::Collider>(m_placedEntity, placedCollider));
         }
 
-        // A trigger volume on the marker's path, tall enough that the marker cannot slip
-        // around it, so both entering and leaving are observed in the same run.
-        const fa::scene::EntityId trigger = world().create();
-        fa::scene::Transform triggerTransform;
-        triggerTransform.position = fa::core::Vec2{330.0f, 196.0f};
-        static_cast<void>(world().add<fa::scene::Transform>(trigger, triggerTransform));
-
-        fa::physics::Collider volume;
-        volume.size = fa::core::Vec2{8.0f, 40.0f};
-        volume.layer = fa::physics::CollisionLayer::Trigger;
-        volume.mask = fa::physics::maskOf(fa::physics::CollisionLayer::Player);
-        volume.isTrigger = true;
-        static_cast<void>(world().add<fa::physics::Collider>(trigger, volume));
-
-        // M17: one crate to target and one prop entity whose cell the demo claims.
-        m_crateEntity = world().create();
-        fa::scene::Transform crateTransform;
-        crateTransform.position = m_map.gridToWorld(fa::tilemap::TileCoord{kCrateColumn, kCrateRow});
-        static_cast<void>(world().add<fa::scene::Transform>(m_crateEntity, crateTransform));
-
-        fa::scene::Sprite crateSprite;
-        crateSprite.texture = m_chest.isValid() ? m_chest : m_soil;
-        crateSprite.size = fa::core::Vec2{static_cast<float>(fa::render::kTileSize),
-                                          static_cast<float>(fa::render::kTileSize)};
-        crateSprite.layer = fa::render::RenderLayer::Objects;
-        static_cast<void>(world().add<fa::scene::Sprite>(m_crateEntity, crateSprite));
-
-        fa::interaction::Interactable crate;
-        crate.area = fa::core::makeRect(0.0f, 0.0f, static_cast<float>(fa::render::kTileSize),
-                                        static_cast<float>(fa::render::kTileSize));
-        crate.priority = 1;
-        crate.payload = kCratePayload;
-        static_cast<void>(world().add<fa::interaction::Interactable>(m_crateEntity, crate));
-
-        m_placedEntity = world().create();
-        fa::scene::Transform placedTransform;
-        placedTransform.position = m_map.gridToWorld(fa::tilemap::TileCoord{kPlacedColumn, kPlacedRow});
-        static_cast<void>(world().add<fa::scene::Transform>(m_placedEntity, placedTransform));
-
-        fa::scene::Sprite placedSprite;
-        placedSprite.texture = m_wall;
-        placedSprite.size = crateSprite.size;
-        placedSprite.layer = fa::render::RenderLayer::Objects;
-        static_cast<void>(world().add<fa::scene::Sprite>(m_placedEntity, placedSprite));
-
-        fa::physics::Collider placedCollider;
-        placedCollider.size = placedSprite.size;
-        placedCollider.layer = fa::physics::CollisionLayer::World;
-        placedCollider.mask = fa::physics::maskOf(fa::physics::CollisionLayer::Player);
-        static_cast<void>(world().add<fa::physics::Collider>(m_placedEntity, placedCollider));
-
-        buildAnimation();
+        if (isFarm()) {
+            buildAnimation();
+            buildAi();
+            buildNarrative();
+        }
         buildCombat();
-        buildAi();
-        buildNarrative();
     }
 
     /// \brief Creates one animated grass quad for M10.
@@ -1685,23 +1772,24 @@ private:
             return id;
         };
 
-        m_combatDummy1 = makeDummy(fa::core::Vec2{300.0f, 220.0f}, 20, "loot.test");
-        m_combatDummy2 = makeDummy(fa::core::Vec2{300.0f, 240.0f}, 30, "loot.slime");
+        if (isFarm()) {
+            m_combatDummy1 = makeDummy(fa::core::Vec2{300.0f, 220.0f}, 20, "loot.test");
+            m_combatDummy2 = makeDummy(fa::core::Vec2{300.0f, 240.0f}, 30, "loot.slime");
+            return;
+        }
 
-        if (!m_scripted) {
-            const std::vector<const EntitySpawn*> enemies = findSpawns("enemy");
-            if (enemies.empty()) {
-                m_forestDummy1 = makeDummy(fa::core::Vec2{832.0f, 128.0f}, 25, "loot.slime");
-                m_forestDummy2 = makeDummy(fa::core::Vec2{912.0f, 224.0f}, 20, "loot.test");
-            } else {
-                if (enemies.size() >= 1) {
-                    m_forestDummy1 = makeDummy(spawnPosition(*enemies[0]), enemies[0]->health,
-                                               enemies[0]->loot);
-                }
-                if (enemies.size() >= 2) {
-                    m_forestDummy2 = makeDummy(spawnPosition(*enemies[1]), enemies[1]->health,
-                                               enemies[1]->loot);
-                }
+        const std::vector<const EntitySpawn*> enemies = findSpawns("enemy");
+        if (enemies.empty()) {
+            m_forestDummy1 = makeDummy(fa::core::Vec2{320.0f, 128.0f}, 25, "loot.slime");
+            m_forestDummy2 = makeDummy(fa::core::Vec2{400.0f, 224.0f}, 20, "loot.test");
+        } else {
+            if (enemies.size() >= 1) {
+                m_forestDummy1 = makeDummy(spawnPosition(*enemies[0]), enemies[0]->health,
+                                           enemies[0]->loot);
+            }
+            if (enemies.size() >= 2) {
+                m_forestDummy2 = makeDummy(spawnPosition(*enemies[1]), enemies[1]->health,
+                                           enemies[1]->loot);
             }
         }
     }
@@ -2040,14 +2128,16 @@ private:
     fa::tilemap::TilemapSolids m_solids{m_map};
     fa::interaction::PlacementGrid m_placement;
     CountingToolHandler m_toolHandler;
+    /// \brief Borrowed session state that survives `SceneStack::replace`.
+    GameState& m_state;
     /// \brief M19 state. The inventory is the demo's seed/harvest sink.
-    fa::farming::FarmingService m_farming;
-    fa::inventory::Inventory m_farmInventory{4, 99, nullptr};
-    fa::farming::DebrisLayer m_farmDebris;
-    fa::farming::FarmingToolHandler m_farmingTools{m_farming, m_farmInventory};
+    fa::farming::FarmingService& m_farming;
+    fa::inventory::Inventory& m_farmInventory;
+    fa::farming::DebrisLayer& m_farmDebris;
+    fa::farming::FarmingToolHandler& m_farmingTools;
     FarmingDemoStats m_farmingDemo;
     /// \brief M23 dialogue/quest state and the NPC entity it talks to.
-    fa::narrative::NarrativeService m_narrative;
+    fa::narrative::NarrativeService& m_narrative;
     fa::scene::EntityId m_npcEntity;
     /// Declared after its map, grid and handlers so those outlive it.
     fa::interaction::InteractionService m_interaction;
@@ -2055,8 +2145,12 @@ private:
     bool m_scripted = true;
     /// \brief Optional spawn table loaded from `data/entities.json`.
     const std::vector<EntitySpawn>* m_spawns = nullptr;
-    /// \brief Active map width; play mode includes the forest region.
-    int m_columns = kFarmColumns;
+    /// \brief Which map this scene builds.
+    DemoMap m_mapKind = DemoMap::Farm;
+    /// \brief Optional player spawn, set when entering through a portal or loading.
+    std::optional<fa::core::Vec2> m_spawn;
+    /// \brief True when the map came from JSON; false uses the built-in fallback.
+    bool m_mapLoaded = false;
     fa::scene::EntityId m_markerEntity;
     fa::scene::EntityId m_crateEntity;
     fa::scene::EntityId m_bedEntity;
@@ -2275,6 +2369,58 @@ public:
         return shopStatus;
     }
 
+    /// \brief GPU handle behind a cached texture, or an invalid one for fallbacks.
+    static fa::render::TextureHandle gpuTextureOf(
+        const fa::assets::AssetHandle<fa::assets::TextureAsset>& handle) {
+        const fa::assets::TextureAsset* asset = handle.get();
+        return fa::render::TextureHandle{asset != nullptr ? asset->gpuTexture : 0};
+    }
+
+    /// \brief Builds one map scene over the shared session state.
+    std::unique_ptr<DemoScene> makeDemoScene(DemoMap map,
+                                             std::optional<fa::core::Vec2> spawn) {
+        const char* mapFile = map == DemoMap::Forest
+                                  ? "maps/forest.json"
+                                  : (playMode ? "maps/farm.json" : "maps/farm-scripted.json");
+        const std::string mapText = readDataText(mapFile, std::string_view{});
+        auto scene = std::make_unique<DemoScene>(input, content, narrative, gameState, map,
+                                                 !playMode, &entitySpawns, spawn, mapText);
+        scene->setTextures(gpuTextureOf(grassTexture), gpuTextureOf(wallTexture),
+                           gpuTextureOf(soilTexture), gpuTextureOf(markerTexture));
+        scene->setDetailTextures(gpuTextureOf(soilWetTexture), gpuTextureOf(cropSeedTexture),
+                                 gpuTextureOf(cropSproutTexture), gpuTextureOf(cropYoungTexture),
+                                 gpuTextureOf(cropMatureTexture), gpuTextureOf(chestTexture),
+                                 gpuTextureOf(slimeTexture));
+        return scene;
+    }
+
+    /// \brief Swaps the live map through `SceneStack::replace`.
+    ///
+    /// The replacement destroys the old scene, so every long-lived value that must
+    /// survive lives in `gameState`; the new scene re-links the player's hotbar and,
+    /// in editor builds, points the overlay at the new map.
+    [[nodiscard]] bool switchMap(DemoMap target, std::optional<fa::core::Vec2> spawn) {
+        if (!playMode || demoScene == nullptr) {
+            return false;
+        }
+        auto scene = makeDemoScene(target, spawn);
+        DemoScene* raw = scene.get();
+        if (const fa::core::Status replaced = stack.replace(std::move(scene));
+            replaced.isError()) {
+            setPlayMessage("MAP LOAD FAILED");
+            return false;
+        }
+        demoScene = raw;
+        if (playerInventory != nullptr) {
+            demoScene->setFarmingInventory(playerInventory->hotbar().inventory());
+            demoScene->setSelectedSeed(fa::content::ContentId::fromName("item.turnip_seed"));
+        }
+#if defined(FA_ENABLE_EDITOR)
+        editor = std::make_unique<fa::editor::EditorOverlay>(demoScene->editableMap());
+#endif
+        return true;
+    }
+
     /// \brief Loads the catalog and uploads the four textures the frame draws.
     ///
     /// M05 only caches and uploads; it never talks to the renderer directly, so this
@@ -2352,11 +2498,6 @@ public:
         loadOptional("tex.object.chest", chestTexture);
         loadOptional("tex.enemy.slime", slimeTexture);
 
-        const auto gpuTexture = [](const auto& handle) {
-            const fa::assets::TextureAsset* asset = handle.get();
-            return fa::render::TextureHandle{asset != nullptr ? asset->gpuTexture : 0};
-        };
-
         const fa::assets::TextureAsset* grassAsset = grassTexture.get();
         const fa::assets::TextureAsset* wallAsset = wallTexture.get();
         const fa::assets::TextureAsset* soilAsset = soilTexture.get();
@@ -2367,16 +2508,7 @@ public:
 
         // M11 takes over from here: the textures go into a scene, and the scene becomes
         // the only source of draw items.
-        auto scene = std::make_unique<DemoScene>(input, content, narrative, !playMode,
-                                                 &entitySpawns);
-        scene->setTextures(fa::render::TextureHandle{grassAsset->gpuTexture},
-                           fa::render::TextureHandle{wallAsset->gpuTexture},
-                           fa::render::TextureHandle{soilAsset->gpuTexture},
-                           fa::render::TextureHandle{markerAsset->gpuTexture});
-        scene->setDetailTextures(gpuTexture(soilWetTexture), gpuTexture(cropSeedTexture),
-                                 gpuTexture(cropSproutTexture), gpuTexture(cropYoungTexture),
-                                 gpuTexture(cropMatureTexture), gpuTexture(chestTexture),
-                                 gpuTexture(slimeTexture));
+        auto scene = makeDemoScene(DemoMap::Farm, std::nullopt);
         demoScene = scene.get();
         const fa::core::Status pushed = stack.push(std::move(scene));
         if (pushed.isError()) {
@@ -2838,6 +2970,9 @@ public:
     fa::core::Status fillSaveContext(fa::save::SaveContext& context) {
         context.sceneId = "demo";
         context.world.setBool("play", playMode);
+        if (demoScene != nullptr) {
+            context.world.setString("map", demoScene->mapName());
+        }
         context.inGameDay = calendar != nullptr ? calendar->date().day : 1;
         context.playSeconds = flow != nullptr && !flow->session().slot.empty()
                                   ? flow->session().playSeconds
@@ -2970,6 +3105,18 @@ public:
         }
 
         if (demoScene != nullptr) {
+            if (playMode) {
+                std::string savedMap;
+                if (file.world.getString("map", savedMap) && !savedMap.empty()) {
+                    const DemoMap target =
+                        savedMap == "forest" ? DemoMap::Forest : DemoMap::Farm;
+                    if (target != demoScene->mapKind() &&
+                        !switchMap(target, std::nullopt)) {
+                        return fa::core::errorStatus(fa::save::save_error::kCorruptSave,
+                                                     "could not restore the saved map");
+                    }
+                }
+            }
             fa::core::Vec2 marker;
             if (file.world.getVec2("marker", marker)) {
                 demoScene->teleportMarker(marker);
@@ -3763,13 +3910,16 @@ public:
     }
 
     [[nodiscard]] bool isHazardCell(fa::tilemap::TileCoord cell) const {
+        if (demoScene == nullptr || !demoScene->isForest()) {
+            return false;
+        }
         if (!hazardCells.empty()) {
             return std::any_of(hazardCells.begin(), hazardCells.end(),
                                [cell](fa::tilemap::TileCoord value) {
                                    return value.x == cell.x && value.y == cell.y;
                                });
         }
-        return cell.y == 14 && cell.x >= 48 && cell.x <= 50;
+        return cell.y == 14 && cell.x >= 8 && cell.x <= 10;
     }
 
     /// \brief Applies one thorn tick when the marker stands on brambles.
@@ -3802,6 +3952,12 @@ public:
                                        config.gameplay.deathGoldPenalty);
             if (penalty > 0) {
                 economy->addGold(-penalty);
+            }
+        }
+        if (demoScene->isForest()) {
+            // The bed lives on the farm map, so passing out also changes maps.
+            if (!switchMap(DemoMap::Farm, std::nullopt)) {
+                return;
             }
         }
         demoScene->teleportMarker(demoScene->respawnPoint());
@@ -3851,10 +4007,21 @@ public:
         if (portal == nullptr) {
             return false;
         }
-        demoScene->teleportMarker(demoScene->cellPosition(portal->targetTile));
-        demoScene->syncPhysics();
+        const DemoMap target =
+            portal->targetMap == "forest" ? DemoMap::Forest : DemoMap::Farm;
+        const fa::core::Vec2 spawn = demoScene->cellPosition(portal->targetTile);
+        if (target != demoScene->mapKind()) {
+            // A separate map means a real scene replacement; the shared session
+            // state keeps farmland, quests and inventory alive across it.
+            if (!switchMap(target, spawn)) {
+                return false;
+            }
+        } else {
+            demoScene->teleportMarker(spawn);
+            demoScene->syncPhysics();
+        }
         portalCooldown = 0.6f;
-        setPlayMessage(portal->targetMap == "forest" ? "ENTERED FOREST" : "ENTERED FARM");
+        setPlayMessage(target == DemoMap::Forest ? "ENTERED FOREST" : "ENTERED FARM");
         return true;
     }
 
@@ -4188,36 +4355,47 @@ public:
                     spawnOk ? "ok" : "bad");
         ok = ok && spawnOk;
 
-        // Two-region map: the farm-side portal leads to the forest and back.
-        demoScene->teleportMarker(demoScene->cellPosition(fa::tilemap::TileCoord{39, 11}));
-        const bool toForest = checkPortal() && demoScene->markerInForest();
-        portalCooldown = 0.0f;
-        demoScene->teleportMarker(demoScene->cellPosition(fa::tilemap::TileCoord{41, 11}));
-        const bool toFarm = checkPortal() && !demoScene->markerInForest();
+        // Separate maps: the farm-side gate replaces the farm scene with the forest.
+        demoScene->teleportMarker(
+            demoScene->cellPosition(fa::tilemap::TileCoord{DemoScene::kColumns - 1, 11}));
+        const bool toForest = checkPortal() && demoScene->isForest();
         const bool forestDummyOk = demoScene->isAlive(demoScene->forestDummy1());
+        portalCooldown = 0.0f;
+        demoScene->teleportMarker(demoScene->cellPosition(fa::tilemap::TileCoord{0, 11}));
+        const bool toFarm = checkPortal() && demoScene->isFarm();
         std::printf("play-test: portal farm->forest %s, forest->farm %s, forest dummy %s\n",
                     toForest ? "ok" : "bad", toFarm ? "ok" : "bad",
                     forestDummyOk ? "ok" : "bad");
         ok = ok && toForest && toFarm && forestDummyOk;
 
-        // Brambles knock the player out: respawn at the bed with a 10% gold loss.
+        // Brambles knock the player out: the forest scene is replaced by the farm
+        // and the player wakes beside the bed with a 10% gold loss.
         const int goldBeforeDeath = economy->gold();
-        demoScene->teleportMarker(demoScene->cellPosition(fa::tilemap::TileCoord{49, 14}));
+        portalCooldown = 0.0f;
+        demoScene->teleportMarker(
+            demoScene->cellPosition(fa::tilemap::TileCoord{DemoScene::kColumns - 1, 11}));
+        const bool deathForestOk = checkPortal() && demoScene->isForest();
+        demoScene->teleportMarker(demoScene->cellPosition(fa::tilemap::TileCoord{8, 14}));
         demoScene->setPlayerHealth(10.0f);
         hazardCooldown = 0.0f;
         static_cast<void>(tickHazard());
         hazardCooldown = 0.0f;
         static_cast<void>(tickHazard());
         const int expectedGold = goldBeforeDeath - goldBeforeDeath / 10;
-        const bool deathOk = demoScene->playerHealth() >= 99.0f &&
+        const bool deathOk = deathForestOk && demoScene->isFarm() &&
+                             demoScene->playerHealth() >= 99.0f &&
                              flow->state() == fa::flow::AppState::Playing &&
                              economy->gold() == expectedGold;
         std::printf("play-test: thorns death %s, gold %d -> %d\n", deathOk ? "ok" : "bad",
                     goldBeforeDeath, economy->gold());
         ok = ok && deathOk;
 
-        // Loot persistence: leave one drop in the world for the save round-trip.
-        spawnLoot(fa::core::Vec2{700.0f, 300.0f}, turnip, 2);
+        // Loot persistence on the forest map: save/load must restore the map too.
+        portalCooldown = 0.0f;
+        demoScene->teleportMarker(
+            demoScene->cellPosition(fa::tilemap::TileCoord{DemoScene::kColumns - 1, 11}));
+        const bool reenteredForest = checkPortal() && demoScene->isForest();
+        spawnLoot(demoScene->cellPosition(fa::tilemap::TileCoord{25, 15}), turnip, 2);
         const int lootBefore = countLoot(turnip, 2);
 
         const fa::core::Vec2 savedMarker = demoScene->markerPosition();
@@ -4246,6 +4424,7 @@ public:
         const bool goldOk = economy->gold() == savedGold;
         const int loadedLoot = countLoot(turnip, 2);
         const bool lootOk = lootBefore == 2 && loadedLoot == 2;
+        const bool mapOk = reenteredForest && demoScene->isForest();
         bool farmOk = false;
         for (const fa::farming::FarmTileEntry& entry : demoScene->farmingTiles()) {
             if (entry.cell.x == 4 && entry.cell.y == 9 && entry.tile.tilled && entry.hasCrop &&
@@ -4253,10 +4432,12 @@ public:
                 farmOk = true;
             }
         }
-        std::printf("play-test: load marker %s, bag %s, day %s, farm %s, gold %s, loot %s\n",
+        std::printf("play-test: load marker %s, bag %s, day %s, farm %s, map %s, gold %s, "
+                    "loot %s\n",
                     markerOk ? "ok" : "bad", bagOk ? "ok" : "bad", dayOk ? "ok" : "bad",
-                    farmOk ? "ok" : "bad", goldOk ? "ok" : "bad", lootOk ? "ok" : "bad");
-        ok = ok && markerOk && bagOk && dayOk && farmOk && goldOk && lootOk;
+                    farmOk ? "ok" : "bad", mapOk ? "ok" : "bad", goldOk ? "ok" : "bad",
+                    lootOk ? "ok" : "bad");
+        ok = ok && markerOk && bagOk && dayOk && farmOk && mapOk && goldOk && lootOk;
 
         // Menu wiring: pause, explicit slot save, main menu and slot load.
         flow->requestPause(true);
@@ -4789,6 +4970,9 @@ public:
     fa::assets::AssetHandle<fa::assets::TextureAsset> cropMatureTexture;
     fa::assets::AssetHandle<fa::assets::TextureAsset> chestTexture;
     fa::assets::AssetHandle<fa::assets::TextureAsset> slimeTexture;
+    /// \brief Session state shared by every map scene; declared before the stack so
+    /// it outlives the scenes that borrow it.
+    GameState gameState;
     /// Owns the scene graph. Cleared before the renderer goes away: the scenes only
     /// store texture handles, but their sprites should not outlive the GPU textures.
     fa::scene::SceneStack stack;
@@ -5378,7 +5562,7 @@ private:
             if (playMode && calendar != nullptr) {
                 const std::string seasonName(fa::world::toString(calendar->season()));
                 const char* region =
-                    demoScene != nullptr && demoScene->markerInForest() ? "FOREST" : "FARM";
+                    demoScene != nullptr && demoScene->isForest() ? "FOREST" : "FARM";
                 char clockText[80]{};
                 std::snprintf(clockText, sizeof(clockText), "DAY %d  %02d:%02d  %s  %s",
                               calendar->date().day, calendar->hour(), calendar->minute(),
@@ -5558,7 +5742,7 @@ private:
         // M19: farmland and crops are plain data, so the composition root turns
         // them into tinted quads. Tilled cells sit below actors; crops use the
         // object layer and the cell's bottom edge as the depth key.
-        if (demoScene != nullptr && uiWhiteTexture.isValid()) {
+        if (demoScene != nullptr && demoScene->isFarm() && uiWhiteTexture.isValid()) {
             for (const fa::farming::FarmTileEntry& entry : demoScene->farmingTiles()) {
                 const fa::core::Vec2 cellPosition = demoScene->farmingCellPosition(entry.cell);
                 if (entry.tile.tilled) {

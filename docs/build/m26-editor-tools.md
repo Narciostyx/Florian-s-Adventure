@@ -39,7 +39,10 @@
 - **保存格式**：直接复用 M12 的新 writer，字段与 loader 完全对称；写文件仍由
   composition root 用 M02 的 `writeTextAtomic()` 完成，M26 不链接平台层。
 - **编辑器与运行时同图**：`EditorOverlay` 借用 `DemoScene` 的 `Tilemap`，修改后
-  下一帧 M12 提取就能看到，没有导入/烘焙步骤。
+  下一帧 M12 提取就能看到，没有导入/烘焙步骤。地图数据现在来自
+  `data/maps/*.json`（缺失回落内置布局），所以编辑器改的就是 JSON 载入的实时地图；
+  `S` 仍写 `saves/editor-map.json`，把保存目标切到 `data/maps/*.json` 是后续
+  可视化编辑会话的接线项。
 - **面板**：M09 画右上角状态面板（工具/图层/笔刷/undo/redo/命令数/脏标记/map 尺寸），
   面板区域内的点击不会落到地图上。
 - **快捷键**（由 app 路由）：F2 开关；1–5 选工具；`[`/`]` 切图层；Z/Y 撤销/重做；

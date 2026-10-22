@@ -73,13 +73,24 @@ Release 实测 `85 move(s)`、标记 `(344, 233.999)`；另一次 Debug 在与�
 墙钟累积驱动（某帧稍慢就补一步），与 M12/M13 无关。**不要**把“三配置输出逐字相同”
 写进验收标准；要断言确定性，用单元测试里的固定 world，而不是比对进程间帧数。
 
-### play 模式地图扩展
+### 地图 JSON 外置
 
-app 在 `--play` 把同一张 Tilemap 扩成 80×23：西侧农场、东侧林地，中间用墙与
-4 行门隔开，并加两个双向 `MapPortal`（农场侧 → 林地、林地侧 → 农场）。
-scripted smoke 仍保持 40×23 / 0 portal，因此上面的对账数字不变；play 摘要为
-`80x23 map ... 1840 cell(s) ... 261 solid ... 2 portal(s)`。独立地图与
-`SceneStack::replace` 仍未接。
+三张地图的数据在 `data/maps/`：`farm.json`（play 农场，东门 + portal）、
+`farm-scripted.json`（scripted smoke，无 portal）、`forest.json`。app 用
+`loadTilemapFromJson()` 读入后，按 `TileDef::textureName` 调 `setTileTexture()`
+绑定 catalog 纹理；文件名缺失、解析失败或 def 不合法时回落到 `buildWorld()` 内的
+内置布局，所以裸检出仍能跑 smoke。JSON 已包含 tile defs、ground 图层、area
+（温室）与 portal，后续 M26 可视化编辑可直接读写同一格式。
+
+### play 模式的双地图
+
+app 在 `--play` 用两张独立的 40×23 地图：农场在 (39, 10–13) 开门，portal 目标
+`forest`；林地在 (0, 10–13) 开门，portal 目标 `farm`。`checkPortal()` 读取
+`portalAt()` 后调用 `SceneStack::replace()`，旧场景销毁、新场景 `onEnter()` 重建；
+农田/背包/叙事/玩家生命耐力放在组装根的 `GameState` 中，因此过图不丢状态。
+scripted smoke 仍是 40×23 / 0 portal，上面的对账数字不变；play-test 结束时停在
+林地，play 摘要为 `40x23 map ... 920 cell(s) ... 1 portal(s)`，场景栈为
+`1 push(es), 0 pop(s), 5 replace(s)`。
 
 ## 4. 语义决策表
 
@@ -188,7 +199,7 @@ foreach ($cfg in @('Debug','Development','Release')) {
 2. `stats()` 全量遍历，不能放进每帧热路径。
 3. 大地图全量载入；128×128×3 层可接受，更大需要分块。
 4. 自动瓦片编辑后必须重新烘焙。
-5. `portalAt` 已由 app 用于农场/林地同图传送；独立场景切换由 M25 后续消费。
+5. `portalAt` 已由 app 用于农场/林地双向传送，并由 `SceneStack::replace` 切换独立场景。
 6. JSON 图层是扁平数组，大图不适合手写；M26 已提供 `saveTilemapToJson()` 与编辑器。
 7. 纹理名到句柄的绑定由 composition root 完成，地图不会自动加载图集。
 8. 地图仍无昼夜/光照叠加；M22 消费 `MapAmbient` 后才能看到效果。

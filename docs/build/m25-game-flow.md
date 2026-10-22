@@ -162,10 +162,12 @@ foreach ($cfg in @('Debug','Development','Release')) {
 
 - 菜单与存档槽只支持鼠标；`UiInputState` 的键盘/手柄焦点链仍是后续项。
 - 菜单打开时 M09 不会自动屏蔽底层 HUD 点击（本版直接隐藏 HUD 规避）。
-- `LoadHandler` 在 app 里已恢复日历、场景位置/朝向/耐力、背包/快捷栏/装备、农田
-  与经济；叙事、AI、世界对象仍未从 `SaveFile` 应用。
+- `LoadHandler` 在 app 里已恢复日历、当前地图、场景位置/朝向/耐力、背包/快捷栏/
+  装备、农田与经济；叙事、AI、世界对象仍未从 `SaveFile` 应用。
 - `NewGameHandler` 在 app 里是空实现；真实新游戏还没有重建世界/初始物品。
-- 没有场景切换（传送点、`SceneStack::replace`）与过渡效果。
+- 场景切换已接：门口 portal → `SceneStack::replace()`，农场与林地是两张独立
+  40×23 地图；跨场景状态放在 `GameState`，敌人/AI/掉落默认随旧场景销毁。
+  没有过渡动画，换图是硬切。
 - 睡眠已按体力效率结算；没有强制起床/晕倒。
 - 死亡路径已接：app 在生命归零时调 `requestGameOver`/`respawn`，床边复活并扣
   10% 金币；没有死亡菜单/读档选项 UI。
