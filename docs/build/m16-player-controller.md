@@ -17,6 +17,9 @@
 
 ## 2. 实测结果
 
+> 下表是 M16 初次交付的历史快照；体力消耗补丁后的最新数字见 §6.2
+> （`[player]` 17 用例 / 151 断言，全量 556 用例 / 30444 断言）。
+
 | 检查 | Debug | Development | Release |
 |---|---|---|---|
 | 全解决方案 `Rebuild` | exit 0，0 warning / 0 error | exit 0，0 warning / 0 error | exit 0，0 warning / 0 error |
@@ -165,6 +168,18 @@ foreach ($cfg in @('Debug','Development','Release')) {
 - `[player][facing]` 覆盖八向选择、22.5° 边界、四个斜向单位向量与折叠；
   app 摘要的 `facing` 现在会打印 `south-east` 等斜向。
 - M10 的 `Direction` 仍是四向；斜向动画需要在组装根映射到相邻主方向。
+
+## 6.2 体力消耗（v1.2 补充）
+
+- `PlayerTuning` 新增 `useToolStaminaCost`（默认 3）、`attackStaminaCost`（默认 4）、
+  `runStaminaPerSecond`（默认 10）；`dodgeStaminaCost`/`staminaRegenPerSecond` 保持。
+- 奔跑只在移动且耐力 > 0 时生效；耐力为 0 时降为走速，按住奔跑不恢复，松开后恢复。
+- 工具/攻击在 `actionLock` 期间不回复耐力，避免 0.2 s 的短锁把 3/4 点消耗抵消。
+- 动作被拒绝时记录 `ActionRejected`；app 对 `kInsufficientStamina` 显示
+  `NOT ENOUGH STAMINA`。
+- app 从 `config/game.json` 的 `stamina` 段读取 `max`、`regen_per_second`、
+  `run_drain_per_second`、`dodge_cost`、`attack_cost`、`tool_cost`，启动时打印。
+- 测试：`[player]` 17 用例 / 151 断言；全量 556 用例 / 30444 断言（三种配置一致）。
 
 ## 7. 遗留风险
 

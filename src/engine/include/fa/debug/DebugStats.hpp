@@ -82,6 +82,12 @@ struct DebugStats {
     std::size_t mapTiles = 0;
     std::size_t mapSolidTiles = 0;
 
+    /// \brief Player centre in world pixels and its tile coordinate.
+    bool hasPlayerPosition = false;
+    core::Vec2 playerPosition{};
+    bool hasPlayerCell = false;
+    core::Vec2 playerCell{};
+
     DebugCameraInfo camera;
     std::vector<DebugAiTargetInfo> aiTargets;
 };

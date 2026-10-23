@@ -90,6 +90,7 @@
 #include <fa/physics/PhysicsWorld.hpp>
 #include <fa/physics/TileCollision.hpp>
 #include <fa/player/PlayerController.hpp>
+#include <fa/player/PlayerError.hpp>
 #include <fa/player/PlayerSystem.hpp>
 #include <fa/player/PlayerTypes.hpp>
 #include <fa/platform/FileSystem.hpp>
@@ -149,6 +150,12 @@ Options parseOptions(int argc, char** argv) {
         } else if (arg == "--frames" && i + 1 < argc) {
             options.frames = std::atoi(argv[++i]);
         }
+    }
+    // A visible window is the game, not the headless scripted smoke. Keeping this
+    // implicit avoids the old "window + drifting marker + sealed demo map" trap;
+    // `--frames` without `--window` still runs the scripted smoke.
+    if (options.visibleWindow && !options.playMode && !options.playTest) {
+        options.playMode = true;
     }
     return options;
 }
@@ -730,6 +737,9 @@ struct GameState {
     fa::farming::DebrisLayer debris;
     fa::farming::FarmingToolHandler farmingTools{farming, demoInventory};
     fa::narrative::NarrativeService narrative;
+    /// \brief Player tuning copied from `config/game.json` at startup.
+    fa::player::PlayerTuning playerTuning;
+    float playerStaminaMax = 100.0f;
     int playerHealth = 100;
     int playerMaxHealth = 100;
     float playerStamina = 100.0f;
@@ -874,6 +884,13 @@ public:
         }
     }
 
+    /// \brief Lets `PlayerSystem` read the input axis directly.
+    void clearScriptedMove() {
+        if (m_playerSystem != nullptr) {
+            m_playerSystem->clearScriptedMove();
+        }
+    }
+
     void onEnter() override {
         if (!m_built) {
             buildWorld();
@@ -885,7 +902,7 @@ public:
             m_built = true;
         }
 
-        auto player = std::make_unique<fa::player::PlayerSystem>(m_input);
+        auto player = std::make_unique<fa::player::PlayerSystem>(m_input, m_state.playerTuning);
         m_playerSystem = player.get();
         systems().add(std::move(player));
 
@@ -1000,6 +1017,21 @@ public:
 
     [[nodiscard]] fa::narrative::NarrativeService& narrative() noexcept { return m_narrative; }
     [[nodiscard]] const fa::narrative::NarrativeService& narrative() const noexcept { return m_narrative; }
+
+    /// \brief Binds quest rewards and gift checks to the player's container.
+    void setNarrativeInventory(fa::inventory::Inventory& inventory) noexcept {
+        m_narrative.setInventory(&inventory);
+    }
+
+    /// \brief Starts the elder's dialogue; the caller should be near the NPC.
+    [[nodiscard]] fa::core::Status startNpcDialogue() {
+        if (!m_npcEntity.isValid()) {
+            return fa::core::errorStatus(fa::narrative::narrative_error::kUnknownNpc,
+                                         "this map has no NPC");
+        }
+        return m_narrative.startDialogue(fa::content::ContentId::fromName("dialogue.elder"),
+                                         m_npcEntity);
+    }
 
     [[nodiscard]] NarrativeDemoStats narrativeDemoStats() const {
         NarrativeDemoStats result;
@@ -1217,6 +1249,12 @@ public:
     [[nodiscard]] bool isNearShippingBox() const { return isNearEntity(m_shippingEntity, 28.0f); }
     /// \brief Whether the player is close enough to the merchant.
     [[nodiscard]] bool isNearMerchant() const { return isNearEntity(m_merchantEntity, 32.0f); }
+    /// \brief Whether the player is close enough to the narrative NPC.
+    [[nodiscard]] bool isNearNpc() const { return isNearEntity(m_npcEntity, 32.0f); }
+    [[nodiscard]] fa::core::Vec2 npcPosition() const {
+        const fa::scene::Transform* transform = world().tryGet<fa::scene::Transform>(m_npcEntity);
+        return transform != nullptr ? transform->position : fa::core::Vec2{};
+    }
     [[nodiscard]] fa::scene::EntityId shippingBoxEntity() const noexcept { return m_shippingEntity; }
     [[nodiscard]] fa::scene::EntityId merchantEntity() const noexcept { return m_merchantEntity; }
 
@@ -1488,6 +1526,13 @@ private:
                 m_map.addArea(greenhouse);
 
                 if (!m_scripted) {
+                    // The built-in fallback must match `data/maps/farm.json`: the
+                    // internal wall has a gate, so play mode can reach the east side
+                    // even when the JSON file is not found.
+                    for (int row = kGateFirstRow; row <= kGateLastRow; ++row) {
+                        static_cast<void>(
+                            m_map.setTile(kWallColumn, row, 0, fa::tilemap::TileId{kGrassTile}));
+                    }
                     // East gate to the forest; the west border stays solid.
                     for (int row = kGateFirstRow; row <= kGateLastRow; ++row) {
                         static_cast<void>(m_map.setTile(kColumns - 1, row, 0,
@@ -1574,7 +1619,11 @@ private:
             fa::physics::maskOf(fa::physics::CollisionLayer::World) | fa::physics::CollisionLayer::Trigger;
         static_cast<void>(world().add<fa::physics::Collider>(m_markerEntity, body));
         static_cast<void>(world().add<fa::physics::Velocity>(m_markerEntity, fa::physics::Velocity{}));
-        fa::player::PlayerController::attach(world(), m_markerEntity);
+        fa::player::Stamina stamina;
+        stamina.current = m_state.playerStamina;
+        stamina.max = m_state.playerStaminaMax;
+        fa::player::PlayerController::attach(world(), m_markerEntity, stamina,
+                                             m_state.playerFacing);
 
         if (isFarm()) {
             // A bed beside the start position: E within 28 px advances the day and
@@ -2064,7 +2113,8 @@ private:
     void buildNarrative() {
         m_npcEntity = world().create();
         fa::scene::Transform transform;
-        transform.position = fa::core::Vec2{326.0f, 190.0f};
+        // Keep the elder clear of the bed so `E` is unambiguous.
+        transform.position = fa::core::Vec2{280.0f, 176.0f};
         static_cast<void>(world().add<fa::scene::Transform>(m_npcEntity, transform));
 
         fa::scene::Sprite sprite;
@@ -2274,6 +2324,14 @@ public:
         } else {
             std::printf("entities: %s not found, using built-in spawns\n", entitiesPath.c_str());
         }
+        gameState.playerStaminaMax = config.stamina.max;
+        gameState.playerStamina = config.stamina.max;
+        gameState.playerTuning.dodgeStaminaCost = config.stamina.dodgeCost;
+        gameState.playerTuning.attackStaminaCost = config.stamina.attackCost;
+        gameState.playerTuning.useToolStaminaCost = config.stamina.toolCost;
+        gameState.playerTuning.runStaminaPerSecond = config.stamina.runDrainPerSecond;
+        gameState.playerTuning.staminaRegenPerSecond = config.stamina.regenPerSecond;
+
         hazardCells.clear();
         for (const EntitySpawn& spawn : entitySpawns) {
             if (spawn.kind == "hazard" && spawn.hasCell) {
@@ -2284,6 +2342,14 @@ public:
                     config.window.width, config.window.height, config.window.minWidth,
                     config.window.minHeight, static_cast<double>(config.ui.scale),
                     entitySpawns.size());
+        std::printf("config: stamina max %.0f, regen %.1f/s, run %.1f/s, dodge %.0f, "
+                    "attack %.0f, tool %.0f\n",
+                    static_cast<double>(config.stamina.max),
+                    static_cast<double>(config.stamina.regenPerSecond),
+                    static_cast<double>(config.stamina.runDrainPerSecond),
+                    static_cast<double>(config.stamina.dodgeCost),
+                    static_cast<double>(config.stamina.attackCost),
+                    static_cast<double>(config.stamina.toolCost));
     }
 
     /// \brief True for `--play`: scripted demos are skipped and input drives tools.
@@ -2413,6 +2479,7 @@ public:
         demoScene = raw;
         if (playerInventory != nullptr) {
             demoScene->setFarmingInventory(playerInventory->hotbar().inventory());
+            demoScene->setNarrativeInventory(playerInventory->hotbar().inventory());
             demoScene->setSelectedSeed(fa::content::ContentId::fromName("item.turnip_seed"));
         }
 #if defined(FA_ENABLE_EDITOR)
@@ -2517,8 +2584,10 @@ public:
         }
         if (playMode && playerInventory != nullptr) {
             // Farming charges seeds to and credits harvests into the hotbar, which
-            // is the container the player is actually selecting from.
+            // is the container the player is actually selecting from. Narrative uses
+            // the same container so quest rewards and gift checks see the real bag.
             demoScene->setFarmingInventory(playerInventory->hotbar().inventory());
+            demoScene->setNarrativeInventory(playerInventory->hotbar().inventory());
             demoScene->setSelectedSeed(fa::content::ContentId::fromName("item.turnip_seed"));
         }
 
@@ -3758,18 +3827,37 @@ public:
         if (tool == fa::interaction::ToolKind::Seed) {
             demoScene->setSelectedSeed(selected.id);
         }
+        fa::content::ContentId harvestItem;
         if (target.valid) {
             const fa::farming::CropState* crop = demoScene->cropAt(target.cell);
-            if (crop != nullptr && crop->harvestable) {
-                tool = fa::interaction::ToolKind::Harvest;
+            if (crop != nullptr) {
+                harvestItem = crop->harvestItem;
+                if (crop->harvestable) {
+                    tool = fa::interaction::ToolKind::Harvest;
+                }
             }
         }
+        const auto countHarvest = [this, &harvestItem]() {
+            return playerInventory->hotbar().inventory().countOf(harvestItem) +
+                   playerInventory->backpack().countOf(harvestItem);
+        };
+        const int harvestBefore = harvestItem.isValid() ? countHarvest() : 0;
 
         fa::interaction::InteractionRequest request;
         request.actor = demoScene->playerEntity();
         request.target = target;
         request.tool = tool;
         const fa::core::Status status = demoScene->interact(request);
+        if (status.isOk() && harvestItem.isValid()) {
+            const int harvestAfter = countHarvest();
+            if (harvestAfter > harvestBefore) {
+                fa::narrative::QuestEvent event;
+                event.kind = fa::narrative::QuestObjectiveKind::Collect;
+                event.target = harvestItem;
+                event.amount = harvestAfter - harvestBefore;
+                demoScene->narrative().reportEvent(event);
+            }
+        }
         const std::string toolName(toString(tool));
         if (status.isOk()) {
             setPlayMessage(toolName + " OK");
@@ -3874,6 +3962,11 @@ public:
                     return;
                 }
                 collected.push_back(id);
+                fa::narrative::QuestEvent questEvent;
+                questEvent.kind = fa::narrative::QuestObjectiveKind::Collect;
+                questEvent.target = drop.item;
+                questEvent.amount = drop.count;
+                demoScene->narrative().reportEvent(questEvent);
                 const fa::content::ItemDef* def = content.item(drop.item);
                 setPlayMessage("PICKED " +
                                (def != nullptr ? def->displayName : std::string(drop.item.name())) +
@@ -3907,6 +4000,94 @@ public:
         if (flow != nullptr && flow->state() == fa::flow::AppState::Dialogue) {
             static_cast<void>(flow->exitDialogue());
         }
+    }
+
+    /// \brief Leaves `GameFlow`'s Dialogue state when the narrative graph ends.
+    void syncDialogueState() {
+        if (flow != nullptr && demoScene != nullptr &&
+            flow->state() == fa::flow::AppState::Dialogue &&
+            !demoScene->narrative().dialogueActive()) {
+            static_cast<void>(flow->exitDialogue());
+        }
+    }
+
+    /// \brief Starts the elder's dialogue and pauses gameplay through M25.
+    [[nodiscard]] bool openNpcDialogue() {
+        if (!playMode || demoScene == nullptr || flow == nullptr ||
+            flow->state() != fa::flow::AppState::Playing) {
+            return false;
+        }
+        if (flow->enterDialogue().isError()) {
+            return false;
+        }
+        const fa::core::Status started = demoScene->startNpcDialogue();
+        if (started.isError()) {
+            static_cast<void>(flow->exitDialogue());
+            setPlayMessage("TALK: " + started.error().message);
+            return false;
+        }
+        setPlayMessage("ELDER: 1/2 CHOOSE  ENTER CONTINUE");
+        return true;
+    }
+
+    void chooseDialogue(std::size_t index) {
+        if (demoScene == nullptr) {
+            return;
+        }
+        const fa::core::Status status = demoScene->narrative().choose(index);
+        if (status.isError()) {
+            setPlayMessage("DIALOGUE: " + status.error().message);
+        }
+        syncDialogueState();
+        processNarrativeEvents();
+    }
+
+    void advanceDialogue() {
+        if (demoScene == nullptr) {
+            return;
+        }
+        const fa::core::Status status = demoScene->narrative().advance();
+        if (status.isError()) {
+            setPlayMessage("DIALOGUE: " + status.error().message);
+        }
+        syncDialogueState();
+        processNarrativeEvents();
+    }
+
+    void cancelDialogue() {
+        if (demoScene == nullptr) {
+            return;
+        }
+        static_cast<void>(demoScene->narrative().endDialogue());
+        syncDialogueState();
+    }
+
+    /// \brief Applies quest events produced by dialogue, harvest and loot.
+    void processNarrativeEvents() {
+        if (!playMode || demoScene == nullptr) {
+            return;
+        }
+        for (const fa::narrative::NarrativeEvent& event : demoScene->narrative().events()) {
+            switch (event.kind) {
+                case fa::narrative::NarrativeEventKind::QuestStarted:
+                    setPlayMessage("QUEST STARTED: " + event.text);
+                    break;
+                case fa::narrative::NarrativeEventKind::QuestCompleted: {
+                    if (event.amount > 0 && economy != nullptr) {
+                        economy->addGold(event.amount);
+                    }
+                    std::string message = "QUEST COMPLETE: " + event.text;
+                    if (event.amount > 0) {
+                        message += " +" + std::to_string(event.amount) + "G";
+                    }
+                    setPlayMessage(std::move(message));
+                    break;
+                }
+                default:
+                    break;
+            }
+        }
+        demoScene->narrative().clearEvents();
     }
 
     [[nodiscard]] bool isHazardCell(fa::tilemap::TileCoord cell) const {
@@ -4067,7 +4248,9 @@ public:
                     handleAttack();
                     break;
                 case fa::player::PlayerActionKind::Interact:
-                    if (demoScene->isNearBed()) {
+                    if (demoScene->isNearNpc()) {
+                        static_cast<void>(openNpcDialogue());
+                    } else if (demoScene->isNearBed()) {
                         const fa::core::Status slept = sleepAtBed();
                         if (slept.isError()) {
                             setPlayMessage("SLEEP FAILED: " + slept.error().message);
@@ -4085,11 +4268,20 @@ public:
                             shopMessageTimer = 0.0f;
                         }
                     } else {
-                        setPlayMessage("INTERACT: bed, shipping box or merchant");
+                        setPlayMessage("INTERACT: elder, bed, shipping box or merchant");
                     }
                     break;
                 case fa::player::PlayerActionKind::OpenInventory:
-                    setPlayMessage("INVENTORY UI: next increment");
+                    openInventoryPanel();
+                    break;
+                case fa::player::PlayerActionKind::ActionRejected:
+                    if (action.errorCode == fa::player::player_error::kInsufficientStamina) {
+                        setPlayMessage("NOT ENOUGH STAMINA");
+                    } else if (action.errorCode == fa::player::player_error::kCooldown) {
+                        setPlayMessage("DODGE ON COOLDOWN");
+                    } else {
+                        setPlayMessage("ACTION LOCKED");
+                    }
                     break;
                 default:
                     break;
@@ -4148,6 +4340,12 @@ public:
         };
 
         bool ok = true;
+        const bool staminaConfigOk =
+            std::abs(demoScene->playerMaxStamina() - config.stamina.max) < 0.01f;
+        std::printf("play-test: stamina max %.1f -> %s\n",
+                    static_cast<double>(demoScene->playerMaxStamina()),
+                    staminaConfigOk ? "ok" : "bad");
+        ok = ok && staminaConfigOk;
         const auto report = [&ok](const char* step, const fa::core::Status& status) {
             if (status.isOk()) {
                 std::printf("play-test: %s ok\n", step);
@@ -4157,6 +4355,25 @@ public:
                 ok = false;
             }
         };
+
+        // Narrative: talk to the elder, accept the turnip quest, then leave.
+        const fa::content::ContentId quest = fa::content::ContentId::fromName("quest.turnip");
+        const fa::content::ContentId seedItem =
+            fa::content::ContentId::fromName("item.turnip_seed");
+        demoScene->teleportMarker(demoScene->npcPosition());
+        const bool talkOk = openNpcDialogue() &&
+                            demoScene->narrative().dialogueActive() &&
+                            flow != nullptr && flow->state() == fa::flow::AppState::Dialogue;
+        chooseDialogue(0);
+        advanceDialogue();
+        advanceDialogue();
+        const bool questAccepted =
+            demoScene->narrative().isQuestActive(quest) && flow != nullptr &&
+            flow->state() == fa::flow::AppState::Playing;
+        std::printf("play-test: dialogue %s, quest accepted %s\n", talkOk ? "ok" : "bad",
+                    questAccepted ? "ok" : "bad");
+        ok = ok && talkOk && questAccepted;
+        demoScene->teleportMarker(fa::core::Vec2{start.x, start.y});
 
         report("till", useSlot(0));
         report("plant", useSlot(2));
@@ -4170,11 +4387,24 @@ public:
         }
 
         const int before = hotbar.inventory().countOf(turnip);
+        const int goldBeforeQuest = economy != nullptr ? economy->gold() : 0;
+        const int seedsBeforeQuest = hotbar.inventory().countOf(seedItem) +
+                                     playerInventory->backpack().countOf(seedItem);
         report("harvest", useSlot(0));
+        processNarrativeEvents();
         const int after = hotbar.inventory().countOf(turnip);
-        std::printf("play-test: turnips %d -> %d\n", before, after);
-        if (after <= before) {
-            std::printf("play-test: harvest produced no turnip\n");
+        const bool questCompleted = demoScene->narrative().isQuestCompleted(quest);
+        const int goldAfterQuest = economy != nullptr ? economy->gold() : 0;
+        const int seedsAfterQuest = hotbar.inventory().countOf(seedItem) +
+                                    playerInventory->backpack().countOf(seedItem);
+        const bool questRewardOk = questCompleted && goldAfterQuest >= goldBeforeQuest + 10 &&
+                                   seedsAfterQuest >= seedsBeforeQuest + 2;
+        std::printf("play-test: turnips %d -> %d, quest %s, reward gold %d -> %d, seeds %d -> %d "
+                    "-> %s\n",
+                    before, after, questCompleted ? "complete" : "open", goldBeforeQuest,
+                    goldAfterQuest, seedsBeforeQuest, seedsAfterQuest,
+                    questRewardOk ? "ok" : "bad");
+        if (after <= before || !questRewardOk) {
             ok = false;
         }
 
@@ -4356,17 +4586,22 @@ public:
         ok = ok && spawnOk;
 
         // Separate maps: the farm-side gate replaces the farm scene with the forest.
+        const bool farmGateOk = demoScene->editableMap().isWalkable(22, 11) &&
+                                demoScene->editableMap().isWalkable(23, 11);
         demoScene->teleportMarker(
             demoScene->cellPosition(fa::tilemap::TileCoord{DemoScene::kColumns - 1, 11}));
-        const bool toForest = checkPortal() && demoScene->isForest();
+        const bool toForest = checkPortal() && demoScene->isForest() &&
+                              demoScene->editableMap().isWalkable(0, 11);
         const bool forestDummyOk = demoScene->isAlive(demoScene->forestDummy1());
         portalCooldown = 0.0f;
         demoScene->teleportMarker(demoScene->cellPosition(fa::tilemap::TileCoord{0, 11}));
-        const bool toFarm = checkPortal() && demoScene->isFarm();
-        std::printf("play-test: portal farm->forest %s, forest->farm %s, forest dummy %s\n",
-                    toForest ? "ok" : "bad", toFarm ? "ok" : "bad",
+        const bool toFarm = checkPortal() && demoScene->isFarm() &&
+                            demoScene->editableMap().isWalkable(22, 11);
+        std::printf("play-test: farm gate %s, portal farm->forest %s, forest->farm %s, "
+                    "forest dummy %s\n",
+                    farmGateOk ? "ok" : "bad", toForest ? "ok" : "bad", toFarm ? "ok" : "bad",
                     forestDummyOk ? "ok" : "bad");
-        ok = ok && toForest && toFarm && forestDummyOk;
+        ok = ok && farmGateOk && toForest && toFarm && forestDummyOk;
 
         // Brambles knock the player out: the forest scene is replaced by the farm
         // and the player wakes beside the bed with a 10% gold loss.
@@ -4524,6 +4759,12 @@ public:
         stats.camera.deadzoneY = follow.deadzone.y;
         stats.camera.smoothing = follow.smoothing;
         if (demoScene != nullptr) {
+            stats.hasPlayerPosition = true;
+            stats.playerPosition = demoScene->markerCenter();
+            const fa::tilemap::TileCoord cell = demoScene->markerCell();
+            stats.hasPlayerCell = true;
+            stats.playerCell =
+                fa::core::Vec2{static_cast<float>(cell.x), static_cast<float>(cell.y)};
             stats.camera.followTarget = demoScene->playerEntity();
             stats.camera.following = stats.camera.followTarget.isValid();
             for (const AiTargetDebugSnapshot& snapshot : demoScene->aiTargetDebugSnapshot()) {
@@ -4730,27 +4971,29 @@ public:
 #else
         const bool editorActive = false;
 #endif
-        if (!editorActive && demoScene != nullptr && demoScene->narrative().dialogueActive()) {
+        const bool dialogueWasOpen =
+            demoScene != nullptr && demoScene->narrative().dialogueActive();
+        if (!editorActive && dialogueWasOpen) {
             for (const fa::platform::PlatformEvent& event : events) {
                 if (event.type != fa::platform::PlatformEventType::KeyDown) {
                     continue;
                 }
                 switch (event.scancode) {
                     case fa::platform::Scancode::Digit1:
-                        static_cast<void>(demoScene->narrative().choose(0));
+                        chooseDialogue(0);
                         break;
                     case fa::platform::Scancode::Digit2:
-                        static_cast<void>(demoScene->narrative().choose(1));
+                        chooseDialogue(1);
                         break;
                     case fa::platform::Scancode::Digit3:
-                        static_cast<void>(demoScene->narrative().choose(2));
+                        chooseDialogue(2);
                         break;
                     case fa::platform::Scancode::Enter:
                     case fa::platform::Scancode::Space:
-                        static_cast<void>(demoScene->narrative().advance());
+                        advanceDialogue();
                         break;
                     case fa::platform::Scancode::Escape:
-                        static_cast<void>(demoScene->narrative().endDialogue());
+                        cancelDialogue();
                         break;
                     default:
                         break;
@@ -4762,7 +5005,8 @@ public:
         // consumes it first so it never resumes gameplay by accident.
         const bool dialogueOpen =
             demoScene != nullptr && demoScene->narrative().dialogueActive();
-        if (playMode && flow != nullptr && !editorActive && !dialogueOpen) {
+        if (playMode && flow != nullptr && !editorActive && !dialogueOpen &&
+            !dialogueWasOpen) {
             for (const fa::platform::PlatformEvent& event : events) {
                 if (event.type != fa::platform::PlatformEventType::KeyDown ||
                     event.scancode != fa::platform::Scancode::Escape) {
@@ -4840,12 +5084,15 @@ public:
             ++movingSteps;
         }
         if (demoScene != nullptr) {
-            // A headless run never presses a key, so the marker also gets a slow
-            // scripted drift. It keeps the system pipeline's movement path exercised
-            // in CI, where the input axis stays at zero.
-            const fa::core::Vec2 scripted = axis.x != 0.0f || axis.y != 0.0f ? axis
-                                                                            : fa::core::Vec2{0.35f, 0.2f};
-            demoScene->setScriptedMove(scripted);
+            if (playMode) {
+                // Play mode uses the real input axis; only the scripted smoke needs
+                // an artificial move to keep the physics path exercised in CI.
+                demoScene->clearScriptedMove();
+            } else {
+                const fa::core::Vec2 scripted =
+                    (axis.x == 0.0f && axis.y == 0.0f) ? fa::core::Vec2{0.35f, 0.2f} : axis;
+                demoScene->setScriptedMove(scripted);
+            }
         }
         if (gameplayActive()) {
             if (portalCooldown > 0.0f) {
@@ -4867,6 +5114,7 @@ public:
             processPlayerActions();
             processCombatEvents();
             collectLoot();
+            processNarrativeEvents();
         }
         if (demo != nullptr) {
             demo->beginTick(context.fixedStepIndex);
@@ -5543,8 +5791,10 @@ private:
 
             ui->text("STAMINA", fa::core::makeRect(14.0f, 45.0f, 44.0f, 7.0f), label);
             const float stamina = demoScene != nullptr ? demoScene->playerStamina() : 0.0f;
-            ui->progressBar(fa::core::makeRect(62.0f, 46.0f, 108.0f, 5.0f), stamina, 0.0f, 100.0f,
-                            theme.accent);
+            const float maxStamina =
+                demoScene != nullptr ? demoScene->playerMaxStamina() : 100.0f;
+            ui->progressBar(fa::core::makeRect(62.0f, 46.0f, 108.0f, 5.0f), stamina, 0.0f,
+                            maxStamina, theme.accent);
 
             if (playerInventory != nullptr) {
                 const fa::inventory::ItemStack& selected = playerInventory->hotbar().selectedStack();
@@ -5587,7 +5837,7 @@ private:
         }
 
         if (playMode && !inMenu) {
-            const fa::core::Rect panel = fa::core::makeRect(254.0f, 96.0f, 214.0f, 52.0f);
+            const fa::core::Rect panel = fa::core::makeRect(254.0f, 96.0f, 214.0f, 64.0f);
             ui->panel(panel, theme.panel);
             ui->border(panel, theme.panelBorder);
 
@@ -5608,11 +5858,38 @@ private:
             ui->text("1-9 SLOT  WHEEL  LMB USE",
                      fa::core::makeRect(panel.x + 5.0f, panel.y + 16.0f, 204.0f, 8.0f), style);
 
+            std::string questText;
+            if (demoScene != nullptr && demoScene->isFarm()) {
+                const fa::narrative::NarrativeService& dialogueState = demoScene->narrative();
+                for (const fa::narrative::QuestState& questState : dialogueState.activeQuests()) {
+                    const fa::narrative::QuestDef* definition =
+                        dialogueState.database() != nullptr
+                            ? dialogueState.database()->quest(questState.id)
+                            : nullptr;
+                    if (definition != nullptr) {
+                        questText = "QUEST " + definition->title;
+                        break;
+                    }
+                }
+                if (questText.empty() &&
+                    dialogueState.isQuestCompleted(
+                        fa::content::ContentId::fromName("quest.turnip"))) {
+                    questText = "QUEST COMPLETE";
+                }
+            }
+            float messageY = panel.y + 29.0f;
+            if (!questText.empty()) {
+                ui->text(questText.substr(0, 38),
+                         fa::core::makeRect(panel.x + 5.0f, panel.y + 29.0f, 204.0f, 8.0f),
+                         style);
+                messageY = panel.y + 41.0f;
+            }
+
             if (playMessageTimer > 0.0f && !playMessage.empty()) {
                 fa::ui::TextStyle messageStyle = style;
                 messageStyle.color = theme.accent;
                 ui->text(playMessage.substr(0, 38),
-                         fa::core::makeRect(panel.x + 5.0f, panel.y + 29.0f, 204.0f, 8.0f),
+                         fa::core::makeRect(panel.x + 5.0f, messageY, 204.0f, 8.0f),
                          messageStyle);
             }
         }

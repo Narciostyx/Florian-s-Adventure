@@ -20,6 +20,12 @@ TEST_CASE("GameConfig defaults cover window, UI and gameplay", "[config]") {
     CHECK(config.gameplay.fullSleepHours == Catch::Approx(8.0f));
     CHECK(config.gameplay.hazardDamage == 5);
     CHECK(config.gameplay.autosaveDays == 1);
+    CHECK(config.stamina.max == Catch::Approx(100.0f));
+    CHECK(config.stamina.regenPerSecond == Catch::Approx(20.0f));
+    CHECK(config.stamina.runDrainPerSecond == Catch::Approx(10.0f));
+    CHECK(config.stamina.dodgeCost == Catch::Approx(25.0f));
+    CHECK(config.stamina.attackCost == Catch::Approx(4.0f));
+    CHECK(config.stamina.toolCost == Catch::Approx(3.0f));
 }
 
 TEST_CASE("GameConfig overrides individual fields and keeps the rest", "[config]") {
@@ -27,7 +33,8 @@ TEST_CASE("GameConfig overrides individual fields and keeps the rest", "[config]
       "window": {"width": 1600, "height": 900, "min_width": 1280, "min_height": 720},
       "ui": {"scale": 1.5},
       "paths": {"data": "content", "assets": "art"},
-      "gameplay": {"wake_hour": 7.0, "hazard_damage": 9}
+      "gameplay": {"wake_hour": 7.0, "hazard_damage": 9},
+      "stamina": {"run_drain_per_second": 7.5, "tool_cost": 1.0, "max": 80.0}
     })";
 
     const fa::core::Result<fa::app::GameConfig> parsed =
@@ -42,6 +49,10 @@ TEST_CASE("GameConfig overrides individual fields and keeps the rest", "[config]
     CHECK(parsed.value().gameplay.hazardDamage == 9);
     CHECK(parsed.value().gameplay.fullSleepHours == Catch::Approx(8.0f));
     CHECK(parsed.value().paths.saves == "saves");
+    CHECK(parsed.value().stamina.max == Catch::Approx(80.0f));
+    CHECK(parsed.value().stamina.runDrainPerSecond == Catch::Approx(7.5f));
+    CHECK(parsed.value().stamina.toolCost == Catch::Approx(1.0f));
+    CHECK(parsed.value().stamina.attackCost == Catch::Approx(4.0f));
 }
 
 TEST_CASE("GameConfig clamps unsafe values", "[config]") {
@@ -50,7 +61,10 @@ TEST_CASE("GameConfig clamps unsafe values", "[config]") {
       "ui": {"scale": 99.0},
       "gameplay": {"wake_hour": 99.0, "full_sleep_hours": 0.0,
                    "hazard_damage": -3, "hazard_interval": 0.0,
-                   "death_gold_penalty": 2.0, "autosave_days": 0}
+                   "death_gold_penalty": 2.0, "autosave_days": 0},
+      "stamina": {"max": 0.0, "regen_per_second": -1.0,
+                  "run_drain_per_second": -2.0, "dodge_cost": 999.0,
+                  "attack_cost": 999.0, "tool_cost": 999.0}
     })";
 
     const fa::core::Result<fa::app::GameConfig> parsed =
@@ -67,6 +81,12 @@ TEST_CASE("GameConfig clamps unsafe values", "[config]") {
     CHECK(parsed.value().gameplay.hazardInterval == Catch::Approx(0.1f));
     CHECK(parsed.value().gameplay.deathGoldPenalty == Catch::Approx(1.0f));
     CHECK(parsed.value().gameplay.autosaveDays == 1);
+    CHECK(parsed.value().stamina.max == Catch::Approx(1.0f));
+    CHECK(parsed.value().stamina.regenPerSecond == Catch::Approx(0.0f));
+    CHECK(parsed.value().stamina.runDrainPerSecond == Catch::Approx(0.0f));
+    CHECK(parsed.value().stamina.dodgeCost == Catch::Approx(1.0f));
+    CHECK(parsed.value().stamina.attackCost == Catch::Approx(1.0f));
+    CHECK(parsed.value().stamina.toolCost == Catch::Approx(1.0f));
 }
 
 TEST_CASE("GameConfig rejects malformed JSON and non-object roots", "[config]") {

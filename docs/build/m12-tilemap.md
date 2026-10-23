@@ -84,6 +84,11 @@ Release 实测 `85 move(s)`、标记 `(344, 233.999)`；另一次 Debug 在与�
 
 ### play 模式的双地图
 
+`farm.json` 同时保留农场内部 x=22 的门（rows 10–13），玩家才能从出生区走到东侧
+和森林门；`farm-scripted.json` 仍把 x=22 封死，保持 scripted smoke 的标记停在 x=344。
+`buildWorld()` 的内置回退布局也同步开了这四格，避免从错误工作目录启动时右半农场
+再次被封死。
+
 app 在 `--play` 用两张独立的 40×23 地图：农场在 (39, 10–13) 开门，portal 目标
 `forest`；林地在 (0, 10–13) 开门，portal 目标 `farm`。`checkPortal()` 读取
 `portalAt()` 后调用 `SceneStack::replace()`，旧场景销毁、新场景 `onEnter()` 重建；

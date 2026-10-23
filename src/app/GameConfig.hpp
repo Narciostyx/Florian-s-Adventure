@@ -49,11 +49,22 @@ struct GameplayConfig {
     int autosaveDays = 1;
 };
 
+/// \brief Player stamina tuning; every value can be overridden from JSON.
+struct StaminaConfig {
+    float max = 100.0f;
+    float regenPerSecond = 20.0f;
+    float runDrainPerSecond = 10.0f;
+    float dodgeCost = 25.0f;
+    float attackCost = 4.0f;
+    float toolCost = 3.0f;
+};
+
 struct GameConfig {
     WindowConfig window;
     UiConfig ui;
     PathsConfig paths;
     GameplayConfig gameplay;
+    StaminaConfig stamina;
 
     [[nodiscard]] static GameConfig defaults() noexcept { return GameConfig{}; }
 
@@ -97,6 +108,15 @@ struct GameConfig {
                                             config.gameplay.deathGoldPenalty));
         static_cast<void>(gameplay.getInt("autosave_days", config.gameplay.autosaveDays));
 
+        const save::SaveArchive stamina = root.child("stamina");
+        static_cast<void>(stamina.getFloat("max", config.stamina.max));
+        static_cast<void>(stamina.getFloat("regen_per_second", config.stamina.regenPerSecond));
+        static_cast<void>(stamina.getFloat("run_drain_per_second",
+                                           config.stamina.runDrainPerSecond));
+        static_cast<void>(stamina.getFloat("dodge_cost", config.stamina.dodgeCost));
+        static_cast<void>(stamina.getFloat("attack_cost", config.stamina.attackCost));
+        static_cast<void>(stamina.getFloat("tool_cost", config.stamina.toolCost));
+
         config.window.width = std::max(320, config.window.width);
         config.window.height = std::max(180, config.window.height);
         config.window.minWidth = std::max(0, config.window.minWidth);
@@ -109,6 +129,16 @@ struct GameConfig {
         config.gameplay.deathGoldPenalty =
             std::clamp(config.gameplay.deathGoldPenalty, 0.0f, 1.0f);
         config.gameplay.autosaveDays = std::max(1, config.gameplay.autosaveDays);
+        config.stamina.max = std::clamp(config.stamina.max, 1.0f, 1000.0f);
+        config.stamina.regenPerSecond = std::clamp(config.stamina.regenPerSecond, 0.0f, 1000.0f);
+        config.stamina.runDrainPerSecond =
+            std::clamp(config.stamina.runDrainPerSecond, 0.0f, 1000.0f);
+        config.stamina.dodgeCost =
+            std::clamp(config.stamina.dodgeCost, 0.0f, config.stamina.max);
+        config.stamina.attackCost =
+            std::clamp(config.stamina.attackCost, 0.0f, config.stamina.max);
+        config.stamina.toolCost =
+            std::clamp(config.stamina.toolCost, 0.0f, config.stamina.max);
         return core::Result<GameConfig>::ok(std::move(config));
     }
 };

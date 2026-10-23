@@ -276,12 +276,21 @@ TEST_CASE("DebugStats formats a readable snapshot", "[debug]") {
     ai.hasAgentPosition = true;
     ai.hasTargetPosition = true;
     stats.aiTargets.push_back(ai);
+    stats.hasPlayerPosition = true;
+    stats.playerPosition = fa::core::Vec2{112.5f, 80.5f};
+    stats.hasPlayerCell = true;
+    stats.playerCell = fa::core::Vec2{7.0f, 5.0f};
 
     const std::vector<std::string> extended = formatStats(stats);
     bool foundCamera = false;
     bool foundFollow = false;
     bool foundAgent = false;
+    bool foundPlayer = false;
     for (const std::string& line : extended) {
+        if (line.find("player (112.5, 80.5)") != std::string::npos &&
+            line.find("tile (7, 5)") != std::string::npos) {
+            foundPlayer = true;
+        }
         if (line.find("camera (320.0, 180.0)") != std::string::npos &&
             line.find("view 640.0x360.0") != std::string::npos) {
             foundCamera = true;
@@ -297,6 +306,7 @@ TEST_CASE("DebugStats formats a readable snapshot", "[debug]") {
     CHECK(foundCamera);
     CHECK(foundFollow);
     CHECK(foundAgent);
+    CHECK(foundPlayer);
 }
 
 TEST_CASE("DebugInspector snapshots transforms, sprites and colliders", "[debug]") {

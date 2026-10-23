@@ -162,8 +162,9 @@ P2，Phase E，已完成 v1：
 - `NarrativeDatabase`：NPC/对话图/任务 JSON，重复与引用校验。
 - `NarrativeService`：条件过滤、对话动作、节点跳转、每日好感/送礼、
   事件驱动任务进度与物品奖励。
-- app：内联 NPC/对话/任务，跑通“对话 → 接任务 → 收集 → 完成 → 送礼”，
-  并留下一个可交互的底部对话面板；摘要 `m23:` 与 smoke OK 的 `+M23`。
+- app：内联 NPC/对话/任务，跑通“对话 → 接任务 → 收集 → 完成 → 送礼”；
+  play 模式农场 Elder 可交互，进入/退出 M25 `Dialogue`，收获上报 `Collect`，
+  `QuestCompleted` 结算金币并显示 HUD 任务行；摘要 `m23:` 与 smoke OK 的 `+M23`。
 - 条件/动作白名单：`affinity_at_least`、`quest_active`、`quest_completed`、
   `has_item`、`flag`、`season`；`give_item`、`add_affinity`、`start_quest`、
   `complete_quest`、`set_flag`、`open_shop`。

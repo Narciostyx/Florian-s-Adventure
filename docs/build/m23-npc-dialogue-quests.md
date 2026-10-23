@@ -43,6 +43,10 @@
     让对话面板和数字键选择在可见运行时也能工作。
   - `buildHud()` 画底部对话框：说话人、正文、编号选项；`onEvents()` 把
     Digit1–3 映射到 `choose()`，Enter/Space 映射到 `advance()`，Esc 结束。
+  - **play 集成**：农场 Elder 旁 `E` 调用 `startNpcDialogue()` 并进入 M25
+    `Dialogue`；对话结束由 `syncDialogueState()` 退出，不会卡住。叙事背包指针
+    指向玩家快捷栏；收获/拾取上报 `Collect`，`QuestCompleted` 由 app 加金币并
+    显示 `QUEST COMPLETE`，HUD 增加任务行。
   - 摘要新增 `m23:` 行，smoke OK 加入 `+M23`。
 
 ### 内容格式
@@ -102,8 +106,9 @@ fa_app.exe --frames 60     → m23: active, node greet, 2 choice(s), affinity 4,
    所以 `giveGift()` 在记录后显式补 `m_events.back().npc = npc`。
 6. **任务完成与奖励不是事务。** 背包满时物品奖励可能丢失，但任务仍标记完成；
    M24/M18 需要提供原子奖励接口。
-7. **对话不阻塞玩法输入。** v1 只把数字键/Enter 路由给对话，玩家仍可移动；
-   正式对话 UI 应切换 M07 输入上下文并暂停玩法。
+7. **对话暂停靠 M25 状态。** play 对话进入 `AppState::Dialogue`，`gameplayActive()`
+   会屏蔽固定步与快捷栏；M07 还没有按 `AppState` 自动切输入上下文，后续应补
+   上下文栈而不是继续散落 `gameplayActive()` 判断。
 
 ## 4. 验证命令
 
@@ -127,5 +132,5 @@ foreach ($cfg in @('Debug','Development','Release')) {
 - 没有本地化；文本是单个 `std::string`。
 - 没有条件表达式、任务链前置、失败/放弃任务、重复任务、每日任务。
 - `Deliver` 不消耗物品；`Collect` 只按事件推进，不检查背包。
-- 金币奖励只记录事件，没有钱包/货币结算。
-- 对话 UI 不切输入上下文、不暂停玩法，也没有重入保护。
+- 金币奖励已由 app 读取 `QuestCompleted` 后写入 `EconomyService`；M23 自身仍不持有钱包。
+- 对话已通过 M25 `Dialogue` 暂停玩法并防重入；M07 输入上下文切换仍未实现。

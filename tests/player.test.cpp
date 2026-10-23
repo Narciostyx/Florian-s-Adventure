@@ -439,6 +439,59 @@ TEST_CASE("Stamina regenerates while not dodging", "[player][stamina]") {
     REQUIRE(world.tryGet<Stamina>(id)->current == Approx(100.0f));
 }
 
+TEST_CASE("Running drains stamina and falls back to walking at zero", "[player][stamina][run]") {
+    World world;
+    const EntityId id = makePlayer(world, Vec2{}, Stamina{100.0f, 100.0f});
+    PlayerTuning tuning;
+    tuning.runStaminaPerSecond = 10.0f;
+    tuning.staminaRegenPerSecond = 20.0f;
+    PlayerController controller(tuning);
+    PlayerIntent intent;
+    intent.move = Vec2{1.0f, 0.0f};
+    intent.run = true;
+
+    step(controller, world, id, intent, 60);
+    REQUIRE(world.tryGet<Stamina>(id)->current == Approx(90.0f).margin(0.2f));
+    REQUIRE(velocityOf(world, id).linear.x == Approx(tuning.runSpeed).margin(5.0f));
+
+    step(controller, world, id, intent, 600);
+    REQUIRE(world.tryGet<Stamina>(id)->current == Approx(0.0f).margin(0.01f));
+    REQUIRE(velocityOf(world, id).linear.x == Approx(tuning.walkSpeed).margin(5.0f));
+
+    intent.run = false;
+    step(controller, world, id, intent, 60);
+    REQUIRE(world.tryGet<Stamina>(id)->current == Approx(20.0f).margin(0.5f));
+}
+
+TEST_CASE("Tool and attack requests consume stamina", "[player][stamina][action]") {
+    World world;
+    const EntityId id = makePlayer(world, Vec2{}, Stamina{10.0f, 100.0f});
+    PlayerTuning tuning;
+    tuning.useToolStaminaCost = 3.0f;
+    tuning.attackStaminaCost = 4.0f;
+    tuning.staminaRegenPerSecond = 0.0f;
+    tuning.actionLockDuration = 0.0f;
+    PlayerController controller(tuning);
+
+    PlayerIntent use;
+    use.useTool = true;
+    controller.update(world, id, use, kStep);
+    REQUIRE(world.tryGet<Stamina>(id)->current == Approx(7.0f));
+    controller.update(world, id, use, kStep);
+    REQUIRE(world.tryGet<Stamina>(id)->current == Approx(4.0f));
+
+    PlayerIntent attack;
+    attack.attack = true;
+    controller.update(world, id, attack, kStep);
+    REQUIRE(world.tryGet<Stamina>(id)->current == Approx(0.0f));
+
+    controller.clearEvents();
+    controller.update(world, id, attack, kStep);
+    REQUIRE(controller.events().size() == 1);
+    REQUIRE(controller.events()[0].kind == PlayerActionKind::ActionRejected);
+    REQUIRE(controller.events()[0].errorCode == err::kInsufficientStamina);
+}
+
 TEST_CASE("PlayerSystem maps input to intent and honours scripted movement", "[player][system]") {
     World world;
     const EntityId id = makePlayer(world);

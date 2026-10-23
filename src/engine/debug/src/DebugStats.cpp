@@ -28,6 +28,13 @@ namespace {
     return "(" + formatFloat(value.x) + ", " + formatFloat(value.y) + ")";
 }
 
+[[nodiscard]] std::string formatCell(core::Vec2 value) {
+    char buffer[48]{};
+    std::snprintf(buffer, sizeof(buffer), "(%.0f, %.0f)", static_cast<double>(value.x),
+                  static_cast<double>(value.y));
+    return buffer;
+}
+
 }  // namespace
 
 std::vector<std::string> formatStats(const DebugStats& stats) {
@@ -54,6 +61,13 @@ std::vector<std::string> formatStats(const DebugStats& stats) {
                     formatCount(static_cast<std::uint64_t>(stats.audioSampleRate)) + " Hz  " +
                     formatCount(stats.audioDropped) + " dropped");
     lines.push_back("map " + formatSize(stats.mapTiles) + " tiles  " + formatSize(stats.mapSolidTiles) + " solid");
+    if (stats.hasPlayerPosition) {
+        std::string line = "player " + formatVector(stats.playerPosition);
+        if (stats.hasPlayerCell) {
+            line += "  tile " + formatCell(stats.playerCell);
+        }
+        lines.push_back(std::move(line));
+    }
 
     if (stats.camera.valid) {
         lines.push_back("camera " + formatVector(stats.camera.position) + "  view " +

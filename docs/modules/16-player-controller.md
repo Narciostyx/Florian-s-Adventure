@@ -25,7 +25,9 @@
 - 动作路由：`UseTool`、`Attack`、`Interact`、`OpenInventory`、`Dodge`，
   以及 `ActionRejected`；记录为纯数据，由组装根决定转发给 M17/M18/M19/M20。
 - 动作锁：工具/攻击持续 0.2 s，期间移动减速到零；`Interact` 不锁移动。
-- 耐力：默认 100；闪避消耗 25；不闪避时每秒恢复 20。
+- 耐力：默认 100；闪避消耗 25、攻击消耗 4、工具消耗 3；奔跑每秒消耗 10；
+  不奔跑/不闪避/动作锁结束后每秒恢复 20。以上数值由 `PlayerTuning` 提供，
+  app 从 `config/game.json` 的 `stamina` 段读取。
 - 闪避：48 px / 0.25 s，冷却 0.5 s；0.05–0.20 s 为无敌窗口（M20 读取，M16 不结算伤害）。
 - 输入适配：`PlayerSystem` 从 M07 的 `IInput` 生成 `PlayerIntent`，并缓存动作 id。
 - 动画参数：`PlayerAnimationParams`（速度/朝向/状态/速度值/是否移动）供 M10 消费。
@@ -123,6 +125,8 @@ public:
 6. 闪避期间速度固定为 `dodgeDistance / dodgeDuration`；不能再次闪避/使用工具/攻击。
 7. 死亡（`Health.current <= 0`）后速度清零、状态 `Dead`、忽略输入。
 8. 耐力不足/冷却中/无方向/忙碌都记录 `ActionRejected`，不排队。
+9. 奔跑只在移动且耐力 > 0 时生效；耐力为 0 时降为走速，按住奔跑不恢复，松开后恢复。
+10. 工具/攻击在动作锁期间**不回复耐力**，否则短锁会抵消消耗。
 
 ## 5. 依赖关系
 
@@ -143,7 +147,7 @@ src/engine/include/fa/player/   PlayerTypes, PlayerController, PlayerSystem, Pla
 src/engine/player/src/          PlayerTypes.cpp, PlayerController.cpp, PlayerSystem.cpp
 ```
 
-测试：`tests/player.test.cpp`，15 个用例 / 140 条断言，覆盖：
+测试：`tests/player.test.cpp`，17 个用例 / 151 条断言，覆盖：
 
 - 名称、八向朝向（含 22.5° 边界与斜向单位向量）；
 - `attach` 只补缺失组件并保留已有耐力/朝向；
@@ -151,6 +155,7 @@ src/engine/player/src/          PlayerTypes.cpp, PlayerController.cpp, PlayerSys
 - 朝向切换与静止保持；
 - 闪避耐力消耗、速度、冷却、无敌窗口；
 - 耐力不足/无方向/忙碌/冷却拒绝；
+- 奔跑消耗与零耐力降为走速；工具/攻击消耗与不足拒绝；
 - 工具/攻击动作锁与 `UseTool > Attack` 优先级；
 - 交互/背包请求不锁移动；
 - 死亡忽略输入；
@@ -159,6 +164,7 @@ src/engine/player/src/          PlayerTypes.cpp, PlayerController.cpp, PlayerSys
 
 冒烟：`DemoScene` 的标记现在由 `PlayerSystem` 驱动；Debug 实测 `move`、facing east、
 速度 90、耐力 100、114 次更新、0 闪避、0 主动动作，标记仍被墙挡在 x=344。
+play 模式的 `PlayerSystem` 使用 `GameState::playerTuning`，其值来自 `config/game.json`。
 
 ## 7. 扩展点
 

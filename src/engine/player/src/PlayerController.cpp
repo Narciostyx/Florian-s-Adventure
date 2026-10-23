@@ -171,7 +171,11 @@ void PlayerController::update(scene::World& world, scene::EntityId player, const
     if (intent.useTool) {
         if (dodgingNow || state->actionLock > 0.0f) {
             reject(player, facing->value, intent.payload, player_error::kBusy, false);
+        } else if (stamina->current < m_tuning.useToolStaminaCost) {
+            reject(player, facing->value, intent.payload, player_error::kInsufficientStamina,
+                   false);
         } else {
+            stamina->current -= m_tuning.useToolStaminaCost;
             setState(*state, PlayerState::UseTool);
             state->actionLock = m_tuning.actionLockDuration;
             ++m_stats.actions;
@@ -181,7 +185,11 @@ void PlayerController::update(scene::World& world, scene::EntityId player, const
     if (intent.attack) {
         if (dodgingNow || state->actionLock > 0.0f) {
             reject(player, facing->value, intent.payload, player_error::kBusy, false);
+        } else if (stamina->current < m_tuning.attackStaminaCost) {
+            reject(player, facing->value, intent.payload, player_error::kInsufficientStamina,
+                   false);
         } else {
+            stamina->current -= m_tuning.attackStaminaCost;
             setState(*state, PlayerState::Attack);
             state->actionLock = m_tuning.actionLockDuration;
             ++m_stats.actions;
@@ -203,12 +211,15 @@ void PlayerController::update(scene::World& world, scene::EntityId player, const
 
     if (state->actionLock > 0.0f) {
         velocity->linear = approachVector(velocity->linear, core::Vec2{0.0f, 0.0f}, m_tuning.deceleration * dt);
-        stamina->current = std::min(stamina->max, stamina->current + m_tuning.staminaRegenPerSecond * dt);
+        // Do not regenerate during the action lock: otherwise a 3-point tool cost
+        // would be refunded by 0.2 s of regen before the lock ends.
         updateAnimation(*facing, *state, *velocity, false);
         return;
     }
 
-    const float targetSpeed = intent.run ? m_tuning.runSpeed : m_tuning.walkSpeed;
+    const bool wantsRun = intent.run && moving;
+    const bool running = wantsRun && stamina->current > 0.0f;
+    const float targetSpeed = running ? m_tuning.runSpeed : m_tuning.walkSpeed;
     const core::Vec2 desired = moving ? move * targetSpeed : core::Vec2{0.0f, 0.0f};
     const float rate = moving ? m_tuning.acceleration : m_tuning.deceleration;
     velocity->linear = approachVector(velocity->linear, desired, rate * dt);
@@ -219,7 +230,13 @@ void PlayerController::update(scene::World& world, scene::EntityId player, const
         ++m_stats.idleSteps;
     }
     setState(*state, moving ? PlayerState::Move : PlayerState::Idle);
-    stamina->current = std::min(stamina->max, stamina->current + m_tuning.staminaRegenPerSecond * dt);
+    if (running) {
+        stamina->current = std::max(0.0f, stamina->current - m_tuning.runStaminaPerSecond * dt);
+    } else if (!wantsRun) {
+        // Holding run at zero stamina keeps the player walking rather than
+        // stuttering between run and regen.
+        stamina->current = std::min(stamina->max, stamina->current + m_tuning.staminaRegenPerSecond * dt);
+    }
     updateAnimation(*facing, *state, *velocity, moving);
 }
 

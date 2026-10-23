@@ -869,6 +869,7 @@ classDiagram
 | 类型 | 关键公开 API |
 |---|---|
 | `PlayerController` | `attach`、`update`、`isDodging`、`isInvulnerable`、`events`、`clearEvents`、`stats`、`animationParams`、`setTuning`、`tuning` |
+| `PlayerTuning` | `walkSpeed`、`runSpeed`、`dodgeStaminaCost`、`useToolStaminaCost`、`attackStaminaCost`、`runStaminaPerSecond`、`staminaRegenPerSecond`、`actionLockDuration`、无敌窗口 |
 | `PlayerSystem` | `onFixedUpdate`、`setScriptedMove`、`clearScriptedMove`、`controller` |
 | `PlayerTag` / `FacingDir` / `PlayerStateComp` | 标记、八向朝向、状态与动作锁 |
 | `Health` / `Stamina` / `Wallet` / `DodgeState` | 生命、耐力、金币、闪避计时/无敌窗口 |
@@ -885,7 +886,7 @@ classDiagram
 
 | 类型 | 关系 | 类职责 | 方法职责 |
 |---|---|---|---|
-| `PlayerController` | 把组件挂到 `World` 的实体；只写 `Velocity` | 移动/朝向/耐力/闪避/动作锁 | `attach` 挂组件；`update` 读意图写速度；`request*` 记录动作；`events/clearEvents` 交给 app |
+| `PlayerController` | 把组件挂到 `World` 的实体；只写 `Velocity` | 移动/朝向/耐力/闪避/动作锁 | `attach` 挂组件；`update` 读意图写速度并扣奔跑/闪避/工具/攻击体力；`events/clearEvents` 交给 app |
 | `PlayerSystem` | 实现 `ISystem`，拥有 `PlayerController`，借用 `IInput` | 输入 → 控制器 | `onFixedUpdate` 读轴并调用控制器；`controller()` 暴露状态 |
 | `PlayerIntent` / `PlayerActionRequest` / `PlayerStats` | 纯值 | 意图、动作记录、快照 | 字段读取 |
 | `Stamina` / `FacingDir` / `Health` 等组件 | 纯值组件 | 玩家运行态 | 由控制器/战斗修改 |
@@ -1072,7 +1073,7 @@ classDiagram
 
 - **枚举**：`DialogueCondition::Kind`、`DialogueAction::Kind`、`QuestObjectiveKind { Collect, Deliver, Kill, Plant, Talk, Count }`、`NarrativeEventKind`。
 - **错误码**：7200–7216。
-- **要点**：条件不是脚本引擎；任务由事件驱动；没有存档序列化；`OpenShop` 只记录动作，M24 负责交易。
+- **要点**：条件不是脚本引擎；任务由事件驱动；play 已接农场 Elder 对话/任务/奖励；没有存档序列化；`OpenShop` 只记录动作，M24 负责交易。
 
 **类关系与职责**
 
@@ -1175,7 +1176,7 @@ classDiagram
 | `DebugLogSink` | `write`、`snapshot`、`clear`、`setMinimumLevel` |
 | `DebugTools` | `console`、`cvars`、`log`、`setStats`、`stats`、`setStatsVisible`、`toggleStats`、`setLogVisible`、`toggleLog`、`setPhysicsVisible`、`togglePhysics`、`setConsoleOpen`、`handleEvent`、`draw`、`registerCommand`、`attachLogSink`、`detachLogSink` |
 | `DebugOverlay` | `draw` |
-| `DebugStats` | FPS/帧/实体/绘制/资源/物理/音频/地图；`DebugCameraInfo`；`DebugAiTargetInfo` 列表 |
+| `DebugStats` | FPS/帧/实体/绘制/资源/物理/音频/地图；玩家世界坐标与格子坐标；`DebugCameraInfo`；`DebugAiTargetInfo` 列表 |
 | `DebugCameraInfo` | `valid`、`position`、`viewportSize`、`visible`、`followTarget`、`following`、`deadzoneX/Y`、`smoothing` |
 | `DebugAiTargetInfo` | `agent`、`target`、`hasTarget`、`targetVisible`、`state`、`agentPosition`、`targetPosition` |
 | `EntityInspection` / `DebugShape` | 实体快照；物理调试矩形 |
@@ -1183,7 +1184,7 @@ classDiagram
 - **枚举**：`CVarType { Bool, Int, Float, String }`、`LogLevel` 复用 core。
 - **函数**：`splitCommandLine`、`trimCommandLine`、`formatStats`、`formatLogLine`、`formatInspection`、`inspectWorld`、`drawPhysicsShapes`。
 - **快捷键**：F3 统计、F4 日志、F5 物理、反引号控制台。
-- **要点**：M27 不依赖玩法模块；相机/AI 目标是 app 填的纯数据快照；AI 文本最多 6 行；F3 同时画 agent/目标连线。
+- **要点**：M27 不依赖玩法模块；相机/玩家/AI 目标是 app 填的纯数据快照；AI 文本最多 6 行；F3 显示玩家世界/格子坐标，并画 agent/目标连线。
 
 **类关系与职责**
 
@@ -1200,7 +1201,7 @@ classDiagram
 | 类型 | 作用 |
 |---|---|
 | `AssetUploaderAdapter` | 把 M05 的 `ITextureUploader` 桥到 M06 `IRenderer` |
-| `fa::app::GameConfig` | `config/game.json` → 窗口/UI 缩放/路径/玩法参数，缺失逐项回落 |
+| `fa::app::GameConfig` | `config/game.json` → 窗口/UI 缩放/路径/玩法参数/体力参数（`stamina`），缺失逐项回落 |
 | `fa::app::StbImageDecoder` | 注册给 M05 的 PNG/JPG/TGA/BMP 解码器（独立 TU） |
 | `EntitySpawn` / `parseEntitySpawns` | `data/entities.json` 的 bed/shipping/merchant/enemy/hazard 生成表 |
 | `EventsAndJobsDemo` | 演示 M03 的 tick/upload 事件与作业完成 |
@@ -1208,15 +1209,15 @@ classDiagram
 | `ConsumableUseHandler` | 记录一次 M18 食物使用 |
 | `DemoMap` | `Farm` / `Forest`，决定构建哪张地图与读取哪个 JSON |
 | `GameState` | 跨场景状态：农田、演示背包、杂物、工具 handler、叙事、玩家生命/耐力/朝向；由 `SmokeSink` 拥有 |
-| `DemoScene` | 构建**一张**地图（Farm 或 Forest）：从 `data/maps/*.json` 读布局（缺失回落代码内布局）、按 `textureName` 绑纹理、创建实体/农田/传送/荆棘，注册 Player/Physics/Tilemap/SpriteExtract 系统，运行 M17/M19/M23 脚本；借用 `GameState` |
-| `SmokeSink` | `IFrameSink` 实现：事件路由、固定步、日历推进、渲染与 HUD，持有全部服务、`GameState` 与 `SceneStack`；`makeDemoScene()`/`switchMap()` 负责换图 |
+| `DemoScene` | 构建**一张**地图（Farm 或 Forest）：从 `data/maps/*.json` 读布局（缺失回落代码内布局）、按 `textureName` 绑纹理、创建实体/农田/传送/荆棘，注册 Player/Physics/Tilemap/SpriteExtract 系统，运行 M17/M19/M23 脚本；`startNpcDialogue()` 开 Elder 对话；借用 `GameState` |
+| `SmokeSink` | `IFrameSink` 实现：事件路由、固定步、日历推进、渲染与 HUD，持有全部服务、`GameState` 与 `SceneStack`；`makeDemoScene()`/`switchMap()` 换图，`openNpcDialogue()`/`chooseDialogue()`/`advanceDialogue()` 管对话，`processNarrativeEvents()` 结算任务 |
 | 各 `*DemoStats` | 每个模块的冒烟摘要快照 |
 
-**启动选项**：`--window` 显示窗口；`--frames N` 跑 N 帧；`--play` 进入可操作会话（种植 + 近战/掉落，跳过脚本演示）；`--play-test` 无头跑通种植闭环 + 击杀 dummy + 拾取掉落 + 地图往返并返回失败码。
+**启动选项**：`--window` 显示窗口并默认进入 play（可用 `--play` 显式指定）；`--frames N` 无窗口时跑 scripted smoke；`--play-test` 无头跑通对话/任务/种植/战斗/换图/存档并返回失败码。
 
 **地图装配**：`makeDemoScene(map, spawn)` 按 `DemoMap` 选择 `maps/farm.json`、`maps/farm-scripted.json` 或 `maps/forest.json`，把文本交给 `DemoScene`；`loadTilemapFromJson()` 成功后 `m_mapLoaded=true`，失败则用 `buildWorld()` 的代码内布局。`switchMap()` 调 `SceneStack::replace()`，随后重建编辑器并重新链玩家快捷栏；`GameState` 保证农田/叙事/生命耐力跨图不丢。
 
-**play 运行时**：`LootDrop` 是 app-local 组件并写入 `world.loot`；`processPlayerActions()` 消费 UseTool/Attack/Interact（床/出货箱/商人），`I` 开背包面板；`processCombatEvents()` 掷掉落/销毁敌人，`collectLoot()` 在 14 px 内自动拾取；`checkPortal()` 命中 `portalAt()` 后按目标地图 `replace` 场景；`tickHazard()` 只在林地生效，生命归零时切回农场床边并扣 10% 金币。
+**play 运行时**：`LootDrop` 是 app-local 组件并写入 `world.loot`；`processPlayerActions()` 消费 UseTool/Attack/Interact（Elder/床/出货箱/商人），`I` 开背包面板；`processCombatEvents()` 掷掉落/销毁敌人，`collectLoot()` 在 14 px 内自动拾取；`checkPortal()` 命中 `portalAt()` 后按目标地图 `replace` 场景；`tickHazard()` 只在林地生效，生命归零时切回农场床边并扣 10% 金币。Elder 对话走 `openNpcDialogue()` → `NarrativeService::startDialogue()` + `flow->enterDialogue()`；Digit1–2/Enter 路由到 `chooseDialogue`/`advanceDialogue`，图结束时 `syncDialogueState()` 退出 Dialogue；收获/拾取上报 `Collect`，`processNarrativeEvents()` 把 `QuestCompleted.goldReward` 写入经济并显示任务行。
 
 **主循环顺序**（`SmokeSink`）：
 

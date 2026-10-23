@@ -132,7 +132,13 @@ struct PlayerTuning {
     float dodgeCooldown = 0.5f;
     /// \brief Stamina spent when a dodge starts.
     float dodgeStaminaCost = 25.0f;
-    /// \brief Stamina regenerated per second while not dodging.
+    /// \brief Stamina spent when a tool request is accepted.
+    float useToolStaminaCost = 3.0f;
+    /// \brief Stamina spent when an attack request is accepted.
+    float attackStaminaCost = 4.0f;
+    /// \brief Stamina drained per second while running with movement input.
+    float runStaminaPerSecond = 10.0f;
+    /// \brief Stamina regenerated per second while not dodging or running.
     float staminaRegenPerSecond = 20.0f;
     /// \brief Movement lock after a tool/attack request, in seconds.
     float actionLockDuration = 0.2f;

@@ -32,6 +32,8 @@
   丢最旧一条并计入 `dropped()`。默认最低级别 `Info`。
 - **统计**：`DebugStats` 由 app 每帧从 M05/M06/M11/M13/M08/M12 的公开 stats 填充；
   M27 不反向 include 这些模块的私有实现。
+- **玩家坐标**：app 填入 `markerCenter()` 与 `markerCell()`；F3 显示
+  `player (x, y)  tile (cx, cy)`，用于核对移动/碰撞/传送结果。
 - **相机/AI 目标**：app 额外填入当前控制实体的相机（位置/视口/跟随目标/死区/平滑）
   与每个 `AiAgent` 的状态/目标/可见性/中心点；M27 只格式化与绘制。
   覆盖层文本最多列 6 个 AI 目标，其余显示 `+N more`。

@@ -84,6 +84,8 @@ struct DebugStats {
     int audioVoices, audioSampleRate;
     std::uint64_t audioDropped;
     std::size_t mapTiles, mapSolidTiles;
+    bool hasPlayerPosition, hasPlayerCell;
+    core::Vec2 playerPosition, playerCell;
     DebugCameraInfo camera;
     std::vector<DebugAiTargetInfo> aiTargets;
 };
@@ -93,8 +95,8 @@ struct DebugStats {
 - CVar 用 `std::vector<Entry>` 线性查找，避免 `std::unordered_map` 的额外异常路径。
 - `DebugLogSink` 用 `std::atomic_flag` 自旋锁保护环形日志，日志线程不阻塞在互斥量上。
 - `DebugStats` 由 composition root 填充；M27 不反向查询 ECS/资源/音频。
-- 相机与 AI 目标都是**纯数据快照**：M27 不知道 `Camera2D` 或 `AiService` 的存在，
-  只格式化 app 交来的坐标/实体 ID。
+- 相机、玩家与 AI 目标都是**纯数据快照**：M27 不知道 `Camera2D`、`DemoScene` 或
+  `AiService` 的存在，只格式化 app 交来的坐标/实体 ID。F3 显示玩家世界坐标与格子坐标。
 - 覆盖层文本最多列出 6 个 AI 目标；更多时显示 `+N more`，避免面板无限增长。
 - F3 同时在世界里画 agent 方框、agent→target 连线和目标方框；
   目标可见为橙色，丢失视线为灰色。F5 的物理调试仍独立开关。
