@@ -169,8 +169,9 @@ foreach ($cfg in @('Debug','Development','Release')) {
   40×23 地图；跨场景状态放在 `GameState`，敌人/AI/掉落默认随旧场景销毁。
   没有过渡动画，换图是硬切。
 - 睡眠已按体力效率结算；没有强制起床/晕倒。
-- 死亡路径已接：app 在生命归零时调 `requestGameOver`/`respawn`，床边复活并扣
-  10% 金币；没有死亡菜单/读档选项 UI。
+- 死亡路径已接：app 在生命归零时先扣一次 10% 金币并调 `requestGameOver`，
+  GameOver 面板提供 `respawn`（床边复活）/ `loadGame(autosave)` / `enterMainMenu`；
+  三条路径都由 `--play-test` 覆盖。
 - 自动存档的“安全状态”判定（战斗中/对话中/过场中挂起）未实现。
 - 没有退出前“距上次存档超过 12 游戏小时”的提示；`autosaveOnQuit` 是显式开关。
 - 输入上下文没有按 `AppState` 自动切换；app 仍未屏蔽暂停/对话时的玩法输入。

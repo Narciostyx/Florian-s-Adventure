@@ -55,6 +55,8 @@ struct ItemDef {
     std::string toolKind;
     assets::AssetId icon;
     int maxStack = 99, sellPrice = 0;
+    /// 武器伤害 / 食物回复；0 表示无该行为。
+    int damage = 0, healAmount = 0, staminaRestore = 0;
     std::vector<std::string> tags;
 };
 

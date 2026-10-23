@@ -211,13 +211,14 @@ constexpr std::string_view kContentText = R"({
     {"id": "item.turnip", "display_name": "Turnip", "category": "crop",
      "max_stack": 99, "sell_price": 35, "tags": ["crop", "spring"]},
     {"id": "item.turnip_soup", "display_name": "Turnip Soup", "category": "food",
-     "max_stack": 10, "sell_price": 120},
+     "max_stack": 10, "sell_price": 120, "heal_amount": 20, "stamina_restore": 30},
     {"id": "item.hoe", "display_name": "Hoe", "category": "tool",
      "tool_kind": "hoe", "max_stack": 1, "sell_price": 0, "tags": ["tool"]},
     {"id": "item.watering_can", "display_name": "Watering Can", "category": "tool",
      "tool_kind": "watering_can", "max_stack": 1, "sell_price": 0, "tags": ["tool"]},
     {"id": "item.sword", "display_name": "Wooden Sword", "category": "weapon",
-     "tool_kind": "sword", "max_stack": 1, "sell_price": 0, "tags": ["weapon"]}
+     "tool_kind": "sword", "max_stack": 1, "sell_price": 0, "damage": 12,
+     "tags": ["weapon"]}
   ],
   "crops": [
     {"id": "crop.turnip", "seed_item": "item.turnip_seed", "harvest_item": "item.turnip",
@@ -2677,11 +2678,20 @@ public:
             if (const fa::core::Status status = add(hotbar, "item.turnip_seed", 20); status.isError()) {
                 return status;
             }
+            if (const fa::core::Status status = add(hotbar, "item.turnip_soup", 3);
+                status.isError()) {
+                return status;
+            }
             if (const fa::core::Status status =
                     add(playerInventory->backpack(), "item.turnip", 3);
                 status.isError()) {
                 return status;
             }
+            // The sword is the equipped weapon: right-click reads its `damage`.
+            static_cast<void>(playerInventory->equipment().equip(
+                fa::inventory::EquipmentSlot::Weapon,
+                fa::inventory::ItemStack{
+                    fa::content::ContentId::fromName("item.sword"), 1, -1}));
             static_cast<void>(playerInventory->hotbar().select(0));
             inventoryDemo = InventoryDemoStats{};
             inventoryDemo.backpackItems = playerInventory->backpack().totalItems();
@@ -2811,6 +2821,8 @@ public:
             calendar->setRealSecondsPerGameMinute(0.01f);
         }
         calendarEvents = 0;
+        lastEconomyTimeOfDay = calendar->timeOfDay();
+        economyMinuteCarry = 0.0f;
 
         fa::world::PointLight markerLight;
         markerLight.position = fa::core::Vec2{344.0f, 260.0f};
@@ -3171,6 +3183,8 @@ public:
             const fa::world::Weather weatherTomorrow =
                 static_cast<fa::world::Weather>(tomorrow >= 0 && tomorrow < weatherCount ? tomorrow : 0);
             calendar->restore(date, timeOfDay, weatherToday, weatherTomorrow);
+            lastEconomyTimeOfDay = calendar->timeOfDay();
+            economyMinuteCarry = 0.0f;
         }
 
         if (demoScene != nullptr) {
@@ -3775,6 +3789,44 @@ public:
         return economy->sell(shopGeneralId(), item, count, playerInventory->backpack());
     }
 
+    /// \brief Queues one turnip soup; consumes 2 turnips from the backpack.
+    [[nodiscard]] fa::core::Status craftTurnipSoup() {
+        if (economy == nullptr || playerInventory == nullptr) {
+            return fa::core::errorStatus(fa::economy::economy_error::kNotLoaded,
+                                         "the kitchen is not available");
+        }
+        // Harvests land in the hotbar; cooking reads the backpack. Pull up to two
+        // turnips across so the normal harvest -> cook flow works without micro-
+        // managing containers.
+        const fa::content::ContentId turnip = fa::content::ContentId::fromName("item.turnip");
+        fa::inventory::Inventory& bag = playerInventory->backpack();
+        fa::inventory::Inventory& hotbar = playerInventory->hotbar().inventory();
+        constexpr int kRequired = 2;
+        for (int slot = 0; slot < hotbar.slotCount() && bag.countOf(turnip) < kRequired; ++slot) {
+            if (hotbar.at(slot).id == turnip) {
+                static_cast<void>(hotbar.transferTo(bag, slot, kRequired - bag.countOf(turnip)));
+            }
+        }
+        return economy->startCraft(
+            fa::content::ContentId::fromName("recipe.turnip_soup"), "kitchen", bag);
+    }
+
+    /// \brief Collects the first ready processing job into the backpack.
+    [[nodiscard]] fa::core::Status collectReadyCraft() {
+        if (economy == nullptr || playerInventory == nullptr) {
+            return fa::core::errorStatus(fa::economy::economy_error::kNotLoaded,
+                                         "the kitchen is not available");
+        }
+        const std::span<const fa::economy::ProcessingJob> jobs = economy->jobs();
+        for (std::size_t index = 0; index < jobs.size(); ++index) {
+            if (jobs[index].ready) {
+                return economy->collectCraft(index, playerInventory->backpack());
+            }
+        }
+        return fa::core::errorStatus(fa::economy::economy_error::kJobNotReady,
+                                     "no processing job is ready");
+    }
+
     /// \brief Ships every crop stack in the hotbar and backpack.
     [[nodiscard]] int shipAllCrops() {
         if (economy == nullptr || playerInventory == nullptr) {
@@ -3867,13 +3919,76 @@ public:
         return status;
     }
 
+    /// \brief Damage of the equipped weapon, or an unarmed fallback.
+    [[nodiscard]] int weaponDamage() const {
+        constexpr int kUnarmedDamage = 5;
+        if (playerInventory == nullptr) {
+            return kUnarmedDamage;
+        }
+        const fa::inventory::ItemStack& weapon =
+            playerInventory->equipment().at(fa::inventory::EquipmentSlot::Weapon);
+        if (weapon.empty()) {
+            return kUnarmedDamage;
+        }
+        const fa::content::ItemDef* def = content.item(weapon.id);
+        return def != nullptr && def->damage > 0 ? def->damage : kUnarmedDamage;
+    }
+
     /// \brief Spawns one melee attack in front of the player.
     void handleAttack() {
         if (!playMode || demoScene == nullptr) {
             return;
         }
-        const bool spawned = demoScene->playerAttack(10, 14.0f);
-        setPlayMessage(spawned ? "ATTACK" : "ATTACK UNAVAILABLE");
+        const int damage = weaponDamage();
+        const bool spawned = demoScene->playerAttack(damage, 14.0f);
+        setPlayMessage(spawned ? "ATTACK " + std::to_string(damage) : "ATTACK UNAVAILABLE");
+    }
+
+    /// \brief Consumes the selected hotbar item; only food has an effect.
+    [[nodiscard]] fa::core::Status useSelectedFood() {
+        if (!playMode || demoScene == nullptr || playerInventory == nullptr ||
+            itemUse == nullptr) {
+            return fa::core::errorStatus(fa::core::error_code::kUnsupported,
+                                         "play mode is not active");
+        }
+        const int slot = playerInventory->hotbar().selected();
+        fa::inventory::Inventory& hotbar = playerInventory->hotbar().inventory();
+        const fa::inventory::ItemStack& selected = hotbar.at(slot);
+        if (selected.empty()) {
+            setPlayMessage("NO ITEM SELECTED");
+            return fa::core::errorStatus(fa::inventory::inventory_error::kSlotEmpty,
+                                         "the selected slot is empty");
+        }
+        const fa::content::ItemDef* def = content.item(selected.id);
+        if (def == nullptr || def->category != "food") {
+            setPlayMessage("NOT FOOD: " + std::string(selected.id.name()));
+            return fa::core::errorStatus(fa::core::error_code::kUnsupported,
+                                         "the selected item is not food");
+        }
+        const int heal = def->healAmount;
+        const int stamina = def->staminaRestore;
+        const fa::core::Status status =
+            itemUse->use(hotbar, slot, demoScene->playerEntity());
+        if (status.isError()) {
+            setPlayMessage("USE FAILED: " + status.error().message);
+            return status;
+        }
+        if (heal > 0) {
+            demoScene->setPlayerHealth(demoScene->playerHealth() + static_cast<float>(heal));
+        }
+        if (stamina > 0) {
+            demoScene->setPlayerStamina(demoScene->playerStamina() +
+                                        static_cast<float>(stamina));
+        }
+        std::string message = "ATE " + def->displayName;
+        if (heal > 0) {
+            message += " +" + std::to_string(heal) + "HP";
+        }
+        if (stamina > 0) {
+            message += " +" + std::to_string(stamina) + "STA";
+        }
+        setPlayMessage(std::move(message));
+        return status;
     }
 
     /// \brief Creates a visible drop entity at a world position.
@@ -4122,9 +4237,14 @@ public:
         return true;
     }
 
-    /// \brief Respawns beside the bed and takes a 10% gold penalty.
+    /// \brief Applies the death penalty once and opens the GameOver panel.
+    ///
+    /// The player is not moved here: the panel offers respawn, loading the autosave
+    /// or returning to the main menu. Keeping the penalty in this one function means
+    /// pressing Respawn cannot charge it twice.
     void handlePassOut() {
-        if (flow == nullptr || demoScene == nullptr) {
+        if (flow == nullptr || demoScene == nullptr ||
+            flow->state() != fa::flow::AppState::Playing) {
             return;
         }
         int penalty = 0;
@@ -4135,19 +4255,68 @@ public:
                 economy->addGold(-penalty);
             }
         }
+        lastDeathPenalty = penalty;
+        lastDeathReason = "THORNS";
+        const fa::core::Status over = flow->requestGameOver("thorns");
+        if (over.isError()) {
+            // The state already changed or the session is gone; do not leave a
+            // penalty applied without a visible panel.
+            if (penalty > 0 && economy != nullptr) {
+                economy->addGold(penalty);
+            }
+            lastDeathPenalty = 0;
+            return;
+        }
+    }
+
+    /// \brief Respawns beside the bed from the GameOver panel.
+    [[nodiscard]] bool respawnFromDeath() {
+        if (flow == nullptr || demoScene == nullptr ||
+            flow->state() != fa::flow::AppState::GameOver) {
+            return false;
+        }
         if (demoScene->isForest()) {
-            // The bed lives on the farm map, so passing out also changes maps.
+            // The bed lives on the farm map, so respawning also changes maps.
             if (!switchMap(DemoMap::Farm, std::nullopt)) {
-                return;
+                return false;
             }
         }
         demoScene->teleportMarker(demoScene->respawnPoint());
         demoScene->setPlayerHealth(demoScene->playerMaxHealth());
         demoScene->setPlayerStamina(demoScene->playerMaxStamina());
         demoScene->syncPhysics();
-        static_cast<void>(flow->requestGameOver("thorns"));
-        static_cast<void>(flow->respawn());
-        setPlayMessage("PASSED OUT  -" + std::to_string(penalty) + " GOLD");
+        if (flow->respawn().isError()) {
+            return false;
+        }
+        setPlayMessage("RESPAWNED");
+        return true;
+    }
+
+    /// \brief Loads the autosave from the GameOver panel.
+    [[nodiscard]] bool loadFromDeath() {
+        if (flow == nullptr || flow->state() != fa::flow::AppState::GameOver) {
+            return false;
+        }
+        if (flow->loadGame(fa::flow::kAutosaveSlot).isError()) {
+            // GameFlow moves to the main menu on a failed load.
+            return false;
+        }
+        setPlayMessage("LOADED AUTOSAVE");
+        return true;
+    }
+
+    /// \brief Returns to the main menu from the GameOver panel.
+    [[nodiscard]] bool mainMenuFromDeath() {
+        if (flow == nullptr || flow->state() != fa::flow::AppState::GameOver) {
+            return false;
+        }
+        if (flow->enterMainMenu().isError()) {
+            return false;
+        }
+        shopOpen = false;
+        inventoryOpen = false;
+        slotsOpen = false;
+        return true;
     }
 
     void clearLootDrops() {
@@ -4346,6 +4515,34 @@ public:
                     static_cast<double>(demoScene->playerMaxStamina()),
                     staminaConfigOk ? "ok" : "bad");
         ok = ok && staminaConfigOk;
+
+        const fa::content::ContentId sword = fa::content::ContentId::fromName("item.sword");
+        const fa::content::ItemDef* swordDef = content.item(sword);
+        const bool weaponOk =
+            swordDef != nullptr && swordDef->damage > 0 && weaponDamage() == swordDef->damage;
+        std::printf("play-test: weapon damage %d (content %d) -> %s\n", weaponDamage(),
+                    swordDef != nullptr ? swordDef->damage : 0, weaponOk ? "ok" : "bad");
+        ok = ok && weaponOk;
+
+        const fa::content::ContentId soup = fa::content::ContentId::fromName("item.turnip_soup");
+        const int soupBefore = hotbar.inventory().countOf(soup);
+        static_cast<void>(hotbar.select(3));
+        demoScene->setPlayerHealth(50.0f);
+        demoScene->setPlayerStamina(50.0f);
+        const fa::core::Status foodStatus = useSelectedFood();
+        const int soupAfter = hotbar.inventory().countOf(soup);
+        const bool foodOk = foodStatus.isOk() && soupAfter == soupBefore - 1 &&
+                            demoScene->playerHealth() > 50.0f &&
+                            demoScene->playerStamina() > 50.0f;
+        std::printf("play-test: food hp 50 -> %.0f, stamina 50 -> %.1f, soup %d -> %d -> %s\n",
+                    static_cast<double>(demoScene->playerHealth()),
+                    static_cast<double>(demoScene->playerStamina()), soupBefore, soupAfter,
+                    foodOk ? "ok" : "bad");
+        ok = ok && foodOk;
+        demoScene->setPlayerHealth(demoScene->playerMaxHealth());
+        demoScene->setPlayerStamina(demoScene->playerMaxStamina());
+        static_cast<void>(hotbar.select(0));
+
         const auto report = [&ok](const char* step, const fa::core::Status& status) {
             if (status.isOk()) {
                 std::printf("play-test: %s ok\n", step);
@@ -4617,12 +4814,18 @@ public:
         hazardCooldown = 0.0f;
         static_cast<void>(tickHazard());
         const int expectedGold = goldBeforeDeath - goldBeforeDeath / 10;
-        const bool deathOk = deathForestOk && demoScene->isFarm() &&
-                             demoScene->playerHealth() >= 99.0f &&
-                             flow->state() == fa::flow::AppState::Playing &&
-                             economy->gold() == expectedGold;
-        std::printf("play-test: thorns death %s, gold %d -> %d\n", deathOk ? "ok" : "bad",
-                    goldBeforeDeath, economy->gold());
+        const bool deathMenuOk = deathForestOk && demoScene->isForest() &&
+                                 flow->state() == fa::flow::AppState::GameOver &&
+                                 demoScene->playerHealth() <= 0.0f &&
+                                 economy->gold() == expectedGold;
+        const bool respawnOk = respawnFromDeath() && demoScene->isFarm() &&
+                               flow->state() == fa::flow::AppState::Playing &&
+                               demoScene->playerHealth() >= 99.0f &&
+                               economy->gold() == expectedGold;
+        const bool deathOk = deathMenuOk && respawnOk;
+        std::printf("play-test: thorns death menu %s, respawn %s, gold %d -> %d -> %s\n",
+                    deathMenuOk ? "ok" : "bad", respawnOk ? "ok" : "bad", goldBeforeDeath,
+                    economy->gold(), deathOk ? "ok" : "bad");
         ok = ok && deathOk;
 
         // Loot persistence on the forest map: save/load must restore the map too.
@@ -4692,6 +4895,71 @@ public:
                     pausedOk ? "ok" : "bad", slotListed ? "ok" : "bad", menuOk ? "ok" : "bad",
                     resumedOk ? "ok" : "bad");
         ok = ok && pausedOk && slotListed && menuOk && resumedOk;
+
+        // Crafting: add two turnips to the backpack, cook, advance 30 game minutes
+        // and collect. This is a play-only check, so it runs after the save round-trip.
+        const int soupForCraft = playerInventory->backpack().countOf(soup) +
+                                 hotbar.inventory().countOf(soup);
+        static_cast<void>(
+            playerInventory->backpack().add(fa::inventory::ItemStack{turnip, 2, -1}));
+        const fa::core::Status craftStatus = craftTurnipSoup();
+        economy->update(30);
+        const bool craftReady = economy->readyJobCount() > 0;
+        const fa::core::Status collectStatus = collectReadyCraft();
+        const int soupAfterCraft = playerInventory->backpack().countOf(soup) +
+                                   hotbar.inventory().countOf(soup);
+        const bool craftOk = craftStatus.isOk() && craftReady && collectStatus.isOk() &&
+                             soupAfterCraft == soupForCraft + 1;
+        std::printf("play-test: craft soup %s (ready %s, collect %s), soup %d -> %d -> %s\n",
+                    craftStatus.isOk() ? "ok" : "bad", craftReady ? "ok" : "bad",
+                    collectStatus.isOk() ? "ok" : "bad", soupForCraft, soupAfterCraft,
+                    craftOk ? "ok" : "bad");
+        ok = ok && craftOk;
+
+        // Death panel load path: die again in the forest and load the autosave.
+        if (demoScene->isFarm()) {
+            portalCooldown = 0.0f;
+            demoScene->teleportMarker(
+                demoScene->cellPosition(fa::tilemap::TileCoord{DemoScene::kColumns - 1, 11}));
+            static_cast<void>(checkPortal());
+        }
+        const bool deathLoadForest = demoScene->isForest();
+        demoScene->teleportMarker(demoScene->cellPosition(fa::tilemap::TileCoord{8, 14}));
+        demoScene->setPlayerHealth(10.0f);
+        hazardCooldown = 0.0f;
+        static_cast<void>(tickHazard());
+        hazardCooldown = 0.0f;
+        static_cast<void>(tickHazard());
+        const bool deathLoadMenu = deathLoadForest &&
+                                   flow->state() == fa::flow::AppState::GameOver;
+        const bool deathLoadOk = deathLoadMenu && loadFromDeath() &&
+                                 flow->state() == fa::flow::AppState::Playing;
+        std::printf("play-test: death load menu %s, loaded %s -> %s\n",
+                    deathLoadMenu ? "ok" : "bad",
+                    flow->state() == fa::flow::AppState::Playing ? "ok" : "bad",
+                    deathLoadOk ? "ok" : "bad");
+        ok = ok && deathLoadOk;
+
+        // Death panel main-menu path: die once more and return to the menu.
+        if (demoScene->isFarm()) {
+            portalCooldown = 0.0f;
+            demoScene->teleportMarker(
+                demoScene->cellPosition(fa::tilemap::TileCoord{DemoScene::kColumns - 1, 11}));
+            static_cast<void>(checkPortal());
+        }
+        demoScene->teleportMarker(demoScene->cellPosition(fa::tilemap::TileCoord{8, 14}));
+        demoScene->setPlayerHealth(10.0f);
+        hazardCooldown = 0.0f;
+        static_cast<void>(tickHazard());
+        hazardCooldown = 0.0f;
+        static_cast<void>(tickHazard());
+        const bool deathMainMenuOpen = flow->state() == fa::flow::AppState::GameOver;
+        const bool deathMainMenuOk = deathMainMenuOpen && mainMenuFromDeath() &&
+                                     flow->state() == fa::flow::AppState::MainMenu;
+        std::printf("play-test: death main-menu %s -> %s\n",
+                    deathMainMenuOpen ? "ok" : "bad",
+                    deathMainMenuOk ? "ok" : "bad");
+        ok = ok && deathMainMenuOk;
 
         std::printf("play-test: %s\n", ok ? "OK" : "FAILED");
         return ok;
@@ -5044,6 +5312,18 @@ public:
                 }
             }
         }
+
+        // F consumes the selected food item (soup restores health and stamina).
+        if (playMode && flow != nullptr && !editorActive && !dialogueOpen && !shopOpen &&
+            !inventoryOpen && flow->state() == fa::flow::AppState::Playing) {
+            for (const fa::platform::PlatformEvent& event : events) {
+                if (event.type == fa::platform::PlatformEventType::KeyDown &&
+                    event.scancode == fa::platform::Scancode::F) {
+                    static_cast<void>(useSelectedFood());
+                    break;
+                }
+            }
+        }
 #if defined(FA_ENABLE_DEBUG_TOOLS)
         /// The console swallows text/keys while it is open; everything else still
         /// reaches M07, so closing the console restores gameplay input exactly.
@@ -5105,16 +5385,20 @@ public:
                     0.0f, hazardCooldown - static_cast<float>(context.fixedDeltaSeconds));
             }
             static_cast<void>(tickHazard());
-            stack.fixedUpdate(context);
-            if (demoScene != nullptr) {
-                demoScene->advanceAnimation(static_cast<float>(context.fixedDeltaSeconds));
-                demoScene->advanceCombat(static_cast<float>(context.fixedDeltaSeconds));
-                demoScene->advanceAi(static_cast<float>(context.fixedDeltaSeconds));
+            // A lethal hazard changes the flow state to GameOver inside tickHazard;
+            // do not run one last player/physics step after that.
+            if (gameplayActive()) {
+                stack.fixedUpdate(context);
+                if (demoScene != nullptr) {
+                    demoScene->advanceAnimation(static_cast<float>(context.fixedDeltaSeconds));
+                    demoScene->advanceCombat(static_cast<float>(context.fixedDeltaSeconds));
+                    demoScene->advanceAi(static_cast<float>(context.fixedDeltaSeconds));
+                }
+                processPlayerActions();
+                processCombatEvents();
+                collectLoot();
+                processNarrativeEvents();
             }
-            processPlayerActions();
-            processCombatEvents();
-            collectLoot();
-            processNarrativeEvents();
         }
         if (demo != nullptr) {
             demo->beginTick(context.fixedStepIndex);
@@ -5125,6 +5409,24 @@ public:
         lastRealDelta = context.realDeltaSeconds;
         if (calendar != nullptr) {
             calendar->advance(static_cast<float>(context.realDeltaSeconds));
+            const float now = calendar->timeOfDay();
+            if (playMode && economy != nullptr && gameplayActive() &&
+                lastEconomyTimeOfDay >= 0.0f) {
+                float delta = now - lastEconomyTimeOfDay;
+                if (delta < 0.0f) {
+                    delta += 24.0f;
+                }
+                // Accumulate fractional minutes: at 60 FPS a 1 s/game-minute clock
+                // advances by only 0.0167 minutes per frame, so rounding here would
+                // never reach a whole minute.
+                economyMinuteCarry += delta * 60.0f;
+                const int minutes = static_cast<int>(economyMinuteCarry);
+                if (minutes > 0) {
+                    economy->update(minutes);
+                    economyMinuteCarry -= static_cast<float>(minutes);
+                }
+            }
+            lastEconomyTimeOfDay = now;
             // The composition root owns forwarding; counting and clearing here keeps
             // the internal event vector from growing for the life of the process.
             calendarEvents += calendar->events().size();
@@ -5265,6 +5567,10 @@ public:
     std::unique_ptr<fa::world::WorldCalendar> calendar;
     fa::world::LightSet lights;
     std::uint64_t calendarEvents = 0;
+    /// \brief Last sampled game time, used to advance processing jobs by minutes.
+    float lastEconomyTimeOfDay = -1.0f;
+    /// \brief Fractional game minutes not yet handed to `EconomyService::update`.
+    float economyMinuteCarry = 0.0f;
     /// \brief M25 state machine; declared after its borrowed services.
     std::unique_ptr<fa::flow::GameFlow> flow;
     FlowDemoStats flowDemo;
@@ -5278,6 +5584,9 @@ public:
     fa::core::Rng m_lootRng{0x5eed1234ULL};
     std::string playMessage;
     float playMessageTimer = 0.0f;
+    /// \brief Penalty applied by the most recent death, shown on the GameOver panel.
+    int lastDeathPenalty = 0;
+    std::string lastDeathReason = "THORNS";
     int quitEvents = 0;
     int resizeEvents = 0;
     int renderedFrames = 0;
@@ -5550,6 +5859,18 @@ private:
                                                 panel.w - 24.0f, 8.0f),
                  label);
 
+        const fa::content::ContentId soup = fa::content::ContentId::fromName("item.turnip_soup");
+        const int soupCount =
+            playerInventory != nullptr ? playerInventory->backpack().countOf(soup) +
+                                             playerInventory->hotbar().inventory().countOf(soup)
+                                       : 0;
+        const std::size_t readyJobs = economy != nullptr ? economy->readyJobCount() : 0;
+        char soupText[64]{};
+        std::snprintf(soupText, sizeof(soupText), "SOUP %d   READY %zu", soupCount, readyJobs);
+        ui->text(soupText, fa::core::makeRect(panel.x + 12.0f, panel.y + 70.0f,
+                                              panel.w - 24.0f, 8.0f),
+                 label);
+
         const auto press = [this](const char* id, const char* text, float x, float y, float w) {
             const bool pressed = ui->button(fa::ui::UiId::fromName(id), text,
                                             fa::core::makeRect(x, y, w, 18.0f))
@@ -5568,7 +5889,16 @@ private:
             const fa::core::Status status = sellToShop(turnip, 1);
             setShopMessage(status.isOk() ? "SOLD 1 TURNIP" : status.error().message);
         }
-        if (press("shop.close", "CLOSE", panel.x + 12.0f, panel.y + 104.0f, 90.0f)) {
+        if (press("shop.cook", "COOK SOUP (2 TURNIP)", panel.x + 12.0f, panel.y + 100.0f,
+                  256.0f)) {
+            const fa::core::Status status = craftTurnipSoup();
+            setShopMessage(status.isOk() ? "COOKING 30 MIN" : status.error().message);
+        }
+        if (press("shop.collect", "COLLECT", panel.x + 12.0f, panel.y + 122.0f, 120.0f)) {
+            const fa::core::Status status = collectReadyCraft();
+            setShopMessage(status.isOk() ? "COLLECTED SOUP" : status.error().message);
+        }
+        if (press("shop.close", "CLOSE", panel.x + 140.0f, panel.y + 122.0f, 128.0f)) {
             shopOpen = false;
             static_cast<void>(flow->exitDialogue());
             return;
@@ -5578,7 +5908,7 @@ private:
             fa::ui::TextStyle message = label;
             message.color = theme.accent;
             ui->text(shopMessage.substr(0, 40),
-                     fa::core::makeRect(panel.x + 12.0f, panel.y + 132.0f, panel.w - 24.0f, 8.0f),
+                     fa::core::makeRect(panel.x + 12.0f, panel.y + 148.0f, panel.w - 24.0f, 8.0f),
                      message);
         }
     }
@@ -5590,7 +5920,8 @@ private:
         }
         const bool showMainMenu = state == fa::flow::AppState::MainMenu;
         const bool showPause = state == fa::flow::AppState::Paused;
-        if (!showMainMenu && !showPause && !slotsOpen) {
+        const bool showGameOver = state == fa::flow::AppState::GameOver;
+        if (!showMainMenu && !showPause && !showGameOver && !slotsOpen) {
             return;
         }
 
@@ -5694,6 +6025,43 @@ private:
             }
             ui->text("ESC RESUME",
                      fa::core::makeRect(panel.x + 12.0f, panel.y + 138.0f, panel.w - 24.0f, 8.0f),
+                     dim);
+        }
+
+        if (showGameOver && !slotsOpen) {
+            const fa::core::Rect panel = centeredRect(300.0f, 200.0f);
+            ui->panel(panel, theme.panel);
+            ui->border(panel, theme.panelBorder);
+            ui->text("YOU PASSED OUT",
+                     fa::core::makeRect(panel.x + 8.0f, panel.y + 10.0f, panel.w - 16.0f, 16.0f),
+                     title);
+
+            char reasonText[64]{};
+            std::snprintf(reasonText, sizeof(reasonText), "%s  -%d GOLD",
+                          lastDeathReason.c_str(), lastDeathPenalty);
+            ui->text(reasonText,
+                     fa::core::makeRect(panel.x + 8.0f, panel.y + 36.0f, panel.w - 16.0f, 8.0f),
+                     centeredLabel);
+            ui->text("PENALTY ALREADY APPLIED",
+                     fa::core::makeRect(panel.x + 8.0f, panel.y + 48.0f, panel.w - 16.0f, 8.0f),
+                     dim);
+
+            const float buttonWidth = 180.0f;
+            const float buttonX = panel.x + (panel.w - buttonWidth) * 0.5f;
+            if (press("death.respawn", "RESPAWN AT BED", buttonX, panel.y + 68.0f, buttonWidth,
+                      20.0f)) {
+                static_cast<void>(respawnFromDeath());
+            }
+            if (press("death.load", "LOAD AUTOSAVE", buttonX, panel.y + 94.0f, buttonWidth,
+                      20.0f)) {
+                static_cast<void>(loadFromDeath());
+            }
+            if (press("death.menu", "MAIN MENU", buttonX, panel.y + 120.0f, buttonWidth,
+                      20.0f)) {
+                static_cast<void>(mainMenuFromDeath());
+            }
+            ui->text("CHOOSE HOW TO CONTINUE",
+                     fa::core::makeRect(panel.x + 8.0f, panel.y + 154.0f, panel.w - 16.0f, 8.0f),
                      dim);
         }
 
@@ -5837,7 +6205,7 @@ private:
         }
 
         if (playMode && !inMenu) {
-            const fa::core::Rect panel = fa::core::makeRect(254.0f, 96.0f, 214.0f, 64.0f);
+            const fa::core::Rect panel = fa::core::makeRect(254.0f, 96.0f, 214.0f, 76.0f);
             ui->panel(panel, theme.panel);
             ui->border(panel, theme.panelBorder);
 
@@ -5892,6 +6260,21 @@ private:
                          fa::core::makeRect(panel.x + 5.0f, messageY, 204.0f, 8.0f),
                          messageStyle);
             }
+
+            const fa::content::ItemDef* weaponDef = nullptr;
+            if (playerInventory != nullptr) {
+                const fa::inventory::ItemStack& weapon =
+                    playerInventory->equipment().at(fa::inventory::EquipmentSlot::Weapon);
+                if (!weapon.empty()) {
+                    weaponDef = content.item(weapon.id);
+                }
+            }
+            char weaponText[64]{};
+            std::snprintf(weaponText, sizeof(weaponText), "WEAPON %s  DMG %d",
+                          weaponDef != nullptr ? weaponDef->displayName.c_str() : "UNARMED",
+                          weaponDamage());
+            ui->text(weaponText, fa::core::makeRect(panel.x + 5.0f, panel.y + 53.0f, 204.0f, 8.0f),
+                     style);
         }
 
 #if defined(FA_ENABLE_DEBUG_TOOLS)

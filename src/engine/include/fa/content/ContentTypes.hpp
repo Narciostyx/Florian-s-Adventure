@@ -54,6 +54,12 @@ struct ItemDef {
     assets::AssetId icon;
     int maxStack = 99;
     int sellPrice = 0;
+    /// \brief Melee damage when equipped as a weapon; 0 means "not a weapon".
+    int damage = 0;
+    /// \brief Health restored when consumed; 0 means "no healing".
+    int healAmount = 0;
+    /// \brief Stamina restored when consumed; 0 means "no stamina effect".
+    int staminaRestore = 0;
     /// \brief `seed`, `crop`, `tool`, `weapon`, `material`, `food`, ...
     std::string category;
     /// \brief Optional gameplay tool mapping: `hoe`, `watering_can`, `seed`,

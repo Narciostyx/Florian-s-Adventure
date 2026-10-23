@@ -126,6 +126,16 @@ foreach ($cfg in @('Debug','Development','Release')) {
 - 本次实测：`fa_tests.exe` 554 用例 / 30416 断言全绿；`--frames 60` 与
   `--play-test` 三配置 exit 0。
 
+### 加工/食物接入 play（2026-10-23）
+
+- 商店面板新增 `COOK SOUP` 与 `COLLECT`；做汤从背包扣 2 萝卜，不足时先从快捷栏
+  转移。
+- `onVariableUpdate` 按游戏分钟累计并调用 `EconomyService::update()`；30 游戏分钟后
+  job 变为 ready，`COLLECT` 把汤放回背包。
+- `F` 使用选中食物；汤按 `ItemDef::healAmount`/`staminaRestore` 恢复 20 HP / 30 体力。
+- `--play-test` 新增 `weapon damage`、`food` 与 `craft soup` 校验；当前全量
+  `fa_tests.exe` 为 558 用例 / 30454 断言。
+
 ## 5. 已知限制 / 后续
 
 - 商店是基础面板（买种子/卖萝卜），没有交易确认、分类与季节库存。

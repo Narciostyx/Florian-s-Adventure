@@ -73,6 +73,7 @@ M02+M03+M04+M05+M06+M07+M11+M12+M13+M15+M16+M17 smoke test OK
 | 11 | 资源校验 | 只校验 `AssetId` 语法 | 需要 catalog 才能查声明与否 |
 | 12 | 错误码 | 6000–6008 | Save/Content 段的前 9 个 |
 | 13 | 玩法工具映射 | `ItemDef::toolKind` 可选字符串 | M15 不依赖 M17 `ToolKind`；组装根在使用点转换，未知值在加载期报 `kInvalidField` |
+| 14 | 武器/食物数值 | `damage`、`heal_amount`、`stamina_restore` | 都是非负整数；武器伤害由 app 读取，食物效果由 app 在 `F` 使用后应用 |
 
 ## 5. 踩坑
 

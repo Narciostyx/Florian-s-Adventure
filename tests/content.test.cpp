@@ -438,6 +438,38 @@ TEST_CASE("Content database clear removes definitions and errors", "[content]") 
     REQUIRE(db.crop("crop.turnip") == nullptr);
 }
 
+TEST_CASE("Item combat and food fields are parsed", "[content][items]") {
+    ContentDatabase db;
+    REQUIRE(db.loadDocument(R"({
+        "schema_version": 1,
+        "items": [
+            {"id": "item.sword", "display_name": "Sword", "category": "weapon",
+             "tool_kind": "sword", "damage": 12},
+            {"id": "item.soup", "display_name": "Soup", "category": "food",
+             "heal_amount": 20, "stamina_restore": 30}
+        ]
+    })")
+                .isOk());
+
+    const fa::content::ItemDef* sword = db.item("item.sword");
+    REQUIRE(sword != nullptr);
+    REQUIRE(sword->damage == 12);
+    const fa::content::ItemDef* soup = db.item("item.soup");
+    REQUIRE(soup != nullptr);
+    REQUIRE(soup->healAmount == 20);
+    REQUIRE(soup->staminaRestore == 30);
+}
+
+TEST_CASE("Item combat and food fields reject negatives", "[content][items]") {
+    ContentDatabase db;
+    REQUIRE(db.loadDocument(R"({
+        "schema_version": 1,
+        "items": [{"id": "item.bad", "display_name": "Bad", "category": "weapon",
+                   "damage": -1}]
+    })")
+                .isError());
+}
+
 TEST_CASE("Content optional fields use playable defaults", "[content][defaults]") {
     ContentDatabase db;
     REQUIRE(db.loadDocument(R"({
@@ -456,6 +488,9 @@ TEST_CASE("Content optional fields use playable defaults", "[content][defaults]"
     REQUIRE(item != nullptr);
     REQUIRE(item->maxStack == 99);
     REQUIRE(item->sellPrice == 0);
+    REQUIRE(item->damage == 0);
+    REQUIRE(item->healAmount == 0);
+    REQUIRE(item->staminaRestore == 0);
     REQUIRE(item->tags.empty());
     REQUIRE_FALSE(item->icon.isValid());
 

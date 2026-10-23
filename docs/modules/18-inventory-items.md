@@ -36,7 +36,8 @@
 
 **后续接入（本模块不负责）**
 
-- 具体食物/种子/工具效果：M19/M20 注册 `IItemUseHandler`。
+- 具体食物/种子/工具效果：M19/M20 注册 `IItemUseHandler`。play 的 `F` 会调用
+  `ItemUseService`，汤按 `healAmount`/`staminaRestore` 回复生命与体力。
 - 背包 UI 布局、拖放与滚动：M09/M26；M18 只提供数据与稳定槽位。
 - 商店扣钱与给物品的原子事务：M24。
 - 存档文件与版本迁移：M14；M18 只提供快照/恢复。

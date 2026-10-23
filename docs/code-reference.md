@@ -840,7 +840,7 @@ classDiagram
 |---|---|
 | `ContentId` | `fromName`、`name`、`isValid`；点分小写命名约定 |
 | `ContentDatabase` | `loadDocument`、`validate`、`item`、`crop`、`recipe`、`enemy`、`lootTable`、`items`、`crops`、`recipes`、`enemies`、`lootTables`、`itemsWithTag`、`itemsWithCategory`、`errors`、`stats`、`schemaVersion`、`contentVersion`、`clear` |
-| `ItemDef` | `id`、`displayName`、`description`、`icon`、`maxStack`、`sellPrice`、`category`、`toolKind`、`tags` |
+| `ItemDef` | `id`、`displayName`、`description`、`icon`、`maxStack`、`sellPrice`、`damage`、`healAmount`、`staminaRestore`、`category`、`toolKind`、`tags` |
 | `CropDef` | `id`、`seedItem`、`harvestItem`、`stageDays`、`stageSprites`、`seasons`、`regrow`、`regrowDays` |
 | `RecipeDef` | `inputs`、`output`、`requiredMinutes`、`machineKind`、`seasons` |
 | `EnemyDef` / `LootTableDef` / `LootEntry` | 敌人属性/掉落表/条目 |
@@ -857,7 +857,7 @@ classDiagram
 |---|---|---|---|
 | `ContentDatabase` | 拥有物品/作物/配方/敌人/掉落定义与校验错误 | 内容定义的中心表 | `loadDocument` 合并/解析；`validate` 引用完整性；`item/crop/...` 查询；`itemsWithTag/Category` 过滤；`stats` 汇总 |
 | `ContentId` | 纯值 | 点分命名 id | `fromName/name/isValid` |
-| `ItemDef` / `CropDef` / `RecipeDef` / `EnemyDef` / `LootTableDef` | 纯值，被数据库拥有 | 内容属性 | 字段读取；不持有运行时指针 |
+| `ItemDef` / `CropDef` / `RecipeDef` / `EnemyDef` / `LootTableDef` | 纯值，被数据库拥有 | 内容属性（含武器 `damage` 与食物 `healAmount`/`staminaRestore`） | 字段读取；不持有运行时指针 |
 | `ContentError` | 纯值 | 校验错误 | `code/context/message` |
 
 ### M16 Player Controller
@@ -946,7 +946,7 @@ classDiagram
 | `Hotbar` | 组合一个 `Inventory` | 选中槽与循环 | `select/cycle/selectedStack`；转发容量查询 |
 | `Equipment` | 拥有 Tool/Weapon 槽 | 装备槽 | `equip/unequip/at` |
 | `PlayerInventory` | 拥有背包/快捷栏/装备 | 玩家三容器门面 | `backpack/hotbar/equipment`；`moveToHotbar/moveToBackpack` |
-| `ItemUseService` / `IItemUseHandler` | 服务拥有 handler 指针 | 使用分发 | `use` 找 handler；`registerHandler` |
+| `ItemUseService` / `IItemUseHandler` | 服务拥有 handler 指针 | 使用分发 | `use` 找 handler；`registerHandler`；play 的 `F` 食用汤并应用 `healAmount`/`staminaRestore` |
 | `ItemStack` | 纯值 | id/数量/耐久 | `empty/id/count` |
 
 ### M19 Farming & World Objects
@@ -999,7 +999,7 @@ classDiagram
 
 | 类型 | 关系 | 类职责 | 方法职责 |
 |---|---|---|---|
-| `CombatService` | 拥有攻击/投射物/状态表；借用 `PhysicsWorld` | 伤害结算与战斗事件 | `spawnAttack/spawnProjectile` 建实例；`applyStatus` 加状态；`update` 推进窗口/投射物/DoT；`stats` 快照 |
+| `CombatService` | 拥有攻击/投射物/状态表；借用 `PhysicsWorld` | 伤害结算与战斗事件 | `spawnAttack/spawnProjectile` 建实例；`applyStatus` 加状态；`update` 推进窗口/投射物/DoT；`stats` 快照；app 用装备武器的 `ItemDef::damage` 调用 `playerAttack` |
 | `AttackHitbox` / `ProjectileDesc` / `StatusEffect` | 纯值请求 | 攻击/投射物/状态参数 | 字段读取 |
 | `DamageEvent` / `DeathEvent` / `ProjectileEvent` / `StatusEvent` | 纯值事件 | 战斗结果 | app 消费并决定掉落/销毁 |
 
@@ -1106,7 +1106,7 @@ classDiagram
 
 | 类型 | 关系 | 类职责 | 方法职责 |
 |---|---|---|---|
-| `EconomyService` | 拥有金币/出货/加工/每日余量；借用 `Inventory` 与 `ContentDatabase` | 交易与日结 | `buy/sell` 原子交易；`ship` 待结算；`startCraft/update/collectCraft` 加工；`onDayChanged` 结算；`restore*` 读档 |
+| `EconomyService` | 拥有金币/出货/加工/每日余量；借用 `Inventory` 与 `ContentDatabase` | 交易与日结 | `buy/sell` 原子交易；`ship` 待结算；`startCraft/update/collectCraft` 加工；`onDayChanged` 结算；`restore*` 读档；app 商店面板暴露做汤/收取 |
 | `ShopDatabase` | 拥有商店/条目定义 | 商店内容表 | `loadDocument` 解析；`shops/find` 查询 |
 | `ShopDef` / `ShopEntry` / `ProcessingJob` / `EconomyStats` | 纯值 | 商店/加工/统计 | 字段读取 |
 
@@ -1133,7 +1133,7 @@ classDiagram
 
 | 类型 | 关系 | 类职责 | 方法职责 |
 |---|---|---|---|
-| `GameFlow` / `IGameFlow` | 拥有会话/事件/回调；借用存档、日历、经济、叙事 | 应用状态机与日终流程 | `startNewGame/loadGame/saveGame/saveToSlot`；`requestPause/enterDialogue/exitDialogue`；`endDay/requestGameOver/respawn/requestQuit` |
+| `GameFlow` / `IGameFlow` | 拥有会话/事件/回调；借用存档、日历、经济、叙事 | 应用状态机与日终流程 | `startNewGame/loadGame/saveGame/saveToSlot`；`requestPause/enterDialogue/exitDialogue`；`endDay/requestGameOver/respawn/requestQuit`；GameOver 可直接 `loadGame` 或 `enterMainMenu` |
 | `GameSession` / `FlowEvent` / `FlowStats` | 纯值 | 会话、事件、统计 | 字段读取 |
 | `Sleep.hpp` | 自由函数/常量 | 睡眠时长与恢复曲线 | `sleepHoursUntil/sleepRecovery` 纯计算 |
 
@@ -1210,19 +1210,19 @@ classDiagram
 | `DemoMap` | `Farm` / `Forest`，决定构建哪张地图与读取哪个 JSON |
 | `GameState` | 跨场景状态：农田、演示背包、杂物、工具 handler、叙事、玩家生命/耐力/朝向；由 `SmokeSink` 拥有 |
 | `DemoScene` | 构建**一张**地图（Farm 或 Forest）：从 `data/maps/*.json` 读布局（缺失回落代码内布局）、按 `textureName` 绑纹理、创建实体/农田/传送/荆棘，注册 Player/Physics/Tilemap/SpriteExtract 系统，运行 M17/M19/M23 脚本；`startNpcDialogue()` 开 Elder 对话；借用 `GameState` |
-| `SmokeSink` | `IFrameSink` 实现：事件路由、固定步、日历推进、渲染与 HUD，持有全部服务、`GameState` 与 `SceneStack`；`makeDemoScene()`/`switchMap()` 换图，`openNpcDialogue()`/`chooseDialogue()`/`advanceDialogue()` 管对话，`processNarrativeEvents()` 结算任务 |
+| `SmokeSink` | `IFrameSink` 实现：事件路由、固定步、日历推进、渲染与 HUD，持有全部服务、`GameState` 与 `SceneStack`；`makeDemoScene()`/`switchMap()` 换图，`openNpcDialogue()`/`chooseDialogue()`/`advanceDialogue()` 管对话，`processNarrativeEvents()` 结算任务，`respawnFromDeath()`/`loadFromDeath()`/`mainMenuFromDeath()` 管 GameOver 面板 |
 | 各 `*DemoStats` | 每个模块的冒烟摘要快照 |
 
 **启动选项**：`--window` 显示窗口并默认进入 play（可用 `--play` 显式指定）；`--frames N` 无窗口时跑 scripted smoke；`--play-test` 无头跑通对话/任务/种植/战斗/换图/存档并返回失败码。
 
 **地图装配**：`makeDemoScene(map, spawn)` 按 `DemoMap` 选择 `maps/farm.json`、`maps/farm-scripted.json` 或 `maps/forest.json`，把文本交给 `DemoScene`；`loadTilemapFromJson()` 成功后 `m_mapLoaded=true`，失败则用 `buildWorld()` 的代码内布局。`switchMap()` 调 `SceneStack::replace()`，随后重建编辑器并重新链玩家快捷栏；`GameState` 保证农田/叙事/生命耐力跨图不丢。
 
-**play 运行时**：`LootDrop` 是 app-local 组件并写入 `world.loot`；`processPlayerActions()` 消费 UseTool/Attack/Interact（Elder/床/出货箱/商人），`I` 开背包面板；`processCombatEvents()` 掷掉落/销毁敌人，`collectLoot()` 在 14 px 内自动拾取；`checkPortal()` 命中 `portalAt()` 后按目标地图 `replace` 场景；`tickHazard()` 只在林地生效，生命归零时切回农场床边并扣 10% 金币。Elder 对话走 `openNpcDialogue()` → `NarrativeService::startDialogue()` + `flow->enterDialogue()`；Digit1–2/Enter 路由到 `chooseDialogue`/`advanceDialogue`，图结束时 `syncDialogueState()` 退出 Dialogue；收获/拾取上报 `Collect`，`processNarrativeEvents()` 把 `QuestCompleted.goldReward` 写入经济并显示任务行。
+**play 运行时**：`LootDrop` 是 app-local 组件并写入 `world.loot`；`processPlayerActions()` 消费 UseTool/Attack/Interact（Elder/床/出货箱/商人），`F` 食用选中食物，`I` 开背包面板；攻击伤害来自装备武器的 `ItemDef::damage`；商店面板可做汤/收取；`processCombatEvents()` 掷掉落/销毁敌人，`collectLoot()` 在 14 px 内自动拾取；`checkPortal()` 命中 `portalAt()` 后按目标地图 `replace` 场景；`tickHazard()` 只在林地生效，生命归零时先扣一次 10% 金币并进入 `GameOver`，`buildFlowMenus()` 提供复活/读自动存档/主菜单。Elder 对话走 `openNpcDialogue()` → `NarrativeService::startDialogue()` + `flow->enterDialogue()`；Digit1–2/Enter 路由到 `chooseDialogue`/`advanceDialogue`，图结束时 `syncDialogueState()` 退出 Dialogue；收获/拾取上报 `Collect`，`processNarrativeEvents()` 把 `QuestCompleted.goldReward` 写入经济并显示任务行。
 
 **主循环顺序**（`SmokeSink`）：
 
 1. `onEvents`：编辑器/对话/控制台先消费事件，其余转发给 M07。
-2. `onFixedUpdate`：先 `checkPortal()`/`tickHazard()`（可能 `SceneStack::replace`），再 `stack.fixedUpdate`（Player → Physics → TilemapExtract → SpriteExtract）；随后动画/战斗/AI 推进、玩家动作/战斗事件/拾取与 M03 tick。
+2. `onFixedUpdate`：先 `checkPortal()`/`tickHazard()`（可能 `SceneStack::replace` 或进入 `GameOver`）；只有仍处于 `Playing` 才继续 `stack.fixedUpdate`（Player → Physics → TilemapExtract → SpriteExtract）、动画/战斗/AI、玩家动作/战斗事件/拾取与 M03 tick。
 3. `onVariableUpdate`：M22 `calendar.advance` + 事件计数；快捷栏/滚轮/目标高亮；场景 variable update。
 4. `onRender`：M08 `update`、`renderFrame()`（M05 上传 → 相机跟随 → 提取 → HUD → 农田/天气 → 调试绘制）、M27 统计刷新。
 5. 循环结束后：M14 存档 smoke、M25 流程 smoke、汇总打印、按依赖逆序 shutdown。

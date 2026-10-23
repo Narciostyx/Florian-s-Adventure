@@ -18,7 +18,7 @@
 ## 2. 实测结果
 
 > 下表是 M16 初次交付的历史快照；体力消耗补丁后的最新数字见 §6.2
-> （`[player]` 17 用例 / 151 断言，全量 556 用例 / 30444 断言）。
+> （`[player]` 17 用例 / 151 断言，全量 558 用例 / 30454 断言）。
 
 | 检查 | Debug | Development | Release |
 |---|---|---|---|
@@ -179,7 +179,7 @@ foreach ($cfg in @('Debug','Development','Release')) {
   `NOT ENOUGH STAMINA`。
 - app 从 `config/game.json` 的 `stamina` 段读取 `max`、`regen_per_second`、
   `run_drain_per_second`、`dodge_cost`、`attack_cost`、`tool_cost`，启动时打印。
-- 测试：`[player]` 17 用例 / 151 断言；全量 556 用例 / 30444 断言（三种配置一致）。
+- 测试：`[player]` 17 用例 / 151 断言；全量 558 用例 / 30454 断言（三种配置一致）。
 
 ## 7. 遗留风险
 

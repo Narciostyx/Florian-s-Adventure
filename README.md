@@ -5,9 +5,9 @@
 > 当前状态：**28 个模块已实现并通过三配置实测**。`--play` 可进入可操作会话：
 > 主菜单/暂停/存档槽、种植、近战/掉落、睡眠日终、棋盘与商店、
 > 农场↔林地独立地图切换（`SceneStack::replace`）、Elder 对话/任务/奖励、
-> 体力消耗（奔跑/闪避/攻击/工具，JSON 可配）、F3 角色坐标、背包面板、
-> 荆棘死亡/床边复活、数据/配置/地图 JSON/PNG 纹理均已接通；
-> 剩余死亡菜单与部分存档段。
+> 体力消耗（奔跑/闪避/攻击/工具，JSON 可配）、武器伤害、食物使用、
+> 商店做汤/收取、F3 角色坐标、背包面板、荆棘死亡/床边复活、
+> 数据/配置/地图 JSON/PNG 纹理均已接通；剩余死亡菜单与部分存档段。
 > 详见 [计划完成情况](docs/plan-status.md) 与 [垂直切片](docs/roadmap/vertical-slice.md)。
 
 ## 目标
@@ -131,15 +131,20 @@ $msbuild='C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\
 | `Space` | 闪避/冲刺，消耗一次体力 |
 | `1`–`9` / 滚轮 | 选择快捷栏（1 锄头、2 浇水壶、3 萝卜种子） |
 | 左键 | 使用当前工具/种子；指向成熟作物自动收获（消耗体力） |
-| 右键 | 近战攻击；敌人死亡后掉落并自动拾取（消耗体力） |
-| `E` | Elder 对话；床边睡觉；出货箱出货；商人开商店 |
+| 右键 | 近战攻击（伤害读取装备武器 `damage`）；敌人死亡后掉落并自动拾取 |
+| `F` | 食用选中的食物（汤：+20 HP、+30 体力） |
+| `E` | Elder 对话；床边睡觉；出货箱出货；商人开商店（可做汤/收取） |
 | `I` | 打开背包面板（点击 MOVE 在背包/快捷栏间移动） |
 | `Esc` | 关闭面板 / 暂停（继续/保存/存档槽/主菜单） |
+| 死亡 | GameOver 面板：`RESPAWN AT BED` / `LOAD AUTOSAVE` / `MAIN MENU`（鼠标） |
 | 反引号 | 调试控制台（`time.addDays N`、`time.set HH:MM`、`give`、`teleport`） |
 | `F3` / `F4` / `F5` | 统计（含角色世界/格子坐标）/ 日志 / 物理调试（非 Release） |
 
 体力数值在 `config/game.json` 的 `stamina` 段配置：`max`、`regen_per_second`、
 `run_drain_per_second`、`dodge_cost`、`attack_cost`、`tool_cost`。
+武器伤害与食物效果在 `data/content.json` 的 `damage`、`heal_amount`、
+`stamina_restore` 字段配置。商店面板新增 `COOK SOUP`（消耗 2 个萝卜，30 游戏分钟）
+与 `COLLECT`。
 
 ## 许可证
 

@@ -316,6 +316,28 @@ core::Status ContentDatabase::loadDocument(std::string_view json) {
                         continue;
                     }
                 }
+                if (entry.contains("damage")) {
+                    if (!readIntField(entry, "damage", def.damage) || def.damage < 0) {
+                        addError(content_error::kInvalidAmount, context, "\"damage\" must be >= 0");
+                        continue;
+                    }
+                }
+                if (entry.contains("heal_amount")) {
+                    if (!readIntField(entry, "heal_amount", def.healAmount) ||
+                        def.healAmount < 0) {
+                        addError(content_error::kInvalidAmount, context,
+                                 "\"heal_amount\" must be >= 0");
+                        continue;
+                    }
+                }
+                if (entry.contains("stamina_restore")) {
+                    if (!readIntField(entry, "stamina_restore", def.staminaRestore) ||
+                        def.staminaRestore < 0) {
+                        addError(content_error::kInvalidAmount, context,
+                                 "\"stamina_restore\" must be >= 0");
+                        continue;
+                    }
+                }
                 if (!readTags(entry, def.tags, context, m_parseErrors)) {
                     continue;
                 }

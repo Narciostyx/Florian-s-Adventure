@@ -27,8 +27,9 @@
 - 事件缓冲：`DamageEvent`、`DeathEvent`、`ProjectileEvent`、`StatusEvent`，由组装根决定是否发布到 M03。
 - `CombatStats`：攻击/命中/伤害/击杀/投射物/状态 tick。
 - app 演示：两个敌人 dummy、两次近战、一支投射物、一次中毒；近战击杀一个 dummy。
-- play 模式：右键在朝向前方生成 20×20 近战盒（伤害 10）；app 消费 `DeathEvent`、
-  按 `LootSource` 掷掉落、销毁敌人，并在玩家靠近时把 `LootDrop` 收进背包。
+- play 模式：右键在朝向前方生成 20×20 近战盒；伤害读取装备武器的
+  `ItemDef::damage`（木剑 12，空手 5）；app 消费 `DeathEvent`、按 `LootSource`
+  掷掉落、销毁敌人，并在玩家靠近时把 `LootDrop` 收进背包。
 
 **未实现 / 后续**
 

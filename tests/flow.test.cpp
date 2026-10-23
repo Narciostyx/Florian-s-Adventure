@@ -229,6 +229,13 @@ TEST_CASE("Saving and loading use the builder and apply handler", "[flow]") {
     CHECK(flow.stats().loads == 1);
     CHECK(applied);
 
+    // GameOver may load directly; this is the death panel's "Load autosave" path.
+    REQUIRE(flow.requestGameOver("hp").isOk());
+    CHECK(flow.state() == AppState::GameOver);
+    REQUIRE(flow.loadGame("slot1").isOk());
+    CHECK(flow.state() == AppState::Playing);
+    CHECK(flow.stats().loads == 2);
+
     REQUIRE(flow.enterMainMenu().isOk());
     saves.failLoad = true;
     CHECK(flow.loadGame("slot1").error().code == fa::save::save_error::kIoFailure);

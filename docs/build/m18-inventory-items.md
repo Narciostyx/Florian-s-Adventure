@@ -98,6 +98,15 @@ M02+M03+M04+M05+M06+M07+M09+M11+M12+M13+M15+M16+M17+M18 smoke test OK
 | 13 | 转移 | 先算目标容量再移动，满目标移动 0 | 不做“移一半再回滚” |
 | 14 | `/EHsc` | 不开启 | 无 JSON/chrono/unordered_map |
 
+### play 食物使用（2026-10-23）
+
+- `F` 调用 `ItemUseService::use(hotbar, selected, player)`；`ConsumableUseHandler`
+  负责 `removeAt(slot, 1)`，M18 仍不解释“食物效果”。
+- app 在成功后读取 `ItemDef::healAmount`/`staminaRestore` 并调用
+  `DemoScene::setPlayerHealth`/`setPlayerStamina`；汤为 +20 HP / +30 体力。
+- play 初始快捷栏为锄头/水壶/种子/汤；汤也可通过商店 `COOK SOUP` 获得。
+- `--play-test` 校验 `F` 后汤数量 -1、生命 50→70、体力 50→80。
+
 ## 5. 踩坑
 
 1. **`ItemStack::empty()` 把“数量 ≤ 0”和“id 无效”合并了。** `setSlot(0, {invalidId, 1})`

@@ -109,8 +109,9 @@ foreach ($cfg in @('Debug','Development','Release')) {
 
 ### 玩法验证补丁
 
-- play 模式右键生成朝向前方的近战盒；app 消费 `DeathEvent`，按 `LootSource` 掷掉落，
-  玩家靠近 14 px 内自动拾取到背包。
+- play 模式右键生成朝向前方的近战盒；伤害由 app 读取装备武器的
+  `ItemDef::damage`（木剑 12、空手 5）后传给 `playerAttack`。app 消费
+  `DeathEvent`，按 `LootSource` 掷掉落，玩家靠近 14 px 内自动拾取到背包。
 - `--play-test` 增加战斗段：2 次攻击击杀 dummy，确定性掉落 2 个种子。
 - 脚本冒烟仍走原 M20 序列，不改 `m20:` 摘要语义。
 
