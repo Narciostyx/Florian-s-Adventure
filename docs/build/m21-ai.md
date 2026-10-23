@@ -113,7 +113,8 @@ foreach ($cfg in @('Debug','Development','Release')) {
 - 没有寻路任务池/每帧上限；大量 agent 同时重算会推高固定步耗时。
 - 没有听觉、区域仇恨、群体编队、包围或召唤。
 - 没有 NPC 日程；M22 的 `HourChanged` 接入留给 M23/M25。
-- 没有 AI 存档；读档后 agent 回到初始状态（由 M14/M25 决定格式）。
+- AI 存档由 P0-3 接入：`AiAgentSnapshot` 保存状态/计时器，目标用稳定 role 解析；
+  读档后路径通过 `clearPaths()` 重建。
 - 没有巡逻点列表、动态障碍重算、卡角落脱困或传送回出生点。
 - `Flee` 目前只往 home 跑，没有逃跑方向评分。
 - app 没有 AI 路径/视野调试绘制；M27 后续可读 `AiStats` 与 `AiAgent`。

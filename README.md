@@ -7,7 +7,8 @@
 > 农场↔林地独立地图切换（`SceneStack::replace`）、Elder 对话/任务/奖励、
 > 体力消耗（奔跑/闪避/攻击/工具，JSON 可配）、武器伤害、食物使用、
 > 商店做汤/收取、F3 角色坐标、背包面板、荆棘死亡/床边复活、
-> 数据/配置/地图 JSON/PNG 纹理均已接通；剩余死亡菜单与部分存档段。
+> 死亡菜单（复活/读自动存档/主菜单）、叙事/AI/世界对象/生命存档，
+> 数据/配置/地图 JSON/PNG 纹理均已接通；剩余敌人反击/命中反馈与内容量。
 > 详见 [计划完成情况](docs/plan-status.md) 与 [垂直切片](docs/roadmap/vertical-slice.md)。
 
 ## 目标
@@ -145,6 +146,10 @@ $msbuild='C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\
 武器伤害与食物效果在 `data/content.json` 的 `damage`、`heal_amount`、
 `stamina_restore` 字段配置。商店面板新增 `COOK SOUP`（消耗 2 个萝卜，30 游戏分钟）
 与 `COLLECT`。
+
+存档包含日期/时间/天气、位置/朝向/生命/耐力、背包/快捷栏/装备、农田/作物、
+金币/出货/加工/商店余量、地面掉落、敌人存活与生命、杂物/放置物、AI 状态/目标，
+以及叙事好感/flags/每日上限/任务进度；读档会重建当前地图后逐段应用。
 
 ## 许可证
 

@@ -64,7 +64,7 @@ Florian's Adventure 的全部设计文档入口。当前状态：**28 个模块 
 | [M22 日历/天气/光照・实测](build/m22-calendar-weather-lighting.md) | 0–24 时刻与跨日/季/年、天气权重与 RNG 存档、自动浇水/生长倍率、环境光曲线、Weather 层暗化与点光 |
 | [M23 NPC/对话/任务・实测](build/m23-npc-dialogue-quests.md) | 对话图与白名单条件/动作、好感度/送礼、事件驱动任务与奖励、底部对话框 |
 | [M24 经济/加工/商店・实测](build/m24-economy-crafting-shops.md) | 钱包、买卖原子性、每日限购、配方加工任务、出货箱次日结算、经济事件 |
-| [M25 Game Flow・实测](build/m25-game-flow.md) | 应用状态机、新游戏/读档、暂停/对话、日终结算、自动存档、死亡/复活、退出 |
+| [M25 Game Flow・实测](build/m25-game-flow.md) | 应用状态机、新游戏/读档、暂停/对话、日终结算、自动存档、死亡/复活、退出、叙事/AI/世界对象存档接线 |
 | [M26 编辑器・实测](build/m26-editor-tools.md) | 瓦片笔刷/矩形/填充/擦除/取色、命令差分撤销、JSON 保存/加载、M09 面板；Release 不链接 |
 | [M27 调试工具・实测](build/m27-debug-tools.md) | 控制台/CVar/日志/统计/实体检查器/物理调试；Release 条件链接；通配符展开后的新文件登记流程 |
 | [M16 玩家控制器・实测](build/m16-player-controller.md) | 输入适配与控制器拆分、只写 `Velocity`、动作锁、闪避速度平台、无敌窗口、测试顺序踩坑 |
@@ -98,12 +98,12 @@ Florian's Adventure 的全部设计文档入口。当前状态：**28 个模块 
 | M22 Calendar / Weather / Lighting | 已实现 | 476 用例 / 28997 断言 | `Season`/`Weather`/`GameDate`/`WorldClock`、0–24 时刻与跨日/季/年、四类日历事件、按季节权重随机天气与 RNG 状态保存、自动浇水/生长倍率、环境光曲线与室内外、`LightSet` 点光与线性衰减采样 |
 | M23 NPC / Dialogue / Quests | 已实现 | 520 用例 / 29701 断言 | `NarrativeDatabase` + `NarrativeService`、NPC/对话图/任务 JSON、白名单条件/动作、每日好感/送礼、事件驱动任务进度与奖励、底部对话框 |
 | M24 Economy / Crafting / Shops | 已实现 | 530 用例 / 29791 断言 | `EconomyService` + `ShopDatabase`、钱包、买卖原子性、每日限购、M15 配方加工任务、出货箱次日结算、经济事件/统计 |
-| M25 Game Flow | 已实现 | 536 用例 / 29909 断言 | `GameFlow`/`IGameFlow`、`AppState` 状态机、新游戏/读档、暂停/对话、日终结算、自动存档、死亡/复活、退出、7400 错误段 |
+| M25 Game Flow | 已实现 | 536 用例 / 29909 断言 | `GameFlow`/`IGameFlow`、`AppState` 状态机、新游戏/读档、暂停/对话、日终结算、自动存档、死亡/复活、退出、7400 错误段；app 读档重建场景并应用叙事/AI/世界对象/生命 |
 | M26 Editor Tools | 已实现 | 510 用例 / 29627 断言 | `MapEditor` + `EditorHistory` + `EditorOverlay`、Brush/Rect/Fill/Erase/Picker、命令差分 undo/redo、M12 `saveTilemapToJson()`、M09 状态面板；Release 不链接 |
 | M27 Debug Tools | 已实现 | 451 用例 / 28744 断言 | `DebugConsole` 命令/引号/历史、`CVarRegistry` 四种类型与持久化、`DebugLogSink` 环形日志、`DebugStats`（含角色相机与 AI 锁定目标）、实体快照、`UiContext` 覆盖层、M13 `DebugShape` 适配、F3/F4/F5/控制台事件路由；Release 不链接 |
 
 各模块按 ID 排序，实际落地顺序为 M01 → M02 → M04 → M03 → M07 → M06 → M05 → M11 → M13 → M12 → M17 → M16 → M15 → M09 → M18 → M08 → M27 → M14 → M10 → M20 → M22 → M19 → M21 → M26 → M23 → M24 → M25，因此「完成时累计」栏不是单调递增的；
-当前总计 **554 用例 / 30416 断言**。逐模块状态与下一步建议见 [计划完成情况](plan-status.md)。
+当前总计 **560 用例 / 30495 断言**。逐模块状态与下一步建议见 [计划完成情况](plan-status.md)。
 
 三配置（Debug / Development / Release × x64）Rebuild 均零警告零错误。
 

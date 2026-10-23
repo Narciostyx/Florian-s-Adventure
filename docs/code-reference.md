@@ -1011,14 +1011,15 @@ classDiagram
 
 | 类型 | 关键公开 API |
 |---|---|
-| `AiService` | `update`、`setAggro`、`findPath`、`hasLineOfSight`、`stats`、`pathNodeCount`、`clear`、`setCombatService` |
+| `AiService` | `update`、`setAggro`、`findPath`、`hasLineOfSight`、`stats`、`pathNodeCount`、`clearPaths`、`clear`、`setCombatService` |
 | `AiAgent` | `state`、`home`、`stateTime`、`attackCooldown`、`loseTimer`、`repathTimer`、`target`、`targetVisible`、`profile` |
+| `AiAgentSnapshot` | `state`、`home`、四个计时器、`targetVisible`；`captureAiAgent`/`applyAiAgentSnapshot` 转换 |
 | `AiTargetTag` | 标记可被感知的目标 |
 | `BehaviorProfile` | 视野/攻击距离/速度/伤害/冷却/逃跑阈值/重寻路/感知间隔/巡逻 |
 | `AiStats` | 感知/寻路/移动/攻击/状态切换统计 |
 
 - **枚举**：`AiState { Idle, Patrol, Chase, Attack, Flee, Return, Count }`。
-- **要点**：A* 4 邻接 + 视线平滑；感知节流；不依赖 M16，目标用 `AiTargetTag` 标记；移动只用 `PhysicsWorld::move`。
+- **要点**：A* 4 邻接 + 视线平滑；感知节流；不依赖 M16，目标用 `AiTargetTag` 标记；移动只用 `PhysicsWorld::move`；`AiAgentSnapshot` 不保存实体目标，app 用稳定 role 解析，`clearPaths()` 供读档后重建路径。
 
 **类关系与职责**
 
@@ -1065,7 +1066,8 @@ classDiagram
 | 类型 | 关键公开 API |
 |---|---|
 | `NarrativeDatabase` | `loadDocument`、`clear`、`npc`、`dialogue`、`quest`、`npcs`、`dialogues`、`quests`、`stats`、`schemaVersion` |
-| `NarrativeService` | `startDialogue`、`dialogueActive`、`activeDialogue`、`currentNode`、`availableChoices`、`choose`、`advance`、`endDialogue`、`startQuest`、`completeQuest`、`reportEvent`、`questState`、`isQuestActive`、`isQuestCompleted`、`activeQuests`、`giveGift`、`affinity`、`onDayChanged`、`events`、`stats` |
+| `NarrativeService` | `startDialogue`、`dialogueActive`、`activeDialogue`、`currentNode`、`availableChoices`、`choose`、`advance`、`endDialogue`、`startQuest`、`completeQuest`、`reportEvent`、`questState`、`isQuestActive`、`isQuestCompleted`、`activeQuests`、`giveGift`、`affinity`、`onDayChanged`、`snapshot`、`restore`、`events`、`stats` |
+| `NarrativeSnapshot` | 好感/flags/`talkedToday`/`giftedToday`/任务 `active/completed/progress`；不含对话节点历史 |
 | `DialogueDef` / `DialogueNode` / `DialogueChoice` | 对话图、节点、选项 |
 | `DialogueCondition` / `DialogueAction` | 白名单条件/动作（7 种条件、6 种动作） |
 | `NpcDef` / `QuestDef` / `QuestState` | NPC、任务定义、任务进度 |
@@ -1073,14 +1075,14 @@ classDiagram
 
 - **枚举**：`DialogueCondition::Kind`、`DialogueAction::Kind`、`QuestObjectiveKind { Collect, Deliver, Kill, Plant, Talk, Count }`、`NarrativeEventKind`。
 - **错误码**：7200–7216。
-- **要点**：条件不是脚本引擎；任务由事件驱动；play 已接农场 Elder 对话/任务/奖励；没有存档序列化；`OpenShop` 只记录动作，M24 负责交易。
+- **要点**：条件不是脚本引擎；任务由事件驱动；play 已接农场 Elder 对话/任务/奖励；`snapshot`/`restore` 保存好感/flags/每日上限/任务进度，读档会结束当前对话；`OpenShop` 只记录动作，M24 负责交易。
 
 **类关系与职责**
 
 | 类型 | 关系 | 类职责 | 方法职责 |
 |---|---|---|---|
 | `NarrativeDatabase` | 拥有 NPC/对话/任务定义 | 叙事内容表与校验 | `loadDocument` 解析；`npc/dialogue/quest` 查询；`validate` 引用 |
-| `NarrativeService` | 拥有对话/任务/好感运行态；借用数据库与 `Inventory` | 对话推进与任务结算 | `startDialogue/choose/advance/endDialogue`；`reportEvent` 推进任务；`giveGift` 改好感/扣物品 |
+| `NarrativeService` | 拥有对话/任务/好感运行态；借用数据库与 `Inventory` | 对话推进、任务结算与存档快照 | `startDialogue/choose/advance/endDialogue`；`reportEvent` 推进任务；`giveGift` 改好感/扣物品；`snapshot/restore` 读写运行态 |
 | `DialogueNode` / `QuestDef` / `QuestEvent` / `NarrativeStats` | 纯值 | 对话节点/任务定义/事件/统计 | 字段读取 |
 | `OpenShop` 动作 | 纯值动作 | 请求打开商店 | 由 app 读取并调用 M24 |
 
@@ -1216,6 +1218,8 @@ classDiagram
 **启动选项**：`--window` 显示窗口并默认进入 play（可用 `--play` 显式指定）；`--frames N` 无窗口时跑 scripted smoke；`--play-test` 无头跑通对话/任务/种植/战斗/换图/存档并返回失败码。
 
 **地图装配**：`makeDemoScene(map, spawn)` 按 `DemoMap` 选择 `maps/farm.json`、`maps/farm-scripted.json` 或 `maps/forest.json`，把文本交给 `DemoScene`；`loadTilemapFromJson()` 成功后 `m_mapLoaded=true`，失败则用 `buildWorld()` 的代码内布局。`switchMap()` 调 `SceneStack::replace()`，随后重建编辑器并重新链玩家快捷栏；`GameState` 保证农田/叙事/生命耐力跨图不丢。
+
+**存档接线**：`fillSaveContext()` 写 `world.objects`（role → alive/position/health）、`world.debris`、`world.ai`（`AiAgentSnapshot` + target role）、`quests`（`NarrativeSnapshot`）与 `player.health`；`applySaveFile()` 在 play 模式先 `switchMap()` 重建当前地图，再恢复这些段，已死敌人/杂物/AI 目标不会残留。
 
 **play 运行时**：`LootDrop` 是 app-local 组件并写入 `world.loot`；`processPlayerActions()` 消费 UseTool/Attack/Interact（Elder/床/出货箱/商人），`F` 食用选中食物，`I` 开背包面板；攻击伤害来自装备武器的 `ItemDef::damage`；商店面板可做汤/收取；`processCombatEvents()` 掷掉落/销毁敌人，`collectLoot()` 在 14 px 内自动拾取；`checkPortal()` 命中 `portalAt()` 后按目标地图 `replace` 场景；`tickHazard()` 只在林地生效，生命归零时先扣一次 10% 金币并进入 `GameOver`，`buildFlowMenus()` 提供复活/读自动存档/主菜单。Elder 对话走 `openNpcDialogue()` → `NarrativeService::startDialogue()` + `flow->enterDialogue()`；Digit1–2/Enter 路由到 `chooseDialogue`/`advanceDialogue`，图结束时 `syncDialogueState()` 退出 Dialogue；收获/拾取上报 `Collect`，`processNarrativeEvents()` 把 `QuestCompleted.goldReward` 写入经济并显示任务行。
 

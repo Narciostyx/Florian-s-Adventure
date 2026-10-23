@@ -1151,7 +1151,23 @@ public:
     }
 
     [[nodiscard]] fa::scene::EntityId combatDummy1() const noexcept { return m_combatDummy1; }
+    [[nodiscard]] fa::scene::EntityId combatDummy2() const noexcept { return m_combatDummy2; }
     [[nodiscard]] fa::scene::EntityId forestDummy1() const noexcept { return m_forestDummy1; }
+    [[nodiscard]] fa::scene::EntityId forestDummy2() const noexcept { return m_forestDummy2; }
+    [[nodiscard]] fa::scene::EntityId aiAgentEntity() const noexcept { return m_aiAgentEntity; }
+    [[nodiscard]] fa::scene::EntityId aiDecoyEntity() const noexcept { return m_aiTargetEntity; }
+    [[nodiscard]] fa::scene::EntityId placedEntity() const noexcept { return m_placedEntity; }
+
+    /// \brief Shared debris layer, persisted with the save's world objects.
+    [[nodiscard]] fa::farming::DebrisLayer& debris() noexcept { return m_farmDebris; }
+    [[nodiscard]] const fa::farming::DebrisLayer& debris() const noexcept { return m_farmDebris; }
+
+    /// \brief Drops cached AI paths so a loaded agent recomputes from its saved state.
+    void resetAiPaths() {
+        if (m_ai != nullptr) {
+            m_ai->clearPaths();
+        }
+    }
 
     /// \brief Portal containing the marker's centre, if any.
     [[nodiscard]] const fa::tilemap::MapPortal* portalAtMarker() const {
@@ -3047,6 +3063,52 @@ public:
         farming.restore(entries);
     }
 
+    [[nodiscard]] static std::string joinIntList(std::span<const int> values) {
+        std::string text;
+        for (std::size_t index = 0; index < values.size(); ++index) {
+            if (index != 0) {
+                text += ',';
+            }
+            text += std::to_string(values[index]);
+        }
+        return text;
+    }
+
+    /// \brief Stable role of a mutable scene object in the current map.
+    ///
+    /// Entity ids are scene-local, so saves store this role instead of a handle and
+    /// the load path resolves it against the freshly built scene.
+    [[nodiscard]] fa::scene::EntityId worldObjectForRole(std::string_view role) const {
+        if (demoScene == nullptr) {
+            return {};
+        }
+        if (role == "placed") {
+            return demoScene->placedEntity();
+        }
+        if (demoScene->isFarm()) {
+            if (role == "dummy1") {
+                return demoScene->combatDummy1();
+            }
+            if (role == "dummy2") {
+                return demoScene->combatDummy2();
+            }
+            if (role == "ai.agent") {
+                return demoScene->aiAgentEntity();
+            }
+            if (role == "ai.decoy") {
+                return demoScene->aiDecoyEntity();
+            }
+            return {};
+        }
+        if (role == "dummy1") {
+            return demoScene->forestDummy1();
+        }
+        if (role == "dummy2") {
+            return demoScene->forestDummy2();
+        }
+        return {};
+    }
+
     /// \brief Fills the shared M14/M25 save context from the live demo.
     fa::core::Status fillSaveContext(fa::save::SaveContext& context) {
         context.sceneId = "demo";
@@ -3063,6 +3125,9 @@ public:
         context.world.setInt("entities", static_cast<int>(world.liveEntities));
         context.world.setVec2("marker", sceneMarkerPosition());
         context.player.setFloat("stamina", scenePlayerStamina());
+        if (demoScene != nullptr) {
+            context.player.setFloat("health", demoScene->playerHealth());
+        }
         if (playerInventory != nullptr) {
             context.inventories.setInt("backpackItems", playerInventory->backpack().totalItems());
             context.inventories.setInt("backpackSlots", playerInventory->backpack().usedSlots());
@@ -3130,6 +3195,107 @@ public:
                     loot.push(std::move(entry));
                 });
             context.world.setChild("loot", std::move(loot));
+
+            fa::save::SaveArchive objects = fa::save::SaveArchive::array();
+            const auto writeWorldObject = [this, &objects](std::string_view role,
+                                                           fa::scene::EntityId id) {
+                if (!id.isValid()) {
+                    return;
+                }
+                fa::save::SaveArchive entry = fa::save::SaveArchive::object();
+                entry.setString("role", role);
+                entry.setBool("alive", demoScene->world().isAlive(id));
+                if (const fa::scene::Transform* transform =
+                        demoScene->world().tryGet<fa::scene::Transform>(id);
+                    transform != nullptr) {
+                    entry.setVec2("position", transform->position);
+                }
+                if (const fa::player::Health* health =
+                        demoScene->world().tryGet<fa::player::Health>(id);
+                    health != nullptr) {
+                    entry.setInt("health", health->current);
+                }
+                objects.push(std::move(entry));
+            };
+            writeWorldObject("placed", demoScene->placedEntity());
+            if (demoScene->isFarm()) {
+                writeWorldObject("dummy1", demoScene->combatDummy1());
+                writeWorldObject("dummy2", demoScene->combatDummy2());
+                writeWorldObject("ai.agent", demoScene->aiAgentEntity());
+                writeWorldObject("ai.decoy", demoScene->aiDecoyEntity());
+            } else {
+                writeWorldObject("dummy1", demoScene->forestDummy1());
+                writeWorldObject("dummy2", demoScene->forestDummy2());
+            }
+            context.world.setChild("objects", std::move(objects));
+
+            fa::save::SaveArchive debris = fa::save::SaveArchive::array();
+            for (const fa::farming::Debris& piece : demoScene->debris().debris()) {
+                fa::save::SaveArchive entry = fa::save::SaveArchive::object();
+                entry.setInt("x", piece.cell.x);
+                entry.setInt("y", piece.cell.y);
+                entry.setInt("kind", static_cast<int>(piece.kind));
+                entry.setString("yield", piece.yield.name());
+                entry.setInt("amount", piece.amount);
+                debris.push(std::move(entry));
+            }
+            context.world.setChild("debris", std::move(debris));
+
+            if (const fa::ai::AiAgent* agent =
+                    demoScene->world().tryGet<fa::ai::AiAgent>(demoScene->aiAgentEntity());
+                agent != nullptr) {
+                const fa::ai::AiAgentSnapshot snapshot = fa::ai::captureAiAgent(*agent);
+                fa::save::SaveArchive ai = fa::save::SaveArchive::object();
+                ai.setInt("state", static_cast<int>(snapshot.state));
+                ai.setVec2("home", snapshot.home);
+                ai.setFloat("stateTime", snapshot.stateTime);
+                ai.setFloat("attackCooldown", snapshot.attackCooldown);
+                ai.setFloat("loseTimer", snapshot.loseTimer);
+                ai.setFloat("repathTimer", snapshot.repathTimer);
+                ai.setBool("targetVisible", snapshot.targetVisible);
+                std::string targetRole;
+                if (agent->target.isValid()) {
+                    if (agent->target == demoScene->aiDecoyEntity()) {
+                        targetRole = "decoy";
+                    } else if (agent->target == demoScene->playerEntity()) {
+                        targetRole = "player";
+                    }
+                }
+                ai.setString("target", targetRole);
+                context.world.setChild("ai", std::move(ai));
+            }
+
+            const fa::narrative::NarrativeSnapshot narrativeState =
+                demoScene->narrative().snapshot();
+            fa::save::SaveArchive affinity = fa::save::SaveArchive::object();
+            for (const auto& [npc, value] : narrativeState.affinity) {
+                affinity.setInt(npc.name(), value);
+            }
+            context.quests.setChild("affinity", std::move(affinity));
+
+            const auto writeIdSet = [](const auto& entries) {
+                fa::save::SaveArchive set = fa::save::SaveArchive::object();
+                for (const auto& [id, enabled] : entries) {
+                    if (enabled) {
+                        set.setBool(id.name(), true);
+                    }
+                }
+                return set;
+            };
+            context.quests.setChild("flags", writeIdSet(narrativeState.flags));
+            context.quests.setChild("talkedToday", writeIdSet(narrativeState.talkedToday));
+            context.quests.setChild("giftedToday", writeIdSet(narrativeState.giftedToday));
+
+            fa::save::SaveArchive questList = fa::save::SaveArchive::array();
+            for (const auto& [id, quest] : narrativeState.quests) {
+                fa::save::SaveArchive entry = fa::save::SaveArchive::object();
+                entry.setString("id", id.name());
+                entry.setBool("active", quest.active);
+                entry.setBool("completed", quest.completed);
+                entry.setString("progress", joinIntList(quest.progress));
+                questList.push(std::move(entry));
+            }
+            context.quests.setChild("quests", std::move(questList));
         }
         if (calendar != nullptr) {
             context.world.setInt("dateYear", calendar->date().year);
@@ -3190,14 +3356,16 @@ public:
         if (demoScene != nullptr) {
             if (playMode) {
                 std::string savedMap;
-                if (file.world.getString("map", savedMap) && !savedMap.empty()) {
-                    const DemoMap target =
-                        savedMap == "forest" ? DemoMap::Forest : DemoMap::Farm;
-                    if (target != demoScene->mapKind() &&
-                        !switchMap(target, std::nullopt)) {
-                        return fa::core::errorStatus(fa::save::save_error::kCorruptSave,
-                                                     "could not restore the saved map");
-                    }
+                static_cast<void>(file.world.getString("map", savedMap));
+                const DemoMap target = savedMap == "forest"
+                                           ? DemoMap::Forest
+                                           : (savedMap == "farm" ? DemoMap::Farm
+                                                                 : demoScene->mapKind());
+                // Rebuild even when the map matches: entities, enemies and AI state
+                // are scene-local, so every saved section must land on a fresh scene.
+                if (!switchMap(target, std::nullopt)) {
+                    return fa::core::errorStatus(fa::save::save_error::kCorruptSave,
+                                                 "could not restore the saved map");
                 }
             }
             fa::core::Vec2 marker;
@@ -3213,6 +3381,12 @@ public:
             float stamina = demoScene->playerStamina();
             if (file.player.getFloat("stamina", stamina)) {
                 demoScene->setPlayerStamina(stamina);
+                gameState.playerStamina = demoScene->playerStamina();
+            }
+            float health = demoScene->playerHealth();
+            if (file.player.getFloat("health", health)) {
+                demoScene->setPlayerHealth(health);
+                gameState.playerHealth = static_cast<int>(demoScene->playerHealth());
             }
 
             clearLootDrops();
@@ -3230,6 +3404,154 @@ public:
                     }
                 }
             }
+
+            const fa::save::SaveArchive objects = file.world.child("objects");
+            if (objects.isArray()) {
+                for (std::size_t index = 0; index < objects.size(); ++index) {
+                    const fa::save::SaveArchive entry = objects.at(index);
+                    std::string role;
+                    if (!entry.isObject() || !entry.getString("role", role)) {
+                        continue;
+                    }
+                    const fa::scene::EntityId id = worldObjectForRole(role);
+                    if (!id.isValid()) {
+                        continue;
+                    }
+                    bool alive = true;
+                    static_cast<void>(entry.getBool("alive", alive));
+                    if (!alive) {
+                        demoScene->world().destroy(id);
+                        continue;
+                    }
+                    if (fa::scene::Transform* transform =
+                            demoScene->world().tryGet<fa::scene::Transform>(id);
+                        transform != nullptr) {
+                        fa::core::Vec2 position;
+                        if (entry.getVec2("position", position)) {
+                            transform->position = position;
+                        }
+                    }
+                    if (fa::player::Health* hp =
+                            demoScene->world().tryGet<fa::player::Health>(id);
+                        hp != nullptr) {
+                        int storedHealth = hp->current;
+                        if (entry.getInt("health", storedHealth)) {
+                            hp->current = std::max(0, std::min(storedHealth, hp->max));
+                        }
+                    }
+                }
+                demoScene->syncPhysics();
+            }
+
+            demoScene->debris().clear();
+            const fa::save::SaveArchive debrisArray = file.world.child("debris");
+            if (debrisArray.isArray()) {
+                const int debrisKinds = static_cast<int>(fa::farming::DebrisKind::Count);
+                for (std::size_t index = 0; index < debrisArray.size(); ++index) {
+                    const fa::save::SaveArchive entry = debrisArray.at(index);
+                    int x = 0;
+                    int y = 0;
+                    int kind = 0;
+                    int amount = 1;
+                    std::string yield;
+                    if (!entry.isObject() || !entry.getInt("x", x) || !entry.getInt("y", y)) {
+                        continue;
+                    }
+                    fa::farming::Debris piece;
+                    piece.cell = fa::tilemap::TileCoord{x, y};
+                    static_cast<void>(entry.getInt("kind", kind));
+                    piece.kind = static_cast<fa::farming::DebrisKind>(
+                        kind >= 0 && kind < debrisKinds ? kind : 0);
+                    if (entry.getString("yield", yield)) {
+                        piece.yield = fa::content::ContentId::fromName(yield);
+                    }
+                    static_cast<void>(entry.getInt("amount", amount));
+                    piece.amount = std::max(1, amount);
+                    static_cast<void>(demoScene->debris().add(piece));
+                }
+            }
+
+            const fa::save::SaveArchive ai = file.world.child("ai");
+            if (ai.isObject()) {
+                if (fa::ai::AiAgent* agent =
+                        demoScene->world().tryGet<fa::ai::AiAgent>(demoScene->aiAgentEntity());
+                    agent != nullptr) {
+                    fa::ai::AiAgentSnapshot snapshot;
+                    int state = static_cast<int>(snapshot.state);
+                    if (ai.getInt("state", state)) {
+                        snapshot.state = static_cast<fa::ai::AiState>(state);
+                    }
+                    static_cast<void>(ai.getVec2("home", snapshot.home));
+                    static_cast<void>(ai.getFloat("stateTime", snapshot.stateTime));
+                    static_cast<void>(ai.getFloat("attackCooldown", snapshot.attackCooldown));
+                    static_cast<void>(ai.getFloat("loseTimer", snapshot.loseTimer));
+                    static_cast<void>(ai.getFloat("repathTimer", snapshot.repathTimer));
+                    static_cast<void>(ai.getBool("targetVisible", snapshot.targetVisible));
+                    fa::ai::applyAiAgentSnapshot(*agent, snapshot);
+
+                    std::string targetRole;
+                    static_cast<void>(ai.getString("target", targetRole));
+                    if (targetRole == "decoy") {
+                        agent->target = demoScene->aiDecoyEntity();
+                    } else if (targetRole == "player") {
+                        agent->target = demoScene->playerEntity();
+                    } else {
+                        agent->target = fa::scene::EntityId{};
+                    }
+                    if (!agent->target.isValid() || !demoScene->isAlive(agent->target)) {
+                        agent->target = fa::scene::EntityId{};
+                        agent->targetVisible = false;
+                    }
+                    demoScene->resetAiPaths();
+                }
+            }
+
+            fa::narrative::NarrativeSnapshot narrativeState;
+            const fa::save::SaveArchive affinity = file.quests.child("affinity");
+            if (affinity.isObject()) {
+                for (const std::string& key : affinity.keys()) {
+                    int value = 0;
+                    if (affinity.getInt(key, value)) {
+                        narrativeState.affinity[fa::content::ContentId::fromName(key)] = value;
+                    }
+                }
+            }
+            const auto readIdSet = [&file](std::string_view key, auto& out) {
+                const fa::save::SaveArchive set = file.quests.child(key);
+                if (!set.isObject()) {
+                    return;
+                }
+                for (const std::string& id : set.keys()) {
+                    bool enabled = false;
+                    if (set.getBool(id, enabled) && enabled) {
+                        out[fa::content::ContentId::fromName(id)] = true;
+                    }
+                }
+            };
+            readIdSet("flags", narrativeState.flags);
+            readIdSet("talkedToday", narrativeState.talkedToday);
+            readIdSet("giftedToday", narrativeState.giftedToday);
+
+            const fa::save::SaveArchive questList = file.quests.child("quests");
+            if (questList.isArray()) {
+                for (std::size_t index = 0; index < questList.size(); ++index) {
+                    const fa::save::SaveArchive entry = questList.at(index);
+                    std::string id;
+                    if (!entry.isObject() || !entry.getString("id", id) || id.empty()) {
+                        continue;
+                    }
+                    fa::narrative::QuestState state;
+                    state.id = fa::content::ContentId::fromName(id);
+                    static_cast<void>(entry.getBool("active", state.active));
+                    static_cast<void>(entry.getBool("completed", state.completed));
+                    std::string progress;
+                    if (entry.getString("progress", progress)) {
+                        state.progress = parseIntList(progress);
+                    }
+                    narrativeState.quests[state.id] = std::move(state);
+                }
+            }
+            demoScene->narrative().restore(narrativeState);
         }
 
         if (playerInventory != nullptr) {
@@ -4692,6 +5014,99 @@ public:
         if (!killed || seedsAfter <= seedsBefore) {
             ok = false;
         }
+
+        // P0-3: narrative, AI, enemy/debris/placed-object state and player health
+        // survive a save/load. Everything is mutated after saving so a no-op load
+        // cannot pass by accident.
+        if (flow == nullptr) {
+            std::printf("play-test: flow unavailable for save-state checks\n");
+            return false;
+        }
+        const fa::content::ContentId elder = fa::content::ContentId::fromName("npc.elder");
+        const int affinityBefore = demoScene->narrative().affinity(elder);
+        const bool questCompletedBefore = demoScene->narrative().isQuestCompleted(quest);
+        const fa::core::Vec2 placedSaved{12.0f, 13.0f};
+        if (fa::scene::Transform* transform =
+                demoScene->world().tryGet<fa::scene::Transform>(demoScene->placedEntity());
+            transform != nullptr) {
+            transform->position = placedSaved;
+        }
+        if (fa::player::Health* hp =
+                demoScene->world().tryGet<fa::player::Health>(demoScene->combatDummy2());
+            hp != nullptr) {
+            hp->current = 7;
+        }
+        const fa::tilemap::TileCoord debrisCell{31, 20};
+        static_cast<void>(demoScene->debris().add(fa::farming::Debris{
+            debrisCell, fa::farming::DebrisKind::Stone,
+            fa::content::ContentId::fromName("item.turnip_seed"), 1}));
+        demoScene->setPlayerHealth(61.0f);
+        fa::ai::AiAgent* aiState =
+            demoScene->world().tryGet<fa::ai::AiAgent>(demoScene->aiAgentEntity());
+        if (aiState != nullptr) {
+            aiState->state = fa::ai::AiState::Chase;
+            aiState->stateTime = 0.125f;
+            aiState->loseTimer = 0.75f;
+            aiState->repathTimer = 0.25f;
+            aiState->targetVisible = true;
+            aiState->target = demoScene->aiDecoyEntity();
+        }
+        report("save-state", flow->saveToSlot("playtest"));
+
+        if (aiState != nullptr) {
+            aiState->state = fa::ai::AiState::Idle;
+            aiState->target = fa::scene::EntityId{};
+            aiState->targetVisible = false;
+        }
+        if (fa::player::Health* hp =
+                demoScene->world().tryGet<fa::player::Health>(demoScene->combatDummy2());
+            hp != nullptr) {
+            hp->current = hp->max;
+        }
+        demoScene->debris().clear();
+        demoScene->narrative().clear();
+        demoScene->setPlayerHealth(demoScene->playerMaxHealth());
+        if (fa::scene::Transform* transform =
+                demoScene->world().tryGet<fa::scene::Transform>(demoScene->placedEntity());
+            transform != nullptr) {
+            transform->position = fa::core::Vec2{0.0f, 0.0f};
+        }
+        report("save-state-menu", flow->enterMainMenu());
+        report("save-state-load", flow->loadGame("playtest"));
+
+        const fa::ai::AiAgent* restoredAi =
+            demoScene->world().tryGet<fa::ai::AiAgent>(demoScene->aiAgentEntity());
+        const bool aiLoaded = restoredAi != nullptr &&
+                              restoredAi->state == fa::ai::AiState::Chase &&
+                              std::abs(restoredAi->stateTime - 0.125f) < 0.001f &&
+                              std::abs(restoredAi->loseTimer - 0.75f) < 0.001f &&
+                              std::abs(restoredAi->repathTimer - 0.25f) < 0.001f &&
+                              restoredAi->targetVisible &&
+                              restoredAi->target == demoScene->aiDecoyEntity();
+        const fa::player::Health* restoredDummy =
+            demoScene->world().tryGet<fa::player::Health>(demoScene->combatDummy2());
+        const bool enemyLoaded = restoredDummy != nullptr && restoredDummy->current == 7;
+        const bool debrisLoaded = demoScene->debris().at(debrisCell) != nullptr;
+        const fa::scene::Transform* restoredPlaced =
+            demoScene->world().tryGet<fa::scene::Transform>(demoScene->placedEntity());
+        const bool placedLoaded =
+            restoredPlaced != nullptr && restoredPlaced->position.x == placedSaved.x &&
+            restoredPlaced->position.y == placedSaved.y;
+        const bool narrativeLoaded =
+            demoScene->narrative().isQuestCompleted(quest) &&
+            demoScene->narrative().affinity(elder) == affinityBefore;
+        const bool healthLoaded = std::abs(demoScene->playerHealth() - 61.0f) < 0.01f;
+        const bool saveStateOk =
+            aiLoaded && enemyLoaded && debrisLoaded && placedLoaded && narrativeLoaded &&
+            healthLoaded && questCompletedBefore;
+        std::printf("play-test: save-state ai %s, enemy %s, debris %s, placed %s, narrative %s, "
+                    "health %s -> %s\n",
+                    aiLoaded ? "ok" : "bad", enemyLoaded ? "ok" : "bad",
+                    debrisLoaded ? "ok" : "bad", placedLoaded ? "ok" : "bad",
+                    narrativeLoaded ? "ok" : "bad", healthLoaded ? "ok" : "bad",
+                    saveStateOk ? "ok" : "bad");
+        ok = ok && saveStateOk;
+        demoScene->setPlayerHealth(demoScene->playerMaxHealth());
 
         // Bed proximity + save/load round-trip.
         const fa::core::Vec2 bed = demoScene->bedPosition();

@@ -348,6 +348,30 @@ NarrativeStats NarrativeService::stats() const noexcept {
     return result;
 }
 
+NarrativeSnapshot NarrativeService::snapshot() const {
+    NarrativeSnapshot result;
+    result.affinity = m_affinity;
+    result.flags = m_flags;
+    result.talkedToday = m_talkedToday;
+    result.giftedToday = m_giftedToday;
+    result.quests = m_quests;
+    return result;
+}
+
+void NarrativeService::restore(const NarrativeSnapshot& snapshot) {
+    m_affinity = snapshot.affinity;
+    m_flags = snapshot.flags;
+    m_talkedToday = snapshot.talkedToday;
+    m_giftedToday = snapshot.giftedToday;
+    m_quests = snapshot.quests;
+    m_active = false;
+    m_dialogue = content::ContentId{};
+    m_npc = content::ContentId{};
+    m_speaker = scene::EntityId{};
+    m_node.clear();
+    m_events.clear();
+}
+
 void NarrativeService::clear() noexcept {
     m_affinity.clear();
     m_flags.clear();

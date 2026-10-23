@@ -152,8 +152,9 @@ M23 重置每日上限 → 自动存档；
   之间不会误开玩法。
 - 菜单：composition root 用 M09 绘制主菜单（新游戏/继续/存档槽/退出）与暂停面板
   （继续/保存/存档槽/主菜单），`Esc` 切换暂停；菜单只调用本模块的公开状态接口。
-- 已知缺口：app 已把日期/时间/天气、玩家位置/朝向/耐力、背包/快捷栏/装备、农田
-  与经济接入 `SaveBuilder`/`LoadHandler`，但叙事、AI、世界对象仍未持久化；
+- 存档段：app 已把日期/时间/天气、玩家位置/朝向/生命/耐力、背包/快捷栏/装备、
+  农田、经济、叙事、AI、敌人生命/存活、杂物与放置物接入
+  `SaveBuilder`/`LoadHandler`；读档固定重建地图后再应用。
   农场/林地已由 `portalAt` + `SceneStack::replace` 切换，跨场景状态放在
   `GameState`；输入上下文仍待接线。死亡路径已接：生命归零 → 扣一次 10% 金币 →
   `requestGameOver` → GameOver 面板 → `respawn`（切回农场床边）/ `loadGame(autosave)` /

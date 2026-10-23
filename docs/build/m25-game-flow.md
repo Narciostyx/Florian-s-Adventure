@@ -158,16 +158,38 @@ foreach ($cfg in @('Debug','Development','Release')) {
 - 本次实测：`fa_tests.exe` 554 用例 / 30416 断言全绿；`--frames 60`、
   `--play-test` 与 `--play --frames 3`（停在 `main-menu`）三配置 exit 0。
 
+### P0-3 存档段补丁（叙事 / AI / 世界对象 / 生命）
+
+- M23 新增 `NarrativeSnapshot` 与 `snapshot()/restore()`：保存好感、flags、
+  `talkedToday`/`giftedToday` 与任务 `active/completed/progress`；恢复会结束当前
+  对话并清空事件队列，但不重置数据库与调试统计。
+- M21 新增 `AiAgentSnapshot`/`captureAiAgent()`/`applyAiAgentSnapshot()`，以及
+  `AiService::clearPaths()`；目标实体不进入快照，app 用 `decoy`/`player` role 解析。
+- 存档新增段（全部可选，旧档缺段时按空状态加载，不需要版本升级）：
+  - `quests.affinity/flags/talkedToday/giftedToday/quests`
+  - `world.ai`（state/home/计时器/targetVisible/target role）
+  - `world.objects`（`placed`/`dummy1`/`dummy2`/`ai.agent`/`ai.decoy` 的
+    alive/position/health）
+  - `world.debris`（杂物格/kind/yield/amount）
+  - `player.health`
+- `applySaveFile()` 在 play 模式固定重建当前地图再应用存档段；已死敌人不会复活，
+  损坏的 AI 目标在重生后会被清空并关闭 `targetVisible`。
+- `--play-test` 新增“保存 → 改状态 → 读档”断言：
+  `save-state ai ok, enemy ok, debris ok, placed ok, narrative ok, health ok -> ok`。
+- 本次实测：`fa_tests.exe` 560 用例 / 30495 断言全绿；`--frames 60`、
+  `--play-test` 与 `--play --frames 3`（停在 `main-menu`）三配置 exit 0；
+  play 场景栈变为 `1 push(es), 0 pop(s), 10 replace(s)`。
+
 ## 5. 已知限制 / 后续
 
 - 菜单与存档槽只支持鼠标；`UiInputState` 的键盘/手柄焦点链仍是后续项。
 - 菜单打开时 M09 不会自动屏蔽底层 HUD 点击（本版直接隐藏 HUD 规避）。
-- `LoadHandler` 在 app 里已恢复日历、当前地图、场景位置/朝向/耐力、背包/快捷栏/
-  装备、农田与经济；叙事、AI、世界对象仍未从 `SaveFile` 应用。
+- `LoadHandler` 在 app 里先重建当前地图，再恢复日历、场景位置/朝向/生命/耐力、
+  背包/快捷栏/装备、农田、经济、叙事、AI、敌人生命/存活、杂物与放置物。
 - `NewGameHandler` 在 app 里是空实现；真实新游戏还没有重建世界/初始物品。
 - 场景切换已接：门口 portal → `SceneStack::replace()`，农场与林地是两张独立
-  40×23 地图；跨场景状态放在 `GameState`，敌人/AI/掉落默认随旧场景销毁。
-  没有过渡动画，换图是硬切。
+  40×23 地图；普通换图时敌人/AI/掉落仍随旧场景销毁，读档则由 `world.objects`/
+  `world.ai` 恢复。没有过渡动画，换图是硬切。
 - 睡眠已按体力效率结算；没有强制起床/晕倒。
 - 死亡路径已接：app 在生命归零时先扣一次 10% 金币并调 `requestGameOver`，
   GameOver 面板提供 `respawn`（床边复活）/ `loadGame(autosave)` / `enterMainMenu`；

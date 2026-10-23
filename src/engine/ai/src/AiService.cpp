@@ -54,6 +54,30 @@ std::string_view toString(AiState state) noexcept {
     }
 }
 
+AiAgentSnapshot captureAiAgent(const AiAgent& agent) noexcept {
+    AiAgentSnapshot result;
+    result.state = agent.state;
+    result.home = agent.home;
+    result.stateTime = agent.stateTime;
+    result.attackCooldown = agent.attackCooldown;
+    result.loseTimer = agent.loseTimer;
+    result.repathTimer = agent.repathTimer;
+    result.targetVisible = agent.targetVisible;
+    return result;
+}
+
+void applyAiAgentSnapshot(AiAgent& agent, const AiAgentSnapshot& snapshot) noexcept {
+    const auto rawState = static_cast<std::uint8_t>(snapshot.state);
+    agent.state = rawState < static_cast<std::uint8_t>(AiState::Count) ? snapshot.state
+                                                                      : AiState::Idle;
+    agent.home = snapshot.home;
+    agent.stateTime = snapshot.stateTime;
+    agent.attackCooldown = snapshot.attackCooldown;
+    agent.loseTimer = snapshot.loseTimer;
+    agent.repathTimer = snapshot.repathTimer;
+    agent.targetVisible = snapshot.targetVisible;
+}
+
 AiService::AiService(const tilemap::Tilemap& map, physics::PhysicsWorld& physics,
                      combat::ICombatService* combat)
     : m_map(map), m_physics(physics), m_combat(combat) {}

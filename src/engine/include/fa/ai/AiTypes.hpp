@@ -74,6 +74,26 @@ struct AiAgent {
     BehaviorProfile profile;
 };
 
+/// \brief Save-facing subset of `AiAgent`.
+///
+/// Entity ids are scene-local, so the target is not part of the snapshot; the
+/// composition root stores a stable role and resolves it after the scene loads.
+struct AiAgentSnapshot {
+    AiState state = AiState::Idle;
+    core::Vec2 home{};
+    float stateTime = 0.0f;
+    float attackCooldown = 0.0f;
+    float loseTimer = 0.0f;
+    float repathTimer = 0.0f;
+    bool targetVisible = false;
+};
+
+/// \brief Copies the persistent fields out of an agent component.
+[[nodiscard]] AiAgentSnapshot captureAiAgent(const AiAgent& agent) noexcept;
+
+/// \brief Writes a snapshot back; an unknown state falls back to `Idle`.
+void applyAiAgentSnapshot(AiAgent& agent, const AiAgentSnapshot& snapshot) noexcept;
+
 /// \brief Counters for the smoke summary and M27.
 struct AiStats {
     std::size_t agents = 0;

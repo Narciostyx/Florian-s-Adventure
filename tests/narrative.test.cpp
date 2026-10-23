@@ -246,6 +246,54 @@ TEST_CASE("Season and flag conditions are evaluated", "[narrative]") {
     CHECK(sawQuestStarted);
 }
 
+TEST_CASE("Narrative snapshot restores affinity, flags and quest progress", "[narrative]") {
+    NarrativeDatabase database = makeDatabase();
+    Inventory inventory = makeInventory();
+    NarrativeService service(&database);
+    service.setInventory(&inventory);
+
+    const ContentId elder = ContentId::fromName("npc.elder");
+    const ContentId quest = ContentId::fromName("quest.turnip");
+    const ContentId flag = ContentId::fromName("flag.met_elder");
+
+    REQUIRE(service.startDialogue(ContentId::fromName("dialogue.elder")).isOk());
+    REQUIRE(service.choose(0).isOk());
+    REQUIRE(service.advance().isOk());
+    REQUIRE(service.advance().isOk());
+    CHECK_FALSE(service.dialogueActive());
+    REQUIRE(service.affinity(elder) == 2);
+    REQUIRE(service.isQuestActive(quest));
+
+    fa::narrative::NarrativeSnapshot snapshot = service.snapshot();
+    snapshot.flags[flag] = true;
+    snapshot.talkedToday[elder] = true;
+    snapshot.giftedToday[elder] = true;
+    REQUIRE(snapshot.quests.count(quest) == 1);
+    snapshot.quests[quest].progress = {0};
+
+    service.clear();
+    CHECK(service.affinity(elder) == 0);
+    CHECK_FALSE(service.isQuestActive(quest));
+
+    service.restore(snapshot);
+    CHECK(service.affinity(elder) == 2);
+    CHECK(service.isQuestActive(quest));
+    CHECK_FALSE(service.dialogueActive());
+
+    const fa::narrative::NarrativeSnapshot roundTrip = service.snapshot();
+    CHECK(roundTrip.affinity.at(elder) == 2);
+    CHECK(roundTrip.flags.count(flag) == 1);
+    CHECK(roundTrip.talkedToday.count(elder) == 1);
+    CHECK(roundTrip.giftedToday.count(elder) == 1);
+    CHECK(roundTrip.quests.at(quest).active);
+
+    // A snapshot taken mid-dialogue restores the facts but not the conversation.
+    REQUIRE(service.startDialogue(ContentId::fromName("dialogue.elder")).isOk());
+    service.restore(roundTrip);
+    CHECK_FALSE(service.dialogueActive());
+    CHECK(service.currentNode() == nullptr);
+}
+
 TEST_CASE("Narrative service clear resets runtime state", "[narrative]") {
     NarrativeDatabase database = makeDatabase();
     Inventory inventory = makeInventory();

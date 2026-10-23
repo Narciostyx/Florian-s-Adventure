@@ -6,10 +6,10 @@
 >
 > 需要定位代码时看 [代码速查](code-reference.md)：按模块列出命名空间、依赖、公开头文件、类型、方法、枚举与常量。
 
-- 最后更新：P0-2 死亡菜单/读档（复活/读自动存档/主菜单，金币只扣一次）+ 武器/食物/加工/体力（三配置实测）
-- 下一步：**按 §6 做 P0-3 剩余存档段（叙事/AI/世界对象），再做战斗打磨**
+- 最后更新：P0-3 剩余存档段（叙事/AI/世界对象/玩家生命写入并读回，读档重建场景）+ 武器/食物/加工/体力（三配置实测）
+- 下一步：**P1-1 战斗手感与敌人反击，再做商店/任务/背包 UI**
 - 当前总体：**28 个模块全部已实现**（M00–M27）
-- 当前可运行内容：窗口 + 主循环 + 事件/作业 + 输入 + 渲染 + 资源缓存 + **ECS 世界与场景栈** + **AABB 碰撞与查询** + **瓦片地图与图层提取** + **交互目标选择与格子放置** + **玩家移动/朝向/耐力/闪避** + **带引用校验的内容数据库** + **内置位图字体与即时模式 HUD/控件** + **物品堆叠/背包/快捷栏/装备/使用分发** + **PCM16 软件混音与总线音量** + **调试控制台/统计覆盖层/日志窗口/实体检查器/物理调试** + **JSON 存档槽/原子写/`.bak` 恢复/迁移** + **帧动画/循环/事件/四向状态机** + **伤害/攻击窗口/投射物/状态/死亡事件**；画面是**全部色块占位**，scripted 用 40×23 地图（920 格、143 实心、16 可耕地），play 用两张独立的 40×23 地图（农场/林地），标记由 M16 以八向朝向驱动、M13 求解并停在 x=344，M17 在标记旁选目标、调用一次工具并占一个放置格，M15 加载物品/作物/配方/敌人/掉落表，M18 堆叠 120 个种子、转移 21 个到快捷栏、装备锄头并使用一份汤，M09 每帧绘制 HUD、耐力条、按钮、复选框、滑条与热键栏文本，M08 生成 440 Hz/220 Hz 占位 PCM、播放 one-shot 与循环、设置总线音量并在 2 帧后淡出 one-shot，M27 在 Debug/Development 提供 F3 统计、F4 日志、F5 物理调试与控制台（`teleport`/`give`/`entities`/`save`/`load`/`slots`），M14 每轮 smoke 写 `saves/autosave.json` 并读回版本/场景/实体/标记/耐力摘要，M10 在固定步推进一个 4 帧草地动画并在 frame 0/2 触发 `step` 事件，M20 用两个 dummy 跑通两次近战、投射物与中毒并击杀一个 dummy，M19 在 (4,8) 跑通锄地 → 播种 → 浇水 → 5 天成熟 → 收获，并在 (7,11) 温室与 (6,9) 室外验证冬季规则，M21 用一个紫色 agent 追击静止假人、攻击一次并在丢失目标后返回出生点，M22 用 0.01 s/game-minute 的快速时钟跑出 08:00 → 09:40、计算环境光并在 Weather 层绘制暗化层与两个占位点光，M23 用一个 NPC 跑通对话分支、接任务、收集完成、送礼与每日上限，并在底部对话框留下可交互选项，M24 用玩家背包跑通买种子、卖萝卜、做汤、出货与次日结算（金币显示在 HUD），M25 用脚本跑通新游戏 → 暂停 → 保存 → 日终 → 死亡 → 复活 → 主菜单 → 读档 → 退出（交互式主菜单/暂停/存档槽由 `--play` 提供），M26 在 Debug/Development 提供 F2 瓦片编辑器、撤销/重做与 JSON 保存/加载（Release 不链接）；`--play` 启动进入**主菜单**（新游戏/继续/存档槽/退出），`Esc` 暂停（继续/保存/存档槽/主菜单）；快捷栏 1–3 = 锄头/水壶/种子，左键使用，指向成熟作物自动收获；右键近战，敌人死亡掉落并自动拾取；床边 `E` 任意时间睡觉，醒来固定次日 08:00，睡满 8 h 回满体力、不足按 `(小时/8)²` 递减至最低 1%；橙色出货箱旁 `E` 把作物加入待结算清单并在次日换成金币，紫色商人旁 `E` 打开商店买种子/卖萝卜、做汤/收取，农场 Elder 旁 `E` 对话接取/完成任务（HUD 显示任务状态）；`F` 食用选中的汤（+20 HP/+30 体力），右键伤害读取装备武器；`I` 打开背包面板，点击 MOVE 在背包/快捷栏之间移动物品；`Shift` 奔跑、`Space` 闪避、攻击/工具都消耗体力，数值由 `config/game.json` 的 `stamina` 段配置；F3 显示玩家世界/格子坐标；HUD 同时显示生命、耐力与任务状态；启动从 `data/*.json` 读取内容/商店/叙事/资源目录与实体生成表，地图布局从 `data/maps/*.json` 读取（`farm.json` / `farm-scripted.json` / `forest.json`），`config/game.json` 控制窗口/UI/玩法参数（缺失回落默认），纹理优先 `assets/*.png`、缺图回落程序占位，面板居中且字号 1.25×，窗口最小 1280×720 可放大；play 模式使用两张独立 40×23 地图（农场/林地），门口 `portalAt` 触发 `SceneStack::replace` 换场景，农田/背包/叙事等跨场景状态由 `GameState` 持有；林地有额外 dummy 与 3 格荆棘（每 0.7s 扣 5 血），HUD 显示 `FARM`/`FOREST`；生命归零会先扣 10% 金币并打开 GameOver 面板（复活/读自动存档/主菜单），复活后回到农场床边；当前地图、地面掉落物、金币、出货清单、加工任务与每日商店余量随存档写入并读回；`--play-test` 无头跑通体力上限校验 → 对话 → 接任务 → 耕地 → 播种 → 浇水 → 5 天 → 收获（任务完成与奖励）→ 击杀 dummy → 拾取掉落 → 8h/7h/1h 睡眠档位 → 商店买卖 → 出货结算 → 农场门/双向换图 → 保存/主菜单/存档槽/读档往返（位置、耐力、背包、作物、日期、金币、当前地图一致）并返回失败码；仍有叙事/AI/世界对象存档与内容量缺口
+- 当前可运行内容：窗口 + 主循环 + 事件/作业 + 输入 + 渲染 + 资源缓存 + **ECS 世界与场景栈** + **AABB 碰撞与查询** + **瓦片地图与图层提取** + **交互目标选择与格子放置** + **玩家移动/朝向/耐力/闪避** + **带引用校验的内容数据库** + **内置位图字体与即时模式 HUD/控件** + **物品堆叠/背包/快捷栏/装备/使用分发** + **PCM16 软件混音与总线音量** + **调试控制台/统计覆盖层/日志窗口/实体检查器/物理调试** + **JSON 存档槽/原子写/`.bak` 恢复/迁移** + **帧动画/循环/事件/四向状态机** + **伤害/攻击窗口/投射物/状态/死亡事件**；画面是**全部色块占位**，scripted 用 40×23 地图（920 格、143 实心、16 可耕地），play 用两张独立的 40×23 地图（农场/林地），标记由 M16 以八向朝向驱动、M13 求解并停在 x=344，M17 在标记旁选目标、调用一次工具并占一个放置格，M15 加载物品/作物/配方/敌人/掉落表，M18 堆叠 120 个种子、转移 21 个到快捷栏、装备锄头并使用一份汤，M09 每帧绘制 HUD、耐力条、按钮、复选框、滑条与热键栏文本，M08 生成 440 Hz/220 Hz 占位 PCM、播放 one-shot 与循环、设置总线音量并在 2 帧后淡出 one-shot，M27 在 Debug/Development 提供 F3 统计、F4 日志、F5 物理调试与控制台（`teleport`/`give`/`entities`/`save`/`load`/`slots`），M14 每轮 smoke 写 `saves/autosave.json` 并读回版本/场景/实体/标记/耐力摘要，M10 在固定步推进一个 4 帧草地动画并在 frame 0/2 触发 `step` 事件，M20 用两个 dummy 跑通两次近战、投射物与中毒并击杀一个 dummy，M19 在 (4,8) 跑通锄地 → 播种 → 浇水 → 5 天成熟 → 收获，并在 (7,11) 温室与 (6,9) 室外验证冬季规则，M21 用一个紫色 agent 追击静止假人、攻击一次并在丢失目标后返回出生点，M22 用 0.01 s/game-minute 的快速时钟跑出 08:00 → 09:40、计算环境光并在 Weather 层绘制暗化层与两个占位点光，M23 用一个 NPC 跑通对话分支、接任务、收集完成、送礼与每日上限，并在底部对话框留下可交互选项，M24 用玩家背包跑通买种子、卖萝卜、做汤、出货与次日结算（金币显示在 HUD），M25 用脚本跑通新游戏 → 暂停 → 保存 → 日终 → 死亡 → 复活 → 主菜单 → 读档 → 退出（交互式主菜单/暂停/存档槽由 `--play` 提供），M26 在 Debug/Development 提供 F2 瓦片编辑器、撤销/重做与 JSON 保存/加载（Release 不链接）；`--play` 启动进入**主菜单**（新游戏/继续/存档槽/退出），`Esc` 暂停（继续/保存/存档槽/主菜单）；快捷栏 1–3 = 锄头/水壶/种子，左键使用，指向成熟作物自动收获；右键近战，敌人死亡掉落并自动拾取；床边 `E` 任意时间睡觉，醒来固定次日 08:00，睡满 8 h 回满体力、不足按 `(小时/8)²` 递减至最低 1%；橙色出货箱旁 `E` 把作物加入待结算清单并在次日换成金币，紫色商人旁 `E` 打开商店买种子/卖萝卜、做汤/收取，农场 Elder 旁 `E` 对话接取/完成任务（HUD 显示任务状态）；`F` 食用选中的汤（+20 HP/+30 体力），右键伤害读取装备武器；`I` 打开背包面板，点击 MOVE 在背包/快捷栏之间移动物品；`Shift` 奔跑、`Space` 闪避、攻击/工具都消耗体力，数值由 `config/game.json` 的 `stamina` 段配置；F3 显示玩家世界/格子坐标；HUD 同时显示生命、耐力与任务状态；启动从 `data/*.json` 读取内容/商店/叙事/资源目录与实体生成表，地图布局从 `data/maps/*.json` 读取（`farm.json` / `farm-scripted.json` / `forest.json`），`config/game.json` 控制窗口/UI/玩法参数（缺失回落默认），纹理优先 `assets/*.png`、缺图回落程序占位，面板居中且字号 1.25×，窗口最小 1280×720 可放大；play 模式使用两张独立 40×23 地图（农场/林地），门口 `portalAt` 触发 `SceneStack::replace` 换场景，农田/背包/叙事等跨场景状态由 `GameState` 持有；林地有额外 dummy 与 3 格荆棘（每 0.7s 扣 5 血），HUD 显示 `FARM`/`FOREST`；生命归零会先扣 10% 金币并打开 GameOver 面板（复活/读自动存档/主菜单），复活后回到农场床边；当前地图、地面掉落物、金币、出货清单、加工任务与每日商店余量随存档写入并读回；`--play-test` 无头跑通体力上限校验 → 对话 → 接任务 → 耕地 → 播种 → 浇水 → 5 天 → 收获（任务完成与奖励）→ 击杀 dummy → 拾取掉落 → 8h/7h/1h 睡眠档位 → 商店买卖 → 出货结算 → 农场门/双向换图 → 保存/主菜单/存档槽/读档往返（位置、耐力、背包、作物、日期、金币、当前地图一致）并返回失败码；叙事/AI/世界对象存档已接入，仍有内容量与战斗表现缺口
 
 ## 0. 上下文快满时的交接（强制）
 
@@ -90,11 +90,11 @@
 | M18 | Inventory & Items | 22 | `ItemStack` + 内容驱动堆叠、`Inventory` 固定槽位与原子移除/交换/拆分/合并/转移、`Hotbar` 选中与消耗、`Equipment` Tool/Weapon、`IItemUseHandler` 分发（play `F` 食用汤）、`PlayerInventory` 快速转移 | [设计](modules/18-inventory-items.md) · [实测](build/m18-inventory-items.md) |
 | M19 | Farming & World Objects | 14 | `FarmTile`/`CropState`、无 ECS 的按格农田、锄地/浇水/播种/按天生长/收获、季节与温室、再生作物、`FarmingDayContext` 消费 M22 天气、`FarmingToolHandler`（Hoe/WateringCan/Seed/Harvest/Axe/Pickaxe，可 `setInventory` 切到玩家快捷栏）、`WorldObjectLayer`/`DebrisLayer`、`entries()`/`restore()` 整块农田快照 | [设计](modules/19-farming-world-objects.md) · [实测](build/m19-farming-world-objects.md) |
 | M20 | Combat | 7 | `Damage`/`Health` 结算、M16 闪避无敌、攻击窗口与单实例去重、投射物 raycast/move、击退、Poison/Burn/Slow、四类事件与 `CombatStats`；play 模式右键攻击（伤害读取装备武器）、死亡掉落与自动拾取 | [设计](modules/20-combat.md) · [实测](build/m20-combat.md) |
-| M21 | AI | 11 | `AiService` + `AiAgent`/`AiTargetTag`/`BehaviorProfile`、A*（4 邻接 + 视线平滑）、Bresenham 视线、感知节流、Idle/Patrol/Chase/Attack/Flee/Return、M13 移动、M20 攻击执行、`AiStats` | [设计](modules/21-ai.md) · [实测](build/m21-ai.md) |
+| M21 | AI | 11 | `AiService` + `AiAgent`/`AiTargetTag`/`BehaviorProfile`、A*（4 邻接 + 视线平滑）、Bresenham 视线、感知节流、Idle/Patrol/Chase/Attack/Flee/Return、M13 移动、M20 攻击执行、`AiStats`、`AiAgentSnapshot`/`captureAiAgent`/`applyAiAgentSnapshot`、`clearPaths` | [设计](modules/21-ai.md) · [实测](build/m21-ai.md) |
 | M22 | Calendar / Weather / Lighting | 22 | `Season`/`Weather`/`GameDate`/`WorldClock`、0–24 时刻与跨日/季/年、`HourChanged`/`DayChanged`/`SeasonChanged`/`WeatherChanged`、按季节权重随机天气与 RNG 状态保存、自动浇水/生长倍率、环境光曲线与室内外、`LightSet` 点光与线性衰减采样 | [设计](modules/22-calendar-weather-lighting.md) · [实测](build/m22-calendar-weather-lighting.md) |
-| M23 | NPC / Dialogue / Quests | 10 | `NarrativeDatabase` + `NarrativeService`、NPC/对话图/任务 JSON、白名单条件与动作、每日好感/送礼、事件驱动任务进度与物品奖励、底部对话框与 Digit1–3 选择；app 已接农场 Elder 交互、任务 Collect 进度与金币/种子奖励 | [设计](modules/23-npc-dialogue-quests.md) · [实测](build/m23-npc-dialogue-quests.md) |
+| M23 | NPC / Dialogue / Quests | 10 | `NarrativeDatabase` + `NarrativeService`、NPC/对话图/任务 JSON、白名单条件与动作、每日好感/送礼、事件驱动任务进度与物品奖励、底部对话框与 Digit1–3 选择、`NarrativeSnapshot`/`snapshot`/`restore`；app 已接农场 Elder 交互、任务 Collect 进度与金币/种子奖励 | [设计](modules/23-npc-dialogue-quests.md) · [实测](build/m23-npc-dialogue-quests.md) |
 | M24 | Economy / Crafting / Shops | 11 | `EconomyService` + `ShopDatabase`、钱包、买卖原子性、每日限购、M15 配方加工任务、出货箱次日结算、`restoreShipping`/`restoreJobs`/`restoreRemaining`、经济事件/统计；app 橙色出货箱 + 紫色商人商店（买卖 + 做汤/收取）+ 经济段存档 | [设计](modules/24-economy-crafting-shops.md) · [实测](build/m24-economy-crafting-shops.md) |
-| M25 | Game Flow | 10 | `GameFlow`/`IGameFlow`、`AppState` 状态机、新游戏/读档、暂停/对话、日终结算（`EndOfDayHandler`）、自动存档、`saveToSlot(slot)`、睡眠恢复规则（`Sleep.hpp`）、死亡/复活、退出、7400 错误段；app 主菜单/暂停/存档槽 + GameOver 面板（复活/读自动存档/主菜单）+ 床边 `E` 任意时间睡觉 + 门口换地图；`GameState` 持有跨场景农田/背包/叙事/玩家状态 | [设计](modules/25-game-flow.md) · [实测](build/m25-game-flow.md) |
+| M25 | Game Flow | 10 | `GameFlow`/`IGameFlow`、`AppState` 状态机、新游戏/读档、暂停/对话、日终结算（`EndOfDayHandler`）、自动存档、`saveToSlot(slot)`、睡眠恢复规则（`Sleep.hpp`）、死亡/复活、退出、7400 错误段；app 主菜单/暂停/存档槽 + GameOver 面板（复活/读自动存档/主菜单）+ 床边 `E` 任意时间睡觉 + 门口换地图；`GameState` 持有跨场景农田/背包/叙事/玩家状态；读档固定重建场景后应用叙事/AI/世界对象/生命段 | [设计](modules/25-game-flow.md) · [实测](build/m25-game-flow.md) |
 | M26 | Editor Tools | 10 | `MapEditor` + `EditorHistory` + `EditorOverlay`、Brush/Rect/Fill/Erase/Picker、命令差分 undo/redo、M12 `saveTilemapToJson()`、M09 状态面板、F2/1–5/`[`/`]`/Z/Y/S/L 快捷键；Release 不链接 | [设计](modules/26-editor-tools.md) · [实测](build/m26-editor-tools.md) |
 | M27 | Debug Tools | 11 | `DebugConsole` 命令/引号/历史、`CVarRegistry` 四种类型与 save/load、`DebugLogSink` 环形日志、`DebugStats`（含角色相机、玩家世界/格子坐标与 AI 锁定目标）、实体快照、`UiContext` 覆盖层、M13 `DebugShape` 适配、F3/F4/F5/控制台事件路由；Release 不链接 | [设计](modules/27-debug-tools.md) · [实测](build/m27-debug-tools.md) |
 
@@ -177,7 +177,7 @@ M18 只引用 `fa_core` 与 `fa_content`，**不引用 `fa_assets`、`fa_render`
 **验收快照**（测试三配置一致；冒烟三配置都是 exit 0。固定步数由墙钟累积，并行负载下可能明显多于 60，不要逐字比对帧数或 y 坐标；x 坐标才是稳定断言）：
 
 ```text
-fa_tests.exe → All tests passed (30459 assertions in 558 test cases)
+fa_tests.exe → All tests passed (30495 assertions in 560 test cases)
              "[anim]"     → 59 assertions in 4 test cases
              "[audio]"    → 9808 assertions in 12 test cases
              "[combat]"   → 50 assertions in 7 test cases
@@ -240,6 +240,8 @@ fa_app.exe --play-test
              → play-test: turnips 0 -> 1, quest complete, reward gold 100 -> 110,
                     seeds 19 -> 21 -> ok
              → play-test: combat killed, seeds 0 -> 2
+             → play-test: save-state ai ok, enemy ok, debris ok, placed ok,
+                    narrative ok, health ok -> ok
              → play-test: bed near
              → play-test: sleep wake 08:00, 8h 100.0, 7h 76.6, 1h 1.6 -> ok
              → play-test: shop gold 171, shipped 3, settled +51 -> ok
@@ -255,7 +257,7 @@ fa_app.exe --play-test
              → play-test: menu paused ok, slot listed ok, menu ok, resumed ok
              → play-test: craft soup ok (ready ok, collect ok), soup 2 -> 3 -> ok
              → play-test: OK
-             → stack: 1 push(es), 0 pop(s), 5 replace(s), 0 pause(s), 0 resume(s)
+             → stack: 1 push(es), 0 pop(s), 10 replace(s), 0 pause(s), 0 resume(s)
              → M02+M03+M04+M05+M06+M07+M08+M09+M10+M11+M12+M13+M14+M15+M16+M17+M18+M19+M20+M21+M22+M23+M24+M25+M26+M27 smoke test OK
 fa_app.exe --frames 60 (Release)
              → m10: 60 update(s), frame 1/4, 5 event(s), last step@0, looping
@@ -410,11 +412,11 @@ fa_app.exe --frames 60 (Release)
 | 死亡读档会回滚金币 | 死亡时先扣 10% 金币，GameOver 面板再提供复活/读自动存档/主菜单；读档会把金币恢复成存档值 | M14 / M24 / M25 |
 | 状态同类刷新不叠加 | DoT 为整数 tick，低 dps 有延迟 | M20 |
 | 投射物每步 raycast+move | 大量投射物需要对象池/批量查询 | M20 |
-| 没有通用组件 serializer | 背包/快捷栏/装备/农田/经济由 app 手写字段；AI、叙事、世界对象仍需逐模块接线 | M14 / M19 / M20 / M23 / M25 |
+| 没有通用组件 serializer | 背包/快捷栏/装备/农田/经济/叙事/AI/世界对象仍由 app 手写字段接线；新组件需手动加入 `fillSaveContext`/`applySaveFile` | M14 / M19 / M20 / M23 / M25 |
 | `.bak` 只有一份 | 连续两次写坏仍可能丢失 | M14 |
 | 没有 CRC/压缩/加密 | 磁盘位翻转检测不到；大存档体积大 | M14 后续 |
 | 存档 JSON 深拷贝 | 大存档有分配开销 | M14（不在每帧热路径） |
-| 读档应用时机未定 | M25 已定义 `LoadHandler` 时机；app 先按存档切换地图，再恢复日历/位置/背包/农田，敌人等资源引用仍需更晚的应用阶段 | M14 / M25 |
+| 读档固定重建场景 | app 在 `applySaveFile` 中先按存档重建地图，再应用日历/位置/背包/农田/敌人/AI/叙事；代价是整张地图重建，换来已死敌人与旧 AI 状态不会残留 | M11 / M14 / M25 |
 | 自动存档调度未接 | M25 已按天/退出调度；每 12 游戏小时与安全状态判定仍未实现 | M25 / M22 |
 | 无渲染目标 / 后处理 | 做不了光照、屏幕扭曲 | M22 需要时再加 `RenderPass` |
 | 单一混合模式 | 预乘 alpha、加色做不了 | M06（分批断点已留好） |
@@ -432,7 +434,7 @@ fa_app.exe --frames 60 (Release)
 | `Tilemap::stats()` 全量遍历 | 每帧调用会拖慢大图 | M12 / M27（只在面板刷新时调） |
 | 自动瓦片是烘焙的 | 编辑瓦片后必须重新烘焙，运行时不会自动重算 | M12 / M26 |
 | 地图全量载入内存 | 128×128×3 层可接受；更大需要分块 | M12 |
-| 换地图会重建场景 | app 已用 `SceneStack::replace` 在两张 40×23 地图间切换；农田/背包/叙事/玩家生命耐力放在 `GameState`，敌人/AI/掉落等场景内实体默认重置 | M11 / M25 |
+| 换地图会重建场景 | app 已用 `SceneStack::replace` 在两张 40×23 地图间切换；农田/背包/叙事/玩家生命耐力放在 `GameState`；普通换图仍重置场景内敌人/AI/掉落，读档则由 `world.objects`/`world.ai` 恢复 | M11 / M25 |
 | 地图纹理按名称映射 | app 用 `textureForName` 把 JSON 的 `texture` 绑到 catalog；未识别的名称会回落 soil，不会报错 | M12 / M26 |
 | M17 的 `payload` 是临时内容 ID | M15 已实现，接线时统一替换，避免两套 ID | M15 / M17 |
 | 放置占用与实体碰撞是两套数据 | 放置成功但没创建碰撞体会导致“看得见、能穿过” | M19（放置后创建碰撞体） |
@@ -458,7 +460,7 @@ fa_app.exe --frames 60 (Release)
 | 无视锥/扇形查询 | AI 感知只能用 `overlap` + 自己过滤 | M21 |
 | `Velocity` 是否进存档未定 | 速度是意图还是状态，会影响 M14 的格式 | M14 |
 | 系统注册顺序是隐式耦合 | 顺序错了得到难查的 bug | 各玩法模块 + M27 |
-| 场景与世界如何存档未定 | 当前只保存“哪张地图 + 玩家位置 + 农田/背包/经济”，敌人/AI/世界对象不保存 | M14 / M25 |
+| 场景与世界按 role 存档 | `world.objects` 用稳定 role（dummy1/2、ai.agent、ai.decoy、placed）恢复敌人/杂物/放置物；新增动态对象需先分配 role | M14 / M25 |
 | 无场景过渡效果 | 切场景是硬切 | M25 |
 | 无实体原型 → 世界规模 | 单场景 1e3 量级；10 万实体缓存局部性差 | M15 已实现；prefab 落地后再评估 |
 | 睡眠没有强制起床 | 任意时间可睡并按 8 h 上限衰减恢复；没有晕倒、强制打断或睡眠惩罚 | M25 / M16 |
@@ -476,7 +478,7 @@ fa_app.exe --frames 60 (Release)
 | 寻路没有任务池/每帧上限 | 大量 agent 同时重算会推高固定步耗时 | M21 后续 |
 | 感知只有视野 | 没有听觉、区域仇恨、群体编队/包围 | M21 后续 |
 | 没有 NPC 日程 | M22 的 `HourChanged` 尚未接到 AI | M23 / M25 |
-| 没有 AI 存档 | 读档后 agent 回到初始状态 | M14 / M25 |
+| AI 存档只覆盖 agent 组件 | `world.ai` 保存状态/计时器/目标角色；路径在读档后重建，自定义 agent 需要稳定 role | M14 / M21 / M25 |
 | Flee 只回出生点 | 没有逃跑方向评分或安全点选择 | M21 后续 |
 | 没有卡角落脱困 | 被动态障碍夹住时可能停在原地 | M21 后续 |
 | 编辑器只做瓦片 | 对象/NPC/敌人/传送点/属性面板/内容检查器未实现 | M26 后续 |
@@ -486,7 +488,7 @@ fa_app.exe --frames 60 (Release)
 | 编辑器面板是固定坐标 | 非 640×360 时可能与其它覆盖层重叠 | M09 / M26 |
 | Release 不链接编辑器 | 需要 `FA_ENABLE_EDITOR` 与非 Release 引用 | 构建约定 |
 | 叙事定义没有进 M15 | M23 自带 `NarrativeDatabase`，物品引用只校验前缀 | M15 / M23 |
-| 叙事没有存档 | 好感度/任务/flags 还不能写入 `SaveArchive` | M14 / M23 / M25 |
+| 对话进行中不存档 | 读档会结束当前对话，只恢复好感/flags/每日上限/任务进度 | M14 / M23 / M25 |
 | 叙事内容量小 | play 已接 1 个 Elder / 1 条任务；没有任务日志、多 NPC 或对话历史 | M09 / M23 |
 | 没有 NPC 日程 | M22 的 `HourChanged` 与 M21 尚未接到 M23 | M21 / M23 / M25 |
 | 任务奖励不是事务 | 背包满时物品可能丢失，任务仍完成 | M18 / M23 / M24 |
@@ -507,13 +509,12 @@ fa_app.exe --frames 60 (Release)
 | 方向 | 理由 | 主要风险 |
 |---|---|---|
 | 流程打磨 | 菜单键盘焦点、场景切换过渡、死亡面板的读档槽选择 | 输入上下文与暂停状态 |
-| 战斗打磨 | 当前是最小近战盒；还需攻击动画/朝向反馈、敌人反击、掉落持久化 | 攻击窗口与动画同步；掉落物存档 |
-| 其余存档段 | 叙事/AI/世界对象写入 `SaveFile` 并读回 | 各模块 serializer 与读档应用时机 |
+| 战斗打磨 | 掉落持久化已完成；还需攻击动画/朝向反馈、敌人反击、受击闪烁/伤害数字 | 攻击窗口与动画同步；敌人行为与 M10/M20 反馈 |
 | 商店与任务面板 | 出货箱/商店/背包面板已接；还需季节库存、任务日志与可滚动分类背包 | M09 面板与 M17 目标选择 |
 | 内容与手感 | 真实美术/音频、数值平衡、对话/商店/任务面板、八向动画 | 内容量与时序；像素风一致性 |
 | 工程收尾 | 全新克隆 CI、性能基线、存档迁移链 | 第三方依赖与 CI runner 差异 |
 
-**种植、战斗、睡眠/存档、菜单/背包、出货箱/商店、林地传送、死亡菜单/读档、Elder 对话/任务、武器/食物/加工与体力已可用 `--play` 手动验证；独立地图与 `SceneStack::replace` 已接通。叙事/AI/世界对象存档仍需组装根接线。**
+**种植、战斗、睡眠/存档、菜单/背包、出货箱/商店、林地传送、死亡菜单/读档、Elder 对话/任务、武器/食物/加工与体力已可用 `--play` 手动验证；独立地图与 `SceneStack::replace` 已接通。叙事/AI/世界对象/玩家生命存档已由组装根接线，读档固定重建场景后再应用。**
 后续每项改动仍按既有节奏推进：
 **设计/确认 → 实现 → 测试 → app 集成 → 三配置验证 → 全新克隆验证 → 回写文档 → 更新本文件 → 提交**。
 

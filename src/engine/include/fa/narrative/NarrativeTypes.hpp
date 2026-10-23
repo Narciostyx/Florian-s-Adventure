@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <map>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -153,6 +154,19 @@ struct QuestState {
     bool active = false;
     bool completed = false;
     std::vector<int> progress;
+};
+
+/// \brief Save-facing runtime state.
+///
+/// The active dialogue graph is intentionally not part of the snapshot: a load ends
+/// any dialogue and the player talks to the NPC again. Affinity, flags, daily caps and
+/// quest progress are the cross-session facts conditions and rewards depend on.
+struct NarrativeSnapshot {
+    std::map<content::ContentId, int> affinity;
+    std::map<content::ContentId, bool> flags;
+    std::map<content::ContentId, bool> talkedToday;
+    std::map<content::ContentId, bool> giftedToday;
+    std::map<content::ContentId, QuestState> quests;
 };
 
 /// \brief One gameplay event a quest can consume.

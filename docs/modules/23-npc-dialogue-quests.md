@@ -98,6 +98,9 @@ public:
 
     core::Status startQuest(const content::ContentId& quest);
     void reportEvent(const QuestEvent& event);
+
+    NarrativeSnapshot snapshot() const;      // 好感/flags/每日上限/任务进度
+    void restore(const NarrativeSnapshot&);  // 结束当前对话后替换运行时状态
     const QuestState* questState(const content::ContentId& quest) const noexcept;
 };
 
@@ -139,7 +142,8 @@ public:
   **尚未扩展 M15 的 `ContentDatabase`**；物品引用只做 `item.` 前缀校验。
 - 不依赖 M19/M20；任务目标通过 `reportEvent()` 订阅，不直接查询玩法内部状态。
 - UI/输入由 app 负责：底部对话框、Digit1–3 选择、Enter/Space 推进。
-- M25 负责开始新游戏/读档时重建任务状态；M23 目前没有存档序列化。
+- M25 负责开始新游戏/读档时重建任务状态；`NarrativeSnapshot` 持久化好感/flags/
+  每日上限/任务进度，但**不保存对话节点历史**——读档会结束当前对话。
 
 ## 6. 扩展点
 

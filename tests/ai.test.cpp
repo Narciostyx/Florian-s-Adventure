@@ -335,6 +335,43 @@ TEST_CASE("Patrol creates a path without a target", "[ai]") {
     CHECK(service.stats().pathsFound > 0);
 }
 
+TEST_CASE("Ai agent snapshots round-trip persistent fields", "[ai]") {
+    AiAgent source;
+    source.state = AiState::Chase;
+    source.home = fa::core::Vec2{12.0f, 34.0f};
+    source.stateTime = 1.5f;
+    source.attackCooldown = 0.25f;
+    source.loseTimer = 2.0f;
+    source.repathTimer = 0.5f;
+    source.targetVisible = true;
+    source.target = EntityId{7, 1};
+
+    const fa::ai::AiAgentSnapshot snapshot = fa::ai::captureAiAgent(source);
+    CHECK(snapshot.state == AiState::Chase);
+    CHECK(snapshot.home.x == Approx(12.0f));
+    CHECK(snapshot.home.y == Approx(34.0f));
+    CHECK(snapshot.targetVisible);
+
+    // The target is scene-local and deliberately not part of the snapshot.
+    AiAgent restored;
+    restored.target = EntityId{9, 2};
+    fa::ai::applyAiAgentSnapshot(restored, snapshot);
+    CHECK(restored.state == AiState::Chase);
+    CHECK(restored.home.x == Approx(12.0f));
+    CHECK(restored.home.y == Approx(34.0f));
+    CHECK(restored.stateTime == Approx(1.5f));
+    CHECK(restored.attackCooldown == Approx(0.25f));
+    CHECK(restored.loseTimer == Approx(2.0f));
+    CHECK(restored.repathTimer == Approx(0.5f));
+    CHECK(restored.targetVisible);
+    CHECK(restored.target == EntityId{9, 2});
+
+    fa::ai::AiAgentSnapshot invalid;
+    invalid.state = static_cast<AiState>(255);
+    fa::ai::applyAiAgentSnapshot(restored, invalid);
+    CHECK(restored.state == AiState::Idle);
+}
+
 TEST_CASE("AiService clear resets counters", "[ai]") {
     Tilemap map = makeMap();
     PhysicsWorld physics;

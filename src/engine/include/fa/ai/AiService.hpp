@@ -72,6 +72,9 @@ public:
     /// \brief Remaining waypoints for \p agent, or 0 when it has no path.
     [[nodiscard]] std::size_t pathNodeCount(scene::EntityId agent) const noexcept;
 
+    /// \brief Drops cached paths after a load; agent components keep their state.
+    void clearPaths() noexcept { m_paths.clear(); }
+
     void clear() noexcept;
 
 private:

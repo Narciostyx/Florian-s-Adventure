@@ -70,6 +70,16 @@ public:
     void clearEvents() noexcept { m_events.clear(); }
 
     [[nodiscard]] NarrativeStats stats() const noexcept;
+
+    /// \brief Copy of the state a save must persist.
+    [[nodiscard]] NarrativeSnapshot snapshot() const;
+
+    /// \brief Replaces affinity/flags/daily caps/quests and ends any active dialogue.
+    ///
+    /// Totals and the content database stay untouched so debug counters keep the
+    /// current process history; only the save-facing runtime state is replaced.
+    void restore(const NarrativeSnapshot& snapshot);
+
     void clear() noexcept;
 
 private:
