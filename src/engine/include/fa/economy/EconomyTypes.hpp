@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "fa/content/ContentId.hpp"
+#include "fa/content/ContentTypes.hpp"
 #include "fa/inventory/ItemStack.hpp"
 
 namespace fa::economy {
@@ -43,6 +44,10 @@ struct ShopEntry {
     int price = 0;
     /// \brief `-1` means unlimited; otherwise units available per day.
     int dailyLimit = -1;
+    /// \brief Season bitmask; `Any` means the entry is always stocked.
+    std::uint8_t seasons = content::seasonMask(content::Season::Any);
+    /// \brief Deterministic daily price swing in `[0, 1]`; 0 keeps the list price.
+    float priceSwing = 0.0f;
 };
 
 /// \brief One shop definition.

@@ -110,6 +110,8 @@ foreach ($cfg in @('Debug','Development','Release')) {
 
 ## 5. 已知限制 / 后续
 
+- P1-1 已把林地两个史莱姆接入 `AiAgent`：玩家在林地挂 `AiTargetTag`，敌人用
+  `attackMask = Player` 追击/攻击；农场训练假人保持静止。
 - 没有寻路任务池/每帧上限；大量 agent 同时重算会推高固定步耗时。
 - 没有听觉、区域仇恨、群体编队、包围或召唤。
 - 没有 NPC 日程；M22 的 `HourChanged` 接入留给 M23/M25。

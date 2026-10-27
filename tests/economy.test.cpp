@@ -51,6 +51,18 @@ constexpr std::string_view kShops = R"({
   ]
 })";
 
+constexpr std::string_view kSeasonalShops = R"({
+  "schema_version": 1,
+  "shops": [
+    {"id": "shop.seasonal", "name": "Seasonal", "buy_multiplier": 1.0,
+     "sell_multiplier": 0.5, "stock": [
+       {"item": "item.seed", "price": 20, "daily_limit": 2,
+        "seasons": ["summer"], "price_swing": 0.5},
+       {"item": "item.turnip", "price": 40, "seasons": ["winter"]}
+     ]}
+  ]
+})";
+
 ContentDatabase makeContent() {
     ContentDatabase content;
     REQUIRE(content.loadDocument(kContent).isOk());
@@ -158,6 +170,46 @@ TEST_CASE("Prices apply shop multipliers", "[economy]") {
     CHECK(economy.buyPrice(*shop, seed, 3) == 30);
     CHECK(economy.sellPrice(*shop, kTurnip) == 20);
     CHECK(economy.sellPrice(*shop, kSoup) == 60);
+}
+
+TEST_CASE("Seasonal stock and daily price swings", "[economy]") {
+    const ContentDatabase content = makeContent();
+    ShopDatabase shops;
+    REQUIRE(shops.loadDocument(kSeasonalShops).isOk());
+    Inventory inventory = makeInventory(content);
+    EconomyService economy(&content, &shops);
+
+    const auto shopId = ContentId::fromName("shop.seasonal");
+    const auto* shop = shops.shop(shopId);
+    REQUIRE(shop != nullptr);
+    REQUIRE(shop->stock.size() == 2);
+    const auto& seedEntry = shop->stock[0];
+
+    economy.setSeason(Season::Spring);
+    CHECK_FALSE(economy.seasonAllows(seedEntry));
+    CHECK(economy.buy(shopId, kSeed, 1, inventory).error().code ==
+          fa::economy::economy_error::kWrongSeason);
+
+    economy.setSeason(Season::Summer);
+    CHECK(economy.seasonAllows(seedEntry));
+    economy.setDay(3);
+    const int day3 = economy.buyPrice(*shop, seedEntry, 1);
+    CHECK(day3 >= 10);
+    CHECK(day3 <= 30);
+    economy.setDay(4);
+    const int day4 = economy.buyPrice(*shop, seedEntry, 1);
+    CHECK(day4 >= 10);
+    CHECK(day4 <= 30);
+    economy.setDay(3);
+    CHECK(economy.buyPrice(*shop, seedEntry, 1) == day3);
+
+    economy.setGold(1000);
+    REQUIRE(economy.buy(shopId, kSeed, 1, inventory).isOk());
+    CHECK(economy.remaining(shopId, kSeed) == 1);
+
+    // Turnip is winter-only here, so spring selling falls back to the item price.
+    economy.setSeason(Season::Spring);
+    CHECK(economy.sellPrice(*shop, kTurnip) == 18);
 }
 
 TEST_CASE("Crafting consumes inputs, advances and collects", "[economy]") {

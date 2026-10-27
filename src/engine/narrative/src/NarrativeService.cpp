@@ -319,6 +319,15 @@ std::vector<QuestState> NarrativeService::activeQuests() const {
     return result;
 }
 
+std::vector<QuestState> NarrativeService::questStates() const {
+    std::vector<QuestState> result;
+    result.reserve(m_quests.size());
+    for (const auto& [id, state] : m_quests) {
+        result.push_back(state);
+    }
+    return result;
+}
+
 NarrativeStats NarrativeService::stats() const noexcept {
     NarrativeStats result = m_totals;
     if (m_database != nullptr) {

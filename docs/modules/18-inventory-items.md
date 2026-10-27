@@ -168,7 +168,8 @@ class ItemUseService {
 
 P1，Phase C。v1 已交付核心容器、堆叠/移除/交换/拆分/合并/转移、快捷栏、装备、
 使用分发与玩家容器聚合。app 已用 M09 背包面板（`I`）调用
-`moveToHotbar`/`moveToBackpack`，每次移动 1 个、一页最多 8 个堆叠。
+`moveToHotbar`/`moveToBackpack`，每次移动 1 个；app 面板每页 8 个堆叠，可按
+`ALL/SEED/CROP/FOOD/TOOL/WEAPON/OTHER` 过滤并翻页。
 后续顺序：耐久/品质分栈 → 可滚动分类背包 UI（M09）→ 物品掉落（M19）→
 商店原子交易（M24）→ 存档槽（M14）。
 

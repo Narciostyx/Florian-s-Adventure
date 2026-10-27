@@ -169,6 +169,34 @@ TEST_CASE("Quest progress completes and grants rewards", "[narrative]") {
           fa::narrative::narrative_error::kAlreadyCompleted);
 }
 
+TEST_CASE("Quest states expose active and completed quests for the log", "[narrative]") {
+    NarrativeDatabase database = makeDatabase();
+    Inventory inventory = makeInventory();
+    NarrativeService service(&database);
+    service.setInventory(&inventory);
+
+    const ContentId quest = ContentId::fromName("quest.turnip");
+    REQUIRE(service.startQuest(quest).isOk());
+    std::vector<fa::narrative::QuestState> states = service.questStates();
+    REQUIRE(states.size() == 1);
+    CHECK(states[0].id == quest);
+    CHECK(states[0].active);
+    CHECK_FALSE(states[0].completed);
+
+    QuestEvent event;
+    event.kind = QuestObjectiveKind::Collect;
+    event.target = ContentId::fromName("item.turnip");
+    event.amount = 1;
+    service.reportEvent(event);
+
+    states = service.questStates();
+    REQUIRE(states.size() == 1);
+    CHECK_FALSE(states[0].active);
+    CHECK(states[0].completed);
+    REQUIRE_FALSE(states[0].progress.empty());
+    CHECK(states[0].progress[0] == 1);
+}
+
 TEST_CASE("Quest reports only matching objectives", "[narrative]") {
     NarrativeDatabase database = makeDatabase();
     Inventory inventory = makeInventory();

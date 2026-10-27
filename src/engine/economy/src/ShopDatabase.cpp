@@ -86,7 +86,36 @@ using Json = nlohmann::json;
             error = "shop entry \"daily_limit\" must be -1 or non-negative";
             return false;
         }
-        shop.stock.push_back(std::move(item));
+                if (value.contains("seasons")) {
+                    const auto seasons = value.find("seasons");
+                    if (!seasons->is_array() || seasons->empty()) {
+                        error = "shop entry \"seasons\" must be a non-empty array";
+                        return false;
+                    }
+                    std::uint8_t mask = 0;
+                    for (const Json& season : *seasons) {
+                        if (!season.is_string()) {
+                            error = "shop entry season names must be strings";
+                            return false;
+                        }
+                        const std::uint8_t parsed =
+                            content::parseSeasonMask(season.get<std::string>());
+                        if (parsed == 0) {
+                            error = "shop entry has an unknown season";
+                            return false;
+                        }
+                        mask |= parsed;
+                    }
+                    item.seasons = mask;
+                }
+                if (value.contains("price_swing")) {
+                    if (!readFloatField(value, "price_swing", item.priceSwing) ||
+                        item.priceSwing < 0.0f || item.priceSwing > 1.0f) {
+                        error = "shop entry \"price_swing\" must be a number in [0, 1]";
+                        return false;
+                    }
+                }
+                shop.stock.push_back(std::move(item));
     }
     if (shop.stock.empty()) {
         error = "shop needs at least one stock entry";

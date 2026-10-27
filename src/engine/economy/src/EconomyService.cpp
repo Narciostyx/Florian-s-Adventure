@@ -11,19 +11,37 @@ namespace fa::economy {
 EconomyService::EconomyService(const content::ContentDatabase* content, const ShopDatabase* shops)
     : m_content(content), m_shops(shops) {}
 
+float EconomyService::priceFactor(const ShopEntry& entry) const noexcept {
+    if (entry.priceSwing <= 0.0f) {
+        return 1.0f;
+    }
+    std::uint64_t mixed = entry.item.hash() ^
+                          (static_cast<std::uint64_t>(m_day) * 0x9E3779B97F4A7C15ULL);
+    mixed ^= mixed >> 30;
+    mixed *= 0xBF58476D1CE4E5B9ULL;
+    mixed ^= mixed >> 27;
+    mixed *= 0x94D049BB133111EBULL;
+    mixed ^= mixed >> 31;
+    const float unit = static_cast<float>((mixed >> 40) & 0xFFFFu) / 65535.0f;
+    return 1.0f + entry.priceSwing * (unit * 2.0f - 1.0f);
+}
+
 int EconomyService::buyPrice(const ShopDef& shop, const ShopEntry& entry, int count) const noexcept {
     if (count <= 0) {
         return 0;
     }
-    const int unit = std::max(1, static_cast<int>(static_cast<float>(entry.price) * shop.buyMultiplier));
+    const float scaled =
+        static_cast<float>(entry.price) * shop.buyMultiplier * priceFactor(entry);
+    const int unit = std::max(1, static_cast<int>(scaled + 0.5f));
     return unit * count;
 }
 
 int EconomyService::sellPrice(const ShopDef& shop, const content::ContentId& item) const noexcept {
     int base = 0;
     for (const ShopEntry& entry : shop.stock) {
-        if (entry.item == item) {
-            base = entry.price;
+        if (entry.item == item && seasonAllows(entry)) {
+            base = std::max(
+                1, static_cast<int>(static_cast<float>(entry.price) * priceFactor(entry) + 0.5f));
             break;
         }
     }
@@ -32,7 +50,7 @@ int EconomyService::sellPrice(const ShopDef& shop, const content::ContentId& ite
             base = definition->sellPrice;
         }
     }
-    return std::max(0, static_cast<int>(static_cast<float>(base) * shop.sellMultiplier));
+    return std::max(0, static_cast<int>(static_cast<float>(base) * shop.sellMultiplier + 0.5f));
 }
 
 core::Status EconomyService::buy(const content::ContentId& shopId, const content::ContentId& item,
@@ -52,8 +70,12 @@ core::Status EconomyService::buy(const content::ContentId& shopId, const content
     if (entry == shop->stock.end()) {
         return core::errorStatus(economy_error::kUnknownItem, "shop does not stock this item");
     }
+        if (!seasonAllows(*entry)) {
+            return core::errorStatus(economy_error::kWrongSeason,
+                                     "item is not stocked in this season");
+        }
 
-    ensureRemaining(*shop);
+        ensureRemaining(*shop);
     const std::size_t index = static_cast<std::size_t>(std::distance(shop->stock.begin(), entry));
     std::vector<int>& remaining = m_remaining[shopId];
     if (entry->dailyLimit >= 0 && remaining[index] < count) {

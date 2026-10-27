@@ -38,6 +38,17 @@ public:
     void setContentDatabase(const content::ContentDatabase* content) noexcept { m_content = content; }
     void setShopDatabase(const ShopDatabase* shops) noexcept { m_shops = shops; }
     void setSeason(content::Season season) noexcept { m_season = season; }
+        [[nodiscard]] content::Season season() const noexcept { return m_season; }
+        /// \brief Calendar day used by the deterministic price swing.
+        void setDay(int day) noexcept { m_day = day > 0 ? day : 1; }
+        [[nodiscard]] int day() const noexcept { return m_day; }
+
+        /// \brief Whether \p entry is stocked in the current season.
+        [[nodiscard]] bool seasonAllows(const ShopEntry& entry) const noexcept {
+            return content::seasonAllows(entry.seasons, m_season);
+        }
+        /// \brief Today's deterministic price factor for \p entry (`1` = list price).
+        [[nodiscard]] float priceFactor(const ShopEntry& entry) const noexcept;
 
     void setGold(int gold) noexcept { m_gold = gold < 0 ? 0 : gold; }
     [[nodiscard]] int gold() const noexcept { return m_gold; }
@@ -99,7 +110,8 @@ private:
     const content::ContentDatabase* m_content = nullptr;
     const ShopDatabase* m_shops = nullptr;
     content::Season m_season = content::Season::Spring;
-    int m_gold = 0;
+        int m_day = 1;
+        int m_gold = 0;
     float m_shippingMultiplier = 0.5f;
     std::map<content::ContentId, std::vector<int>> m_remaining;
     std::vector<ProcessingJob> m_jobs;

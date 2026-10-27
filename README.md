@@ -7,8 +7,9 @@
 > 农场↔林地独立地图切换（`SceneStack::replace`）、Elder 对话/任务/奖励、
 > 体力消耗（奔跑/闪避/攻击/工具，JSON 可配）、武器伤害、食物使用、
 > 商店做汤/收取、F3 角色坐标、背包面板、荆棘死亡/床边复活、
-> 死亡菜单（复活/读自动存档/主菜单）、叙事/AI/世界对象/生命存档，
-> 数据/配置/地图 JSON/PNG 纹理均已接通；剩余敌人反击/命中反馈与内容量。
+> 死亡菜单（复活/读自动存档/主菜单）、叙事/AI/世界对象/生命存档、
+> 林地敌人反击与受击闪烁/伤害数字，数据/配置/地图 JSON/PNG 纹理均已接通；
+> 剩余攻击动画/命中音效与内容量。
 > 详见 [计划完成情况](docs/plan-status.md) 与 [垂直切片](docs/roadmap/vertical-slice.md)。
 
 ## 目标
@@ -132,10 +133,12 @@ $msbuild='C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\
 | `Space` | 闪避/冲刺，消耗一次体力 |
 | `1`–`9` / 滚轮 | 选择快捷栏（1 锄头、2 浇水壶、3 萝卜种子） |
 | 左键 | 使用当前工具/种子；指向成熟作物自动收获（消耗体力） |
-| 右键 | 近战攻击（伤害读取装备武器 `damage`）；敌人死亡后掉落并自动拾取 |
+| 右键 | 近战攻击（伤害读取装备武器 `damage`）；林地史莱姆会追击/反击；命中显示受击闪烁与 `-N` 伤害数字，敌人死亡掉落并自动拾取 |
 | `F` | 食用选中的食物（汤：+20 HP、+30 体力） |
-| `E` | Elder 对话；床边睡觉；出货箱出货；商人开商店（可做汤/收取） |
-| `I` | 打开背包面板（点击 MOVE 在背包/快捷栏间移动） |
+| `E` | Elder 对话；床边睡觉；出货箱出货；商人开商店（季节库存/每日余量/今日价，可做汤/收取） |
+| 林地 | 两个史莱姆会主动索敌/攻击；被它们打倒同样进入死亡菜单 |
+| `I` | 打开背包：`ALL/SEED/CROP/FOOD/TOOL/WEAPON/OTHER` 分类 + `PREV/NEXT`/滚轮翻页，点击 MOVE 移动物品 |
+| `J` | 打开任务日志（进行中/已完成与目标进度） |
 | `Esc` | 关闭面板 / 暂停（继续/保存/存档槽/主菜单） |
 | 死亡 | GameOver 面板：`RESPAWN AT BED` / `LOAD AUTOSAVE` / `MAIN MENU`（鼠标） |
 | 反引号 | 调试控制台（`time.addDays N`、`time.set HH:MM`、`give`、`teleport`） |
@@ -144,8 +147,8 @@ $msbuild='C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\
 体力数值在 `config/game.json` 的 `stamina` 段配置：`max`、`regen_per_second`、
 `run_drain_per_second`、`dodge_cost`、`attack_cost`、`tool_cost`。
 武器伤害与食物效果在 `data/content.json` 的 `damage`、`heal_amount`、
-`stamina_restore` 字段配置。商店面板新增 `COOK SOUP`（消耗 2 个萝卜，30 游戏分钟）
-与 `COLLECT`。
+`stamina_restore` 字段配置。商店面板提供 `COOK SOUP`（消耗 2 个萝卜，30 游戏分钟）与 `COLLECT`；
+`data/shops.json` 的 `seasons` 控制季节库存，`price_swing` 控制按日价格波动幅度。
 
 存档包含日期/时间/天气、位置/朝向/生命/耐力、背包/快捷栏/装备、农田/作物、
 金币/出货/加工/商店余量、地面掉落、敌人存活与生命、杂物/放置物、AI 状态/目标，

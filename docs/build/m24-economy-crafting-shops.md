@@ -136,10 +136,24 @@ foreach ($cfg in @('Debug','Development','Release')) {
 - `--play-test` 新增 `weapon damage`、`food` 与 `craft soup` 校验；当前全量
   `fa_tests.exe` 为 558 用例 / 30454 断言。
 
+### 季节库存与价格波动（P1-2，2026-10-27）
+
+- `ShopEntry` 新增 `seasons`（季节位掩码）与 `priceSwing`（`[0,1]`）；`ShopDatabase`
+  解析 `"seasons": [...]` 与 `"price_swing"`，非法值直接拒绝文档。
+- `EconomyService::priceFactor()` 用 `(item hash, day)` 计算出确定性因子；
+  `buyPrice`/`sellPrice` 都应用它，同一天重复报价一致。
+- `buy()` 在库存条目不匹配当前季节时返回 `kWrongSeason`；app 在日推进、读档与
+  每帧把日历 season/day 同步进服务。
+- 商店面板改为遍历库存：显示名称、今日价、`STOCK n` 或 `OUT OF SEASON`；
+  `data/shops.json` 把汤限制在 spring/winter。
+- `--play-test` 新增 `shop season ok, price swing ok`；因价格波动，原来的固定
+  `+10` 金币断言改为按实际单价计算，输出 `shop gold 170`。
+- 本次实测：`fa_tests.exe` 562 用例 / 30521 断言全绿。
+
 ## 5. 已知限制 / 后续
 
-- 商店是基础面板（买种子/卖萝卜），没有交易确认、分类与季节库存。
-- 没有按季节重建库存/价格；`onSeasonChanged` 尚未实现。
+- 商店已按季节过滤并按日波动价格；列表不可滚动，也没有分类页与交易确认。
+- 季节/日期由 app 同步到服务；没有独立的 `onSeasonChanged` 事件。
 - 没有品质、供需、节日溢价、温室产物差异。
 - 金币没有统一钱包；`player::Wallet` 尚未接入。
 - 加工站是字符串 `machineKind`，没有设备实体、燃料、队列上限、多输出。

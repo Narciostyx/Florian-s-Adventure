@@ -4,9 +4,10 @@
     {"id": "shop.general", "name": "General Store",
      "buy_multiplier": 1.0, "sell_multiplier": 0.5,
      "stock": [
-       {"item": "item.turnip_seed", "price": 10, "daily_limit": 5},
-       {"item": "item.turnip", "price": 40},
-       {"item": "item.turnip_soup", "price": 150}
-     ]}
+            {"item": "item.turnip_seed", "price": 10, "daily_limit": 5, "price_swing": 0.10},
+            {"item": "item.turnip", "price": 40, "price_swing": 0.15},
+            {"item": "item.turnip_soup", "price": 150, "price_swing": 0.20,
+             "seasons": ["spring", "winter"]}
+          ]}
   ]
 }

@@ -1066,7 +1066,7 @@ classDiagram
 | 类型 | 关键公开 API |
 |---|---|
 | `NarrativeDatabase` | `loadDocument`、`clear`、`npc`、`dialogue`、`quest`、`npcs`、`dialogues`、`quests`、`stats`、`schemaVersion` |
-| `NarrativeService` | `startDialogue`、`dialogueActive`、`activeDialogue`、`currentNode`、`availableChoices`、`choose`、`advance`、`endDialogue`、`startQuest`、`completeQuest`、`reportEvent`、`questState`、`isQuestActive`、`isQuestCompleted`、`activeQuests`、`giveGift`、`affinity`、`onDayChanged`、`snapshot`、`restore`、`events`、`stats` |
+| `NarrativeService` | `startDialogue`、`dialogueActive`、`activeDialogue`、`currentNode`、`availableChoices`、`choose`、`advance`、`endDialogue`、`startQuest`、`completeQuest`、`reportEvent`、`questState`、`isQuestActive`、`isQuestCompleted`、`activeQuests`、`questStates`、`giveGift`、`affinity`、`onDayChanged`、`snapshot`、`restore`、`events`、`stats` |
 | `NarrativeSnapshot` | 好感/flags/`talkedToday`/`giftedToday`/任务 `active/completed/progress`；不含对话节点历史 |
 | `DialogueDef` / `DialogueNode` / `DialogueChoice` | 对话图、节点、选项 |
 | `DialogueCondition` / `DialogueAction` | 白名单条件/动作（7 种条件、6 种动作） |
@@ -1094,15 +1094,15 @@ classDiagram
 
 | 类型 | 关键公开 API |
 |---|---|
-| `EconomyService` | `setContentDatabase`、`setShopDatabase`、`setSeason`、`setGold`、`gold`、`addGold`、`buyPrice`、`sellPrice`、`buy`、`sell`、`startCraft`、`update`、`collectCraft`、`ship`、`onDayChanged`、`jobs`、`shipping`、`restoreShipping`、`restoreJobs`、`restoreRemaining`、`readyJobCount`、`remaining`、`events`、`stats`、`clear` |
+| `EconomyService` | `setContentDatabase`、`setShopDatabase`、`setSeason`、`season`、`setDay`、`day`、`seasonAllows`、`priceFactor`、`setGold`、`gold`、`addGold`、`buyPrice`、`sellPrice`、`buy`、`sell`、`startCraft`、`update`、`collectCraft`、`ship`、`onDayChanged`、`jobs`、`shipping`、`restoreShipping`、`restoreJobs`、`restoreRemaining`、`readyJobCount`、`remaining`、`events`、`stats`、`clear` |
 | `ShopDatabase` | `loadDocument`、`clear`、`shop`、`shops`、`size` |
-| `ShopDef` / `ShopEntry` | 商店、库存条目（价格/每日限购） |
+| `ShopDef` / `ShopEntry` | 商店、库存条目（价格/每日限购/季节掩码 `seasons`/每日波动 `priceSwing`） |
 | `ProcessingJob` | 配方/产物/工作站/剩余分钟/ready |
 | `EconomyEvent` / `EconomyStats` | 经济事件与统计 |
 
 - **枚举**：`EconomyEventKind { ItemBought, ItemSold, CraftStarted, CraftReady, CraftCollected, ItemShipped, ShippingSettled, DailyRefresh, Count }`。
 - **错误码**：7300–7313。
-- **要点**：交易先检查金币/容量/库存再修改；失败路径不改状态；金币由服务持有，尚未写回 `player::Wallet`；商店表未进 M15；app 用 `shipping`/`restore*` 把金币、出货清单、加工任务与每日余量写入 `SaveFile.economy`。
+- **要点**：交易先检查金币/容量/库存再修改；失败路径不改状态；季节库存用 `seasons` 掩码，`buy` 在非当前季节返回 `kWrongSeason`；`priceSwing` 按 `(item, day)` 确定性波动；金币由服务持有，尚未写回 `player::Wallet`；商店表未进 M15；app 用 `shipping`/`restore*` 把金币、出货清单、加工任务与每日余量写入 `SaveFile.economy`。
 
 **类关系与职责**
 
@@ -1212,16 +1212,16 @@ classDiagram
 | `DemoMap` | `Farm` / `Forest`，决定构建哪张地图与读取哪个 JSON |
 | `GameState` | 跨场景状态：农田、演示背包、杂物、工具 handler、叙事、玩家生命/耐力/朝向；由 `SmokeSink` 拥有 |
 | `DemoScene` | 构建**一张**地图（Farm 或 Forest）：从 `data/maps/*.json` 读布局（缺失回落代码内布局）、按 `textureName` 绑纹理、创建实体/农田/传送/荆棘，注册 Player/Physics/Tilemap/SpriteExtract 系统，运行 M17/M19/M23 脚本；`startNpcDialogue()` 开 Elder 对话；借用 `GameState` |
-| `SmokeSink` | `IFrameSink` 实现：事件路由、固定步、日历推进、渲染与 HUD，持有全部服务、`GameState` 与 `SceneStack`；`makeDemoScene()`/`switchMap()` 换图，`openNpcDialogue()`/`chooseDialogue()`/`advanceDialogue()` 管对话，`processNarrativeEvents()` 结算任务，`respawnFromDeath()`/`loadFromDeath()`/`mainMenuFromDeath()` 管 GameOver 面板 |
+| `SmokeSink` | `IFrameSink` 实现：事件路由、固定步、日历推进、渲染与 HUD，持有全部服务、`GameState` 与 `SceneStack`；`makeDemoScene()`/`switchMap()` 换图，`openNpcDialogue()`/`chooseDialogue()`/`advanceDialogue()` 管对话，`processNarrativeEvents()` 结算任务，`respawnFromDeath()`/`loadFromDeath()`/`mainMenuFromDeath()` 管 GameOver 面板，`processCombatEvents()` 区分玩家/敌人受击并驱动受击闪烁/伤害数字，`buildInventoryPanel()`/`buildShopPanel()`/`buildQuestLogPanel()` 绘制分类背包、季节商店与任务日志 |
 | 各 `*DemoStats` | 每个模块的冒烟摘要快照 |
 
 **启动选项**：`--window` 显示窗口并默认进入 play（可用 `--play` 显式指定）；`--frames N` 无窗口时跑 scripted smoke；`--play-test` 无头跑通对话/任务/种植/战斗/换图/存档并返回失败码。
 
 **地图装配**：`makeDemoScene(map, spawn)` 按 `DemoMap` 选择 `maps/farm.json`、`maps/farm-scripted.json` 或 `maps/forest.json`，把文本交给 `DemoScene`；`loadTilemapFromJson()` 成功后 `m_mapLoaded=true`，失败则用 `buildWorld()` 的代码内布局。`switchMap()` 调 `SceneStack::replace()`，随后重建编辑器并重新链玩家快捷栏；`GameState` 保证农田/叙事/生命耐力跨图不丢。
 
-**存档接线**：`fillSaveContext()` 写 `world.objects`（role → alive/position/health）、`world.debris`、`world.ai`（`AiAgentSnapshot` + target role）、`quests`（`NarrativeSnapshot`）与 `player.health`；`applySaveFile()` 在 play 模式先 `switchMap()` 重建当前地图，再恢复这些段，已死敌人/杂物/AI 目标不会残留。
+**存档接线**：`fillSaveContext()` 写 `world.objects`（role → alive/position/health）、`world.debris`、`world.ai`（role 数组：`AiAgentSnapshot` + target role）、`quests`（`NarrativeSnapshot`）与 `player.health`；`applySaveFile()` 在 play 模式先 `switchMap()` 重建当前地图，再恢复这些段，已死敌人/杂物/AI 目标不会残留。
 
-**play 运行时**：`LootDrop` 是 app-local 组件并写入 `world.loot`；`processPlayerActions()` 消费 UseTool/Attack/Interact（Elder/床/出货箱/商人），`F` 食用选中食物，`I` 开背包面板；攻击伤害来自装备武器的 `ItemDef::damage`；商店面板可做汤/收取；`processCombatEvents()` 掷掉落/销毁敌人，`collectLoot()` 在 14 px 内自动拾取；`checkPortal()` 命中 `portalAt()` 后按目标地图 `replace` 场景；`tickHazard()` 只在林地生效，生命归零时先扣一次 10% 金币并进入 `GameOver`，`buildFlowMenus()` 提供复活/读自动存档/主菜单。Elder 对话走 `openNpcDialogue()` → `NarrativeService::startDialogue()` + `flow->enterDialogue()`；Digit1–2/Enter 路由到 `chooseDialogue`/`advanceDialogue`，图结束时 `syncDialogueState()` 退出 Dialogue；收获/拾取上报 `Collect`，`processNarrativeEvents()` 把 `QuestCompleted.goldReward` 写入经济并显示任务行。
+**play 运行时**：`LootDrop` 是 app-local 组件并写入 `world.loot`；`processPlayerActions()` 消费 UseTool/Attack/Interact（Elder/床/出货箱/商人），`F` 食用选中食物，`I` 开分类/分页背包，`J` 开任务日志；攻击伤害来自装备武器的 `ItemDef::damage`；商店面板按库存条目显示今日价/余量/季节可用性并可做汤/收取；林地史莱姆挂 `AiAgent`、玩家挂 `AiTargetTag`，由 M21 追击/攻击；`processCombatEvents()` 区分玩家/敌人受伤，写 `HURT`/`HIT`、受击闪烁与上浮伤害数字，玩家死亡走 `handlePassOut("combat")` 而不会被销毁，敌人死亡时掷掉落/销毁；`collectLoot()` 在 14 px 内自动拾取；`checkPortal()` 命中 `portalAt()` 后按目标地图 `replace` 场景；`tickHazard()` 只在林地生效，生命归零时先扣一次 10% 金币并进入 `GameOver`，`buildFlowMenus()` 提供复活/读自动存档/主菜单。Elder 对话走 `openNpcDialogue()` → `NarrativeService::startDialogue()` + `flow->enterDialogue()`；Digit1–2/Enter 路由到 `chooseDialogue`/`advanceDialogue`，图结束时 `syncDialogueState()` 退出 Dialogue；收获/拾取上报 `Collect`，`processNarrativeEvents()` 把 `QuestCompleted.goldReward` 写入经济并显示任务行。
 
 **主循环顺序**（`SmokeSink`）：
 

@@ -169,6 +169,6 @@ foreach ($cfg in @('Debug','Development','Release')) {
 8. 非线程安全；容器只在主线程/单系统内使用。
 9. `ContentDatabase` 生命周期由调用方保证，悬空会导致 `maxStackFor`/use 崩溃。
 10. 装备槽不校验类别；Tool 槽可以放食物，需要上层过滤。
-11. app 背包面板一页 8 个堆叠、每次移动 1 个，没有滚动/分类/拖拽。
+11. app 背包面板每页 8 个堆叠、每次移动 1 个；P1-2 已加分类过滤与翻页，仍无拖拽/排序。
 12. `moveToHotbar`/`moveToBackpack` 经 `transferTo` 返回**移动数量**而不是剩余；
     成功判据是 `isOk() && value() > 0`。

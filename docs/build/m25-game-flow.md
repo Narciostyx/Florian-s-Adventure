@@ -167,7 +167,8 @@ foreach ($cfg in @('Debug','Development','Release')) {
   `AiService::clearPaths()`；目标实体不进入快照，app 用 `decoy`/`player` role 解析。
 - 存档新增段（全部可选，旧档缺段时按空状态加载，不需要版本升级）：
   - `quests.affinity/flags/talkedToday/giftedToday/quests`
-  - `world.ai`（state/home/计时器/targetVisible/target role）
+  - `world.ai`（role 数组：state/home/计时器/targetVisible/target role；P1-1 后包含
+    农场 agent 与林地敌人，旧单对象格式仍可读取）
   - `world.objects`（`placed`/`dummy1`/`dummy2`/`ai.agent`/`ai.decoy` 的
     alive/position/health）
   - `world.debris`（杂物格/kind/yield/amount）

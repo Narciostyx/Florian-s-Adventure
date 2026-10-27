@@ -129,6 +129,7 @@ public:
     virtual void startQuest(ContentId id) = 0;
     virtual void reportProgress(QuestEvent event) = 0;
     virtual std::vector<QuestState> activeQuests() const = 0;
+    virtual std::vector<QuestState> questStates() const = 0;  // 含已完成，供任务日志
 };
 
 } // namespace fa::narrative

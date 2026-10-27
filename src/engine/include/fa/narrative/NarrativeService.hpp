@@ -65,6 +65,8 @@ public:
     [[nodiscard]] bool isQuestActive(const content::ContentId& quest) const noexcept;
     [[nodiscard]] bool isQuestCompleted(const content::ContentId& quest) const noexcept;
     [[nodiscard]] std::vector<QuestState> activeQuests() const;
+        /// \brief Every tracked quest, including completed ones, for the quest log.
+        [[nodiscard]] std::vector<QuestState> questStates() const;
 
     [[nodiscard]] std::span<const NarrativeEvent> events() const noexcept { return m_events; }
     void clearEvents() noexcept { m_events.clear(); }

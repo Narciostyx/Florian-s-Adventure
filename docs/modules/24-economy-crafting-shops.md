@@ -54,7 +54,8 @@ struct ShopEntry {
     ContentId item;
     int price;
     int dailyLimit = -1;
-    int remaining = -1;
+    std::uint8_t seasons = seasonMask(Season::Any);  // 0 以外的位掩码
+    float priceSwing = 0.0f;                          // [0,1] 每日确定性波动
 };
 
 struct CraftingRecipe {
@@ -70,7 +71,8 @@ struct ShippingBin {
 };
 ```
 
-- 价格以“基础价 × 修正”计算；交易前计算并展示，成交时重算一次以防不一致。
+- 价格以“基础价 × 商店倍率 × 今日波动”计算；波动用 `(item hash, day)` 确定性
+  生成，同一天重复报价一致，读档后也一致。
 - 加工设备持有 `CraftJob`（配方、剩余时间、输入已扣除）。
 - 出货箱在 `DayChanged` 时结算。
 
@@ -148,10 +150,12 @@ P2，Phase E，已完成 v1：
 - 事件：买入/卖出/加工开始/ready/取回/出货/结算/每日刷新。
 - 存档：`shipping()` 导出待结算清单，`restoreShipping()`/`restoreJobs()`/
   `restoreRemaining()` 从 `SaveArchive` 恢复；金币用 `setGold()`。
+- 季节库存：`seasons` 不匹配时 `buy()` 返回 `kWrongSeason`；app 在日推进/读档/
+  每帧把日历 season/day 同步给服务。
 - app：买种子 → 卖萝卜 → 做汤 → 出货，HUD 显示金币，摘要 `m24:` 与 `+M24`；
   play 模式有橙色出货箱（`E` 全部作物入箱，次日结算）与紫色商人（`E` 打开
-  商店面板：买种子/卖萝卜、`COOK SOUP` 做汤、`COLLECT` 收取，`Esc` 关闭）；
-  加工按游戏分钟推进，经济段随存档写入并读回。
+  商店面板：按库存条目显示今日价/`STOCK n`/`OUT OF SEASON`，`COOK SOUP` 做汤、
+  `COLLECT` 收取，`Esc` 关闭）；加工按游戏分钟推进，经济段随存档写入并读回。
 
 验收：买卖原子性正确；出货箱次日到账；加工完成后可取回产物；读档后金币、
 出货清单与加工任务一致。
@@ -161,4 +165,4 @@ P2，Phase E，已完成 v1：
 - 经济数值平衡需要大量迭代，架构只提供机制。
 - 交易原子性在背包满时容易出错；需先检查容量再扣钱。
 - 出货箱结算与存档时机的顺序必须确定。
-- 商店面板仍是基础版，没有季节库存、分类与交易确认；季节库存与价格波动待补。
+- 商店已有季节库存与价格波动，但列表不可滚动、没有分类页与交易确认。

@@ -133,7 +133,8 @@ public:
 - 新增状态：扩展 `StatusKind`/更新逻辑；叠加策略按 kind 定制。
 - 新增投射物行为：在 `Projectile` 加穿透/追踪字段，`updateProjectiles` 消费。
 - 新增掉落：组装根读 `DeathEvent.lootTable`，用 M15/M18 掷表并入包。
-- 新增伤害数字/特效：app 读 `DamageEvent` 生成 M06 绘制项或 M10 特效实体。
+- 伤害数字/受击闪烁已在 app 中实现（读 `DamageEvent` 生成 HUD 文本与短时 tint）；
+  更完整的 M06 特效或 M10 动画仍是扩展点。
 
 ## 7. 验收
 

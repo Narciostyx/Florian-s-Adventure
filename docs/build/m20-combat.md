@@ -113,6 +113,10 @@ foreach ($cfg in @('Debug','Development','Release')) {
   `ItemDef::damage`（木剑 12、空手 5）后传给 `playerAttack`。app 消费
   `DeathEvent`，按 `LootSource` 掷掉落，玩家靠近 14 px 内自动拾取到背包。
 - `--play-test` 增加战斗段：2 次攻击击杀 dummy，确定性掉落 2 个种子。
+- P1-1：林地史莱姆通过 M21 生成攻击盒伤害玩家；app 区分 `HURT`/`HIT`，
+  玩家死亡走 GameOver 而不会被 `DeathEvent` 销毁；受击实体短促变红，HUD 绘制
+  上浮 `-N` 伤害数字；`--play-test` 增加“敌人追击/攻击/造成伤害”和“被敌人
+  打死→复活”断言。
 - 脚本冒烟仍走原 M20 序列，不改 `m20:` 摘要语义。
 
 ## 5. 已知限制 / 后续
@@ -121,6 +125,6 @@ foreach ($cfg in @('Debug','Development','Release')) {
 - 击退直接 `move`，没有受击硬直/速度衰减；墙边可能被夹住。
 - 状态同类刷新不叠加；低 dps 的 DoT 有整数 tick 延迟。
 - 击杀清理/掉落由 app 消费事件完成，掉落物随 `world.loot` 存档；M20 自身仍不销毁实体。
-- 伤害数字/特效/死亡动画由 app/M06/M10 消费事件，M20 不绘制。
+- 伤害数字（app 文本）与受击闪烁已接；命中特效/音效与死亡动画仍由 app/M06/M10 消费事件，M20 不绘制。
 - 投射物每步 raycast + move；大量投射物需要对象池/批量查询。
 - 没有抗性/暴击/元素反应。
