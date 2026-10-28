@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Development|x64">
+      <Configuration>Development</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>17.0</VCProjectVersion>
+    <ProjectGuid>{C0DE0004-0004-4F00-9A00-000000000004}</ProjectGuid>
+    <RootNamespace>fa_assets</RootNamespace>
+    <Keyword>Win32Proj</Keyword>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="$(SolutionDir)build\Project.props" />
+  </ImportGroup>
+  <!-- AssetCatalog.cpp parses with nlohmann/json, whose headers use try/catch
+       internals and do not compile with unwind semantics off (C4530). Only this
+       project turns /EHsc back on; no fa_assets code throws or catches.
+       See docs/build/m05-assets.md. -->
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <ExceptionHandling>Sync</ExceptionHandling>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="src\AssetCatalog.cpp" />
+    <ClCompile Include="src\AssetId.cpp" />
+    <ClCompile Include="src\AssetManager.cpp" />
+    <ClCompile Include="src\AssetTypes.cpp" />
+    <ClCompile Include="src\ImageData.cpp" />
+    <ClInclude Include="..\include\fa\assets\AssetCatalog.hpp" />
+    <ClInclude Include="..\include\fa\assets\AssetError.hpp" />
+    <ClInclude Include="..\include\fa\assets\AssetHandle.hpp" />
+    <ClInclude Include="..\include\fa\assets\AssetId.hpp" />
+    <ClInclude Include="..\include\fa\assets\AssetManager.hpp" />
+    <ClInclude Include="..\include\fa\assets\AssetTypes.hpp" />
+    <ClInclude Include="..\include\fa\assets\IImageDecoder.hpp" />
+    <ClInclude Include="..\include\fa\assets\ImageData.hpp" />
+    <ClInclude Include="..\include\fa\assets\ITextureUploader.hpp" />
+  </ItemGroup>
+  <!-- fa_events is referenced for JobSystem only: requestTexture() hands decoding
+       to the pool, and the pointer stays opaque so the cache never links the bus.
+       fa_render is deliberately absent; uploads go through ITextureUploader
+       (docs/architecture/dependency-rules.md). -->
+  <ItemGroup>
+    <ProjectReference Include="$(SolutionDir)src\engine\core\fa_core.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\platform\fa_platform.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\events\fa_events.vcxproj" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>

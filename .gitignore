@@ -1,0 +1,52 @@
+# Build output (MSBuild .props/.targets under /build/ ARE tracked)
+/build/bin/
+/build/obj/
+/out/
+/artifacts/
+/install/
+
+# Visual Studio
+.vs/
+*.vcxproj.user
+*.sln.docstates
+*.VC.db
+*.VC.VC.opendb
+.vsconfig
+
+# Stray single-project solution VS creates when a folder (not the .sln) is opened
+/Florian_Adventure.*
+/Florian_.*/
+/x64/
+
+# vcpkg
+/vcpkg_installed/
+/vcpkg/
+/downloads/
+*.vcpkg-lock.json
+
+# Runtime / player data
+/saves/
+/logs/
+*.log
+*.bak
+*.tmp
+imgui.ini
+crash.dmp
+
+# Content pipeline intermediates
+/assets/**/*.imported
+/assets/**/*.fa_cache
+
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Editors
+*.swp
+*.swo
+/.idea/
+/.vscode/*
+!/.vscode/settings.json
+!/.vscode/tasks.json
+!/.vscode/launch.json

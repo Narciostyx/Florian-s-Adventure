@@ -1,0 +1,218 @@
+{
+  "assets": [
+    {
+      "id": "tex.ground.grass",
+      "kind": "texture",
+      "size": [
+        16,
+        16
+      ],
+      "tile": 8,
+      "color": "#4a8250",
+      "altColor": "#5c8a42",
+      "path": "grass.png"
+    },
+    {
+      "id": "tex.ground.soil",
+      "kind": "texture",
+      "size": [
+        16,
+        16
+      ],
+      "tile": 4,
+      "color": "#6b4a2f",
+      "altColor": "#7d5a3a",
+      "path": "soil.png"
+    },
+    {
+      "id": "tex.ground.wall",
+      "kind": "texture",
+      "size": [
+        16,
+        16
+      ],
+      "tile": 4,
+      "color": "#3d465e",
+      "altColor": "#55627e",
+      "path": "wall.png"
+    },
+    {
+      "id": "tex.actor.player",
+      "kind": "texture",
+      "size": [
+        16,
+        24
+      ],
+      "color": "#e8c39e",
+      "altColor": "#c79a74",
+      "path": "player.png"
+    },
+    {
+      "id": "tex.marker",
+      "kind": "texture",
+      "size": [
+        8,
+        8
+      ],
+      "color": "#ffffff",
+      "path": "marker.png"
+    },
+    {
+      "id": "tex.ground.soil_wet",
+      "kind": "texture",
+      "path": "soil_wet.png",
+      "size": [
+        16,
+        16
+      ],
+      "color": "#4a3322",
+      "altColor": "#372418",
+      "tile": 4
+    },
+    {
+      "id": "tex.crop.turnip_seed",
+      "kind": "texture",
+      "path": "turnip_seed.png",
+      "size": [
+        16,
+        16
+      ],
+      "color": "#6b4a2f",
+      "altColor": "#a97c4f"
+    },
+    {
+      "id": "tex.crop.turnip_sprout",
+      "kind": "texture",
+      "path": "turnip_sprout.png",
+      "size": [
+        16,
+        16
+      ],
+      "color": "#3f7d32",
+      "altColor": "#5fae45"
+    },
+    {
+      "id": "tex.crop.turnip_young",
+      "kind": "texture",
+      "path": "turnip_young.png",
+      "size": [
+        16,
+        16
+      ],
+      "color": "#3f7d32",
+      "altColor": "#7ac95a"
+    },
+    {
+      "id": "tex.crop.turnip_mature",
+      "kind": "texture",
+      "path": "turnip_mature.png",
+      "size": [
+        16,
+        16
+      ],
+      "color": "#9a6fb0",
+      "altColor": "#efe6f0"
+    },
+    {
+      "id": "tex.object.chest",
+      "kind": "texture",
+      "path": "chest.png",
+      "size": [
+        16,
+        16
+      ],
+      "color": "#8a5a2b",
+      "altColor": "#5d3a1a"
+    },
+    {
+      "id": "tex.enemy.slime",
+      "kind": "texture",
+      "path": "slime.png",
+      "size": [
+        16,
+        16
+      ],
+      "color": "#4fa84a",
+      "altColor": "#2f7a36"
+        },
+        {
+          "id": "tex.crop.potato_seed",
+          "kind": "texture",
+          "path": "potato_seed.png",
+          "size": [16, 16],
+          "color": "#6b4a2f",
+          "altColor": "#a97c4f"
+        },
+        {
+          "id": "tex.crop.potato_sprout",
+          "kind": "texture",
+          "path": "potato_sprout.png",
+          "size": [16, 16],
+          "color": "#3f7d32",
+          "altColor": "#5fae45"
+        },
+        {
+          "id": "tex.crop.potato_young",
+          "kind": "texture",
+          "path": "potato_young.png",
+          "size": [16, 16],
+          "color": "#3f7d32",
+          "altColor": "#7ac95a"
+        },
+        {
+          "id": "tex.crop.potato_mature",
+          "kind": "texture",
+          "path": "potato_mature.png",
+          "size": [16, 16],
+          "color": "#a67c52",
+          "altColor": "#c6a070"
+        },
+        {
+          "id": "tex.crop.strawberry_seed",
+          "kind": "texture",
+          "path": "strawberry_seed.png",
+          "size": [16, 16],
+          "color": "#6b4a2f",
+          "altColor": "#a97c4f"
+        },
+        {
+          "id": "tex.crop.strawberry_sprout",
+          "kind": "texture",
+          "path": "strawberry_sprout.png",
+          "size": [16, 16],
+          "color": "#3f7d32",
+          "altColor": "#5fae45"
+        },
+        {
+          "id": "tex.crop.strawberry_young",
+          "kind": "texture",
+          "path": "strawberry_young.png",
+          "size": [16, 16],
+          "color": "#3f7d32",
+          "altColor": "#7ac95a"
+        },
+        {
+          "id": "tex.crop.strawberry_mature",
+          "kind": "texture",
+          "path": "strawberry_mature.png",
+          "size": [16, 16],
+          "color": "#c43640",
+          "altColor": "#e86068"
+        },
+        {
+          "id": "tex.enemy.bat",
+          "kind": "texture",
+          "path": "bat.png",
+          "size": [16, 16],
+          "color": "#4e3e6e",
+          "altColor": "#947cbe"
+        },
+        {
+          "id": "tex.effect.slash",
+          "kind": "texture",
+          "path": "slash.png",
+          "size": [48, 16],
+          "color": "#c8e6ff"
+        }
+      ]
+    }

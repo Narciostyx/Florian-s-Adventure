@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Shared include paths for every project in the solution.
+  Import this AFTER Microsoft.Cpp.props, next to the PropertySheets group:
+
+    <Import Project="$(SolutionDir)build\Project.props" />
+
+  Header layout (docs/architecture/conventions.md):
+    src/engine/include/fa/<module>/...   engine public headers
+    src/game/include/fa/game/...        gameplay headers
+    src/<layer>/<module>/src/...        private sources
+-->
+<Project>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(SolutionDir)src\engine\include;$(SolutionDir)src\game\include;$(SolutionDir)src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ResourceCompile>
+      <AdditionalIncludeDirectories>$(SolutionDir)src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+  </ItemDefinitionGroup>
+</Project>

@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Development|x64">
+      <Configuration>Development</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>17.0</VCProjectVersion>
+    <ProjectGuid>{C0DE000F-000F-4F00-9A00-00000000000F}</ProjectGuid>
+    <RootNamespace>fa_inventory</RootNamespace>
+    <Keyword>Win32Proj</Keyword>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="$(SolutionDir)build\Project.props" />
+  </ImportGroup>
+  <ItemGroup>
+    <ClCompile Include="src\Equipment.cpp" />
+    <ClCompile Include="src\Hotbar.cpp" />
+    <ClCompile Include="src\Inventory.cpp" />
+    <ClCompile Include="src\ItemUseService.cpp" />
+    <ClCompile Include="src\PlayerInventory.cpp" />
+    <ClInclude Include="..\include\fa\inventory\Equipment.hpp" />
+    <ClInclude Include="..\include\fa\inventory\Hotbar.hpp" />
+    <ClInclude Include="..\include\fa\inventory\Inventory.hpp" />
+    <ClInclude Include="..\include\fa\inventory\InventoryError.hpp" />
+    <ClInclude Include="..\include\fa\inventory\ItemStack.hpp" />
+    <ClInclude Include="..\include\fa\inventory\ItemUseHandler.hpp" />
+    <ClInclude Include="..\include\fa\inventory\ItemUseService.hpp" />
+    <ClInclude Include="..\include\fa\inventory\PlayerInventory.hpp" />
+  </ItemGroup>
+  <!-- M18 only stores ContentIds and counts; no entity pointers, no renderer, no
+       JSON parsing. fa_scene is a header-only dependency here (EntityId), so only
+       fa_core and fa_content are linked. No /EHsc: no JSON, chrono or unordered_map.
+       See docs/build/m18-inventory-items.md. -->
+  <ItemGroup>
+    <ProjectReference Include="$(SolutionDir)src\engine\core\fa_core.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\content\fa_content.vcxproj" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>

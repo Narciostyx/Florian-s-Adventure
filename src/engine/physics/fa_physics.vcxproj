@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Development|x64">
+      <Configuration>Development</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>17.0</VCProjectVersion>
+    <ProjectGuid>{C0DE0009-0009-4F00-9A00-000000000009}</ProjectGuid>
+    <RootNamespace>fa_physics</RootNamespace>
+    <Keyword>Win32Proj</Keyword>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="$(SolutionDir)build\Project.props" />
+  </ImportGroup>
+  <ItemGroup>
+    <ClCompile Include="src\CollisionLayer.cpp" />
+    <ClCompile Include="src\PhysicsSystem.cpp" />
+    <ClCompile Include="src\PhysicsWorld.cpp" />
+    <ClCompile Include="src\SpatialHash.cpp" />
+    <ClCompile Include="src\TileCollision.cpp" />
+    <ClInclude Include="..\include\fa\physics\Collider.hpp" />
+    <ClInclude Include="..\include\fa\physics\CollisionLayer.hpp" />
+    <ClInclude Include="..\include\fa\physics\PhysicsError.hpp" />
+    <ClInclude Include="..\include\fa\physics\PhysicsSystem.hpp" />
+    <ClInclude Include="..\include\fa\physics\PhysicsWorld.hpp" />
+    <ClInclude Include="..\include\fa\physics\SpatialHash.hpp" />
+    <ClInclude Include="..\include\fa\physics\TileCollision.hpp" />
+  </ItemGroup>
+  <!-- `SpatialHash` keys its buckets with std::unordered_map, whose header contains
+       try/catch internals that do not compile with unwind semantics off (C4530).
+       Only this project turns /EHsc back on; no fa_physics code throws or catches.
+       See docs/build/m13-physics-collision.md. -->
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <ExceptionHandling>Sync</ExceptionHandling>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <!-- fa_core for Rect/Vec2, fa_scene for World/Transform/EntityId and ISystem.
+       No fa_render edge: physics produces plain rectangles and ids and never names a
+       render type, so `fa_render` only shows up transitively through `fa_scene`'s
+       `ISystem` header. No fa_assets and no fa_events either: trigger overlap is
+       recorded in a per-step list and the composition root decides whether to publish
+       it, which keeps physics testable without a bus
+       (docs/modules/13-physics-collision.md section 5). -->
+  <ItemGroup>
+    <ProjectReference Include="$(SolutionDir)src\engine\core\fa_core.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\time\fa_time.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\scene\fa_scene.vcxproj" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>

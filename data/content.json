@@ -1,0 +1,255 @@
+{
+  "schema_version": 1,
+  "items": [
+    {
+      "id": "item.turnip_seed",
+      "display_name": "Turnip Seed",
+      "category": "seed",
+      "tool_kind": "seed",
+      "max_stack": 99,
+      "sell_price": 5,
+      "tags": [
+        "seed",
+        "spring"
+      ]
+    },
+    {
+      "id": "item.turnip",
+      "display_name": "Turnip",
+      "category": "crop",
+      "max_stack": 99,
+      "sell_price": 35,
+      "tags": [
+        "crop",
+        "spring"
+      ]
+    },
+    {
+      "id": "item.turnip_soup",
+      "display_name": "Turnip Soup",
+      "category": "food",
+      "max_stack": 10,
+      "sell_price": 120,
+      "heal_amount": 20,
+      "stamina_restore": 30
+    },
+    {
+      "id": "item.hoe",
+      "display_name": "Hoe",
+      "category": "tool",
+      "tool_kind": "hoe",
+      "max_stack": 1,
+      "sell_price": 0,
+      "tags": [
+        "tool"
+      ]
+    },
+    {
+      "id": "item.watering_can",
+      "display_name": "Watering Can",
+      "category": "tool",
+      "tool_kind": "watering_can",
+      "max_stack": 1,
+      "sell_price": 0,
+      "tags": [
+        "tool"
+      ]
+    },
+    {
+      "id": "item.sword",
+      "display_name": "Wooden Sword",
+      "category": "weapon",
+      "tool_kind": "sword",
+      "max_stack": 1,
+      "sell_price": 0,
+      "damage": 12,
+      "tags": [
+        "weapon"
+      ]
+        },
+        {
+          "id": "item.potato_seed",
+          "display_name": "Potato Seed",
+          "category": "seed",
+          "tool_kind": "seed",
+          "max_stack": 99,
+          "sell_price": 8,
+          "tags": ["seed", "summer"]
+        },
+        {
+          "id": "item.potato",
+          "display_name": "Potato",
+          "category": "crop",
+          "max_stack": 99,
+          "sell_price": 55,
+          "tags": ["crop", "summer"]
+        },
+        {
+          "id": "item.strawberry_seed",
+          "display_name": "Strawberry Seed",
+          "category": "seed",
+          "tool_kind": "seed",
+          "max_stack": 99,
+          "sell_price": 15,
+          "tags": ["seed", "spring"]
+        },
+        {
+          "id": "item.strawberry",
+          "display_name": "Strawberry",
+          "category": "crop",
+          "max_stack": 99,
+          "sell_price": 70,
+          "tags": ["crop", "spring"]
+        },
+        {
+          "id": "item.slime_gel",
+          "display_name": "Slime Gel",
+          "category": "material",
+          "max_stack": 99,
+          "sell_price": 12,
+          "tags": ["material", "loot"]
+        },
+        {
+          "id": "item.bat_wing",
+          "display_name": "Bat Wing",
+          "category": "material",
+          "max_stack": 99,
+          "sell_price": 18,
+          "tags": ["material", "loot"]
+        }
+      ],
+  "crops": [
+    {
+      "id": "crop.turnip",
+      "seed_item": "item.turnip_seed",
+      "harvest_item": "item.turnip",
+      "stage_days": [
+        1,
+        2,
+        2
+      ],
+      "stage_sprites": [
+        "tex.crop.turnip_sprout",
+        "tex.crop.turnip_young",
+        "tex.crop.turnip_mature"
+      ],
+      "seasons": [
+        "spring",
+        "fall"
+      ],
+      "regrow": false,
+      "regrow_days": 0,
+      "seed_sprite": "tex.crop.turnip_seed"
+          },
+          {
+            "id": "crop.potato",
+            "seed_item": "item.potato_seed",
+            "harvest_item": "item.potato",
+            "stage_days": [1, 2, 3],
+            "stage_sprites": [
+              "tex.crop.potato_sprout",
+              "tex.crop.potato_young",
+              "tex.crop.potato_mature"
+            ],
+            "seasons": ["spring", "summer"],
+            "regrow": false,
+            "regrow_days": 0,
+            "seed_sprite": "tex.crop.potato_seed"
+          },
+          {
+            "id": "crop.strawberry",
+            "seed_item": "item.strawberry_seed",
+            "harvest_item": "item.strawberry",
+            "stage_days": [2, 2, 2, 2],
+            "stage_sprites": [
+              "tex.crop.strawberry_sprout",
+              "tex.crop.strawberry_young",
+              "tex.crop.strawberry_young",
+              "tex.crop.strawberry_mature"
+            ],
+            "seasons": ["spring", "summer"],
+            "regrow": true,
+            "regrow_days": 3,
+            "seed_sprite": "tex.crop.strawberry_seed"
+          }
+        ],
+  "recipes": [
+    {
+      "id": "recipe.turnip_soup",
+      "inputs": [
+        {
+          "item": "item.turnip",
+          "amount": 2
+        }
+      ],
+      "output": {
+        "item": "item.turnip_soup",
+        "amount": 1
+      },
+      "required_minutes": 30,
+      "machine_kind": "kitchen",
+      "seasons": "any"
+    }
+  ],
+  "enemies": [
+    {
+      "id": "enemy.slime",
+      "max_health": 30,
+      "damage": 5,
+      "move_speed": 40,
+      "loot_table": "loot.slime",
+      "tags": [
+        "slime"
+      ]
+        },
+        {
+          "id": "enemy.bat",
+          "max_health": 18,
+          "damage": 7,
+          "move_speed": 90,
+          "loot_table": "loot.bat",
+          "tags": ["bat", "forest"]
+        }
+      ],
+  "loot_tables": [
+    {
+      "id": "loot.slime",
+      "entries": [
+        {
+          "item": "item.turnip_seed",
+          "min_amount": 1,
+          "max_amount": 2,
+          "chance": 0.5
+            },
+            {
+              "item": "item.slime_gel",
+              "min_amount": 1,
+              "max_amount": 1,
+              "chance": 0.6
+            }
+          ]
+        },
+        {
+          "id": "loot.bat",
+          "entries": [
+            {
+              "item": "item.bat_wing",
+              "min_amount": 1,
+              "max_amount": 2,
+              "chance": 1.0
+            }
+          ]
+        },
+    {
+      "id": "loot.test",
+      "entries": [
+        {
+          "item": "item.turnip_seed",
+          "min_amount": 2,
+          "max_amount": 2,
+          "chance": 1.0
+        }
+      ]
+    }
+  ]
+}

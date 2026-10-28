@@ -1,0 +1,31 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+  "name": "florians-adventure",
+  "version-string": "0.1.0",
+  "description": "Top-down 2D pixel farming + action combat game on a lightweight in-house engine (SDL3 + OpenGL).",
+  "dependencies": [
+    "sdl3",
+    "glm",
+    "nlohmann-json",
+    "stb",
+    {
+      "name": "imgui",
+      "features": [
+        "sdl3-binding",
+        "opengl3-binding"
+      ]
+    }
+  ],
+  "features": {
+    "tests": {
+      "description": "Unit test framework (Catch2).",
+      "dependencies": [
+        "catch2"
+      ]
+    }
+  },
+  "default-features": [
+    "tests"
+  ],
+  "builtin-baseline": "84bab45d415d22042bd0b9081aea57f362da3f35"
+}

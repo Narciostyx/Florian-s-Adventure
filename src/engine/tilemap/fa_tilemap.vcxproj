@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Development|x64">
+      <Configuration>Development</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>17.0</VCProjectVersion>
+    <ProjectGuid>{C0DE000A-000A-4F00-9A00-00000000000A}</ProjectGuid>
+    <RootNamespace>fa_tilemap</RootNamespace>
+    <Keyword>Win32Proj</Keyword>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="$(SolutionDir)build\Project.props" />
+  </ImportGroup>
+  <ItemGroup>
+    <ClCompile Include="src\Autotile.cpp" />
+    <ClCompile Include="src\Tilemap.cpp" />
+    <ClCompile Include="src\TilemapExtract.cpp" />
+    <ClCompile Include="src\TilemapLoader.cpp" />
+    <ClCompile Include="src\TilemapWriter.cpp" />
+    <ClInclude Include="..\include\fa\tilemap\Autotile.hpp" />
+    <ClInclude Include="..\include\fa\tilemap\TileDef.hpp" />
+    <ClInclude Include="..\include\fa\tilemap\TileId.hpp" />
+    <ClInclude Include="..\include\fa\tilemap\Tilemap.hpp" />
+    <ClInclude Include="..\include\fa\tilemap\TilemapError.hpp" />
+    <ClInclude Include="..\include\fa\tilemap\TilemapExtract.hpp" />
+    <ClInclude Include="..\include\fa\tilemap\TilemapLoader.hpp" />
+    <ClInclude Include="..\include\fa\tilemap\TilemapWriter.hpp" />
+  </ItemGroup>
+  <!-- TilemapLoader.cpp parses with nlohmann/json, whose headers contain try/catch
+       internals that do not compile with unwind semantics off (C4530). Only this
+       project turns /EHsc back on; no fa_tilemap code throws or catches.
+       See docs/build/m12-tilemap.md. -->
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <ExceptionHandling>Sync</ExceptionHandling>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <!-- fa_physics supplies the one-method ISolidTiles interface the map is adapted
+       to; fa_scene supplies ISystem for the extraction pass; fa_time supplies the
+       FrameContext the hook signature names; fa_render supplies
+       DrawItem/RenderQueue/TextureHandle. fa_assets is deliberately absent: tile
+       definitions store raw render handles and the composition root binds them,
+       so this module never links the JSON/asset manager stack
+       (docs/modules/12-tilemap-and-world.md section 5). -->
+  <ItemGroup>
+    <ProjectReference Include="$(SolutionDir)src\engine\core\fa_core.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\time\fa_time.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\render\fa_render.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\scene\fa_scene.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\physics\fa_physics.vcxproj" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>

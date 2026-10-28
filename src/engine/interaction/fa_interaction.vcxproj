@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Development|x64">
+      <Configuration>Development</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>17.0</VCProjectVersion>
+    <ProjectGuid>{C0DE000B-000B-4F00-9A00-00000000000B}</ProjectGuid>
+    <RootNamespace>fa_interaction</RootNamespace>
+    <Keyword>Win32Proj</Keyword>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="$(SolutionDir)build\Project.props" />
+  </ImportGroup>
+  <ItemGroup>
+    <ClCompile Include="src\InteractionService.cpp" />
+    <ClCompile Include="src\InteractionTypes.cpp" />
+    <ClCompile Include="src\PlacementGrid.cpp" />
+    <ClInclude Include="..\include\fa\interaction\Interactable.hpp" />
+    <ClInclude Include="..\include\fa\interaction\InteractionError.hpp" />
+    <ClInclude Include="..\include\fa\interaction\InteractionService.hpp" />
+    <ClInclude Include="..\include\fa\interaction\InteractionTypes.hpp" />
+    <ClInclude Include="..\include\fa\interaction\PlacementGrid.hpp" />
+    <ClInclude Include="..\include\fa\interaction\ToolHandler.hpp" />
+  </ItemGroup>
+  <!-- fa_scene for World/EntityId/Transform, fa_physics for Collider-sized actor
+       centres, fa_tilemap for the map/tile queries. fa_assets, fa_events, fa_input
+       and fa_content are deliberately absent: M17 records its own events and takes
+       an opaque payload instead of a ContentId until M15 exists
+       (docs/modules/17-interaction-grid-placement.md section 5). -->
+  <ItemGroup>
+    <ProjectReference Include="$(SolutionDir)src\engine\core\fa_core.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\scene\fa_scene.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\physics\fa_physics.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\tilemap\fa_tilemap.vcxproj" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>

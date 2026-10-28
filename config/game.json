@@ -1,0 +1,36 @@
+{
+  "window": {
+    "width": 1280,
+    "height": 720,
+    "min_width": 1280,
+    "min_height": 720,
+    "resizable": true,
+    "vsync": true,
+    "high_dpi": true
+  },
+  "ui": {
+    "scale": 1.25
+  },
+  "paths": {
+    "data": "data",
+    "assets": "assets",
+    "saves": "saves",
+    "config": "config/game.json"
+  },
+  "gameplay": {
+    "wake_hour": 8.0,
+    "full_sleep_hours": 8.0,
+    "hazard_damage": 5,
+    "hazard_interval": 0.7,
+    "death_gold_penalty": 0.1,
+    "autosave_days": 1
+  },
+  "stamina": {
+    "max": 100.0,
+    "regen_per_second": 20.0,
+    "run_drain_per_second": 10.0,
+    "dodge_cost": 25.0,
+    "attack_cost": 4.0,
+    "tool_cost": 3.0
+  }
+}

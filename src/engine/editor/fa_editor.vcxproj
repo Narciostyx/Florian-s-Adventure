@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Development|x64">
+      <Configuration>Development</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>17.0</VCProjectVersion>
+    <ProjectGuid>{C0DE0018-0018-4F00-9A00-000000000018}</ProjectGuid>
+    <RootNamespace>fa_editor</RootNamespace>
+    <Keyword>Win32Proj</Keyword>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="$(SolutionDir)build\Project.props" />
+  </ImportGroup>
+  <ItemGroup>
+    <ClCompile Include="src\EditorHistory.cpp" />
+    <ClCompile Include="src\EditorOverlay.cpp" />
+    <ClCompile Include="src\MapEditor.cpp" />
+    <ClInclude Include="..\include\fa\editor\EditorHistory.hpp" />
+    <ClInclude Include="..\include\fa\editor\EditorOverlay.hpp" />
+    <ClInclude Include="..\include\fa\editor\EditorTypes.hpp" />
+    <ClInclude Include="..\include\fa\editor\MapEditor.hpp" />
+  </ItemGroup>
+  <!-- M26 is a leaf tool: it edits the same Tilemap the runtime extracts and draws
+       its panel through M09. The composition root owns activation and hotkeys. -->
+  <ItemGroup>
+    <ProjectReference Include="$(SolutionDir)src\engine\core\fa_core.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\tilemap\fa_tilemap.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\render\fa_render.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\ui\fa_ui.vcxproj" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>

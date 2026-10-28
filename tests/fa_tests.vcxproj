@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Development|x64">
+      <Configuration>Development</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>17.0</VCProjectVersion>
+    <ProjectGuid>{C0DE00FE-00FE-4F00-9A00-0000000000FE}</ProjectGuid>
+    <RootNamespace>fa_tests</RootNamespace>
+    <Keyword>Win32Proj</Keyword>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="$(SolutionDir)build\Project.props" />
+    <Import Project="$(SolutionDir)build\Sdl3.props" />
+  </ImportGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <!-- Catch2 needs exceptions and RTTI, both of which the engine disables. -->
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <RuntimeTypeInfo>true</RuntimeTypeInfo>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)' == 'Debug'">
+    <Link>
+      <!-- vcpkg's static-md triplet ships separate debug libs; Debug uses /MDd and
+           must link the _DEBUG-built Catch2d.lib, not the release Catch2.lib. -->
+      <AdditionalDependencies>Catch2d.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(SolutionDir)vcpkg_installed\$(VcpkgTriplet)\debug\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)' != 'Debug'">
+    <Link>
+      <AdditionalDependencies>Catch2.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(SolutionDir)vcpkg_installed\$(VcpkgTriplet)\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="anim.test.cpp" />
+    <ClCompile Include="assets.test.cpp" />
+    <ClCompile Include="audio.test.cpp" />
+    <ClCompile Include="combat.test.cpp" />
+    <ClCompile Include="config.test.cpp" />
+    <ClCompile Include="content.test.cpp" />
+    <ClCompile Include="core.test.cpp" />
+    <ClCompile Include="debug.test.cpp" />
+    <ClCompile Include="events.test.cpp" />
+    <ClCompile Include="input.test.cpp" />
+    <ClCompile Include="interaction.test.cpp" />
+    <ClCompile Include="inventory.test.cpp" />
+    <ClCompile Include="main.test.cpp" />
+    <ClCompile Include="physics.test.cpp" />
+    <ClCompile Include="platform.test.cpp" />
+    <ClCompile Include="player.test.cpp" />
+    <ClCompile Include="render.test.cpp" />
+    <ClCompile Include="save.test.cpp" />
+    <ClCompile Include="scene.test.cpp" />
+    <ClCompile Include="tilemap.test.cpp" />
+    <ClCompile Include="time.test.cpp" />
+    <ClCompile Include="ui.test.cpp" />
+    <ClCompile Include="world.test.cpp" />
+    <ClCompile Include="farming.test.cpp" />
+    <ClCompile Include="ai.test.cpp" />
+    <ClCompile Include="editor.test.cpp" />
+    <ClCompile Include="narrative.test.cpp" />
+    <ClCompile Include="economy.test.cpp" />
+    <ClCompile Include="flow.test.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="$(SolutionDir)src\engine\core\fa_core.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\platform\fa_platform.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\time\fa_time.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\events\fa_events.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\input\fa_input.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\assets\fa_assets.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\render\fa_render.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\scene\fa_scene.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\physics\fa_physics.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\tilemap\fa_tilemap.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\interaction\fa_interaction.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\player\fa_player.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\content\fa_content.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\ui\fa_ui.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\inventory\fa_inventory.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\audio\fa_audio.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\debug\fa_debug.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\save\fa_save.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\anim\fa_anim.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\combat\fa_combat.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\world\fa_world.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\farming\fa_farming.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\ai\fa_ai.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\editor\fa_editor.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\narrative\fa_narrative.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\economy\fa_economy.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\flow\fa_flow.vcxproj" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>

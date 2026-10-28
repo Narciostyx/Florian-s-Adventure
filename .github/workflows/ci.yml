@@ -1,0 +1,143 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        configuration: [Debug, Release]
+    env:
+      VCPKG_ROOT: C:\vcpkg
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Detect solution
+        id: detect
+        shell: pwsh
+        run: |
+          if (Test-Path 'FloriansAdventure.sln') {
+            'ready=true' >> $env:GITHUB_OUTPUT
+          }
+          else {
+            'ready=false' >> $env:GITHUB_OUTPUT
+            Write-Host 'FloriansAdventure.sln does not exist yet (M00 not applied). Skipping build.'
+          }
+
+      - name: Cache vcpkg
+        if: steps.detect.outputs.ready == 'true'
+        uses: actions/cache@v4
+        with:
+          path: |
+            C:\vcpkg\installed
+            C:\vcpkg\downloads
+          key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}
+          restore-keys: |
+            vcpkg-${{ runner.os }}-
+
+      - name: Setup vcpkg
+        if: steps.detect.outputs.ready == 'true'
+        shell: pwsh
+        run: |
+          if (-not (Test-Path 'C:\vcpkg\vcpkg.exe')) {
+            git clone --depth 1 https://github.com/microsoft/vcpkg.git C:\vcpkg
+            C:\vcpkg\bootstrap-vcpkg.bat -disableMetrics
+          }
+
+      - name: Validate manifest
+        if: steps.detect.outputs.ready == 'true'
+        shell: pwsh
+        run: |
+          if ((Get-Content -Raw 'vcpkg.json') -match 'TODO-REPLACE-WITH-REAL-COMMIT-SHA') {
+            throw 'vcpkg.json still contains the placeholder builtin-baseline.'
+          }
+
+      - name: Build
+        if: steps.detect.outputs.ready == 'true'
+        shell: pwsh
+        run: |
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+          $msbuild = (& $vswhere -latest -products * -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\MSBuild.exe' | Select-Object -First 1)
+          if (-not $msbuild) { throw 'MSBuild.exe not found.' }
+          & $msbuild FloriansAdventure.sln /m /nologo /v:minimal /p:Configuration=${{ matrix.configuration }} /p:Platform=x64
+          if ($LASTEXITCODE -ne 0) { throw "Build failed: $LASTEXITCODE" }
+
+      - name: Test
+        if: steps.detect.outputs.ready == 'true'
+        shell: pwsh
+        run: |
+          $exe = 'build\bin\x64\${{ matrix.configuration }}\fa_tests.exe'
+          if (-not (Test-Path $exe)) { throw "Test executable missing: $exe" }
+          & $exe 2>&1 | Tee-Object -FilePath 'test-${{ matrix.configuration }}.log'
+          if ($LASTEXITCODE -ne 0) { throw "Tests failed: $LASTEXITCODE" }
+
+      - name: Scripted smoke
+        if: steps.detect.outputs.ready == 'true'
+        shell: pwsh
+        run: |
+          $exe = 'build\bin\x64\${{ matrix.configuration }}\fa_app.exe'
+          & $exe --frames 60 2>&1 | Tee-Object -FilePath 'frames-${{ matrix.configuration }}.log'
+          if ($LASTEXITCODE -ne 0) { throw "Scripted smoke failed: $LASTEXITCODE" }
+
+      - name: Play smoke
+        if: steps.detect.outputs.ready == 'true'
+        shell: pwsh
+        run: |
+          # Headless: the app degrades when the runner has no GL/audio device, so
+          # gameplay and save checks still run on a plain windows-latest image.
+          $exe = 'build\bin\x64\${{ matrix.configuration }}\fa_app.exe'
+          & $exe --play-test 2>&1 | Tee-Object -FilePath 'play-${{ matrix.configuration }}.log'
+          if ($LASTEXITCODE -ne 0) { throw "Play smoke failed: $LASTEXITCODE" }
+
+      - name: Soak (simulated 20 s)
+        if: steps.detect.outputs.ready == 'true'
+        shell: pwsh
+        run: |
+          $exe = 'build\bin\x64\${{ matrix.configuration }}\fa_app.exe'
+          & $exe --soak 20 2>&1 | Tee-Object -FilePath 'soak-${{ matrix.configuration }}.log'
+          if ($LASTEXITCODE -ne 0) { throw "Soak failed: $LASTEXITCODE" }
+
+      - name: 1080p smoke
+        if: steps.detect.outputs.ready == 'true'
+        shell: pwsh
+        run: |
+          $exe = 'build\bin\x64\${{ matrix.configuration }}\fa_app.exe'
+          & $exe --resolution 1920x1080 --frames 5 2>&1 |
+            Tee-Object -FilePath 'hd-${{ matrix.configuration }}.log'
+          if ($LASTEXITCODE -ne 0) { throw "1080p smoke failed: $LASTEXITCODE" }
+
+      - name: Upload smoke logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-${{ matrix.configuration }}
+          path: |
+            test-${{ matrix.configuration }}.log
+            frames-${{ matrix.configuration }}.log
+            play-${{ matrix.configuration }}.log
+            soak-${{ matrix.configuration }}.log
+            hd-${{ matrix.configuration }}.log
+          if-no-files-found: ignore
+
+  format:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Format check
+        shell: pwsh
+        run: |
+          pip install clang-format==18.1.8 --quiet
+          python scripts/check-format.py
+          if ($LASTEXITCODE -ne 0) { throw "Formatting check failed: $LASTEXITCODE" }

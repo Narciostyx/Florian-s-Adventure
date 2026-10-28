@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Development|x64">
+      <Configuration>Development</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>17.0</VCProjectVersion>
+    <ProjectGuid>{C0DE0008-0008-4F00-9A00-000000000008}</ProjectGuid>
+    <RootNamespace>fa_scene</RootNamespace>
+    <Keyword>Win32Proj</Keyword>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="$(SolutionDir)build\Project.props" />
+  </ImportGroup>
+  <ItemGroup>
+    <ClCompile Include="src\CommandBuffer.cpp" />
+    <ClCompile Include="src\EntityId.cpp" />
+    <ClCompile Include="src\Scene.cpp" />
+    <ClCompile Include="src\SceneStack.cpp" />
+    <ClCompile Include="src\SpriteExtractor.cpp" />
+    <ClCompile Include="src\System.cpp" />
+    <ClCompile Include="src\World.cpp" />
+    <ClInclude Include="..\include\fa\scene\CommandBuffer.hpp" />
+    <ClInclude Include="..\include\fa\scene\Components.hpp" />
+    <ClInclude Include="..\include\fa\scene\ComponentType.hpp" />
+    <ClInclude Include="..\include\fa\scene\EntityId.hpp" />
+    <ClInclude Include="..\include\fa\scene\Scene.hpp" />
+    <ClInclude Include="..\include\fa\scene\SceneError.hpp" />
+    <ClInclude Include="..\include\fa\scene\SceneStack.hpp" />
+    <ClInclude Include="..\include\fa\scene\SparseSet.hpp" />
+    <ClInclude Include="..\include\fa\scene\SpriteExtractor.hpp" />
+    <ClInclude Include="..\include\fa\scene\System.hpp" />
+    <ClInclude Include="..\include\fa\scene\World.hpp" />
+  </ItemGroup>
+  <!-- fa_core for the error/Result types, fa_time for the frame context the hooks
+       receive, fa_render for DrawItem/RenderQueue. No fa_assets: sprites hold a
+       render::TextureHandle, which is a plain id with no destructor, so a scene never
+       keeps a texture alive and never links the asset manager
+       (docs/modules/11-scene-world-ecs.md section 5). -->
+  <ItemGroup>
+    <ProjectReference Include="$(SolutionDir)src\engine\core\fa_core.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\time\fa_time.vcxproj" />
+    <ProjectReference Include="$(SolutionDir)src\engine\render\fa_render.vcxproj" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>
