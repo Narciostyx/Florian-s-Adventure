@@ -142,6 +142,8 @@ public:
     bool setTileTexture(TileId id, render::TextureHandle texture, core::Rect source = {});
 
     [[nodiscard]] const TileDef* tileDef(TileId id) const noexcept;
+    /// \brief Mutable definition for the editor's property inspector; null when absent.
+    [[nodiscard]] TileDef* mutableTileDef(TileId id) noexcept;
     [[nodiscard]] std::span<const TileDef> tileDefs() const noexcept { return m_tileDefs; }
     [[nodiscard]] std::size_t tileDefCount() const noexcept { return m_tileDefs.size(); }
 

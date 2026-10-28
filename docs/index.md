@@ -66,7 +66,7 @@ Florian's Adventure 的全部设计文档入口。当前状态：**28 个模块 
 | [M24 经济/加工/商店・实测](build/m24-economy-crafting-shops.md) | 钱包、买卖原子性、每日限购、季节库存与按日价格波动、配方加工任务、出货箱次日结算、经济事件 |
 | [M25 Game Flow・实测](build/m25-game-flow.md) | 应用状态机、新游戏/读档、暂停/对话、日终结算、自动存档、死亡/复活、退出、叙事/AI/世界对象存档接线 |
 | [M26 编辑器・实测](build/m26-editor-tools.md) | 瓦片笔刷/矩形/填充/擦除/取色、命令差分撤销、JSON 保存/加载、M09 面板；Release 不链接 |
-| [M26 Visual Editor・设计](modules/26-visual-editor.md) | 左地图 / 右组件库 / 右属性检查器；组件与属性描述符注册、文档适配器、JSON 双向同步、扩展点与分阶段落地 |
+| [M26 Visual Editor](modules/26-visual-editor.md) | 左地图 / 右组件库 / 右属性检查器；主菜单 `MAP EDITOR` 入口、瓦片/尺寸/地图属性编辑、JSON 保存与重载校验；实体与区域放置待做 |
 | [M27 调试工具・实测](build/m27-debug-tools.md) | 控制台/CVar/日志/统计/实体检查器/物理调试；Release 条件链接；通配符展开后的新文件登记流程 |
 | [M16 玩家控制器・实测](build/m16-player-controller.md) | 输入适配与控制器拆分、只写 `Velocity`、动作锁、闪避速度平台、无敌窗口、测试顺序踩坑 |
 | [M15 内容数据库・实测](build/m15-content-database.md) | ID 前缀/哈希、季节掩码、错误收集与重试、非事务加载、`std::span` 与指针稳定性、`/EHsc` 结论 |

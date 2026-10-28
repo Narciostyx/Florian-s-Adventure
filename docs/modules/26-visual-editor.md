@@ -4,7 +4,7 @@
 |---|---|
 | 层 | L4 |
 | 优先级 | P2 |
-| 状态 | 设计稿（未实现） |
+| 状态 | P0/P1 与 P2 瓦片属性已实现；实体/区域放置待做 |
 | 依赖 | M00–M25（`fa_core`、`fa_tilemap`、`fa_render`、`fa_ui`、M05 资源、M11 ECS、M15 内容） |
 | 关系 | 扩展 [M26 Editor Tools](26-editor-tools.md) 的面板层；复用 `MapEditor`/`EditorHistory` |
 
@@ -317,7 +317,38 @@ struct EditorCommand {
 - UI：固定 1280×720 与 1920×1080，点击/拖拽脚本验证面板命中区域与滚动。
 - 回归：`--frames 60`、`--play-test`、`--stress 1000` 不受编辑器关闭状态影响。
 
-## 10. 风险与开放问题
+## 10. 实现状态
+
+代码位置：
+
+- `src/engine/include/fa/editor/VisualEditor.hpp`
+- `src/engine/editor/src/VisualEditor.cpp`
+- 入口：主菜单 `MAP EDITOR` 按钮（`src/app/main.cpp`，仅 `FA_ENABLE_EDITOR` 配置可见）。
+
+已实现（P0/P1 + P2 的瓦片属性部分）：
+
+| 区域 | 内容 |
+|---|---|
+| 布局 | 左侧地图视口、右上组件库、右下属性检查器、顶部工具栏、状态文字 |
+| 工具栏 | `BRUSH` / `ERASE` / `FILL`、`UNDO` / `REDO`、`BACK`，并显示图层、笔刷 id、`DIRTY/SAVED` |
+| 地图绘制 | 按瓦片层 `visible` 与 `renderLayer` 提交 `DrawItem`；16px 源图按视口等比缩放；悬停格高亮 |
+| 输入 | 左键绘制、右键擦除；仅在地图视口（工具栏以下）内生效，不抢占右侧面板按钮 |
+| 尺寸 | `W-`/`W+`/`H-`/`H+` 调整地图大小，保留左上角区域、图层、瓦片定义、区域与传送点 |
+| 地图属性 | `OUTSIDE SOLID`、`INDOOR`（`ambient.indoor`） |
+| 瓦片属性 | 贴图名循环选择（来自 `catalog.json` 的 `Texture` 条目）、`WALKABLE`、`SOLID`、`TILLABLE`、`WATER` |
+| 保存 | `SAVE JSON` 调用组装根回调，原子写入 `data/maps/farm.json`，成功后 `markSaved()` 并重新绑定纹理 |
+| 关闭 | `BACK` 或 `Esc`；控件状态与撤销历史保留 |
+
+尚未实现（后续阶段）：
+
+- P2 其余：地图 `origin`、`tileSize`、`ambient.light`、`ambient.music` 编辑。
+- P3：实体/敌人/NPC/传送点/区域的放置与属性、内容引用选择器。
+- P4：校验面板、外部修改检测、保存后热重载、`Ctrl+Z/Ctrl+Y` 快捷键。
+
+保存的 JSON 仍由 `TilemapWriter` 生成，因此与运行时 `loadTilemapFromJson` 的字段完全一致；
+`--play-test` 的 `play-test: visual editor ok` 会用编辑器输入路径改一个格子、写盘并重新加载校验。
+
+## 11. 风险与开放问题
 
 - 地图尺寸变化会破坏引用坐标（传送点/区域/实体）；需要“同步平移/裁剪”策略确认。
 - 属性面板的混合值与多选编辑规则需要产品确认。
