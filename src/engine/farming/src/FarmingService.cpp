@@ -36,8 +36,7 @@ std::string_view toString(FarmingEventKind kind) noexcept {
 FarmingService::FarmingService(const content::ContentDatabase* content) : m_content(content) {}
 
 core::Status FarmingService::till(tilemap::TileCoord cell, const tilemap::Tilemap& map) {
-    if (!map.contains(cell.x, cell.y) || !map.isTillable(cell.x, cell.y) ||
-        map.isSolidCell(cell.x, cell.y)) {
+    if (!map.contains(cell.x, cell.y) || !map.isTillable(cell.x, cell.y) || map.isSolidCell(cell.x, cell.y)) {
         return core::errorStatus(farming_error::kNotTillable, "cell is not tillable");
     }
 
@@ -116,8 +115,7 @@ core::Status FarmingService::plant(tilemap::TileCoord cell, const content::Conte
     return core::okStatus();
 }
 
-core::Result<inventory::ItemStack> FarmingService::harvest(tilemap::TileCoord cell,
-                                                           inventory::Inventory& inventory) {
+core::Result<inventory::ItemStack> FarmingService::harvest(tilemap::TileCoord cell, inventory::Inventory& inventory) {
     FarmTileEntry* entry = findEntry(cell);
     if (entry == nullptr || !entry->hasCrop) {
         return core::Result<inventory::ItemStack>::err(farming_error::kNotHarvestable, "cell has no crop");
@@ -126,20 +124,17 @@ core::Result<inventory::ItemStack> FarmingService::harvest(tilemap::TileCoord ce
         return core::Result<inventory::ItemStack>::err(farming_error::kDeadCrop, "crop is dead");
     }
     if (!entry->crop.harvestable) {
-        return core::Result<inventory::ItemStack>::err(farming_error::kNotHarvestable,
-                                                       "crop is still growing");
+        return core::Result<inventory::ItemStack>::err(farming_error::kNotHarvestable, "crop is still growing");
     }
 
     inventory::ItemStack stack;
     stack.id = entry->crop.harvestItem;
     stack.count = 1;
     if (stack.empty()) {
-        return core::Result<inventory::ItemStack>::err(farming_error::kUnknownCrop,
-                                                       "crop has no harvest item");
+        return core::Result<inventory::ItemStack>::err(farming_error::kUnknownCrop, "crop has no harvest item");
     }
     if (inventory.spaceFor(stack) < stack.count) {
-        return core::Result<inventory::ItemStack>::err(farming_error::kInventoryFull,
-                                                       "no room for the harvest");
+        return core::Result<inventory::ItemStack>::err(farming_error::kInventoryFull, "no room for the harvest");
     }
 
     const core::Result<int> added = inventory.add(stack);
@@ -147,8 +142,7 @@ core::Result<inventory::ItemStack> FarmingService::harvest(tilemap::TileCoord ce
         return core::Result<inventory::ItemStack>::err(added.error().code, added.error().message);
     }
     if (added.value() != 0) {
-        return core::Result<inventory::ItemStack>::err(farming_error::kInventoryFull,
-                                                       "no room for the harvest");
+        return core::Result<inventory::ItemStack>::err(farming_error::kInventoryFull, "no room for the harvest");
     }
 
     if (entry->crop.regrow && entry->crop.regrowDays > 0) {
@@ -183,8 +177,7 @@ void FarmingService::onDayChanged(const FarmingDayContext& context) {
             CropState& crop = entry.crop;
             crop.wateredToday = watered;
             if (!crop.dead) {
-                const bool seasonOk =
-                    entry.tile.greenhouse || content::seasonAllows(crop.seasons, context.season);
+                const bool seasonOk = entry.tile.greenhouse || content::seasonAllows(crop.seasons, context.season);
                 if (!seasonOk) {
                     crop.dead = true;
                     ++m_totals.wilted;
@@ -277,14 +270,14 @@ void FarmingService::clear() noexcept {
 }
 
 const FarmTileEntry* FarmingService::findEntry(tilemap::TileCoord cell) const noexcept {
-    const auto found = std::find_if(m_entries.begin(), m_entries.end(),
-                                    [cell](const FarmTileEntry& entry) { return entry.cell == cell; });
+    const auto found = std::find_if(
+        m_entries.begin(), m_entries.end(), [cell](const FarmTileEntry& entry) { return entry.cell == cell; });
     return found != m_entries.end() ? &*found : nullptr;
 }
 
 FarmTileEntry* FarmingService::findEntry(tilemap::TileCoord cell) noexcept {
-    const auto found = std::find_if(m_entries.begin(), m_entries.end(),
-                                    [cell](const FarmTileEntry& entry) { return entry.cell == cell; });
+    const auto found = std::find_if(
+        m_entries.begin(), m_entries.end(), [cell](const FarmTileEntry& entry) { return entry.cell == cell; });
     return found != m_entries.end() ? &*found : nullptr;
 }
 
@@ -313,8 +306,7 @@ void FarmingService::updateStage(CropState& crop) const {
     crop.harvestable = stage >= static_cast<int>(crop.stageDays.size());
 }
 
-void FarmingService::emit(FarmingEventKind kind, tilemap::TileCoord cell, const content::ContentId& item,
-                          int amount) {
+void FarmingService::emit(FarmingEventKind kind, tilemap::TileCoord cell, const content::ContentId& item, int amount) {
     FarmingEvent event;
     event.kind = kind;
     event.cell = cell;

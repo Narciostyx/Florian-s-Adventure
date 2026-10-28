@@ -70,9 +70,7 @@ class FakeFileSystem final : public fa::platform::IFileSystem {
 public:
     bool exists(std::string_view path) const override { return m_files.count(std::string(path)) != 0; }
 
-    bool isDirectory(std::string_view path) const override {
-        return m_directories.count(std::string(path)) != 0;
-    }
+    bool isDirectory(std::string_view path) const override { return m_directories.count(std::string(path)) != 0; }
 
     fa::core::Result<std::string> readText(std::string_view path) override { return readBinary(path); }
 
@@ -204,8 +202,10 @@ struct Fixture {
     FakeUploader uploader;
     FakeDecoder decoder;
 
-    fa::assets::IAssetManager* create(AssetCatalog& catalog, fa::events::JobSystem* jobs = nullptr,
-                                      bool retainCpuPixels = true, bool withUploader = true) {
+    fa::assets::IAssetManager* create(AssetCatalog& catalog,
+                                      fa::events::JobSystem* jobs = nullptr,
+                                      bool retainCpuPixels = true,
+                                      bool withUploader = true) {
         AssetManagerDesc desc = baseDesc(catalog);
         desc.jobs = jobs;
         desc.uploader = withUploader ? &uploader : nullptr;
@@ -631,8 +631,7 @@ TEST_CASE("loadTexture refuses an id of the wrong kind", "[assets]") {
 
 TEST_CASE("a missing file degrades to the placeholder instead of failing", "[assets]") {
     AssetCatalog catalog;
-    REQUIRE(catalog.loadFromText(R"({"assets": [{"id": "tex.a", "path": "art/a.fake", "size": [4, 4]}]})")
-                .isOk());
+    REQUIRE(catalog.loadFromText(R"({"assets": [{"id": "tex.a", "path": "art/a.fake", "size": [4, 4]}]})").isOk());
     Fixture fixture;
     auto* manager = fixture.create(catalog);
 

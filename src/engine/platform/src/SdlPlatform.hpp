@@ -34,8 +34,7 @@ public:
     IAudioDevice* audio() override;
     double monotonicSeconds() const override;
     void sleepSeconds(double seconds) override;
-    fa::core::Status showMessageBox(MessageBoxKind kind, std::string_view title,
-                                    std::string_view message) override;
+    fa::core::Status showMessageBox(MessageBoxKind kind, std::string_view title, std::string_view message) override;
 
 private:
     SdlWindow m_window;

@@ -43,8 +43,7 @@ public:
     /// \brief \param map Borrowed pathfinding/LOS grid.
     /// \param physics Borrowed movement executor.
     /// \param combat Borrowed attack executor; null disables attacks.
-    AiService(const tilemap::Tilemap& map, physics::PhysicsWorld& physics,
-              combat::ICombatService* combat = nullptr);
+    AiService(const tilemap::Tilemap& map, physics::PhysicsWorld& physics, combat::ICombatService* combat = nullptr);
 
     AiService(const AiService&) = delete;
     AiService& operator=(const AiService&) = delete;
@@ -58,8 +57,7 @@ public:
     /// The composition root uses this to play a wind-up animation and spawn the
     /// hitbox from the animation's `hit` frame. Without a handler M21 keeps its
     /// original behaviour and calls `ICombatService::spawnAttack` directly.
-    using AttackHandler =
-        std::function<void(scene::EntityId agent, const combat::AttackHitbox& hitbox)>;
+    using AttackHandler = std::function<void(scene::EntityId agent, const combat::AttackHitbox& hitbox)>;
     void setAttackHandler(AttackHandler handler) { m_attackHandler = std::move(handler); }
 
     /// \brief Advances every `AiAgent` by one fixed step.
@@ -72,12 +70,12 @@ public:
     ///
     /// Returns false when the goal is unreachable or the search limit is hit. An
     /// empty successful path means the two cells are the same.
-    [[nodiscard]] bool findPath(tilemap::TileCoord from, tilemap::TileCoord to,
-                                std::vector<tilemap::TileCoord>& out) const;
+    [[nodiscard]] bool
+    findPath(tilemap::TileCoord from, tilemap::TileCoord to, std::vector<tilemap::TileCoord>& out) const;
 
     /// \brief Bresenham line of sight through solid tile cells.
-    [[nodiscard]] static bool hasLineOfSight(const tilemap::Tilemap& map, tilemap::TileCoord from,
-                                             tilemap::TileCoord to) noexcept;
+    [[nodiscard]] static bool
+    hasLineOfSight(const tilemap::Tilemap& map, tilemap::TileCoord from, tilemap::TileCoord to) noexcept;
 
     [[nodiscard]] AiStats stats() const noexcept { return m_stats; }
 
@@ -102,20 +100,18 @@ private:
     void resetPath(PathState& path) noexcept;
     [[nodiscard]] core::Vec2 agentCenter(const scene::World& world, scene::EntityId agent) const;
     [[nodiscard]] tilemap::TileCoord cellAt(const scene::World& world, scene::EntityId agent) const;
-    [[nodiscard]] bool ensurePath(const scene::World& world, AiAgent& agent, PathState& path,
-                                  tilemap::TileCoord goal);
-    void moveAlongPath(scene::World& world, scene::EntityId id, AiAgent& agent, PathState& path,
-                       float deltaSeconds);
+    [[nodiscard]] bool ensurePath(const scene::World& world, AiAgent& agent, PathState& path, tilemap::TileCoord goal);
+    void moveAlongPath(scene::World& world, scene::EntityId id, AiAgent& agent, PathState& path, float deltaSeconds);
     void perceive(scene::World& world, scene::EntityId id, AiAgent& agent, core::Vec2 center);
-    void performAttack(scene::World& world, scene::EntityId id, const AiAgent& agent, core::Vec2 center,
-                       core::Vec2 targetCenter);
+    void performAttack(
+        scene::World& world, scene::EntityId id, const AiAgent& agent, core::Vec2 center, core::Vec2 targetCenter);
     void changeState(AiAgent& agent, AiState state);
 
     const tilemap::Tilemap& m_map;
     physics::PhysicsWorld& m_physics;
     combat::ICombatService* m_combat = nullptr;
-        AttackHandler m_attackHandler;
-        std::vector<PathState> m_paths;
+    AttackHandler m_attackHandler;
+    std::vector<PathState> m_paths;
     AiStats m_stats;
     std::uint64_t m_step = 0;
 };

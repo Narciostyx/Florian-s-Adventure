@@ -236,8 +236,14 @@ core::Status GlRenderer::initialize(platform::IPlatform& platform, const Rendere
         return status;
     }
 
-    core::logf(core::LogCategory::Render, core::LogLevel::Info, "OpenGL %s on %s (%s), vsync %d, %d quads/frame",
-               m_version.c_str(), m_rendererName.c_str(), vendor.c_str(), m_gl->swapInterval(), m_capacityQuads);
+    core::logf(core::LogCategory::Render,
+               core::LogLevel::Info,
+               "OpenGL %s on %s (%s), vsync %d, %d quads/frame",
+               m_version.c_str(),
+               m_rendererName.c_str(),
+               vendor.c_str(),
+               m_gl->swapInterval(),
+               m_capacityQuads);
     return core::okStatus();
 }
 
@@ -292,8 +298,8 @@ void GlRenderer::shutdown() {
     m_viewport = Viewport{};
 }
 
-core::Status GlRenderer::compileShader(gl::GLenum type, const char* source, const char* debugName,
-                                       gl::GLuint& outShader) {
+core::Status
+GlRenderer::compileShader(gl::GLenum type, const char* source, const char* debugName, gl::GLuint& outShader) {
     outShader = 0;
     const gl::GLuint shader = m_functions.glCreateShader(type);
     if (shader == 0) {
@@ -357,8 +363,7 @@ core::Status GlRenderer::createProgram() {
     m_textureLocation = m_functions.glGetUniformLocation(program, "uTexture");
     if (m_projectionLocation < 0 || m_textureLocation < 0) {
         m_functions.glDeleteProgram(program);
-        return core::errorStatus(render_error::kShaderLinkFailed,
-                                 "sprite program is missing uProjection or uTexture");
+        return core::errorStatus(render_error::kShaderLinkFailed, "sprite program is missing uProjection or uTexture");
     }
 
     m_program = program;
@@ -392,24 +397,26 @@ core::Status GlRenderer::createGeometryBuffers() {
 
     m_functions.glBindBuffer(gl::GL_ARRAY_BUFFER, m_vertexBuffer);
     m_functions.glBufferData(gl::GL_ARRAY_BUFFER,
-                             static_cast<gl::GLsizeiptr>(m_vertices.size() * sizeof(Vertex)), nullptr,
+                             static_cast<gl::GLsizeiptr>(m_vertices.size() * sizeof(Vertex)),
+                             nullptr,
                              gl::GL_DYNAMIC_DRAW);
 
     m_functions.glBindBuffer(gl::GL_ELEMENT_ARRAY_BUFFER, m_indexBuffer);
     m_functions.glBufferData(gl::GL_ELEMENT_ARRAY_BUFFER,
                              static_cast<gl::GLsizeiptr>(m_indices.size() * sizeof(std::uint32_t)),
-                             m_indices.data(), gl::GL_DYNAMIC_DRAW);
+                             m_indices.data(),
+                             gl::GL_DYNAMIC_DRAW);
 
     const gl::GLsizei stride = static_cast<gl::GLsizei>(sizeof(Vertex));
     m_functions.glEnableVertexAttribArray(0);
-    m_functions.glVertexAttribPointer(0, 2, gl::GL_FLOAT, 0, stride,
-                                      reinterpret_cast<const void*>(offsetof(Vertex, x)));
+    m_functions.glVertexAttribPointer(
+        0, 2, gl::GL_FLOAT, 0, stride, reinterpret_cast<const void*>(offsetof(Vertex, x)));
     m_functions.glEnableVertexAttribArray(1);
-    m_functions.glVertexAttribPointer(1, 2, gl::GL_FLOAT, 0, stride,
-                                      reinterpret_cast<const void*>(offsetof(Vertex, u)));
+    m_functions.glVertexAttribPointer(
+        1, 2, gl::GL_FLOAT, 0, stride, reinterpret_cast<const void*>(offsetof(Vertex, u)));
     m_functions.glEnableVertexAttribArray(2);
-    m_functions.glVertexAttribPointer(2, 4, gl::GL_FLOAT, 0, stride,
-                                      reinterpret_cast<const void*>(offsetof(Vertex, r)));
+    m_functions.glVertexAttribPointer(
+        2, 4, gl::GL_FLOAT, 0, stride, reinterpret_cast<const void*>(offsetof(Vertex, r)));
 
     m_functions.glBindVertexArray(0);
     m_functions.glBindBuffer(gl::GL_ARRAY_BUFFER, 0);
@@ -500,8 +507,15 @@ core::Status GlRenderer::createTexture(const TextureDesc& desc, TextureHandle& o
     const bool singleChannel = desc.format == TextureFormat::R8;
     const gl::GLenum internalFormat = singleChannel ? gl::GL_R8 : gl::GL_RGBA8;
     const gl::GLenum pixelFormat = singleChannel ? gl::GL_RED : gl::GL_RGBA;
-    m_functions.glTexImage2D(gl::GL_TEXTURE_2D, 0, static_cast<gl::GLint>(internalFormat), desc.width, desc.height,
-                             0, pixelFormat, gl::GL_UNSIGNED_BYTE, desc.pixels);
+    m_functions.glTexImage2D(gl::GL_TEXTURE_2D,
+                             0,
+                             static_cast<gl::GLint>(internalFormat),
+                             desc.width,
+                             desc.height,
+                             0,
+                             pixelFormat,
+                             gl::GL_UNSIGNED_BYTE,
+                             desc.pixels);
 
     if (needsRowLength) {
         m_functions.glPixelStorei(gl::GL_UNPACK_ROW_LENGTH, 0);
@@ -599,7 +613,8 @@ void GlRenderer::beginFrame(const Camera2D& camera) {
     // 0..size orthographic box; the camera transform happened on the CPU.
     Camera2D pixelSpace;
     pixelSpace.setViewportSize(core::Vec2{static_cast<float>(virtualWidth), static_cast<float>(virtualHeight)});
-    pixelSpace.setPosition(core::Vec2{static_cast<float>(virtualWidth) * 0.5f, static_cast<float>(virtualHeight) * 0.5f});
+    pixelSpace.setPosition(
+        core::Vec2{static_cast<float>(virtualWidth) * 0.5f, static_cast<float>(virtualHeight) * 0.5f});
     pixelSpace.projection(m_projection);
 
     // Letterbox bars are black, the virtual surface gets the clear colour.
@@ -608,14 +623,14 @@ void GlRenderer::beginFrame(const Camera2D& camera) {
     m_functions.glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     m_functions.glClear(gl::GL_COLOR_BUFFER_BIT);
 
-    m_functions.glViewport(m_viewport.offsetX, m_viewport.offsetY, m_viewport.drawableWidth(),
-                           m_viewport.drawableHeight());
+    m_functions.glViewport(
+        m_viewport.offsetX, m_viewport.offsetY, m_viewport.drawableWidth(), m_viewport.drawableHeight());
     m_functions.glClearColor(m_desc.clearColor.r, m_desc.clearColor.g, m_desc.clearColor.b, m_desc.clearColor.a);
     m_functions.glClear(gl::GL_COLOR_BUFFER_BIT);
 
     m_functions.glEnable(gl::GL_BLEND);
-    m_functions.glBlendFuncSeparate(gl::GL_SRC_ALPHA, gl::GL_ONE_MINUS_SRC_ALPHA, gl::GL_ONE,
-                                    gl::GL_ONE_MINUS_SRC_ALPHA);
+    m_functions.glBlendFuncSeparate(
+        gl::GL_SRC_ALPHA, gl::GL_ONE_MINUS_SRC_ALPHA, gl::GL_ONE, gl::GL_ONE_MINUS_SRC_ALPHA);
 
     m_functions.glUseProgram(m_program);
     m_functions.glUniformMatrix4fv(m_projectionLocation, 1, 0, m_projection);
@@ -656,8 +671,8 @@ void GlRenderer::flushBatch() {
     const std::size_t indexCount = static_cast<std::size_t>(m_batchQuadCount) * 6;
 
     m_functions.glBindBuffer(gl::GL_ARRAY_BUFFER, m_vertexBuffer);
-    m_functions.glBufferSubData(gl::GL_ARRAY_BUFFER, 0,
-                                static_cast<gl::GLsizeiptr>(vertexCount * sizeof(Vertex)), m_vertices.data());
+    m_functions.glBufferSubData(
+        gl::GL_ARRAY_BUFFER, 0, static_cast<gl::GLsizeiptr>(vertexCount * sizeof(Vertex)), m_vertices.data());
 
     m_functions.glActiveTexture(gl::GL_TEXTURE0);
     m_functions.glBindTexture(gl::GL_TEXTURE_2D, m_batchTexture);
@@ -814,6 +829,8 @@ void GlRenderer::drawDebugLine(core::Vec2 from, core::Vec2 to, core::Color color
     submit(item);
 }
 
-std::unique_ptr<IRenderer> createRenderer() { return std::make_unique<GlRenderer>(); }
+std::unique_ptr<IRenderer> createRenderer() {
+    return std::make_unique<GlRenderer>();
+}
 
 }  // namespace fa::render

@@ -46,22 +46,31 @@ void EditorOverlay::draw(ui::UiContext& ui) const {
 
     const EditorStats info = stats();
     char line[160]{};
-    std::snprintf(line, sizeof(line), "EDITOR %s  L%d  BRUSH %u", toString(info.tool).data(), info.layer,
+    std::snprintf(line,
+                  sizeof(line),
+                  "EDITOR %s  L%d  BRUSH %u",
+                  toString(info.tool).data(),
+                  info.layer,
                   static_cast<unsigned>(info.brush.value));
     ui.text(line, core::makeRect(panel.x + 6.0f, panel.y + 3.0f, panel.w - 12.0f, 7.0f), style);
 
     ui.text("1 BRUSH  2 RECT  3 FILL  4 ERASE  5 PICK",
-            core::makeRect(panel.x + 6.0f, panel.y + 13.0f, panel.w - 12.0f, 7.0f), style);
+            core::makeRect(panel.x + 6.0f, panel.y + 13.0f, panel.w - 12.0f, 7.0f),
+            style);
     ui.text("[ ] LAYER  Z UNDO  Y REDO  S SAVE  L LOAD",
-            core::makeRect(panel.x + 6.0f, panel.y + 23.0f, panel.w - 12.0f, 7.0f), style);
+            core::makeRect(panel.x + 6.0f, panel.y + 23.0f, panel.w - 12.0f, 7.0f),
+            style);
 
-    std::snprintf(line, sizeof(line), "UNDO %zu  REDO %zu  CMDS %llu  DIRTY %s", info.undoDepth,
-                  info.redoDepth, static_cast<unsigned long long>(info.commands),
+    std::snprintf(line,
+                  sizeof(line),
+                  "UNDO %zu  REDO %zu  CMDS %llu  DIRTY %s",
+                  info.undoDepth,
+                  info.redoDepth,
+                  static_cast<unsigned long long>(info.commands),
                   info.dirty ? "YES" : "NO");
     ui.text(line, core::makeRect(panel.x + 6.0f, panel.y + 33.0f, panel.w - 12.0f, 7.0f), style);
 
-    std::snprintf(line, sizeof(line), "MAP %dx%d  PREVIEW %zu", info.mapWidth, info.mapHeight,
-                  info.previewCells);
+    std::snprintf(line, sizeof(line), "MAP %dx%d  PREVIEW %zu", info.mapWidth, info.mapHeight, info.previewCells);
     ui.text(line, core::makeRect(panel.x + 6.0f, panel.y + 43.0f, panel.w - 12.0f, 7.0f), style);
 }
 

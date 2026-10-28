@@ -19,8 +19,8 @@
 #include <fa/render/RenderQueue.hpp>
 #include <fa/render/RenderTypes.hpp>
 #include <fa/scene/CommandBuffer.hpp>
-#include <fa/scene/Components.hpp>
 #include <fa/scene/ComponentType.hpp>
+#include <fa/scene/Components.hpp>
 #include <fa/scene/EntityId.hpp>
 #include <fa/scene/Scene.hpp>
 #include <fa/scene/SceneError.hpp>
@@ -32,6 +32,7 @@
 
 namespace {
 
+using Catch::Approx;
 using fa::core::Vec2;
 using fa::render::DrawItem;
 using fa::render::RenderLayer;
@@ -51,7 +52,6 @@ using fa::scene::SpriteExtractSystem;
 using fa::scene::SystemPipeline;
 using fa::scene::Transform;
 using fa::scene::World;
-using Catch::Approx;
 
 constexpr std::uint32_t kTexture = 7;
 
@@ -1131,9 +1131,11 @@ TEST_CASE("Sprite extraction handles a thousand entities quickly", "[scene][extr
     World world;
     for (int index = 0; index < 1000; ++index) {
         const EntityId id = world.create();
-        world.add<Transform>(id, Transform{Vec2{static_cast<float>(index % 40) * 16.0f,
-                                               static_cast<float>(index / 40) * 16.0f},
-                                          Vec2{1.0f, 1.0f}, 0.0f});
+        world.add<Transform>(
+            id,
+            Transform{Vec2{static_cast<float>(index % 40) * 16.0f, static_cast<float>(index / 40) * 16.0f},
+                      Vec2{1.0f, 1.0f},
+                      0.0f});
         world.add<Sprite>(id, makeSprite());
     }
 

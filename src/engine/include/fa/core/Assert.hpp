@@ -23,11 +23,11 @@ bool reportCheckFailure(std::string_view expression, std::string_view file, int 
 /// Invariants: compiled out when NDEBUG is set, and abort loudly otherwise.
 /// These must never guard user input or content data - that belongs in Result.
 #ifndef NDEBUG
-#define FA_ASSERT(condition, message)                                       \
-    do {                                                                    \
-        if (!(condition)) {                                                 \
-            ::fa::core::fatal(message);                                     \
-        }                                                                   \
+#define FA_ASSERT(condition, message)                                                                                  \
+    do {                                                                                                               \
+        if (!(condition)) {                                                                                            \
+            ::fa::core::fatal(message);                                                                                \
+        }                                                                                                              \
     } while (false)
 #else
 #define FA_ASSERT(condition, message) ((void)0)
@@ -35,14 +35,13 @@ bool reportCheckFailure(std::string_view expression, std::string_view file, int 
 
 /// Same as FA_ASSERT but kept in every configuration. Use only for invariants
 /// whose violation would be silently corrupting rather than merely a crash.
-#define FA_VERIFY(condition, message)                                       \
-    do {                                                                    \
-        if (!(condition)) {                                                 \
-            ::fa::core::fatal(message);                                     \
-        }                                                                   \
+#define FA_VERIFY(condition, message)                                                                                  \
+    do {                                                                                                               \
+        if (!(condition)) {                                                                                            \
+            ::fa::core::fatal(message);                                                                                \
+        }                                                                                                              \
     } while (false)
 
 /// Non-fatal check for cases we can recover from: logs and returns false.
-#define FA_CHECK(condition, message)                                        \
-    ((condition) ? true                                                      \
-                 : ::fa::core::reportCheckFailure(#condition, __FILE__, __LINE__, message))
+#define FA_CHECK(condition, message)                                                                                   \
+    ((condition) ? true : ::fa::core::reportCheckFailure(#condition, __FILE__, __LINE__, message))

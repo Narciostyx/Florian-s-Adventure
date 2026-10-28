@@ -26,7 +26,9 @@ SDL_WindowFlags buildFlags(const WindowDesc& desc) {
 
 }  // namespace
 
-SdlWindow::~SdlWindow() { destroy(); }
+SdlWindow::~SdlWindow() {
+    destroy();
+}
 
 bool SdlWindow::create(const WindowDesc& desc) {
     destroy();

@@ -36,8 +36,8 @@ using Json = nlohmann::json;
     return true;
 }
 
-[[nodiscard]] bool readIdField(const Json& object, const char* key, std::string_view prefix,
-                               content::ContentId& out, std::string& error) {
+[[nodiscard]] bool
+readIdField(const Json& object, const char* key, std::string_view prefix, content::ContentId& out, std::string& error) {
     std::string name;
     if (!readStringField(object, key, name) || name.empty()) {
         error = std::string(key) + " must be a non-empty string";
@@ -63,8 +63,7 @@ using Json = nlohmann::json;
     }
     if (kind == "affinity_at_least") {
         out.kind = DialogueCondition::Kind::AffinityAtLeast;
-        return readIdField(value, "id", "npc.", out.id, error) &&
-               readIntField(value, "value", out.value);
+        return readIdField(value, "id", "npc.", out.id, error) && readIntField(value, "value", out.value);
     }
     if (kind == "quest_active") {
         out.kind = DialogueCondition::Kind::QuestActive;
@@ -76,8 +75,7 @@ using Json = nlohmann::json;
     }
     if (kind == "has_item") {
         out.kind = DialogueCondition::Kind::HasItem;
-        return readIdField(value, "id", "item.", out.id, error) &&
-               readIntField(value, "value", out.value);
+        return readIdField(value, "id", "item.", out.id, error) && readIntField(value, "value", out.value);
     }
     if (kind == "flag") {
         out.kind = DialogueCondition::Kind::Flag;
@@ -110,13 +108,11 @@ using Json = nlohmann::json;
     }
     if (kind == "give_item") {
         out.kind = DialogueAction::Kind::GiveItem;
-        return readIdField(value, "id", "item.", out.id, error) &&
-               readIntField(value, "amount", out.amount);
+        return readIdField(value, "id", "item.", out.id, error) && readIntField(value, "amount", out.amount);
     }
     if (kind == "add_affinity") {
         out.kind = DialogueAction::Kind::AddAffinity;
-        return readIdField(value, "id", "npc.", out.id, error) &&
-               readIntField(value, "amount", out.amount);
+        return readIdField(value, "id", "npc.", out.id, error) && readIntField(value, "amount", out.amount);
     }
     if (kind == "start_quest") {
         out.kind = DialogueAction::Kind::StartQuest;
@@ -138,8 +134,7 @@ using Json = nlohmann::json;
     return false;
 }
 
-[[nodiscard]] bool parseConditions(const Json& object, std::vector<DialogueCondition>& out,
-                                   std::string& error) {
+[[nodiscard]] bool parseConditions(const Json& object, std::vector<DialogueCondition>& out, std::string& error) {
     const auto found = object.find("conditions");
     if (found == object.end()) {
         return true;
@@ -158,8 +153,7 @@ using Json = nlohmann::json;
     return true;
 }
 
-[[nodiscard]] bool parseActions(const Json& object, std::vector<DialogueAction>& out,
-                                std::string& error) {
+[[nodiscard]] bool parseActions(const Json& object, std::vector<DialogueAction>& out, std::string& error) {
     const auto found = object.find("actions");
     if (found == object.end()) {
         return true;
@@ -253,8 +247,7 @@ using Json = nlohmann::json;
             error = "node \"next\" must be a string";
             return false;
         }
-        if (!parseConditions(value, node.conditions, error) ||
-            !parseActions(value, node.actions, error)) {
+        if (!parseConditions(value, node.conditions, error) || !parseActions(value, node.actions, error)) {
             return false;
         }
         if (const auto choices = value.find("choices"); choices != value.end()) {
@@ -292,8 +285,7 @@ using Json = nlohmann::json;
         }
         for (const DialogueChoice& choice : node.choices) {
             if (!choice.next.empty() && nodeIds.find(choice.next) == nodeIds.end()) {
-                error = "dialogue choice in \"" + node.id + "\" points to missing node \"" +
-                        choice.next + "\"";
+                error = "dialogue choice in \"" + node.id + "\" points to missing node \"" + choice.next + "\"";
                 return false;
             }
         }
@@ -480,8 +472,7 @@ core::Status NarrativeDatabase::loadDocument(std::string_view json) {
                                  "narrative document needs an integer \"schema_version\"");
     }
     if (schema != 1) {
-        return core::errorStatus(narrative_error::kUnsupportedSchema,
-                                 "unsupported narrative schema version");
+        return core::errorStatus(narrative_error::kUnsupportedSchema, "unsupported narrative schema version");
     }
 
     std::vector<NpcDef> npcs;
@@ -537,12 +528,10 @@ core::Status NarrativeDatabase::loadDocument(std::string_view json) {
     for (const DialogueDef& dialogue : dialogues) {
         if (m_dialogueIndex.find(dialogue.id) != m_dialogueIndex.end() ||
             dialogueIds.find(dialogue.id) != dialogueIds.end()) {
-            return core::errorStatus(narrative_error::kDuplicateId,
-                                     "duplicate dialogue id " + dialogue.id.name());
+            return core::errorStatus(narrative_error::kDuplicateId, "duplicate dialogue id " + dialogue.id.name());
         }
         dialogueIds[dialogue.id] = true;
-        if (m_npcIndex.find(dialogue.npc) == m_npcIndex.end() &&
-            npcIds.find(dialogue.npc) == npcIds.end()) {
+        if (m_npcIndex.find(dialogue.npc) == m_npcIndex.end() && npcIds.find(dialogue.npc) == npcIds.end()) {
             return core::errorStatus(narrative_error::kUnknownNpc,
                                      "dialogue \"" + dialogue.id.name() + "\" references unknown npc");
         }

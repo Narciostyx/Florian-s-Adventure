@@ -21,8 +21,8 @@ Binding mouseBinding(fa::platform::MouseButton button, float scale = 1.0f) {
 }  // namespace
 
 InputSystem::InputSystem() : m_maps(kInputContextCount) {
-    fa::core::logf(fa::core::LogCategory::Input, fa::core::LogLevel::Debug,
-                   "input: %zu context(s) initialised", m_maps.size());
+    fa::core::logf(
+        fa::core::LogCategory::Input, fa::core::LogLevel::Debug, "input: %zu context(s) initialised", m_maps.size());
 }
 
 InputSystem::~InputSystem() = default;
@@ -146,17 +146,23 @@ void InputSystem::endFrame() {
 void InputSystem::pushContext(InputContext context) {
     m_contexts.push(context);
     const auto name = toString(context);
-    fa::core::logf(fa::core::LogCategory::Input, fa::core::LogLevel::Trace,
-                   "input: pushed context %.*s (depth %zu)", static_cast<int>(name.size()),
-                   name.data(), m_contexts.size());
+    fa::core::logf(fa::core::LogCategory::Input,
+                   fa::core::LogLevel::Trace,
+                   "input: pushed context %.*s (depth %zu)",
+                   static_cast<int>(name.size()),
+                   name.data(),
+                   m_contexts.size());
 }
 
 void InputSystem::popContext() {
     const auto active = m_contexts.pop();
     const auto name = toString(active);
-    fa::core::logf(fa::core::LogCategory::Input, fa::core::LogLevel::Trace,
-                   "input: popped to context %.*s (depth %zu)", static_cast<int>(name.size()),
-                   name.data(), m_contexts.size());
+    fa::core::logf(fa::core::LogCategory::Input,
+                   fa::core::LogLevel::Trace,
+                   "input: popped to context %.*s (depth %zu)",
+                   static_cast<int>(name.size()),
+                   name.data(),
+                   m_contexts.size());
 }
 
 ActionId InputSystem::registerAction(std::string_view name) {

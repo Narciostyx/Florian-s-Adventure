@@ -28,8 +28,8 @@ struct AudioClip {
 /// \brief Generates a sine tone with a short de-click ramp.
 ///
 /// \param amplitude Linear peak amplitude in `[0, 1]`.
-[[nodiscard]] AudioClip makeTone(float frequencyHz, float durationSeconds, int sampleRate = 48000,
-                                 int channels = 2, float amplitude = 0.25f);
+[[nodiscard]] AudioClip
+makeTone(float frequencyHz, float durationSeconds, int sampleRate = 48000, int channels = 2, float amplitude = 0.25f);
 
 /// \brief Generates a silent clip of the requested duration.
 [[nodiscard]] AudioClip makeSilence(float durationSeconds, int sampleRate = 48000, int channels = 2);

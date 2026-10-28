@@ -51,8 +51,8 @@ std::string_view toString(MouseButton button) noexcept {
 }
 
 MouseButton mouseButtonFromName(std::string_view name) noexcept {
-    for (const auto candidate : {MouseButton::Left, MouseButton::Middle, MouseButton::Right,
-                                 MouseButton::X1, MouseButton::X2}) {
+    for (const auto candidate :
+         {MouseButton::Left, MouseButton::Middle, MouseButton::Right, MouseButton::X1, MouseButton::X2}) {
         if (toString(candidate) == name) {
             return candidate;
         }

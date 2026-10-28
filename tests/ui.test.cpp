@@ -21,6 +21,7 @@
 
 namespace {
 
+using Catch::Approx;
 using fa::core::Color;
 using fa::core::Rect;
 using fa::core::Vec2;
@@ -42,7 +43,6 @@ using fa::ui::UiContext;
 using fa::ui::UiId;
 using fa::ui::UiInputState;
 using fa::ui::UiResult;
-using Catch::Approx;
 
 /// \brief A font whose texture handle is non-zero so drawText() actually submits.
 FontAtlas testFont() {
@@ -62,7 +62,9 @@ UiInputState mouseAt(Vec2 position, bool down = false, bool pressed = false, boo
     return input;
 }
 
-std::span<const DrawItem> itemsOf(const RenderQueue& queue) { return queue.items(); }
+std::span<const DrawItem> itemsOf(const RenderQueue& queue) {
+    return queue.items();
+}
 
 }  // namespace
 
@@ -90,9 +92,9 @@ TEST_CASE("builtin font builds a complete ASCII atlas", "[ui]") {
     // 'A' is the first letter with pixels: row 1 is 010, row 2 is 101, row 3 is 111.
     const int column = (U'A' - kFirstCodepoint) * fa::ui::kGlyphAdvance;
     const auto pixelSet = [&font, column](int x, int y) {
-        const std::size_t index =
-            (static_cast<std::size_t>(y) * static_cast<std::size_t>(font.width) + static_cast<std::size_t>(column + x)) *
-            4u;
+        const std::size_t index = (static_cast<std::size_t>(y) * static_cast<std::size_t>(font.width) +
+                                   static_cast<std::size_t>(column + x)) *
+                                  4u;
         return font.pixels[index + 3] != 0;
     };
     CHECK_FALSE(pixelSet(0, 0));

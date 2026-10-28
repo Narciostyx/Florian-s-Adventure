@@ -1,8 +1,8 @@
 #include <fa/assets/ImageData.hpp>
 
 #include <cmath>
-#include <cstdio>
 #include <cstdint>
+#include <cstdio>
 #include <string>
 
 #include <fa/assets/AssetError.hpp>
@@ -109,8 +109,7 @@ ImageData makeCheckerboardImage(int width, int height, core::Color colorA, core:
             if (((x / cell) + (y / cell)) % 2 == 0) {
                 continue;
             }
-            const std::size_t index = static_cast<std::size_t>(y) * image.rowPitch() +
-                                      static_cast<std::size_t>(x) * 4;
+            const std::size_t index = static_cast<std::size_t>(y) * image.rowPitch() + static_cast<std::size_t>(x) * 4;
             image.pixels[index + 0] = r;
             image.pixels[index + 1] = g;
             image.pixels[index + 2] = b;
@@ -125,8 +124,7 @@ core::Result<core::Color> parseColorText(std::string_view text) {
         text.remove_prefix(1);
     }
     if (text.size() != 6 && text.size() != 8) {
-        return core::Result<core::Color>::err(asset_error::kInvalidImage,
-                                              "#rrggbb or #rrggbbaa expected");
+        return core::Result<core::Color>::err(asset_error::kInvalidImage, "#rrggbb or #rrggbbaa expected");
     }
     std::uint8_t channels[4] = {0, 0, 0, 255};
     const std::size_t channelCount = text.size() / 2;
@@ -134,8 +132,7 @@ core::Result<core::Color> parseColorText(std::string_view text) {
         const int high = hexDigit(text[i * 2]);
         const int low = hexDigit(text[i * 2 + 1]);
         if (high < 0 || low < 0) {
-            return core::Result<core::Color>::err(asset_error::kInvalidImage,
-                                                  "non-hex digit in colour text");
+            return core::Result<core::Color>::err(asset_error::kInvalidImage, "non-hex digit in colour text");
         }
         channels[i] = static_cast<std::uint8_t>(high * 16 + low);
     }
@@ -148,8 +145,12 @@ core::Result<core::Color> parseColorText(std::string_view text) {
 
 std::string toColorText(core::Color color) {
     char buffer[16] = {};
-    std::snprintf(buffer, sizeof(buffer), "#%02x%02x%02x%02x", static_cast<unsigned>(channelToByte(color.r)),
-                  static_cast<unsigned>(channelToByte(color.g)), static_cast<unsigned>(channelToByte(color.b)),
+    std::snprintf(buffer,
+                  sizeof(buffer),
+                  "#%02x%02x%02x%02x",
+                  static_cast<unsigned>(channelToByte(color.r)),
+                  static_cast<unsigned>(channelToByte(color.g)),
+                  static_cast<unsigned>(channelToByte(color.b)),
                   static_cast<unsigned>(channelToByte(color.a)));
     return std::string(buffer);
 }

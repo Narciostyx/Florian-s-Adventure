@@ -73,7 +73,9 @@ fa::core::Result<std::string> StdFileSystem::readBinary(std::string_view path) {
     return fa::core::Result<std::string>::ok(std::move(bytes));
 }
 
-fa::core::Result<std::string> StdFileSystem::readText(std::string_view path) { return readBinary(path); }
+fa::core::Result<std::string> StdFileSystem::readText(std::string_view path) {
+    return readBinary(path);
+}
 
 fa::core::Status StdFileSystem::writeText(std::string_view path, std::string_view content) {
     std::ofstream stream(toPath(path), std::ios::binary | std::ios::trunc);
@@ -144,8 +146,7 @@ fa::core::Result<std::vector<std::string>> StdFileSystem::listDirectory(std::str
         iterator.increment(ec);
         if (ec) {
             return fa::core::Result<std::vector<std::string>>::err(platform_error::kDirectoryEnumerationFailed,
-                                                                    "cannot enumerate directory: " +
-                                                                        std::string(path));
+                                                                   "cannot enumerate directory: " + std::string(path));
         }
     }
 

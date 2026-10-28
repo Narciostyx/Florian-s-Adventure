@@ -57,11 +57,17 @@ core::Result<SaveArchive> SaveArchive::parse(std::string_view text) {
     return core::Result<SaveArchive>::ok(std::move(archive));
 }
 
-bool SaveArchive::isNull() const noexcept { return !m_impl || m_impl->value.is_null(); }
+bool SaveArchive::isNull() const noexcept {
+    return !m_impl || m_impl->value.is_null();
+}
 
-bool SaveArchive::isObject() const noexcept { return m_impl && m_impl->value.is_object(); }
+bool SaveArchive::isObject() const noexcept {
+    return m_impl && m_impl->value.is_object();
+}
 
-bool SaveArchive::isArray() const noexcept { return m_impl && m_impl->value.is_array(); }
+bool SaveArchive::isArray() const noexcept {
+    return m_impl && m_impl->value.is_array();
+}
 
 std::size_t SaveArchive::size() const noexcept {
     if (!m_impl) {

@@ -41,7 +41,8 @@ public:
 
     /// \param directory Root directory for slots; created on first use.
     /// \param currentVersion Overridable for tests and future schema bumps.
-    explicit SaveService(platform::IFileSystem& files, std::string directory = "saves",
+    explicit SaveService(platform::IFileSystem& files,
+                         std::string directory = "saves",
                          int currentVersion = kSaveVersion);
 
     [[nodiscard]] core::Status save(std::string_view slot, const SaveContext& context) override;
@@ -68,5 +69,11 @@ private:
     int m_currentVersion = kSaveVersion;
     std::vector<std::pair<int, Migration>> m_migrations;
 };
+
+/// \brief Registers the shipped migration chain (currently v1 → v2).
+///
+/// The migration only creates missing containers; it never overwrites values, so
+/// it is safe to run on partially written or already-normalised saves.
+void registerDefaultMigrations(SaveService& service);
 
 }  // namespace fa::save

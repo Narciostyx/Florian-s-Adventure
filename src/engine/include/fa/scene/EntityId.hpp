@@ -27,7 +27,9 @@ struct EntityId {
     static constexpr std::uint32_t kPendingGeneration = 0xFFFFFFFFu;
 
     /// \brief A real, currently-usable handle (not necessarily alive any more).
-    constexpr bool isValid() const noexcept { return index != 0 && generation != 0 && generation != kPendingGeneration; }
+    constexpr bool isValid() const noexcept {
+        return index != 0 && generation != 0 && generation != kPendingGeneration;
+    }
 
     /// \brief A `CommandBuffer` placeholder awaiting `apply()`.
     constexpr bool isPending() const noexcept { return generation == kPendingGeneration; }

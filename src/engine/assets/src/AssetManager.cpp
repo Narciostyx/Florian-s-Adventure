@@ -275,9 +275,15 @@ core::Result<ImagePayload> AssetManager::loadFromSource(const AssetEntry& entry)
     payload.image = std::move(decoded).take();
     if (entry.width > 0 && entry.height > 0 &&
         (entry.width != payload.image.width || entry.height != payload.image.height)) {
-        core::logf(kLogCategory, core::LogLevel::Warn, "%.*s: decoded %dx%d but the catalog declares %dx%d",
-                   static_cast<int>(entry.id.name().size()), entry.id.name().data(), payload.image.width,
-                   payload.image.height, entry.width, entry.height);
+        core::logf(kLogCategory,
+                   core::LogLevel::Warn,
+                   "%.*s: decoded %dx%d but the catalog declares %dx%d",
+                   static_cast<int>(entry.id.name().size()),
+                   entry.id.name().data(),
+                   payload.image.width,
+                   payload.image.height,
+                   entry.width,
+                   entry.height);
     }
     return core::Result<ImagePayload>::ok(std::move(payload));
 }
@@ -302,8 +308,11 @@ void AssetManager::applyImage(TextureSlot& slot, ImagePayload payload) {
         const std::uint32_t token = m_desc.uploader->upload(slot.m_value.image, slot.m_id.name());
         if (token == 0) {
             slot.m_value.uploadFailed = true;
-            core::logf(kLogCategory, core::LogLevel::Warn, "%.*s: texture upload failed, keeping CPU pixels only",
-                       static_cast<int>(slot.m_id.name().size()), slot.m_id.name().data());
+            core::logf(kLogCategory,
+                       core::LogLevel::Warn,
+                       "%.*s: texture upload failed, keeping CPU pixels only",
+                       static_cast<int>(slot.m_id.name().size()),
+                       slot.m_id.name().data());
         } else {
             slot.m_value.gpuTexture = token;
         }
@@ -325,21 +334,34 @@ void AssetManager::logLoadResult(const AssetEntry& entry, bool placeholder, std:
     }
     const int nameLength = static_cast<int>(entry.id.name().size());
     if (!placeholder) {
-        core::logf(kLogCategory, core::LogLevel::Debug, "%.*s: loaded from %.*s", nameLength, entry.id.name().data(),
-                   static_cast<int>(entry.path.size()), entry.path.data());
+        core::logf(kLogCategory,
+                   core::LogLevel::Debug,
+                   "%.*s: loaded from %.*s",
+                   nameLength,
+                   entry.id.name().data(),
+                   static_cast<int>(entry.path.size()),
+                   entry.path.data());
         return;
     }
     const char* const reason = note.empty() ? "" : note.data();
-    core::logf(kLogCategory, core::LogLevel::Warn, "%.*s: using placeholder (%.*s)", nameLength,
-               entry.id.name().data(), static_cast<int>(note.size()), reason);
+    core::logf(kLogCategory,
+               core::LogLevel::Warn,
+               "%.*s: using placeholder (%.*s)",
+               nameLength,
+               entry.id.name().data(),
+               static_cast<int>(note.size()),
+               reason);
 }
 
 core::Status AssetManager::runTextureLoad(TextureSlot& slot, const AssetEntry& entry) {
     core::Result<ImagePayload> payload = loadFromSource(entry);
     if (payload.isError()) {
         slot.m_state = AssetState::Failed;
-        core::logf(kLogCategory, core::LogLevel::Error, "%.*s: load failed: %s",
-                   static_cast<int>(slot.m_id.name().size()), slot.m_id.name().data(),
+        core::logf(kLogCategory,
+                   core::LogLevel::Error,
+                   "%.*s: load failed: %s",
+                   static_cast<int>(slot.m_id.name().size()),
+                   slot.m_id.name().data(),
                    payload.error().message.c_str());
         return payload.ignoreValue();
     }
@@ -382,8 +404,11 @@ void AssetManager::startTextureLoad(TextureSlot& slot, const AssetEntry& entry) 
 void AssetManager::finalizeTextureLoad(TextureSlot& slot) {
     if (slot.m_pendingError.has_value()) {
         slot.m_state = AssetState::Failed;
-        core::logf(kLogCategory, core::LogLevel::Error, "%.*s: background load failed: %s",
-                   static_cast<int>(slot.m_id.name().size()), slot.m_id.name().data(),
+        core::logf(kLogCategory,
+                   core::LogLevel::Error,
+                   "%.*s: background load failed: %s",
+                   static_cast<int>(slot.m_id.name().size()),
+                   slot.m_id.name().data(),
                    slot.m_pendingError->message.c_str());
         slot.m_pendingError.reset();
         return;
@@ -392,8 +417,11 @@ void AssetManager::finalizeTextureLoad(TextureSlot& slot) {
         // The job reported success but left nothing behind, which only happens when a
         // decoder returned an empty payload; treat it as a failure, not as Ready.
         slot.m_state = AssetState::Failed;
-        core::logf(kLogCategory, core::LogLevel::Error, "%.*s: background load produced no image",
-                   static_cast<int>(slot.m_id.name().size()), slot.m_id.name().data());
+        core::logf(kLogCategory,
+                   core::LogLevel::Error,
+                   "%.*s: background load produced no image",
+                   static_cast<int>(slot.m_id.name().size()),
+                   slot.m_id.name().data());
         return;
     }
 
@@ -435,8 +463,12 @@ core::Status AssetManager::runJsonLoad(JsonSlot& slot, const AssetEntry& entry) 
     if (text.isError()) {
         slot.m_state = AssetState::Failed;
         const std::string message = "cannot read " + path + ": " + text.error().message;
-        core::logf(kLogCategory, core::LogLevel::Error, "%.*s: %s", static_cast<int>(entry.id.name().size()),
-                   entry.id.name().data(), message.c_str());
+        core::logf(kLogCategory,
+                   core::LogLevel::Error,
+                   "%.*s: %s",
+                   static_cast<int>(entry.id.name().size()),
+                   entry.id.name().data(),
+                   message.c_str());
         return core::errorStatus(asset_error::kLoadFailed, message);
     }
     slot.m_value.text = std::move(text).take();
@@ -459,8 +491,7 @@ core::Result<AssetHandle<TextureAsset>> AssetManager::loadTexture(const AssetId&
                                                             "asset " + id.name() + " is not a texture");
     }
     if (m_desc.fileSystem == nullptr) {
-        return core::Result<AssetHandle<TextureAsset>>::err(asset_error::kNotInitialized,
-                                                            "no file system configured");
+        return core::Result<AssetHandle<TextureAsset>>::err(asset_error::kNotInitialized, "no file system configured");
     }
 
     TextureSlot& slot = ensureTextureSlot(id);
@@ -486,8 +517,11 @@ core::Result<AssetHandle<TextureAsset>> AssetManager::loadTexture(const AssetId&
 AssetHandle<TextureAsset> AssetManager::requestTexture(const AssetId& id) {
     const AssetEntry* entry = entryFor(id);
     if (entry == nullptr || entry->kind != AssetKind::Texture || m_desc.fileSystem == nullptr) {
-        core::logf(kLogCategory, core::LogLevel::Error, "%.*s: requested but not loadable",
-                   static_cast<int>(id.name().size()), id.name().data());
+        core::logf(kLogCategory,
+                   core::LogLevel::Error,
+                   "%.*s: requested but not loadable",
+                   static_cast<int>(id.name().size()),
+                   id.name().data());
         return AssetHandle<TextureAsset>{};
     }
 
@@ -513,8 +547,7 @@ core::Result<AssetHandle<JsonAsset>> AssetManager::loadJson(const AssetId& id) {
                                                          "asset " + id.name() + " is not a json document");
     }
     if (m_desc.fileSystem == nullptr) {
-        return core::Result<AssetHandle<JsonAsset>>::err(asset_error::kNotInitialized,
-                                                         "no file system configured");
+        return core::Result<AssetHandle<JsonAsset>>::err(asset_error::kNotInitialized, "no file system configured");
     }
 
     JsonSlot& slot = ensureJsonSlot(id);

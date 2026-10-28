@@ -166,7 +166,9 @@ core::Status AssetCatalog::loadFromFile(platform::IFileSystem& fileSystem, std::
     return loadFromText(text.value());
 }
 
-void AssetCatalog::clear() { m_entries.clear(); }
+void AssetCatalog::clear() {
+    m_entries.clear();
+}
 
 const AssetEntry* AssetCatalog::find(const AssetId& id) const noexcept {
     for (const AssetEntry& entry : m_entries) {

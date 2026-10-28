@@ -21,11 +21,19 @@ struct Milliseconds {
     constexpr Seconds toSeconds() const noexcept;
 };
 
-constexpr Milliseconds Seconds::toMilliseconds() const noexcept { return Milliseconds{value * 1000.0}; }
-constexpr Seconds Milliseconds::toSeconds() const noexcept { return Seconds{value / 1000.0}; }
+constexpr Milliseconds Seconds::toMilliseconds() const noexcept {
+    return Milliseconds{value * 1000.0};
+}
+constexpr Seconds Milliseconds::toSeconds() const noexcept {
+    return Seconds{value / 1000.0};
+}
 
-constexpr Seconds seconds(double value) noexcept { return Seconds{value}; }
-constexpr Milliseconds milliseconds(double value) noexcept { return Milliseconds{value}; }
+constexpr Seconds seconds(double value) noexcept {
+    return Seconds{value};
+}
+constexpr Milliseconds milliseconds(double value) noexcept {
+    return Milliseconds{value};
+}
 
 /// One-shot countdown. `tick` returns true exactly once, on the update where the
 /// timer reaches zero, so callers do not need "already fired" flags.

@@ -192,23 +192,26 @@ public:
     void step(scene::World& world, float dt);
 
     /// \brief Ids whose collider overlaps `area` and matches `mask`, sorted.
-    [[nodiscard]] std::vector<scene::EntityId> overlap(const scene::World& world, const core::Rect& area,
-                                                       CollisionMask mask) const;
+    [[nodiscard]] std::vector<scene::EntityId>
+    overlap(const scene::World& world, const core::Rect& area, CollisionMask mask) const;
 
     /// \brief Ids whose collider overlaps the circle, sorted.
     ///
     /// Uses an exact circle-versus-box test after the broadphase pass, so a corner of a
     /// box just outside the radius is correctly excluded.
-    [[nodiscard]] std::vector<scene::EntityId> overlapCircle(const scene::World& world, core::Vec2 center,
-                                                             float radius, CollisionMask mask) const;
+    [[nodiscard]] std::vector<scene::EntityId>
+    overlapCircle(const scene::World& world, core::Vec2 center, float radius, CollisionMask mask) const;
 
     /// \brief Nearest collider or solid tile along a ray.
     ///
     /// `direction` need not be normalized; `maxDistance` is in world pixels. Tiles are
     /// walked with a grid traversal rather than sampled, so a thin wall cannot be
     /// stepped over by a long ray.
-    [[nodiscard]] std::optional<RayHit> raycast(const scene::World& world, core::Vec2 origin, core::Vec2 direction,
-                                                float maxDistance, CollisionMask mask) const;
+    [[nodiscard]] std::optional<RayHit> raycast(const scene::World& world,
+                                                core::Vec2 origin,
+                                                core::Vec2 direction,
+                                                float maxDistance,
+                                                CollisionMask mask) const;
 
     /// \brief Overlap changes produced by the most recent `step`.
     [[nodiscard]] std::span<const TriggerEvent> triggerEvents() const noexcept { return m_triggerEvents; }
@@ -227,12 +230,14 @@ private:
     [[nodiscard]] MoveResult moveInternal(scene::World& world, scene::EntityId id, core::Vec2 delta, bool resync);
 
     /// \brief Appends every solid entity box and solid tile overlapping `area`.
-    void gatherBlockers(const scene::World& world, const Collider& self, scene::EntityId ignore,
-                        const core::Rect& area, std::vector<detail::Candidate>& out) const;
+    void gatherBlockers(const scene::World& world,
+                        const Collider& self,
+                        scene::EntityId ignore,
+                        const core::Rect& area,
+                        std::vector<detail::Candidate>& out) const;
 
     void updateTriggers(const scene::World& world);
-    [[nodiscard]] std::optional<RayHit> raycastTiles(core::Vec2 origin, core::Vec2 direction,
-                                                     float maxDistance) const;
+    [[nodiscard]] std::optional<RayHit> raycastTiles(core::Vec2 origin, core::Vec2 direction, float maxDistance) const;
 
     SpatialHash m_index;
     const ISolidTiles* m_tiles = nullptr;

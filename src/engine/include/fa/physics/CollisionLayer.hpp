@@ -43,7 +43,9 @@ enum class CollisionLayer : CollisionMask {
 };
 
 /// \brief Widens one layer into a mask.
-constexpr CollisionMask maskOf(CollisionLayer layer) noexcept { return static_cast<CollisionMask>(layer); }
+constexpr CollisionMask maskOf(CollisionLayer layer) noexcept {
+    return static_cast<CollisionMask>(layer);
+}
 
 /// \brief Combines two layers into a mask, e.g. `World | Enemy`.
 constexpr CollisionMask operator|(CollisionLayer lhs, CollisionLayer rhs) noexcept {
@@ -56,7 +58,9 @@ constexpr CollisionMask operator|(CollisionMask mask, CollisionLayer layer) noex
 }
 
 /// \brief Whether a collider on `layer` should be considered by a query using `mask`.
-constexpr bool matches(CollisionMask layer, CollisionMask mask) noexcept { return (layer & mask) != 0u; }
+constexpr bool matches(CollisionMask layer, CollisionMask mask) noexcept {
+    return (layer & mask) != 0u;
+}
 
 /// \brief Stable name for logs and the debug overlay.
 std::string_view toString(CollisionLayer layer) noexcept;

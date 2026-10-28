@@ -81,16 +81,14 @@ TEST_CASE("Narrative database rejects unknown references and duplicates", "[narr
       "dialogues": [{"id": "dialogue.x", "npc": "npc.none", "start": "a",
                      "nodes": [{"id": "a", "text": "x", "next": ""}]}]
     })";
-    CHECK(database.loadDocument(missingNpc).error().code ==
-          fa::narrative::narrative_error::kUnknownNpc);
+    CHECK(database.loadDocument(missingNpc).error().code == fa::narrative::narrative_error::kUnknownNpc);
 
     NarrativeDatabase duplicate;
     const std::string_view twice = R"({
       "schema_version": 1,
       "npcs": [{"id": "npc.a", "name": "A"}, {"id": "npc.a", "name": "B"}]
     })";
-    CHECK(duplicate.loadDocument(twice).error().code ==
-          fa::narrative::narrative_error::kDuplicateId);
+    CHECK(duplicate.loadDocument(twice).error().code == fa::narrative::narrative_error::kDuplicateId);
 
     NarrativeDatabase badStart;
     const std::string_view start = R"({
@@ -246,8 +244,7 @@ TEST_CASE("Gift rejects an item that is not in the inventory", "[narrative]") {
     NarrativeService service(&database);
     service.setInventory(&inventory);
 
-    CHECK(service.giveGift(ContentId::fromName("npc.elder"), ContentId::fromName("item.turnip"),
-                           inventory)
+    CHECK(service.giveGift(ContentId::fromName("npc.elder"), ContentId::fromName("item.turnip"), inventory)
               .error()
               .code == fa::narrative::narrative_error::kMissingItem);
 }

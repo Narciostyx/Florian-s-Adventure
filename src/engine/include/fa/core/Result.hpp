@@ -74,8 +74,12 @@ private:
 
 using Status = Result<Unit>;
 
-inline Status okStatus() { return Status::ok(Unit{}); }
+inline Status okStatus() {
+    return Status::ok(Unit{});
+}
 
-inline Status errorStatus(int code, std::string message) { return Status::err(code, std::move(message)); }
+inline Status errorStatus(int code, std::string message) {
+    return Status::err(code, std::move(message));
+}
 
 }  // namespace fa::core

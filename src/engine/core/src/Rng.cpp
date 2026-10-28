@@ -9,13 +9,21 @@ constexpr std::uint64_t kMultiplier = 6364136223846793005ULL;
 
 }  // namespace
 
-Rng::Rng() noexcept { seed(kDefaultSeed, kDefaultStream); }
+Rng::Rng() noexcept {
+    seed(kDefaultSeed, kDefaultStream);
+}
 
-Rng::Rng(std::uint64_t seedValue) noexcept { seed(seedValue, kDefaultStream); }
+Rng::Rng(std::uint64_t seedValue) noexcept {
+    seed(seedValue, kDefaultStream);
+}
 
-Rng::Rng(std::uint64_t seedValue, std::uint64_t stream) noexcept { seed(seedValue, stream); }
+Rng::Rng(std::uint64_t seedValue, std::uint64_t stream) noexcept {
+    seed(seedValue, stream);
+}
 
-void Rng::seed(std::uint64_t seedValue) noexcept { seed(seedValue, kDefaultStream); }
+void Rng::seed(std::uint64_t seedValue) noexcept {
+    seed(seedValue, kDefaultStream);
+}
 
 void Rng::seed(std::uint64_t seedValue, std::uint64_t stream) noexcept {
     m_state = 0;
@@ -66,7 +74,9 @@ int Rng::range(int minInclusive, int maxExclusive) noexcept {
     return minInclusive + static_cast<int>(bounded(span));
 }
 
-float Rng::nextFloat01() noexcept { return static_cast<float>(nextU32() >> 8U) * (1.0f / 16777216.0f); }
+float Rng::nextFloat01() noexcept {
+    return static_cast<float>(nextU32() >> 8U) * (1.0f / 16777216.0f);
+}
 
 float Rng::nextFloatRange(float minInclusive, float maxExclusive) noexcept {
     return minInclusive + (maxExclusive - minInclusive) * nextFloat01();

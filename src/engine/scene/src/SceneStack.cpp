@@ -6,7 +6,9 @@
 
 namespace fa::scene {
 
-SceneStack::~SceneStack() { clear(); }
+SceneStack::~SceneStack() {
+    clear();
+}
 
 core::Status SceneStack::push(std::unique_ptr<IScene> scene) {
     if (scene == nullptr) {
@@ -54,9 +56,13 @@ core::Status SceneStack::replace(std::unique_ptr<IScene> scene) {
     return core::okStatus();
 }
 
-IScene* SceneStack::top() noexcept { return m_scenes.empty() ? nullptr : m_scenes.back().get(); }
+IScene* SceneStack::top() noexcept {
+    return m_scenes.empty() ? nullptr : m_scenes.back().get();
+}
 
-const IScene* SceneStack::top() const noexcept { return m_scenes.empty() ? nullptr : m_scenes.back().get(); }
+const IScene* SceneStack::top() const noexcept {
+    return m_scenes.empty() ? nullptr : m_scenes.back().get();
+}
 
 IScene* SceneStack::at(std::size_t index) noexcept {
     return index < m_scenes.size() ? m_scenes[index].get() : nullptr;

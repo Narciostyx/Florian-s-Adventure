@@ -15,8 +15,7 @@ float EconomyService::priceFactor(const ShopEntry& entry) const noexcept {
     if (entry.priceSwing <= 0.0f) {
         return 1.0f;
     }
-    std::uint64_t mixed = entry.item.hash() ^
-                          (static_cast<std::uint64_t>(m_day) * 0x9E3779B97F4A7C15ULL);
+    std::uint64_t mixed = entry.item.hash() ^ (static_cast<std::uint64_t>(m_day) * 0x9E3779B97F4A7C15ULL);
     mixed ^= mixed >> 30;
     mixed *= 0xBF58476D1CE4E5B9ULL;
     mixed ^= mixed >> 27;
@@ -30,8 +29,7 @@ int EconomyService::buyPrice(const ShopDef& shop, const ShopEntry& entry, int co
     if (count <= 0) {
         return 0;
     }
-    const float scaled =
-        static_cast<float>(entry.price) * shop.buyMultiplier * priceFactor(entry);
+    const float scaled = static_cast<float>(entry.price) * shop.buyMultiplier * priceFactor(entry);
     const int unit = std::max(1, static_cast<int>(scaled + 0.5f));
     return unit * count;
 }
@@ -40,8 +38,7 @@ int EconomyService::sellPrice(const ShopDef& shop, const content::ContentId& ite
     int base = 0;
     for (const ShopEntry& entry : shop.stock) {
         if (entry.item == item && seasonAllows(entry)) {
-            base = std::max(
-                1, static_cast<int>(static_cast<float>(entry.price) * priceFactor(entry) + 0.5f));
+            base = std::max(1, static_cast<int>(static_cast<float>(entry.price) * priceFactor(entry) + 0.5f));
             break;
         }
     }
@@ -53,8 +50,10 @@ int EconomyService::sellPrice(const ShopDef& shop, const content::ContentId& ite
     return std::max(0, static_cast<int>(static_cast<float>(base) * shop.sellMultiplier + 0.5f));
 }
 
-core::Status EconomyService::buy(const content::ContentId& shopId, const content::ContentId& item,
-                                 int count, inventory::Inventory& inventory) {
+core::Status EconomyService::buy(const content::ContentId& shopId,
+                                 const content::ContentId& item,
+                                 int count,
+                                 inventory::Inventory& inventory) {
     if (count <= 0) {
         return core::errorStatus(economy_error::kInvalidCount, "buy count must be positive");
     }
@@ -65,17 +64,16 @@ core::Status EconomyService::buy(const content::ContentId& shopId, const content
     if (shop == nullptr) {
         return core::errorStatus(economy_error::kUnknownShop, "unknown shop");
     }
-    const auto entry = std::find_if(shop->stock.begin(), shop->stock.end(),
-                                    [&item](const ShopEntry& value) { return value.item == item; });
+    const auto entry = std::find_if(
+        shop->stock.begin(), shop->stock.end(), [&item](const ShopEntry& value) { return value.item == item; });
     if (entry == shop->stock.end()) {
         return core::errorStatus(economy_error::kUnknownItem, "shop does not stock this item");
     }
-        if (!seasonAllows(*entry)) {
-            return core::errorStatus(economy_error::kWrongSeason,
-                                     "item is not stocked in this season");
-        }
+    if (!seasonAllows(*entry)) {
+        return core::errorStatus(economy_error::kWrongSeason, "item is not stocked in this season");
+    }
 
-        ensureRemaining(*shop);
+    ensureRemaining(*shop);
     const std::size_t index = static_cast<std::size_t>(std::distance(shop->stock.begin(), entry));
     std::vector<int>& remaining = m_remaining[shopId];
     if (entry->dailyLimit >= 0 && remaining[index] < count) {
@@ -108,8 +106,10 @@ core::Status EconomyService::buy(const content::ContentId& shopId, const content
     return core::okStatus();
 }
 
-core::Status EconomyService::sell(const content::ContentId& shopId, const content::ContentId& item,
-                                  int count, inventory::Inventory& inventory) {
+core::Status EconomyService::sell(const content::ContentId& shopId,
+                                  const content::ContentId& item,
+                                  int count,
+                                  inventory::Inventory& inventory) {
     if (count <= 0) {
         return core::errorStatus(economy_error::kInvalidCount, "sell count must be positive");
     }
@@ -231,8 +231,7 @@ core::Status EconomyService::collectCraft(std::size_t index, inventory::Inventor
     return core::okStatus();
 }
 
-core::Status EconomyService::ship(const content::ContentId& item, int count,
-                                  inventory::Inventory& inventory) {
+core::Status EconomyService::ship(const content::ContentId& item, int count, inventory::Inventory& inventory) {
     if (count <= 0) {
         return core::errorStatus(economy_error::kInvalidCount, "ship count must be positive");
     }
@@ -244,10 +243,8 @@ core::Status EconomyService::ship(const content::ContentId& item, int count,
         return core::errorStatus(removed.error().code, removed.error().message);
     }
 
-    const auto existing = std::find_if(m_shipping.begin(), m_shipping.end(),
-                                       [&item](const inventory::ItemStack& stack) {
-                                           return stack.id == item;
-                                       });
+    const auto existing = std::find_if(
+        m_shipping.begin(), m_shipping.end(), [&item](const inventory::ItemStack& stack) { return stack.id == item; });
     if (existing != m_shipping.end()) {
         existing->count += count;
     } else {
@@ -269,9 +266,8 @@ int EconomyService::onDayChanged() {
     if (m_content != nullptr) {
         for (const inventory::ItemStack& stack : m_shipping) {
             if (const content::ItemDef* definition = m_content->item(stack.id); definition != nullptr) {
-                shippingGold += static_cast<int>(static_cast<float>(definition->sellPrice) *
-                                                  m_shippingMultiplier) *
-                                stack.count;
+                shippingGold +=
+                    static_cast<int>(static_cast<float>(definition->sellPrice) * m_shippingMultiplier) * stack.count;
             }
         }
     }
@@ -295,8 +291,7 @@ void EconomyService::restoreJobs(std::span<const ProcessingJob> jobs) {
     m_jobs.assign(jobs.begin(), jobs.end());
 }
 
-void EconomyService::restoreRemaining(const content::ContentId& shopId,
-                                      const content::ContentId& item, int remaining) {
+void EconomyService::restoreRemaining(const content::ContentId& shopId, const content::ContentId& item, int remaining) {
     if (m_shops == nullptr || remaining < 0) {
         return;
     }
@@ -304,8 +299,8 @@ void EconomyService::restoreRemaining(const content::ContentId& shopId,
     if (shop == nullptr) {
         return;
     }
-    const auto entry = std::find_if(shop->stock.begin(), shop->stock.end(),
-                                    [&item](const ShopEntry& value) { return value.item == item; });
+    const auto entry = std::find_if(
+        shop->stock.begin(), shop->stock.end(), [&item](const ShopEntry& value) { return value.item == item; });
     if (entry == shop->stock.end() || entry->dailyLimit < 0) {
         return;
     }
@@ -327,8 +322,8 @@ int EconomyService::remaining(const content::ContentId& shopId, const content::C
     if (shop == nullptr) {
         return 0;
     }
-    const auto entry = std::find_if(shop->stock.begin(), shop->stock.end(),
-                                    [&item](const ShopEntry& value) { return value.item == item; });
+    const auto entry = std::find_if(
+        shop->stock.begin(), shop->stock.end(), [&item](const ShopEntry& value) { return value.item == item; });
     if (entry == shop->stock.end() || entry->dailyLimit < 0) {
         return -1;
     }
@@ -384,9 +379,13 @@ void EconomyService::resetRemaining(const ShopDef& shop) {
     m_remaining[shop.id] = std::move(remaining);
 }
 
-void EconomyService::record(EconomyEventKind kind, const content::ContentId& shop,
-                            const content::ContentId& item, const content::ContentId& recipe,
-                            int amount, int gold, std::string text) {
+void EconomyService::record(EconomyEventKind kind,
+                            const content::ContentId& shop,
+                            const content::ContentId& item,
+                            const content::ContentId& recipe,
+                            int amount,
+                            int gold,
+                            std::string text) {
     EconomyEvent event;
     event.kind = kind;
     event.shop = shop;

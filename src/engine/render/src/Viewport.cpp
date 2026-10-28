@@ -25,14 +25,22 @@ Viewport Viewport::fit(int windowWidth, int windowHeight, int virtualWidth, int 
     return viewport;
 }
 
-int Viewport::drawableWidth() const noexcept { return virtualWidth * scale; }
+int Viewport::drawableWidth() const noexcept {
+    return virtualWidth * scale;
+}
 
-int Viewport::drawableHeight() const noexcept { return virtualHeight * scale; }
+int Viewport::drawableHeight() const noexcept {
+    return virtualHeight * scale;
+}
 
-bool Viewport::isEmpty() const noexcept { return windowWidth <= 0 || windowHeight <= 0; }
+bool Viewport::isEmpty() const noexcept {
+    return windowWidth <= 0 || windowHeight <= 0;
+}
 
 core::Rect Viewport::windowRect() const noexcept {
-    return core::makeRect(static_cast<float>(offsetX), static_cast<float>(offsetY), static_cast<float>(drawableWidth()),
+    return core::makeRect(static_cast<float>(offsetX),
+                          static_cast<float>(offsetY),
+                          static_cast<float>(drawableWidth()),
                           static_cast<float>(drawableHeight()));
 }
 

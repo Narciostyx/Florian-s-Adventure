@@ -19,7 +19,9 @@ FatalHandler g_fatalHandler = &defaultFatalHandler;
 
 }  // namespace
 
-void setFatalHandler(FatalHandler handler) noexcept { g_fatalHandler = handler != nullptr ? handler : &defaultFatalHandler; }
+void setFatalHandler(FatalHandler handler) noexcept {
+    g_fatalHandler = handler != nullptr ? handler : &defaultFatalHandler;
+}
 
 [[noreturn]] void fatal(std::string_view message) {
     /// \note Log first: a custom handler may show a dialog, and we still want the
@@ -32,9 +34,14 @@ void setFatalHandler(FatalHandler handler) noexcept { g_fatalHandler = handler !
 
 bool reportCheckFailure(std::string_view expression, std::string_view file, int line, std::string_view message) {
     char buffer[512];
-    const int written = std::snprintf(buffer, sizeof(buffer), "%.*s:%d: check failed: %.*s",
-                                      static_cast<int>(file.size()), file.data(), line,
-                                      static_cast<int>(expression.size()), expression.data());
+    const int written = std::snprintf(buffer,
+                                      sizeof(buffer),
+                                      "%.*s:%d: check failed: %.*s",
+                                      static_cast<int>(file.size()),
+                                      file.data(),
+                                      line,
+                                      static_cast<int>(expression.size()),
+                                      expression.data());
     if (written > 0) {
         const auto length =
             written < static_cast<int>(sizeof(buffer)) ? static_cast<std::size_t>(written) : sizeof(buffer) - 1U;

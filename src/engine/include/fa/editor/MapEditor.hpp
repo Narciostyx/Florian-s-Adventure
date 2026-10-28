@@ -47,8 +47,7 @@ public:
 
     [[nodiscard]] core::Status paint(tilemap::TileCoord cell, tilemap::TileId tile);
     [[nodiscard]] core::Status erase(tilemap::TileCoord cell);
-    [[nodiscard]] core::Status fillRect(tilemap::TileCoord from, tilemap::TileCoord to,
-                                        tilemap::TileId tile);
+    [[nodiscard]] core::Status fillRect(tilemap::TileCoord from, tilemap::TileCoord to, tilemap::TileId tile);
     [[nodiscard]] core::Status floodFill(tilemap::TileCoord start, tilemap::TileId tile);
 
     void cancelRect() noexcept;
@@ -66,8 +65,7 @@ public:
 
 private:
     [[nodiscard]] core::Status applyChanges(std::vector<TileChange> changes, std::string label);
-    [[nodiscard]] tilemap::TileBounds clampedBounds(tilemap::TileCoord from,
-                                                    tilemap::TileCoord to) const;
+    [[nodiscard]] tilemap::TileBounds clampedBounds(tilemap::TileCoord from, tilemap::TileCoord to) const;
 
     tilemap::Tilemap& m_map;
     EditorHistory& m_history;

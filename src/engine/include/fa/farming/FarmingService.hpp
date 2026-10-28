@@ -54,8 +54,7 @@ public:
     ///
     /// Regrowing crops keep their tile planted and rewind to the regrow window;
     /// other crops leave the tile tilled and empty.
-    [[nodiscard]] core::Result<inventory::ItemStack> harvest(tilemap::TileCoord cell,
-                                                             inventory::Inventory& inventory);
+    [[nodiscard]] core::Result<inventory::ItemStack> harvest(tilemap::TileCoord cell, inventory::Inventory& inventory);
 
     /// \brief Daily settlement: season check, growth, then drying.
     void onDayChanged(const FarmingDayContext& context);
@@ -88,8 +87,7 @@ private:
     [[nodiscard]] FarmTileEntry& ensureEntry(tilemap::TileCoord cell);
 
     void updateStage(CropState& crop) const;
-    void emit(FarmingEventKind kind, tilemap::TileCoord cell, const content::ContentId& item = {},
-              int amount = 0);
+    void emit(FarmingEventKind kind, tilemap::TileCoord cell, const content::ContentId& item = {}, int amount = 0);
 
     const content::ContentDatabase* m_content = nullptr;
     content::Season m_season = content::Season::Spring;

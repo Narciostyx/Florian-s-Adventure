@@ -29,8 +29,8 @@ public:
     /// could be freed.
     ///
     /// \param handle Explicit handle from AudioEngine; zero lets the mixer assign one.
-    [[nodiscard]] SoundHandle add(std::shared_ptr<const AudioClip> clip, const SoundDesc& desc,
-                                  SoundHandle handle = kInvalidSoundHandle);
+    [[nodiscard]] SoundHandle
+    add(std::shared_ptr<const AudioClip> clip, const SoundDesc& desc, SoundHandle handle = kInvalidSoundHandle);
 
     /// \brief Stops a voice immediately or starts a linear fade.
     [[nodiscard]] bool stop(SoundHandle handle, float fadeSeconds = 0.0f);

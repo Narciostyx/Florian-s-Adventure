@@ -115,7 +115,10 @@ foreach ($cfg in @('Debug','Development','Release')) {
 
 ## 5. 已知限制 / 后续
 
-- 没有 World/Inventory/Quest/Economy 的通用 serializer；app 在 `--play` 手写背包/快捷栏/装备/农田字段，其余玩法仍只写摘要。
+- 迁移链已落地：`kSaveVersion = 2`，`registerDefaultMigrations()` 提供 v1→v2
+  （只补空容器，不覆盖值），app 启动时注册；`--play-test` 覆盖 v1 档读取。
+- 仍没有 World/Inventory/Quest/Economy 的通用 serializer；app 手写背包/快捷栏/
+  装备/农田/叙事/AI/世界对象字段。
 - 没有地图差异、截图、CRC、压缩、加密与云存档。
 - `.bak` 只保留一份；连续两次写坏仍可能丢失。
 - 自动存档的 12 游戏小时调度与“安全状态”判定归 M25。

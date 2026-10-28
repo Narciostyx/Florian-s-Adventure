@@ -51,14 +51,13 @@ class CVarRegistry {
 public:
     using ChangeCallback = std::function<void()>;
 
-    [[nodiscard]] bool registerBool(std::string name, bool defaultValue, std::string help,
-                                    ChangeCallback onChange = {});
-    [[nodiscard]] bool registerInt(std::string name, int defaultValue, std::string help,
-                                   ChangeCallback onChange = {});
-    [[nodiscard]] bool registerFloat(std::string name, float defaultValue, std::string help,
-                                     ChangeCallback onChange = {});
-    [[nodiscard]] bool registerString(std::string name, std::string defaultValue, std::string help,
-                                      ChangeCallback onChange = {});
+    [[nodiscard]] bool
+    registerBool(std::string name, bool defaultValue, std::string help, ChangeCallback onChange = {});
+    [[nodiscard]] bool registerInt(std::string name, int defaultValue, std::string help, ChangeCallback onChange = {});
+    [[nodiscard]] bool
+    registerFloat(std::string name, float defaultValue, std::string help, ChangeCallback onChange = {});
+    [[nodiscard]] bool
+    registerString(std::string name, std::string defaultValue, std::string help, ChangeCallback onChange = {});
 
     /// \brief Borrowed value, or nullptr for an unknown name. Stable until the next
     /// registration.

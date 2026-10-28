@@ -127,9 +127,7 @@ public:
     void restore(const GameDate& date, float timeOfDay, Weather today, Weather tomorrow);
 
     void setRealSecondsPerGameMinute(float seconds) noexcept;
-    [[nodiscard]] float realSecondsPerGameMinute() const noexcept {
-        return m_clock.realSecondsPerGameMinute;
-    }
+    [[nodiscard]] float realSecondsPerGameMinute() const noexcept { return m_clock.realSecondsPerGameMinute; }
 
     [[nodiscard]] std::uint64_t weatherState() const noexcept { return m_weather.state(); }
     [[nodiscard]] std::uint64_t weatherIncrement() const noexcept { return m_weather.increment(); }

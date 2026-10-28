@@ -50,18 +50,18 @@ CommandBufferStats CommandBuffer::apply(World& world) {
         }
         ++result.applied;
         switch (kind) {
-        case CommandKind::Create:
-            ++result.created;
-            break;
-        case CommandKind::Destroy:
-            ++result.destroyed;
-            break;
-        case CommandKind::AddComponent:
-            ++result.componentsAdded;
-            break;
-        case CommandKind::RemoveComponent:
-            ++result.componentsRemoved;
-            break;
+            case CommandKind::Create:
+                ++result.created;
+                break;
+            case CommandKind::Destroy:
+                ++result.destroyed;
+                break;
+            case CommandKind::AddComponent:
+                ++result.componentsAdded;
+                break;
+            case CommandKind::RemoveComponent:
+                ++result.componentsRemoved;
+                break;
         }
     }
     m_appliedTotal += result.applied;

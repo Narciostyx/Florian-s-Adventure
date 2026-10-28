@@ -12,8 +12,8 @@
 #include "fa/farming/FarmingService.hpp"
 #include "fa/farming/FarmingTools.hpp"
 #include "fa/farming/FarmingWorld.hpp"
-#include "fa/inventory/Inventory.hpp"
 #include "fa/interaction/ToolHandler.hpp"
+#include "fa/inventory/Inventory.hpp"
 #include "fa/scene/World.hpp"
 #include "fa/tilemap/Tilemap.hpp"
 
@@ -255,8 +255,7 @@ TEST_CASE("Harvest moves the item into the inventory", "[farming]") {
     CHECK(farming.cropAt(cell) == nullptr);
     CHECK(farming.tileAt(cell)->tilled);
     CHECK(farming.stats().harvests == 1);
-    CHECK(farming.harvest(cell, inventory).error().code ==
-          fa::farming::farming_error::kNotHarvestable);
+    CHECK(farming.harvest(cell, inventory).error().code == fa::farming::farming_error::kNotHarvestable);
 }
 
 TEST_CASE("Regrowing crops stay planted and mature again", "[farming]") {
@@ -439,8 +438,7 @@ TEST_CASE("Farming restore replaces the persisted field state", "[farming]") {
     farming.onDayChanged(springDay());
     REQUIRE(farming.cropAt(cell) != nullptr);
 
-    const std::vector<fa::farming::FarmTileEntry> snapshot(farming.entries().begin(),
-                                                          farming.entries().end());
+    const std::vector<fa::farming::FarmTileEntry> snapshot(farming.entries().begin(), farming.entries().end());
     REQUIRE(snapshot.size() == 1);
 
     FarmingService restored(&content);

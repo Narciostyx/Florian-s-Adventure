@@ -26,7 +26,9 @@ struct Viewport {
     int offsetY = 0;
 
     /// \brief Computes the best fit for a window of \p windowWidth x \p windowHeight.
-    static Viewport fit(int windowWidth, int windowHeight, int virtualWidth = kVirtualWidth,
+    static Viewport fit(int windowWidth,
+                        int windowHeight,
+                        int virtualWidth = kVirtualWidth,
                         int virtualHeight = kVirtualHeight) noexcept;
 
     /// \brief Width of the drawn surface in window pixels (`scale * virtualWidth`).

@@ -100,7 +100,9 @@ public:
         }
     }
 
-    void compact() override { std::erase_if(m_slots, [](const Slot& slot) { return !slot.active; }); }
+    void compact() override {
+        std::erase_if(m_slots, [](const Slot& slot) { return !slot.active; });
+    }
 
     std::size_t subscriberCount() const noexcept override {
         std::size_t count = 0;

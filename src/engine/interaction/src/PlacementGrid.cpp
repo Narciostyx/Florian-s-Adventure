@@ -7,7 +7,9 @@
 
 namespace fa::interaction {
 
-PlacementGrid::PlacementGrid(int columns, int rows) { static_cast<void>(resize(columns, rows)); }
+PlacementGrid::PlacementGrid(int columns, int rows) {
+    static_cast<void>(resize(columns, rows));
+}
 
 core::Status PlacementGrid::resize(int columns, int rows) {
     if (columns <= 0 || rows <= 0 || columns > kMaxDimension || rows > kMaxDimension) {
@@ -61,8 +63,8 @@ int PlacementGrid::cellsAlong(float size, int tileSize) noexcept {
     return static_cast<int>(cells);
 }
 
-core::Rect PlacementGrid::footprintRect(const tilemap::Tilemap& map, tilemap::TileCoord origin,
-                                        core::Vec2 size) noexcept {
+core::Rect
+PlacementGrid::footprintRect(const tilemap::Tilemap& map, tilemap::TileCoord origin, core::Vec2 size) noexcept {
     const int cellsX = cellsAlong(size.x, map.tileSize());
     const int cellsY = cellsAlong(size.y, map.tileSize());
     if (cellsX <= 0 || cellsY <= 0) {
@@ -70,8 +72,7 @@ core::Rect PlacementGrid::footprintRect(const tilemap::Tilemap& map, tilemap::Ti
     }
     const core::Vec2 topLeft = map.gridToWorld(origin);
     const float tile = static_cast<float>(map.tileSize());
-    return core::makeRect(topLeft.x, topLeft.y, static_cast<float>(cellsX) * tile,
-                          static_cast<float>(cellsY) * tile);
+    return core::makeRect(topLeft.x, topLeft.y, static_cast<float>(cellsX) * tile, static_cast<float>(cellsY) * tile);
 }
 
 bool PlacementGrid::canPlace(const tilemap::Tilemap& map, tilemap::TileCoord origin, core::Vec2 size) const noexcept {
@@ -99,8 +100,11 @@ bool PlacementGrid::canPlace(const tilemap::Tilemap& map, tilemap::TileCoord ori
     return true;
 }
 
-bool PlacementGrid::place(const tilemap::Tilemap& map, tilemap::TileCoord origin, core::Vec2 size,
-                          scene::EntityId owner, std::uint32_t payload) noexcept {
+bool PlacementGrid::place(const tilemap::Tilemap& map,
+                          tilemap::TileCoord origin,
+                          core::Vec2 size,
+                          scene::EntityId owner,
+                          std::uint32_t payload) noexcept {
     if (!owner.isValid() || !canPlace(map, origin, size)) {
         return false;
     }

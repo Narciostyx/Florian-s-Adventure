@@ -28,7 +28,9 @@ constexpr float kDefaultTileSize = 16.0f;
 
 }  // namespace
 
-TileGrid::TileGrid(int columns, int rows, float tileSize) { resize(columns, rows, tileSize); }
+TileGrid::TileGrid(int columns, int rows, float tileSize) {
+    resize(columns, rows, tileSize);
+}
 
 void TileGrid::resize(int columns, int rows, float tileSize) {
     m_columns = columns > 0 ? columns : 0;
@@ -40,8 +42,7 @@ void TileGrid::resize(int columns, int rows, float tileSize) {
 }
 
 std::size_t TileGrid::indexOf(int column, int row) const noexcept {
-    return static_cast<std::size_t>(row) * static_cast<std::size_t>(m_columns) +
-           static_cast<std::size_t>(column);
+    return static_cast<std::size_t>(row) * static_cast<std::size_t>(m_columns) + static_cast<std::size_t>(column);
 }
 
 bool TileGrid::isSolid(int column, int row) const noexcept {

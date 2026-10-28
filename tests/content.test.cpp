@@ -23,11 +23,11 @@ namespace {
 
 namespace err = fa::content::content_error;
 
+using Catch::Approx;
 using fa::content::ContentDatabase;
 using fa::content::ContentError;
 using fa::content::ContentId;
 using fa::content::Season;
-using Catch::Approx;
 
 constexpr std::string_view kValidDocument = R"({
   "schema_version": 1,
@@ -265,8 +265,7 @@ TEST_CASE("Content database merges documents and rejects duplicate ids", "[conte
     REQUIRE(db.crop("crop.a") != nullptr);
 
     REQUIRE(loadCode(db, R"({"schema_version": 1,
-        "items": [{"id": "item.a", "display_name": "B", "category": "misc"}]})") ==
-            err::kValidationFailed);
+        "items": [{"id": "item.a", "display_name": "B", "category": "misc"}]})") == err::kValidationFailed);
     REQUIRE(hasErrorCode(db, err::kDuplicateId));
     REQUIRE(db.item("item.a")->displayName == "A");
     REQUIRE(db.contentVersion() == 2);
@@ -290,14 +289,12 @@ TEST_CASE("Content loader rejects malformed roots and schema versions", "[conten
 TEST_CASE("Content loader enforces ids and namespace prefixes", "[content][errors]") {
     ContentDatabase db;
     REQUIRE(loadCode(db, R"({"schema_version": 1,
-        "items": [{"id": "turnip", "display_name": "T", "category": "misc"}]})") ==
-            err::kValidationFailed);
+        "items": [{"id": "turnip", "display_name": "T", "category": "misc"}]})") == err::kValidationFailed);
     REQUIRE(hasErrorCode(db, err::kInvalidId));
 
     db.clear();
     REQUIRE(loadCode(db, R"({"schema_version": 1,
-        "items": [{"id": "crop.turnip", "display_name": "T", "category": "misc"}]})") ==
-            err::kValidationFailed);
+        "items": [{"id": "crop.turnip", "display_name": "T", "category": "misc"}]})") == err::kValidationFailed);
     REQUIRE(hasErrorCode(db, err::kInvalidId));
 
     db.clear();
@@ -519,4 +516,3 @@ TEST_CASE("Content optional fields use playable defaults", "[content][defaults]"
     REQUIRE(loot != nullptr);
     REQUIRE(loot->entries.empty());
 }
-

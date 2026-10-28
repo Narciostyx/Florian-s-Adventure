@@ -24,8 +24,7 @@ public:
     ~PlayerSystem() override = default;
 
     [[nodiscard]] std::string_view name() const noexcept override;
-    void onFixedUpdate(scene::World& world, const time::FrameContext& context,
-                       scene::CommandBuffer& commands) override;
+    void onFixedUpdate(scene::World& world, const time::FrameContext& context, scene::CommandBuffer& commands) override;
 
     /// \brief Overrides the input axis, for the headless smoke run.
     ///

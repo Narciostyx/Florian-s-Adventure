@@ -105,8 +105,8 @@ TEST_CASE("Scancode names are case sensitive and unknown input is Unknown", "[in
 }
 
 TEST_CASE("Mouse button names round-trip", "[input]") {
-    for (const auto button : {MouseButton::Left, MouseButton::Middle, MouseButton::Right,
-                              MouseButton::X1, MouseButton::X2}) {
+    for (const auto button :
+         {MouseButton::Left, MouseButton::Middle, MouseButton::Right, MouseButton::X1, MouseButton::X2}) {
         const auto name = fa::platform::toString(button);
         CHECK(fa::platform::mouseButtonFromName(name) == button);
     }
@@ -160,8 +160,8 @@ TEST_CASE("Binding text round-trips", "[input]") {
 }
 
 TEST_CASE("Unparseable bindings degrade to None", "[input]") {
-    for (const auto text : {"", "A", "Key:", "Key:NotAKey", "MouseButton:Nope", "Nonsense:1",
-                            "Key:A:notanumber", "GamepadAxis:x"}) {
+    for (const auto text :
+         {"", "A", "Key:", "Key:NotAKey", "MouseButton:Nope", "Nonsense:1", "Key:A:notanumber", "GamepadAxis:x"}) {
         const auto binding = Binding::fromString(text);
         CHECK(binding.kind == BindingKind::None);
         CHECK_FALSE(fa::input::isUsable(binding));
@@ -454,8 +454,7 @@ TEST_CASE("MouseDevice tracks buttons, position, delta and wheel", "[input]") {
     wheel.type = PlatformEventType::MouseWheel;
     wheel.y = 1.0f;
 
-    const std::vector events{mouseButtonEvent(PlatformEventType::MouseDown, MouseButton::Left), move,
-                             wheel};
+    const std::vector events{mouseButtonEvent(PlatformEventType::MouseDown, MouseButton::Left), move, wheel};
     mouse.poll(events);
     CHECK(mouse.held(MouseButton::Left));
     CHECK(mouse.pressed(MouseButton::Left));
@@ -480,7 +479,8 @@ TEST_CASE("MouseDevice tracks buttons, position, delta and wheel", "[input]") {
 }
 
 TEST_CASE("InputSystem reports one action per OR-ed binding", "[input]") {
-    InputSystem input; configure(input);
+    InputSystem input;
+    configure(input);
     CHECK(input.deviceCount() == 2);
     CHECK(input.hasDevice(fa::input::InputDeviceKind::Keyboard));
     CHECK(input.hasDevice(fa::input::InputDeviceKind::Mouse));
@@ -505,7 +505,8 @@ TEST_CASE("InputSystem reports one action per OR-ed binding", "[input]") {
 }
 
 TEST_CASE("Edges survive only the frame that produced them", "[input]") {
-    InputSystem input; configure(input);
+    InputSystem input;
+    configure(input);
     const std::vector down{keyDown(Scancode::A)};
     input.poll(down);
     CHECK(input.wasPressed(fa::input::kActionMoveLeft));
@@ -518,7 +519,8 @@ TEST_CASE("Edges survive only the frame that produced them", "[input]") {
 }
 
 TEST_CASE("moveAxis is normalised and points down for south", "[input]") {
-    InputSystem input; configure(input);
+    InputSystem input;
+    configure(input);
 
     const std::vector down{keyDown(Scancode::W), keyDown(Scancode::D)};
     input.poll(down);
@@ -539,7 +541,8 @@ TEST_CASE("moveAxis is normalised and points down for south", "[input]") {
 }
 
 TEST_CASE("The context stack masks the gameplay map", "[input]") {
-    InputSystem input; configure(input);
+    InputSystem input;
+    configure(input);
     const std::vector down{keyDown(Scancode::A)};
     input.poll(down);
     REQUIRE(input.isDown(fa::input::kActionMoveLeft));
@@ -584,7 +587,8 @@ TEST_CASE("Axis picks the strongest binding and honours negative scale", "[input
 }
 
 TEST_CASE("Unbound actions are inert", "[input]") {
-    InputSystem input; configure(input);
+    InputSystem input;
+    configure(input);
     const std::vector down{keyDown(Scancode::X)};
     input.poll(down);
     const auto nothing = fa::input::actionIdFromName("NeverBound");
@@ -596,7 +600,8 @@ TEST_CASE("Unbound actions are inert", "[input]") {
 }
 
 TEST_CASE("Rebinding takes effect and rejects unusable bindings", "[input]") {
-    InputSystem input; configure(input);
+    InputSystem input;
+    configure(input);
     const auto interact = fa::input::actionIdFromName("Interact");
 
     /// Binding{} is BindingKind::None, so bind() must refuse it instead of installing
@@ -604,8 +609,7 @@ TEST_CASE("Rebinding takes effect and rejects unusable bindings", "[input]") {
     CHECK_FALSE(input.bind(InputContext::Gameplay, interact, Binding{}));
 
     CHECK(input.unbind(InputContext::Gameplay, interact, Binding::fromKey(Scancode::E)));
-    CHECK(input.unbind(InputContext::Gameplay, interact,
-                       Binding::fromMouseButton(MouseButton::Left)));
+    CHECK(input.unbind(InputContext::Gameplay, interact, Binding::fromMouseButton(MouseButton::Left)));
 
     const std::vector eKey{keyDown(Scancode::E)};
     input.poll(eKey);
@@ -621,7 +625,8 @@ TEST_CASE("Rebinding takes effect and rejects unusable bindings", "[input]") {
 }
 
 TEST_CASE("Bindings survive a save/load round-trip", "[input]") {
-    InputSystem input; configure(input);
+    InputSystem input;
+    configure(input);
     const auto json = input.saveBindings();
     CHECK(json.find("\"Gameplay\"") != std::string::npos);
     CHECK(json.find("MoveLeft") != std::string::npos);
@@ -642,7 +647,8 @@ TEST_CASE("Bindings survive a save/load round-trip", "[input]") {
 }
 
 TEST_CASE("Per-context save and load", "[input]") {
-    InputSystem input; configure(input);
+    InputSystem input;
+    configure(input);
     const auto json = input.saveContextToJson(InputContext::Gameplay);
     const auto moveUp = fa::input::kActionMoveUp;
     CHECK(input.mapFor(InputContext::Gameplay).bindings(moveUp).size() == 2);
@@ -655,7 +661,8 @@ TEST_CASE("Per-context save and load", "[input]") {
 }
 
 TEST_CASE("Mouse position maps through the virtual resolution transform", "[input]") {
-    InputSystem input; configure(input);
+    InputSystem input;
+    configure(input);
     CHECK(nearlyEqual(input.mouseScale().x, 1.0f));
 
     PlatformEvent move;
@@ -678,7 +685,8 @@ TEST_CASE("Mouse position maps through the virtual resolution transform", "[inpu
 }
 
 TEST_CASE("InputSystem exposes raw scroll and text for the UI layer", "[input]") {
-    InputSystem input; configure(input);
+    InputSystem input;
+    configure(input);
 
     PlatformEvent wheel;
     wheel.type = PlatformEventType::MouseWheel;
@@ -698,7 +706,8 @@ TEST_CASE("InputSystem exposes raw scroll and text for the UI layer", "[input]")
 }
 
 TEST_CASE("reset() clears held state but keeps bindings", "[input]") {
-    InputSystem input; configure(input);
+    InputSystem input;
+    configure(input);
     const std::vector down{keyDown(Scancode::A)};
     input.poll(down);
     REQUIRE(input.isDown(fa::input::kActionMoveLeft));

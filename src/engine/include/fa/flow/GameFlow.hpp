@@ -67,7 +67,8 @@ public:
     using EndOfDayHandler = std::function<void()>;
 
     GameFlow() = default;
-    GameFlow(save::ISaveService* saves, world::WorldCalendar* calendar = nullptr,
+    GameFlow(save::ISaveService* saves,
+             world::WorldCalendar* calendar = nullptr,
              economy::EconomyService* economy = nullptr,
              narrative::NarrativeService* narrative = nullptr);
 
@@ -127,9 +128,7 @@ public:
     void setAutosaveEnabled(bool enabled) noexcept { m_autosaveEnabled = enabled; }
     [[nodiscard]] bool autosaveEnabled() const noexcept { return m_autosaveEnabled; }
     void setAutosaveIntervalDays(int days) noexcept;
-    [[nodiscard]] int autosaveIntervalDays() const noexcept {
-        return m_session.autosaveIntervalDays;
-    }
+    [[nodiscard]] int autosaveIntervalDays() const noexcept { return m_session.autosaveIntervalDays; }
     void setAutosaveOnQuit(bool enabled) noexcept { m_autosaveOnQuit = enabled; }
     [[nodiscard]] bool autosaveOnQuit() const noexcept { return m_autosaveOnQuit; }
 
@@ -154,8 +153,7 @@ private:
     [[nodiscard]] core::Status settleDay(bool skipClock);
     [[nodiscard]] int currentDay() const noexcept;
 
-    void record(FlowEventKind kind, std::string_view slot = {}, int day = 0,
-                std::string_view message = {});
+    void record(FlowEventKind kind, std::string_view slot = {}, int day = 0, std::string_view message = {});
 
     save::ISaveService* m_saves = nullptr;
     world::WorldCalendar* m_calendar = nullptr;

@@ -31,17 +31,17 @@ using fa::audio::AudioBus;
 using fa::audio::AudioClip;
 using fa::audio::AudioEngine;
 using fa::audio::AudioMixer;
-using fa::audio::SoundDesc;
-using fa::audio::SoundHandle;
-using fa::audio::SpscQueue;
 using fa::audio::kInvalidSoundHandle;
 using fa::audio::kMaxVoices;
 using fa::audio::makeSilence;
 using fa::audio::makeTone;
+using fa::audio::SoundDesc;
+using fa::audio::SoundHandle;
+using fa::audio::SpscQueue;
 
 /// \brief Mono or stereo clip whose every sample is \p value.
-std::shared_ptr<const AudioClip> constantClip(std::int16_t value, int frames, int sampleRate = 48000,
-                                              int channels = 1) {
+std::shared_ptr<const AudioClip>
+constantClip(std::int16_t value, int frames, int sampleRate = 48000, int channels = 1) {
     auto clip = std::make_shared<AudioClip>();
     clip->sampleRate = sampleRate;
     clip->channels = channels;
@@ -50,8 +50,7 @@ std::shared_ptr<const AudioClip> constantClip(std::int16_t value, int frames, in
 }
 
 std::vector<std::int16_t> mixFrames(AudioMixer& mixer, int frames) {
-    std::vector<std::int16_t> output(static_cast<std::size_t>(frames) *
-                                     static_cast<std::size_t>(mixer.channels()));
+    std::vector<std::int16_t> output(static_cast<std::size_t>(frames) * static_cast<std::size_t>(mixer.channels()));
     mixer.mix(std::span<std::int16_t>(output.data(), output.size()));
     return output;
 }
@@ -70,8 +69,7 @@ public:
     fa::platform::AudioCallback callback = nullptr;
     void* user = nullptr;
 
-    fa::core::Status initialize(int sampleRate, int channels, fa::platform::AudioCallback cb,
-                                void* data) override {
+    fa::core::Status initialize(int sampleRate, int channels, fa::platform::AudioCallback cb, void* data) override {
         if (fail) {
             return fa::core::errorStatus(fa::platform::platform_error::kAudioInitFailed, "fake device failure");
         }
@@ -94,9 +92,7 @@ public:
     [[nodiscard]] int channels() const noexcept override { return open ? channelCount : 0; }
 
     std::vector<std::int16_t> pump(int frames) {
-        std::vector<std::int16_t> output(static_cast<std::size_t>(frames) *
-                                         static_cast<std::size_t>(channelCount),
-                                         0);
+        std::vector<std::int16_t> output(static_cast<std::size_t>(frames) * static_cast<std::size_t>(channelCount), 0);
         if (callback != nullptr) {
             callback(user, output.data(), frames);
         }

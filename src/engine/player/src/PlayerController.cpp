@@ -1,7 +1,7 @@
 #include "fa/player/PlayerController.hpp"
 
-#include "fa/player/PlayerError.hpp"
 #include "fa/physics/PhysicsWorld.hpp"
+#include "fa/player/PlayerError.hpp"
 #include "fa/scene/Components.hpp"
 #include "fa/scene/World.hpp"
 
@@ -69,8 +69,8 @@ void PlayerController::setState(PlayerStateComp& state, PlayerState next) {
     }
 }
 
-void PlayerController::record(PlayerActionKind kind, scene::EntityId player, Facing facing, std::uint32_t payload,
-                              int errorCode) {
+void PlayerController::record(
+    PlayerActionKind kind, scene::EntityId player, Facing facing, std::uint32_t payload, int errorCode) {
     PlayerActionRequest request;
     request.kind = kind;
     request.player = player;
@@ -80,8 +80,8 @@ void PlayerController::record(PlayerActionKind kind, scene::EntityId player, Fac
     m_events.push_back(request);
 }
 
-void PlayerController::reject(scene::EntityId player, Facing facing, std::uint32_t payload, int errorCode,
-                              bool dodgeRejection) {
+void PlayerController::reject(
+    scene::EntityId player, Facing facing, std::uint32_t payload, int errorCode, bool dodgeRejection) {
     ++m_stats.rejectedActions;
     if (dodgeRejection) {
         ++m_stats.dodgeRejections;
@@ -89,8 +89,10 @@ void PlayerController::reject(scene::EntityId player, Facing facing, std::uint32
     record(PlayerActionKind::ActionRejected, player, facing, payload, errorCode);
 }
 
-void PlayerController::updateAnimation(const FacingDir& facing, const PlayerStateComp& state,
-                                       const fa::physics::Velocity& velocity, bool moving) {
+void PlayerController::updateAnimation(const FacingDir& facing,
+                                       const PlayerStateComp& state,
+                                       const fa::physics::Velocity& velocity,
+                                       bool moving) {
     m_animation.velocity = velocity.linear;
     m_animation.facing = facing.value;
     m_animation.state = state.state;
@@ -172,8 +174,7 @@ void PlayerController::update(scene::World& world, scene::EntityId player, const
         if (dodgingNow || state->actionLock > 0.0f) {
             reject(player, facing->value, intent.payload, player_error::kBusy, false);
         } else if (stamina->current < m_tuning.useToolStaminaCost) {
-            reject(player, facing->value, intent.payload, player_error::kInsufficientStamina,
-                   false);
+            reject(player, facing->value, intent.payload, player_error::kInsufficientStamina, false);
         } else {
             stamina->current -= m_tuning.useToolStaminaCost;
             setState(*state, PlayerState::UseTool);
@@ -186,8 +187,7 @@ void PlayerController::update(scene::World& world, scene::EntityId player, const
         if (dodgingNow || state->actionLock > 0.0f) {
             reject(player, facing->value, intent.payload, player_error::kBusy, false);
         } else if (stamina->current < m_tuning.attackStaminaCost) {
-            reject(player, facing->value, intent.payload, player_error::kInsufficientStamina,
-                   false);
+            reject(player, facing->value, intent.payload, player_error::kInsufficientStamina, false);
         } else {
             stamina->current -= m_tuning.attackStaminaCost;
             setState(*state, PlayerState::Attack);
@@ -245,7 +245,8 @@ bool PlayerController::isDodging(const scene::World& world, scene::EntityId play
     return dodge != nullptr && dodge->timeLeft > 0.0f;
 }
 
-bool PlayerController::isInvulnerable(const scene::World& world, scene::EntityId player,
+bool PlayerController::isInvulnerable(const scene::World& world,
+                                      scene::EntityId player,
                                       const PlayerTuning& tuning) noexcept {
     const DodgeState* dodge = world.tryGet<DodgeState>(player);
     if (dodge == nullptr || dodge->timeLeft <= 0.0f) {

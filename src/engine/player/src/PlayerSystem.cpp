@@ -7,8 +7,7 @@
 
 namespace fa::player {
 
-PlayerSystem::PlayerSystem(input::IInput& input, PlayerTuning tuning)
-    : m_input(input), m_controller(tuning) {
+PlayerSystem::PlayerSystem(input::IInput& input, PlayerTuning tuning) : m_input(input), m_controller(tuning) {
     m_runAction = input::actionIdFromName(kActionNameRun);
     m_dodgeAction = input::actionIdFromName(kActionNameDodge);
     m_useToolAction = input::actionIdFromName(kActionNameUseTool);
@@ -17,9 +16,12 @@ PlayerSystem::PlayerSystem(input::IInput& input, PlayerTuning tuning)
     m_inventoryAction = input::actionIdFromName(kActionNameInventory);
 }
 
-std::string_view PlayerSystem::name() const noexcept { return "player"; }
+std::string_view PlayerSystem::name() const noexcept {
+    return "player";
+}
 
-void PlayerSystem::onFixedUpdate(scene::World& world, const time::FrameContext& context,
+void PlayerSystem::onFixedUpdate(scene::World& world,
+                                 const time::FrameContext& context,
                                  scene::CommandBuffer& commands) {
     PlayerIntent intent;
     intent.move = m_hasScriptedMove ? m_scriptedMove : m_input.moveAxis();

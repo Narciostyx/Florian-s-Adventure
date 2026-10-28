@@ -184,7 +184,7 @@
 
 | 项目 | 风险 | 说明 |
 |---|---|---|
-| CI 首次运行 | 中 | `.github/workflows/ci.yml` 尚未在 GitHub Actions 上实际跑过，Windows runner 的 VS 版本与 vcpkg 缓存路径需首次 push 后核对 |
+| CI 首次运行 | 中 | `ci.yml` 已扩为 Debug/Release 矩阵并加入 smoke/soak/1080p，但尚未在 GitHub Actions 上实跑；Windows runner 的 GL/音频与 vcpkg 缓存需首次 push 后核对 |
 | `imgui` 的 `sdl3-binding` 特性 | 低 | 本机安装成功，但不同 vcpkg baseline 下特性名可能变化 |
 | 静态 CRT 与第三方库混用 | 低 | 统一使用 `x64-windows-static-md`，若新增库只提供 `/MT` 版本需单独评估 |
 | MSVC 版本升级 | 低 | 工具集自适应目前只覆盖 17.x/18.x，更早或更晚的 VS 需补充映射 |
@@ -888,6 +888,6 @@
 | 垂直切片 | 菜单键盘焦点、场景过渡、敌人专属招式 |
 | 内容 | 真实美术/音频素材、数值平衡、八向动画 |
 | 玩法接线 | 场景过渡、敌人受击硬直、商店列表滚动与键盘焦点 |
-| 工程 | 全新克隆 CI、性能基线、存档迁移链 |
+| 工程 | CI 首次 Actions 实跑（迁移链、1080p、1000 精灵基线、30 分钟 soak 已完成） |
 
 > 各模块的剩余项详见 §3 与 [计划完成情况](plan-status.md) §5。

@@ -5,8 +5,8 @@
 #include <optional>
 #include <utility>
 
-#include <fa/player/PlayerController.hpp>
 #include <fa/physics/PhysicsWorld.hpp>
+#include <fa/player/PlayerController.hpp>
 #include <fa/scene/Components.hpp>
 #include <fa/scene/World.hpp>
 
@@ -163,11 +163,11 @@ void CombatService::updateAttacks(scene::World& world, float deltaSeconds) {
         if (it->elapsed >= it->hitbox.activeFrom && before <= it->hitbox.activeTo) {
             const scene::Transform* transform = world.tryGet<scene::Transform>(it->owner);
             if (transform != nullptr) {
-                const core::Rect box = core::makeRect(
-                    transform->position.x + it->hitbox.offset.x, transform->position.y + it->hitbox.offset.y,
-                    it->hitbox.size.x, it->hitbox.size.y);
-                const std::vector<scene::EntityId> targets =
-                    m_physics.overlap(world, box, it->hitbox.targetMask);
+                const core::Rect box = core::makeRect(transform->position.x + it->hitbox.offset.x,
+                                                      transform->position.y + it->hitbox.offset.y,
+                                                      it->hitbox.size.x,
+                                                      it->hitbox.size.y);
+                const std::vector<scene::EntityId> targets = m_physics.overlap(world, box, it->hitbox.targetMask);
                 for (const scene::EntityId target : targets) {
                     if (target == it->owner) {
                         continue;
@@ -244,9 +244,8 @@ void CombatService::updateProjectiles(scene::World& world, float deltaSeconds) {
             }
         }
 
-        const physics::MoveResult moved =
-            m_physics.move(world, id, core::Vec2{projectile->velocity.x * deltaSeconds,
-                                                 projectile->velocity.y * deltaSeconds});
+        const physics::MoveResult moved = m_physics.move(
+            world, id, core::Vec2{projectile->velocity.x * deltaSeconds, projectile->velocity.y * deltaSeconds});
         if (moved.hitX || moved.hitY) {
             ++m_stats.projectileWallHits;
             m_projectileEvents.push_back(ProjectileEvent{id, {}, true});

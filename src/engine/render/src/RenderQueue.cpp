@@ -4,9 +4,13 @@
 
 namespace fa::render {
 
-void RenderQueue::clear() noexcept { m_items.clear(); }
+void RenderQueue::clear() noexcept {
+    m_items.clear();
+}
 
-void RenderQueue::submit(const DrawItem& item) { m_items.push_back(item); }
+void RenderQueue::submit(const DrawItem& item) {
+    m_items.push_back(item);
+}
 
 void RenderQueue::sort() {
     // Stable so that two items agreeing on layer, depth and entity keep their

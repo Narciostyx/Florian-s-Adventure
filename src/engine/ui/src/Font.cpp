@@ -270,10 +270,9 @@ FontAtlas buildBuiltinFont() {
                 if ((rows.row[row] & (1u << (2 - column))) == 0) {
                     continue;
                 }
-                const std::size_t pixel =
-                    (static_cast<std::size_t>(row) * static_cast<std::size_t>(font.width) +
-                     static_cast<std::size_t>(index * kGlyphAdvance + column)) *
-                    4u;
+                const std::size_t pixel = (static_cast<std::size_t>(row) * static_cast<std::size_t>(font.width) +
+                                           static_cast<std::size_t>(index * kGlyphAdvance + column)) *
+                                          4u;
                 font.pixels[pixel + 0] = 255;
                 font.pixels[pixel + 1] = 255;
                 font.pixels[pixel + 2] = 255;

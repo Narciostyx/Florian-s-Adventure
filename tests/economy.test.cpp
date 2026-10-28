@@ -116,15 +116,13 @@ TEST_CASE("Buying checks funds, stock and inventory before mutating", "[economy]
     EconomyService poor(&content, &shops);
     poor.setGold(5);
     Inventory poorInventory = makeInventory(content);
-    CHECK(poor.buy(kShop, kSeed, 1, poorInventory).error().code ==
-          fa::economy::economy_error::kInsufficientGold);
+    CHECK(poor.buy(kShop, kSeed, 1, poorInventory).error().code == fa::economy::economy_error::kInsufficientGold);
     CHECK(poor.gold() == 5);
     CHECK(poorInventory.countOf(kSeed) == 0);
 
     Inventory full(1, 99, &content);
     REQUIRE(full.add(ItemStack{kTurnip, 1, -1}).isOk());
-    CHECK(economy.buy(kShop, kSeed, 1, full).error().code ==
-          fa::economy::economy_error::kInventoryFull);
+    CHECK(economy.buy(kShop, kSeed, 1, full).error().code == fa::economy::economy_error::kInventoryFull);
     CHECK(economy.gold() == 70);
 }
 
@@ -137,8 +135,7 @@ TEST_CASE("Daily stock limits reset on a new day", "[economy]") {
 
     REQUIRE(economy.buy(kShop, kSeed, 5, inventory).isOk());
     CHECK(economy.remaining(kShop, kSeed) == 0);
-    CHECK(economy.buy(kShop, kSeed, 1, inventory).error().code ==
-          fa::economy::economy_error::kDailyLimit);
+    CHECK(economy.buy(kShop, kSeed, 1, inventory).error().code == fa::economy::economy_error::kDailyLimit);
     economy.onDayChanged();
     CHECK(economy.remaining(kShop, kSeed) == 5);
 }
@@ -156,8 +153,7 @@ TEST_CASE("Selling removes items and pays the shop price", "[economy]") {
     CHECK(economy.stats().sold == 1);
     CHECK(economy.stats().goldEarned == 40);
 
-    CHECK(economy.sell(kShop, kSoup, 1, inventory).error().code ==
-          fa::economy::economy_error::kInsufficientItems);
+    CHECK(economy.sell(kShop, kSoup, 1, inventory).error().code == fa::economy::economy_error::kInsufficientItems);
 }
 
 TEST_CASE("Prices apply shop multipliers", "[economy]") {
@@ -187,8 +183,7 @@ TEST_CASE("Seasonal stock and daily price swings", "[economy]") {
 
     economy.setSeason(Season::Spring);
     CHECK_FALSE(economy.seasonAllows(seedEntry));
-    CHECK(economy.buy(shopId, kSeed, 1, inventory).error().code ==
-          fa::economy::economy_error::kWrongSeason);
+    CHECK(economy.buy(shopId, kSeed, 1, inventory).error().code == fa::economy::economy_error::kWrongSeason);
 
     economy.setSeason(Season::Summer);
     CHECK(economy.seasonAllows(seedEntry));
@@ -223,8 +218,7 @@ TEST_CASE("Crafting consumes inputs, advances and collects", "[economy]") {
     CHECK(inventory.countOf(kTurnip) == 0);
     REQUIRE(economy.jobs().size() == 1);
     CHECK_FALSE(economy.jobs().front().ready);
-    CHECK(economy.collectCraft(0, inventory).error().code ==
-          fa::economy::economy_error::kJobNotReady);
+    CHECK(economy.collectCraft(0, inventory).error().code == fa::economy::economy_error::kJobNotReady);
 
     economy.update(29);
     CHECK_FALSE(economy.jobs().front().ready);
@@ -247,12 +241,10 @@ TEST_CASE("Crafting rejects missing inputs, station and season", "[economy]") {
     CHECK(economy.startCraft(kRecipe, "kitchen", inventory).error().code ==
           fa::economy::economy_error::kInsufficientItems);
     REQUIRE(inventory.add(ItemStack{kTurnip, 2, -1}).isOk());
-    CHECK(economy.startCraft(kRecipe, "furnace", inventory).error().code ==
-          fa::economy::economy_error::kWrongStation);
+    CHECK(economy.startCraft(kRecipe, "furnace", inventory).error().code == fa::economy::economy_error::kWrongStation);
     CHECK(inventory.countOf(kTurnip) == 2);
     economy.setSeason(Season::Winter);
-    CHECK(economy.startCraft(kRecipe, "kitchen", inventory).error().code ==
-          fa::economy::economy_error::kWrongSeason);
+    CHECK(economy.startCraft(kRecipe, "kitchen", inventory).error().code == fa::economy::economy_error::kWrongSeason);
 }
 
 TEST_CASE("A full inventory keeps a ready job", "[economy]") {
@@ -266,8 +258,7 @@ TEST_CASE("A full inventory keeps a ready job", "[economy]") {
     // Both slots are empty after consuming the inputs; fill them so the output has no space.
     REQUIRE(inventory.add(ItemStack{kSeed, 1, -1}).isOk());
     REQUIRE(inventory.add(ItemStack{kTurnip, 1, -1}).isOk());
-    CHECK(economy.collectCraft(0, inventory).error().code ==
-          fa::economy::economy_error::kInventoryFull);
+    CHECK(economy.collectCraft(0, inventory).error().code == fa::economy::economy_error::kInventoryFull);
     CHECK(economy.jobs().size() == 1);
 }
 

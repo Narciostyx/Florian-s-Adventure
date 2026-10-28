@@ -9,16 +9,16 @@ bool loadGlFunctions(GlFunctions& functions, platform::IGlContext& context, cons
     }
 
     bool ok = true;
-#define FA_GL_RESOLVE(returnType, name, args)                                              \
-    {                                                                                      \
-        void* address = context.procAddress("gl" #name);                                   \
-        functions.gl##name = reinterpret_cast<decltype(functions.gl##name)>(address);       \
-        if (functions.gl##name == nullptr && ok) {                                         \
-            ok = false;                                                                    \
-            if (outMissing != nullptr) {                                                    \
-                *outMissing = "gl" #name;                                                  \
-            }                                                                              \
-        }                                                                                  \
+#define FA_GL_RESOLVE(returnType, name, args)                                                                          \
+    {                                                                                                                  \
+        void* address = context.procAddress("gl" #name);                                                               \
+        functions.gl##name = reinterpret_cast<decltype(functions.gl##name)>(address);                                  \
+        if (functions.gl##name == nullptr && ok) {                                                                     \
+            ok = false;                                                                                                \
+            if (outMissing != nullptr) {                                                                               \
+                *outMissing = "gl" #name;                                                                              \
+            }                                                                                                          \
+        }                                                                                                              \
     }
     FA_GL_FUNCTION_LIST(FA_GL_RESOLVE)
 #undef FA_GL_RESOLVE

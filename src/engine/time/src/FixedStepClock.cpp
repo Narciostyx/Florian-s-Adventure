@@ -34,8 +34,7 @@ double sanitizeMaxDelta(double maxRealDeltaSeconds) noexcept {
 }  // namespace
 
 FixedStepClock::FixedStepClock(double fixedStepSeconds, int maxStepsPerFrame, double maxRealDeltaSeconds) noexcept
-    : m_fixedStepSeconds(sanitizeStep(fixedStepSeconds)),
-      m_maxRealDeltaSeconds(sanitizeMaxDelta(maxRealDeltaSeconds)),
+    : m_fixedStepSeconds(sanitizeStep(fixedStepSeconds)), m_maxRealDeltaSeconds(sanitizeMaxDelta(maxRealDeltaSeconds)),
       m_maxStepsPerFrame(sanitizeMaxSteps(maxStepsPerFrame)) {}
 
 void FixedStepClock::reset() noexcept {

@@ -88,8 +88,7 @@ core::Status SaveService::save(std::string_view slot, const SaveContext& context
 
 core::Result<SaveFile> SaveService::load(std::string_view slot) {
     if (!isValidSlotName(slot)) {
-        return core::Result<SaveFile>::err(save_error::kInvalidSlot,
-                                           "slot names must be 1..64 of [A-Za-z0-9_-]");
+        return core::Result<SaveFile>::err(save_error::kInvalidSlot, "slot names must be 1..64 of [A-Za-z0-9_-]");
     }
 
     const std::string path = slotPath(slot);
@@ -201,6 +200,75 @@ void SaveService::registerMigration(int fromVersion, Migration migration) {
     }
 }
 
+namespace {
+
+void ensureObjectChild(SaveArchive& parent, std::string_view key) {
+    if (!parent.child(key).isObject()) {
+        parent.setChild(key, SaveArchive::object());
+    }
+}
+
+void ensureArrayChild(SaveArchive& parent, std::string_view key) {
+    if (!parent.child(key).isArray()) {
+        parent.setChild(key, SaveArchive::array());
+    }
+}
+
+/// \brief v1 → v2: create the containers added by P0-3/P2-1 without touching values.
+core::Status normalizeV1ToV2(SaveArchive& root) {
+    SaveArchive world = root.child("world");
+    if (!world.isObject()) {
+        world = SaveArchive::object();
+    }
+    ensureArrayChild(world, "objects");
+    ensureArrayChild(world, "debris");
+    ensureArrayChild(world, "loot");
+    // P0-3 briefly wrote one object here; keep it, otherwise start an empty array.
+    if (world.child("ai").isNull()) {
+        world.setChild("ai", SaveArchive::array());
+    }
+    root.setChild("world", std::move(world));
+
+    SaveArchive player = root.child("player");
+    if (!player.isObject()) {
+        player = SaveArchive::object();
+    }
+    root.setChild("player", std::move(player));
+
+    SaveArchive quests = root.child("quests");
+    if (!quests.isObject()) {
+        quests = SaveArchive::object();
+    }
+    ensureObjectChild(quests, "affinity");
+    ensureObjectChild(quests, "flags");
+    ensureObjectChild(quests, "talkedToday");
+    ensureObjectChild(quests, "giftedToday");
+    ensureArrayChild(quests, "quests");
+    root.setChild("quests", std::move(quests));
+
+    SaveArchive economy = root.child("economy");
+    if (!economy.isObject()) {
+        economy = SaveArchive::object();
+    }
+    ensureArrayChild(economy, "shipping");
+    ensureArrayChild(economy, "jobs");
+    ensureArrayChild(economy, "stock");
+    root.setChild("economy", std::move(economy));
+
+    SaveArchive inventories = root.child("inventories");
+    if (!inventories.isObject()) {
+        inventories = SaveArchive::object();
+    }
+    root.setChild("inventories", std::move(inventories));
+    return core::okStatus();
+}
+
+}  // namespace
+
+void registerDefaultMigrations(SaveService& service) {
+    service.registerMigration(1, normalizeV1ToV2);
+}
+
 bool SaveService::isValidSlotName(std::string_view slot) noexcept {
     if (slot.empty() || slot.size() > 64) {
         return false;
@@ -239,9 +307,9 @@ core::Result<SaveFile> SaveService::parseSave(std::string_view text, bool fromBa
         return core::Result<SaveFile>::err(save_error::kCorruptSave, "missing save version");
     }
     if (version > m_currentVersion) {
-        return core::Result<SaveFile>::err(
-            save_error::kUnsupportedVersion,
-            "save version " + std::to_string(version) + " is newer than " + std::to_string(m_currentVersion));
+        return core::Result<SaveFile>::err(save_error::kUnsupportedVersion,
+                                           "save version " + std::to_string(version) + " is newer than " +
+                                               std::to_string(m_currentVersion));
     }
 
     for (int from = version; from < m_currentVersion; ++from) {

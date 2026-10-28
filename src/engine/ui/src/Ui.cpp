@@ -95,8 +95,8 @@ UiResult UiContext::button(UiId id, std::string_view label, core::Rect rect) {
     const TextStyle style = widgetTextStyle(m_theme, TextAlign::Center);
     const float innerWidth = rect.w - 2.0f * m_theme.padding;
     const TextMetrics metrics = measureText(m_font, label, innerWidth, style);
-    const core::Rect textRect{rect.x + m_theme.padding, rect.y + (rect.h - metrics.height) * 0.5f, innerWidth,
-                              metrics.height};
+    const core::Rect textRect{
+        rect.x + m_theme.padding, rect.y + (rect.h - metrics.height) * 0.5f, innerWidth, metrics.height};
     text(label, textRect, style);
     return result;
 }
@@ -123,8 +123,7 @@ UiResult UiContext::checkbox(UiId id, std::string_view label, bool& value, core:
     border(box, m_theme.panelBorder);
     if (value) {
         const float inset = boxSize * 0.25f;
-        quad(offset(core::makeRect(box.x + inset, box.y + inset, boxSize - 2.0f * inset,
-                                   boxSize - 2.0f * inset)),
+        quad(offset(core::makeRect(box.x + inset, box.y + inset, boxSize - 2.0f * inset, boxSize - 2.0f * inset)),
              m_theme.accent);
     }
 
@@ -133,8 +132,8 @@ UiResult UiContext::checkbox(UiId id, std::string_view label, bool& value, core:
     const float labelWidth = rect.w - boxSize - m_theme.padding;
     if (labelWidth > 0.0f) {
         const TextMetrics metrics = measureText(m_font, label, labelWidth, style);
-        text(label, core::makeRect(labelX, rect.y + (rect.h - metrics.height) * 0.5f, labelWidth,
-                                   metrics.height),
+        text(label,
+             core::makeRect(labelX, rect.y + (rect.h - metrics.height) * 0.5f, labelWidth, metrics.height),
              style);
     }
     return result;

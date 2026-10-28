@@ -37,8 +37,8 @@ public:
     /// Adds `PlayerTag`, `FacingDir`, `PlayerStateComp`, `Stamina` and `DodgeState`.
     /// The entity must already have `Transform` and `physics::Velocity`; those are
     /// owned by the scene, not by the controller.
-    static void attach(scene::World& world, scene::EntityId player, Stamina stamina = {},
-                       Facing facing = Facing::South);
+    static void
+    attach(scene::World& world, scene::EntityId player, Stamina stamina = {}, Facing facing = Facing::South);
 
     /// \brief Advances one fixed step. `dt` must be positive.
     ///
@@ -52,8 +52,8 @@ public:
     /// \brief Whether the player is inside the dodge invulnerability window.
     ///
     /// M20 reads this; M16 does not implement damage.
-    [[nodiscard]] static bool isInvulnerable(const scene::World& world, scene::EntityId player,
-                                             const PlayerTuning& tuning) noexcept;
+    [[nodiscard]] static bool
+    isInvulnerable(const scene::World& world, scene::EntityId player, const PlayerTuning& tuning) noexcept;
 
     /// \brief Requests recorded since the last `clearEvents()`.
     [[nodiscard]] std::span<const PlayerActionRequest> events() const noexcept { return m_events; }
@@ -66,12 +66,12 @@ public:
 
 private:
     void setState(PlayerStateComp& state, PlayerState next);
-    void record(PlayerActionKind kind, scene::EntityId player, Facing facing, std::uint32_t payload,
-                int errorCode);
-    void reject(scene::EntityId player, Facing facing, std::uint32_t payload, int errorCode,
-                bool dodgeRejection);
-    void updateAnimation(const FacingDir& facing, const PlayerStateComp& state,
-                         const fa::physics::Velocity& velocity, bool moving);
+    void record(PlayerActionKind kind, scene::EntityId player, Facing facing, std::uint32_t payload, int errorCode);
+    void reject(scene::EntityId player, Facing facing, std::uint32_t payload, int errorCode, bool dodgeRejection);
+    void updateAnimation(const FacingDir& facing,
+                         const PlayerStateComp& state,
+                         const fa::physics::Velocity& velocity,
+                         bool moving);
 
     PlayerTuning m_tuning;
     std::vector<PlayerActionRequest> m_events;

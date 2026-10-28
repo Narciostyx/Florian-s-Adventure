@@ -30,14 +30,15 @@ namespace {
 
 namespace err = fa::interaction::interaction_error;
 
+using Catch::Approx;
 using fa::core::Vec2;
 using fa::interaction::Facing;
 using fa::interaction::GridTarget;
+using fa::interaction::Interactable;
 using fa::interaction::InteractionEventKind;
 using fa::interaction::InteractionOptions;
 using fa::interaction::InteractionRequest;
 using fa::interaction::InteractionService;
-using fa::interaction::Interactable;
 using fa::interaction::PlacementGrid;
 using fa::interaction::PlacementRequest;
 using fa::interaction::ToolKind;
@@ -49,7 +50,6 @@ using fa::tilemap::TileDef;
 using fa::tilemap::TileId;
 using fa::tilemap::TileLayer;
 using fa::tilemap::Tilemap;
-using Catch::Approx;
 
 constexpr int kTile = 16;
 
@@ -114,7 +114,9 @@ EntityId makeInteractable(World& world, Vec2 position, std::uint32_t priority = 
     return id;
 }
 
-EntityId makeOwner(World& world) { return world.create(); }
+EntityId makeOwner(World& world) {
+    return world.create();
+}
 
 class RecordingHandler final : public fa::interaction::IToolHandler {
 public:
@@ -508,8 +510,7 @@ TEST_CASE("Placement validation checks range, walkability, size and ownership", 
 
 TEST_CASE("Placement requires the requested area kind", "[interaction][placement]") {
     Tilemap map = makeMap();
-    map.addArea(fa::tilemap::MapArea{1, fa::tilemap::AreaKind::Greenhouse,
-                                     fa::tilemap::TileBounds{2, 1, 2, 2}});
+    map.addArea(fa::tilemap::MapArea{1, fa::tilemap::AreaKind::Greenhouse, fa::tilemap::TileBounds{2, 1, 2, 2}});
     PlacementGrid grid(10, 10);
     World world;
     const EntityId actor = makeActor(world, Vec2{16.0f, 16.0f});

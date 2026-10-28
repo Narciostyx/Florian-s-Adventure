@@ -47,13 +47,11 @@ public:
     [[nodiscard]] fa::core::Result<SaveFile> load(std::string_view slot) override {
         ++loadCalls;
         if (failLoad) {
-            return fa::core::Result<SaveFile>::err(fa::save::save_error::kIoFailure,
-                                                   "forced load failure");
+            return fa::core::Result<SaveFile>::err(fa::save::save_error::kIoFailure, "forced load failure");
         }
         const auto found = slots.find(std::string(slot));
         if (found == slots.end()) {
-            return fa::core::Result<SaveFile>::err(fa::save::save_error::kSlotNotFound,
-                                                   "slot is missing");
+            return fa::core::Result<SaveFile>::err(fa::save::save_error::kSlotNotFound, "slot is missing");
         }
 
         SaveFile file;
@@ -168,9 +166,7 @@ TEST_CASE("Game flow boots, starts a new game and validates transitions", "[flow
 
 TEST_CASE("New game setup failure returns to the main menu", "[flow]") {
     GameFlow flow;
-    flow.setNewGameHandler([] {
-        return fa::core::errorStatus(9999, "world setup failed");
-    });
+    flow.setNewGameHandler([] { return fa::core::errorStatus(9999, "world setup failed"); });
 
     const Status result = flow.startNewGame("slot1");
     CHECK(result.error().code == flow_error::kNewGameFailed);
@@ -243,9 +239,7 @@ TEST_CASE("Saving and loading use the builder and apply handler", "[flow]") {
     CHECK(flow.stats().loadFailures == 1);
     saves.failLoad = false;
 
-    flow.setLoadHandler([](const SaveFile&) {
-        return fa::core::errorStatus(9998, "apply failed");
-    });
+    flow.setLoadHandler([](const SaveFile&) { return fa::core::errorStatus(9998, "apply failed"); });
     CHECK(flow.loadGame("slot1").error().code == flow_error::kLoadHandlerFailed);
     CHECK(flow.state() == AppState::MainMenu);
     CHECK(flow.stats().loadFailures == 2);

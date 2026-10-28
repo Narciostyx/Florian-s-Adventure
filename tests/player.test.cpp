@@ -30,6 +30,7 @@ namespace {
 
 namespace err = fa::player::player_error;
 
+using Catch::Approx;
 using fa::core::Vec2;
 using fa::physics::Velocity;
 using fa::player::Facing;
@@ -46,7 +47,6 @@ using fa::player::Stamina;
 using fa::scene::EntityId;
 using fa::scene::Transform;
 using fa::scene::World;
-using Catch::Approx;
 
 constexpr float kStep = 1.0f / 60.0f;
 
@@ -60,14 +60,16 @@ EntityId makePlayer(World& world, Vec2 position = Vec2{0.0f, 0.0f}, Stamina stam
     return id;
 }
 
-void step(PlayerController& controller, World& world, EntityId id, const PlayerIntent& intent, int steps,
-          float dt = kStep) {
+void step(
+    PlayerController& controller, World& world, EntityId id, const PlayerIntent& intent, int steps, float dt = kStep) {
     for (int index = 0; index < steps; ++index) {
         controller.update(world, id, intent, dt);
     }
 }
 
-Velocity& velocityOf(World& world, EntityId id) { return *world.tryGet<Velocity>(id); }
+Velocity& velocityOf(World& world, EntityId id) {
+    return *world.tryGet<Velocity>(id);
+}
 
 class FakeInput final : public fa::input::IInput {
 public:
@@ -87,8 +89,7 @@ public:
     std::vector<std::pair<fa::input::ActionId, bool>> pressed;
 
 private:
-    static bool lookup(const std::vector<std::pair<fa::input::ActionId, bool>>& values,
-                       fa::input::ActionId action) {
+    static bool lookup(const std::vector<std::pair<fa::input::ActionId, bool>>& values, fa::input::ActionId action) {
         for (const auto& [id, value] : values) {
             if (id == action) {
                 return value;

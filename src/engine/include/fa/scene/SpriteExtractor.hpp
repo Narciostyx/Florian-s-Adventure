@@ -46,8 +46,8 @@ struct SpriteExtractStats {
 /// lower on the screen draws in front of one standing higher - the classic top-down
 /// rule. `DrawItem::entityId` is set to the entity index, which is unique among living
 /// entities and is what the queue uses as its final tie-break.
-[[nodiscard]] SpriteExtractStats extractSprites(const World& world, render::RenderQueue& queue,
-                                               const SpriteExtractOptions& options = {});
+[[nodiscard]] SpriteExtractStats
+extractSprites(const World& world, render::RenderQueue& queue, const SpriteExtractOptions& options = {});
 
 /// \brief A system that does nothing but `extractSprites`.
 class SpriteExtractSystem final : public ISystem {

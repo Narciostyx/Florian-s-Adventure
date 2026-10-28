@@ -355,9 +355,8 @@ TEST_CASE("JobSystem parallelFor visits every index exactly once on one worker",
     constexpr std::size_t kCount = 64;
     std::vector<std::atomic<int>> visits(kCount);
 
-    const Status status = jobs.parallelFor(kCount, 8, [&visits](std::size_t index) {
-        visits[index].fetch_add(1, std::memory_order_relaxed);
-    });
+    const Status status = jobs.parallelFor(
+        kCount, 8, [&visits](std::size_t index) { visits[index].fetch_add(1, std::memory_order_relaxed); });
 
     REQUIRE(status.isOk());
     for (const auto& visit : visits) {
@@ -371,9 +370,8 @@ TEST_CASE("JobSystem parallelFor covers a large range across workers", "[events]
     constexpr std::size_t kCount = 1024;
     std::vector<std::atomic<int>> visits(kCount);
 
-    const Status status = jobs.parallelFor(kCount, 7, [&visits](std::size_t index) {
-        visits[index].fetch_add(1, std::memory_order_relaxed);
-    });
+    const Status status = jobs.parallelFor(
+        kCount, 7, [&visits](std::size_t index) { visits[index].fetch_add(1, std::memory_order_relaxed); });
 
     REQUIRE(status.isOk());
     for (const auto& visit : visits) {
@@ -409,9 +407,8 @@ TEST_CASE("JobSystem parallelFor treats a zero grain as one", "[events][jobs]") 
     JobSystem jobs(2);
 
     std::atomic<int> calls{0};
-    const Status status = jobs.parallelFor(5, 0, [&calls](std::size_t) {
-        calls.fetch_add(1, std::memory_order_relaxed);
-    });
+    const Status status =
+        jobs.parallelFor(5, 0, [&calls](std::size_t) { calls.fetch_add(1, std::memory_order_relaxed); });
 
     REQUIRE(status.isOk());
     REQUIRE(calls.load() == 5);

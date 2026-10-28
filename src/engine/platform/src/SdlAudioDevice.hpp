@@ -28,8 +28,7 @@ public:
     [[nodiscard]] int channels() const noexcept override;
 
 private:
-    static void SDLCALL streamCallback(void* userdata, SDL_AudioStream* stream, int additionalAmount,
-                                       int totalAmount);
+    static void SDLCALL streamCallback(void* userdata, SDL_AudioStream* stream, int additionalAmount, int totalAmount);
     void fillStream(SDL_AudioStream* stream, int additionalAmount);
 
     SDL_AudioStream* m_stream = nullptr;

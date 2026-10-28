@@ -39,9 +39,11 @@ void bindFromJson(const nlohmann::json& value, ActionId action, ActionMap& out) 
         if (isUsable(binding)) {
             out.bind(action, binding);
         } else {
-            fa::core::logf(fa::core::LogCategory::Input, fa::core::LogLevel::Warn,
+            fa::core::logf(fa::core::LogCategory::Input,
+                           fa::core::LogLevel::Warn,
                            "input: skipping unknown binding '%s' for action %u",
-                           element.get<std::string>().c_str(), action);
+                           element.get<std::string>().c_str(),
+                           action);
         }
     }
 }
@@ -154,8 +156,7 @@ fa::core::Status loadActionMapFromJson(std::string_view json, ActionMap& out, Ac
     bool ok = false;
     const auto document = parseDocument(json, ok);
     if (!ok) {
-        return fa::core::errorStatus(fa::core::error_code::kParseFailure,
-                                     "input: bindings are not valid JSON");
+        return fa::core::errorStatus(fa::core::error_code::kParseFailure, "input: bindings are not valid JSON");
     }
     return parseContext(document, out, names);
 }
@@ -178,13 +179,11 @@ std::string saveAllActionMapsToJson(std::span<const ActionMap> maps, const Actio
     return root.dump(2);
 }
 
-fa::core::Status loadAllActionMapsFromJson(std::string_view json, std::span<ActionMap> maps,
-                                           ActionRegistry& names) {
+fa::core::Status loadAllActionMapsFromJson(std::string_view json, std::span<ActionMap> maps, ActionRegistry& names) {
     bool ok = false;
     const auto document = parseDocument(json, ok);
     if (!ok) {
-        return fa::core::errorStatus(fa::core::error_code::kParseFailure,
-                                     "input: bindings are not valid JSON");
+        return fa::core::errorStatus(fa::core::error_code::kParseFailure, "input: bindings are not valid JSON");
     }
     if (!document.is_object()) {
         return fa::core::errorStatus(fa::core::error_code::kParseFailure,
@@ -199,8 +198,10 @@ fa::core::Status loadAllActionMapsFromJson(std::string_view json, std::span<Acti
     for (const auto& [key, value] : contexts->items()) {
         std::size_t index = 0;
         if (!contextIndexFromName(key, index)) {
-            fa::core::logf(fa::core::LogCategory::Input, fa::core::LogLevel::Warn,
-                           "input: ignoring unknown input context '%s'", key.c_str());
+            fa::core::logf(fa::core::LogCategory::Input,
+                           fa::core::LogLevel::Warn,
+                           "input: ignoring unknown input context '%s'",
+                           key.c_str());
             continue;
         }
         if (index >= maps.size()) {

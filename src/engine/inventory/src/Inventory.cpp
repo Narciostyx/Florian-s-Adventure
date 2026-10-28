@@ -177,7 +177,7 @@ core::Result<ItemStack> Inventory::remove(const content::ContentId& id, int coun
     }
     if (countOf(id) < count) {
         return core::Result<ItemStack>::err(inventory_error::kInsufficientItems,
-                                           "inventory does not hold enough of the item");
+                                            "inventory does not hold enough of the item");
     }
 
     ItemStack removed{id, 0, -1};
@@ -250,10 +250,8 @@ core::Status Inventory::swap(int from, int to) {
     }
 
     std::swap(m_slots[static_cast<std::size_t>(from)], m_slots[static_cast<std::size_t>(to)]);
-    pushEvent(InventoryEvent{InventoryEvent::Kind::Swapped, from, to,
-                             m_slots[static_cast<std::size_t>(to)].id, 0});
-    pushEvent(InventoryEvent{InventoryEvent::Kind::Changed, from, to,
-                             m_slots[static_cast<std::size_t>(to)].id, 0});
+    pushEvent(InventoryEvent{InventoryEvent::Kind::Swapped, from, to, m_slots[static_cast<std::size_t>(to)].id, 0});
+    pushEvent(InventoryEvent{InventoryEvent::Kind::Changed, from, to, m_slots[static_cast<std::size_t>(to)].id, 0});
     return core::okStatus();
 }
 
@@ -413,8 +411,8 @@ core::Status Inventory::restore(std::span<const ItemStack> slots) {
         m_slots[index] = slots[index];
         if (!slots[index].empty()) {
             restored += slots[index].count;
-            pushEvent(InventoryEvent{InventoryEvent::Kind::Restored, static_cast<int>(index), -1,
-                                     slots[index].id, slots[index].count});
+            pushEvent(InventoryEvent{
+                InventoryEvent::Kind::Restored, static_cast<int>(index), -1, slots[index].id, slots[index].count});
         }
     }
     pushEvent(InventoryEvent{InventoryEvent::Kind::Changed, -1, -1, content::ContentId{}, restored});

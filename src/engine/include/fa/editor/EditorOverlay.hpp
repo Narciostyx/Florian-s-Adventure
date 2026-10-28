@@ -53,9 +53,7 @@ public:
     void redo();
 
     [[nodiscard]] tilemap::TileCoord hover() const noexcept { return m_editor.hover(); }
-    [[nodiscard]] std::vector<tilemap::TileCoord> previewCells() const {
-        return m_editor.previewCells();
-    }
+    [[nodiscard]] std::vector<tilemap::TileCoord> previewCells() const { return m_editor.previewCells(); }
 
     [[nodiscard]] MapEditor& editor() noexcept { return m_editor; }
     [[nodiscard]] const MapEditor& editor() const noexcept { return m_editor; }

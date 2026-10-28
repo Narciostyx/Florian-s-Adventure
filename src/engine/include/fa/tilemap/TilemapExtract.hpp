@@ -52,8 +52,8 @@ struct TileExtractStats {
 /// Layers are walked in ascending `zOrder`, ties in insertion order. The queue's
 /// final tie-break is `entityId`, so items submitted later in that walk draw on top
 /// when two layers share a `render::RenderLayer` and a row.
-[[nodiscard]] TileExtractStats extractTiles(const Tilemap& map, render::RenderQueue& queue,
-                                            const TileExtractOptions& options = {});
+[[nodiscard]] TileExtractStats
+extractTiles(const Tilemap& map, render::RenderQueue& queue, const TileExtractOptions& options = {});
 
 /// \brief A system that extracts a borrowed map during `onRenderExtract`.
 class TilemapExtractSystem final : public scene::ISystem {

@@ -9,6 +9,9 @@
 | 被依赖 | 无（叶子模块） |
 
 > 实测与踩坑：[构建记录](../build/m26-editor-tools.md)
+>
+> 完整可视化编辑器（左地图 / 右组件库 / 右属性检查器）设计见
+> [M26 Visual Editor](26-visual-editor.md)。
 
 ## 1. 目的
 

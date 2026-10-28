@@ -74,8 +74,8 @@ EntityId makeAgent(World& world, fa::core::Vec2 position, const BehaviorProfile&
     transform.position = position;
     static_cast<void>(world.add<Transform>(id, transform));
     AiAgent agent;
-    agent.home = fa::core::Vec2{std::floor(position.x / 16.0f) * 16.0f + 8.0f,
-                                std::floor(position.y / 16.0f) * 16.0f + 8.0f};
+    agent.home =
+        fa::core::Vec2{std::floor(position.x / 16.0f) * 16.0f + 8.0f, std::floor(position.y / 16.0f) * 16.0f + 8.0f};
     agent.profile = profile;
     static_cast<void>(world.add<AiAgent>(id, agent));
     return id;

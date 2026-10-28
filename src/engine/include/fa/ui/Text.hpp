@@ -45,14 +45,14 @@ struct TextMetrics {
 };
 
 /// \brief Measures \p text, wrapping at \p maxWidth when it is positive.
-[[nodiscard]] TextMetrics measureText(const FontAtlas& font, std::string_view text, float maxWidth,
-                                      const TextStyle& style = {});
+[[nodiscard]] TextMetrics
+measureText(const FontAtlas& font, std::string_view text, float maxWidth, const TextStyle& style = {});
 
 /// \brief Appends one `DrawItem` per visible glyph to \p queue.
 ///
 /// All items use `RenderLayer::UI`; `sortY` is the glyph's y so overlapping text
 /// keeps a stable top-to-bottom order. `font.texture` must be valid.
-void drawText(const FontAtlas& font, std::string_view text, core::Rect rect, const TextStyle& style,
-              render::RenderQueue& queue);
+void drawText(
+    const FontAtlas& font, std::string_view text, core::Rect rect, const TextStyle& style, render::RenderQueue& queue);
 
 }  // namespace fa::ui

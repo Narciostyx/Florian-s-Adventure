@@ -82,8 +82,7 @@ public:
     virtual void sleepSeconds(double seconds) = 0;
 
     /// \brief Shows a modal message box, or falls back to stderr when that fails.
-    virtual fa::core::Status showMessageBox(MessageBoxKind kind, std::string_view title,
-                                            std::string_view message) = 0;
+    virtual fa::core::Status showMessageBox(MessageBoxKind kind, std::string_view title, std::string_view message) = 0;
 };
 
 /// \brief Creates the platform backend selected at build time.

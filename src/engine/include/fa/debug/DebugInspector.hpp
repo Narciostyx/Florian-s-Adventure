@@ -28,8 +28,7 @@ struct EntityInspection {
 ///
 /// The snapshot copies values and never retains component pointers, so it is safe
 /// to hold while gameplay code mutates the world.
-[[nodiscard]] std::vector<EntityInspection> inspectWorld(const scene::World& world,
-                                                         std::size_t maxEntities = 64);
+[[nodiscard]] std::vector<EntityInspection> inspectWorld(const scene::World& world, std::size_t maxEntities = 64);
 
 /// \brief One-line summary used by the console and the overlay.
 [[nodiscard]] std::string formatInspection(const EntityInspection& inspection);

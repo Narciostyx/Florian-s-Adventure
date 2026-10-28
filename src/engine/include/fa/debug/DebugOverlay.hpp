@@ -24,8 +24,12 @@ struct DebugOverlayState {
 /// origin is already set to the visible viewport, exactly like the normal HUD.
 class DebugOverlay {
 public:
-    void draw(ui::UiContext& ui, core::Rect viewport, const DebugStats& stats, const DebugConsole& console,
-              const DebugLogSink& log, const DebugOverlayState& state) const;
+    void draw(ui::UiContext& ui,
+              core::Rect viewport,
+              const DebugStats& stats,
+              const DebugConsole& console,
+              const DebugLogSink& log,
+              const DebugOverlayState& state) const;
 };
 
 }  // namespace fa::debug

@@ -122,6 +122,15 @@ $msbuild='C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\
 
 # 无头自检：种植闭环 + 击杀 dummy + 拾取掉落；失败返回 1
 & ".\build\bin\x64\Debug\fa_app.exe" --play-test
+
+# soak：模拟 20 秒（每 10 秒存读档一次），比对实体/纹理计数
+& ".\build\bin\x64\Debug\fa_app.exe" --soak 20
+
+# 分辨率覆盖：1920x1080 启动 smoke
+& ".\build\bin\x64\Debug\fa_app.exe" --resolution 1920x1080 --frames 5
+
+# 压力基线：1000 精灵 + 20 idle agent，输出 p50/p99 帧时间
+& ".\build\bin\x64\Release\fa_app.exe" --stress 1000
 ```
 
 `--window` 现在直接进入 play 模式（`--play` 仍可显式指定）；`--frames N` 无窗口时
@@ -156,6 +165,7 @@ $msbuild='C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\
 存档包含日期/时间/天气、位置/朝向/生命/耐力、背包/快捷栏/装备、农田/作物、
 金币/出货/加工/商店余量、地面掉落、敌人存活与生命、杂物/放置物、AI 状态/目标，
 以及叙事好感/flags/每日上限/任务进度；读档会重建当前地图后逐段应用。
+存档当前为 v2；打开 v1 存档时由 `registerDefaultMigrations()` 自动补齐空段。
 
 ## 许可证
 

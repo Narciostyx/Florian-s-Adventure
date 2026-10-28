@@ -153,8 +153,7 @@ void AudioMixer::mix(std::span<std::int16_t> output) {
             if (second >= frameCount) {
                 second = voice.desc.loop ? 0 : first;
             }
-            const float fraction =
-                static_cast<float>(voice.positionFrames - static_cast<double>(first));
+            const float fraction = static_cast<float>(voice.positionFrames - static_cast<double>(first));
 
             float sampleLeft = 0.0f;
             float sampleRight = 0.0f;
@@ -178,8 +177,8 @@ void AudioMixer::mix(std::span<std::int16_t> output) {
 
             float gain = effectiveGain(voice);
             if (voice.fadingOut) {
-                const float progress = static_cast<float>(voice.fadeOutElapsed) /
-                                       static_cast<float>(voice.fadeOutFrames);
+                const float progress =
+                    static_cast<float>(voice.fadeOutElapsed) / static_cast<float>(voice.fadeOutFrames);
                 gain *= voice.fadeOutStartGain * (1.0f - progress);
             } else {
                 gain *= currentFadeIn(voice);
@@ -199,8 +198,7 @@ void AudioMixer::mix(std::span<std::int16_t> output) {
                 if (voice.fadeOutElapsed >= voice.fadeOutFrames) {
                     deactivate(index);
                 }
-            } else if (!voice.desc.loop &&
-                       voice.positionFrames >= static_cast<double>(frameCount)) {
+            } else if (!voice.desc.loop && voice.positionFrames >= static_cast<double>(frameCount)) {
                 deactivate(index);
                 ++m_finished;
             }
@@ -335,8 +333,7 @@ float AudioMixer::currentFadeIn(const Voice& voice) const noexcept {
     if (voice.desc.fadeInSeconds <= 0.0f) {
         return 1.0f;
     }
-    const double fadeFrames =
-        static_cast<double>(voice.desc.fadeInSeconds) * static_cast<double>(m_sampleRate);
+    const double fadeFrames = static_cast<double>(voice.desc.fadeInSeconds) * static_cast<double>(m_sampleRate);
     if (fadeFrames <= 0.0) {
         return 1.0f;
     }
@@ -344,7 +341,9 @@ float AudioMixer::currentFadeIn(const Voice& voice) const noexcept {
     return played < fadeFrames ? static_cast<float>(played / fadeFrames) : 1.0f;
 }
 
-float AudioMixer::clampVolume(float volume) noexcept { return core::clamp01(volume); }
+float AudioMixer::clampVolume(float volume) noexcept {
+    return core::clamp01(volume);
+}
 
 std::size_t AudioMixer::busIndex(AudioBus bus) noexcept {
     return static_cast<std::size_t>(bus);

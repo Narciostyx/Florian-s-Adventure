@@ -41,8 +41,7 @@ namespace {
 
 }  // namespace
 
-TileExtractStats extractTiles(const Tilemap& map, render::RenderQueue& queue,
-                              const TileExtractOptions& options) {
+TileExtractStats extractTiles(const Tilemap& map, render::RenderQueue& queue, const TileExtractOptions& options) {
     TileExtractStats stats;
     if (map.empty()) {
         return stats;
@@ -131,7 +130,9 @@ TileExtractStats extractTiles(const Tilemap& map, render::RenderQueue& queue,
 TilemapExtractSystem::TilemapExtractSystem(const Tilemap& map, TileExtractOptions options)
     : m_map(&map), m_options(options) {}
 
-std::string_view TilemapExtractSystem::name() const noexcept { return "tilemap.extract"; }
+std::string_view TilemapExtractSystem::name() const noexcept {
+    return "tilemap.extract";
+}
 
 void TilemapExtractSystem::onRenderExtract(const scene::World& world, render::RenderQueue& queue) {
     static_cast<void>(world);

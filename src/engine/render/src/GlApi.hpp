@@ -63,54 +63,60 @@ inline constexpr GLenum GL_INFO_LOG_LENGTH = 0x8B84;
 /// Declared as a table instead of one free variable per function so resolution,
 /// reporting and shutdown stay one loop. `glGetString` and friends are here even
 /// though they live in opengl32.dll - IGlContext::procAddress hides that.
-#define FA_GL_FUNCTION_LIST(X)                                                                     \
-    X(const GLubyte*, GetString, (GLenum name))                                                    \
-    X(GLenum, GetError, (void))                                                                    \
-    X(void, Viewport, (GLint x, GLint y, GLsizei width, GLsizei height))                           \
-    X(void, ClearColor, (GLfloat red, GLfloat green, GLfloat blue, GLfloat alpha))                 \
-    X(void, Clear, (GLbitfield mask))                                                              \
-    X(void, Enable, (GLenum capability))                                                           \
-    X(void, Disable, (GLenum capability))                                                          \
-    X(void, BlendFuncSeparate, (GLenum srcRgb, GLenum dstRgb, GLenum srcAlpha, GLenum dstAlpha))   \
-    X(void, PixelStorei, (GLenum target, GLint value))                                             \
-    X(void, GenTextures, (GLsizei count, GLuint * textures))                                       \
-    X(void, DeleteTextures, (GLsizei count, const GLuint* textures))                               \
-    X(void, BindTexture, (GLenum target, GLuint texture))                                          \
-    X(void, ActiveTexture, (GLenum texture))                                                       \
-    X(void, TexImage2D, (GLenum target, GLint level, GLint internalFormat, GLsizei width,          \
-                         GLsizei height, GLint border, GLenum format, GLenum type,                 \
-                         const void* pixels))                                                     \
-    X(void, TexParameteri, (GLenum target, GLenum name, GLint value))                              \
-    X(void, GenVertexArrays, (GLsizei count, GLuint * arrays))                                     \
-    X(void, DeleteVertexArrays, (GLsizei count, const GLuint* arrays))                             \
-    X(void, BindVertexArray, (GLuint array))                                                       \
-    X(void, GenBuffers, (GLsizei count, GLuint * buffers))                                         \
-    X(void, DeleteBuffers, (GLsizei count, const GLuint* buffers))                                 \
-    X(void, BindBuffer, (GLenum target, GLuint buffer))                                            \
-    X(void, BufferData, (GLenum target, GLsizeiptr size, const void* data, GLenum usage))          \
-    X(void, BufferSubData, (GLenum target, GLintptr offset, GLsizeiptr size, const void* data))    \
-    X(GLuint, CreateShader, (GLenum type))                                                         \
-    X(void, ShaderSource, (GLuint shader, GLsizei count, const GLchar* const* strings,             \
-                           const GLint* lengths))                                                 \
-    X(void, CompileShader, (GLuint shader))                                                        \
-    X(void, GetShaderiv, (GLuint shader, GLenum name, GLint * value))                              \
-    X(void, GetShaderInfoLog, (GLuint shader, GLsizei bufSize, GLsizei * length, GLchar * infoLog))\
-    X(void, DeleteShader, (GLuint shader))                                                         \
-    X(GLuint, CreateProgram, (void))                                                               \
-    X(void, AttachShader, (GLuint program, GLuint shader))                                         \
-    X(void, LinkProgram, (GLuint program))                                                         \
-    X(void, GetProgramiv, (GLuint program, GLenum name, GLint * value))                            \
-    X(void, GetProgramInfoLog, (GLuint program, GLsizei bufSize, GLsizei * length,                 \
-                                GLchar * infoLog))                                                 \
-    X(void, DeleteProgram, (GLuint program))                                                       \
-    X(void, UseProgram, (GLuint program))                                                          \
-    X(GLint, GetUniformLocation, (GLuint program, const GLchar* name))                             \
-    X(void, Uniform1i, (GLint location, GLint value))                                              \
-    X(void, UniformMatrix4fv, (GLint location, GLsizei count, GLboolean transpose,                 \
-                               const GLfloat* value))                                              \
-    X(void, EnableVertexAttribArray, (GLuint index))                                               \
-    X(void, VertexAttribPointer, (GLuint index, GLint size, GLenum type, GLboolean normalized,     \
-                                  GLsizei stride, const void* pointer))                            \
+#define FA_GL_FUNCTION_LIST(X)                                                                                         \
+    X(const GLubyte*, GetString, (GLenum name))                                                                        \
+    X(GLenum, GetError, (void))                                                                                        \
+    X(void, Viewport, (GLint x, GLint y, GLsizei width, GLsizei height))                                               \
+    X(void, ClearColor, (GLfloat red, GLfloat green, GLfloat blue, GLfloat alpha))                                     \
+    X(void, Clear, (GLbitfield mask))                                                                                  \
+    X(void, Enable, (GLenum capability))                                                                               \
+    X(void, Disable, (GLenum capability))                                                                              \
+    X(void, BlendFuncSeparate, (GLenum srcRgb, GLenum dstRgb, GLenum srcAlpha, GLenum dstAlpha))                       \
+    X(void, PixelStorei, (GLenum target, GLint value))                                                                 \
+    X(void, GenTextures, (GLsizei count, GLuint * textures))                                                           \
+    X(void, DeleteTextures, (GLsizei count, const GLuint* textures))                                                   \
+    X(void, BindTexture, (GLenum target, GLuint texture))                                                              \
+    X(void, ActiveTexture, (GLenum texture))                                                                           \
+    X(void,                                                                                                            \
+      TexImage2D,                                                                                                      \
+      (GLenum target,                                                                                                  \
+       GLint level,                                                                                                    \
+       GLint internalFormat,                                                                                           \
+       GLsizei width,                                                                                                  \
+       GLsizei height,                                                                                                 \
+       GLint border,                                                                                                   \
+       GLenum format,                                                                                                  \
+       GLenum type,                                                                                                    \
+       const void* pixels))                                                                                            \
+    X(void, TexParameteri, (GLenum target, GLenum name, GLint value))                                                  \
+    X(void, GenVertexArrays, (GLsizei count, GLuint * arrays))                                                         \
+    X(void, DeleteVertexArrays, (GLsizei count, const GLuint* arrays))                                                 \
+    X(void, BindVertexArray, (GLuint array))                                                                           \
+    X(void, GenBuffers, (GLsizei count, GLuint * buffers))                                                             \
+    X(void, DeleteBuffers, (GLsizei count, const GLuint* buffers))                                                     \
+    X(void, BindBuffer, (GLenum target, GLuint buffer))                                                                \
+    X(void, BufferData, (GLenum target, GLsizeiptr size, const void* data, GLenum usage))                              \
+    X(void, BufferSubData, (GLenum target, GLintptr offset, GLsizeiptr size, const void* data))                        \
+    X(GLuint, CreateShader, (GLenum type))                                                                             \
+    X(void, ShaderSource, (GLuint shader, GLsizei count, const GLchar* const* strings, const GLint* lengths))          \
+    X(void, CompileShader, (GLuint shader))                                                                            \
+    X(void, GetShaderiv, (GLuint shader, GLenum name, GLint * value))                                                  \
+    X(void, GetShaderInfoLog, (GLuint shader, GLsizei bufSize, GLsizei * length, GLchar * infoLog))                    \
+    X(void, DeleteShader, (GLuint shader))                                                                             \
+    X(GLuint, CreateProgram, (void))                                                                                   \
+    X(void, AttachShader, (GLuint program, GLuint shader))                                                             \
+    X(void, LinkProgram, (GLuint program))                                                                             \
+    X(void, GetProgramiv, (GLuint program, GLenum name, GLint * value))                                                \
+    X(void, GetProgramInfoLog, (GLuint program, GLsizei bufSize, GLsizei * length, GLchar * infoLog))                  \
+    X(void, DeleteProgram, (GLuint program))                                                                           \
+    X(void, UseProgram, (GLuint program))                                                                              \
+    X(GLint, GetUniformLocation, (GLuint program, const GLchar* name))                                                 \
+    X(void, Uniform1i, (GLint location, GLint value))                                                                  \
+    X(void, UniformMatrix4fv, (GLint location, GLsizei count, GLboolean transpose, const GLfloat* value))              \
+    X(void, EnableVertexAttribArray, (GLuint index))                                                                   \
+    X(void,                                                                                                            \
+      VertexAttribPointer,                                                                                             \
+      (GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, const void* pointer))              \
     X(void, DrawElements, (GLenum mode, GLsizei count, GLenum type, const void* indices))
 
 struct GlFunctions {

@@ -42,7 +42,9 @@ std::string_view toString(Weather weather) noexcept {
     }
 }
 
-WorldCalendar::WorldCalendar(std::uint64_t weatherSeed) { reset(weatherSeed); }
+WorldCalendar::WorldCalendar(std::uint64_t weatherSeed) {
+    reset(weatherSeed);
+}
 
 void WorldCalendar::reset(std::uint64_t weatherSeed) {
     m_clock = WorldClock{};
@@ -110,11 +112,17 @@ bool WorldCalendar::isRaining() const noexcept {
     return m_today == Weather::Rainy || m_today == Weather::Stormy;
 }
 
-bool WorldCalendar::isStormy() const noexcept { return m_today == Weather::Stormy; }
+bool WorldCalendar::isStormy() const noexcept {
+    return m_today == Weather::Stormy;
+}
 
-bool WorldCalendar::isSnowing() const noexcept { return m_today == Weather::Snowy; }
+bool WorldCalendar::isSnowing() const noexcept {
+    return m_today == Weather::Snowy;
+}
 
-bool WorldCalendar::autoWatersCrops() const noexcept { return isRaining(); }
+bool WorldCalendar::autoWatersCrops() const noexcept {
+    return isRaining();
+}
 
 float WorldCalendar::cropGrowthMultiplier() const noexcept {
     switch (m_today) {
@@ -261,27 +269,51 @@ Weather WorldCalendar::rollWeather(Season season) noexcept {
     switch (season) {
         case Season::Spring:
             result = pick(Weather::Sunny, 0.50f);
-            if (result == Weather::Count) result = pick(Weather::Rainy, 0.35f);
-            if (result == Weather::Count) result = pick(Weather::Stormy, 0.10f);
-            if (result == Weather::Count) result = pick(Weather::Snowy, 0.05f);
+            if (result == Weather::Count) {
+                result = pick(Weather::Rainy, 0.35f);
+            }
+            if (result == Weather::Count) {
+                result = pick(Weather::Stormy, 0.10f);
+            }
+            if (result == Weather::Count) {
+                result = pick(Weather::Snowy, 0.05f);
+            }
             break;
         case Season::Summer:
             result = pick(Weather::Sunny, 0.65f);
-            if (result == Weather::Count) result = pick(Weather::Rainy, 0.15f);
-            if (result == Weather::Count) result = pick(Weather::Stormy, 0.20f);
-            if (result == Weather::Count) result = pick(Weather::Snowy, 0.0f);
+            if (result == Weather::Count) {
+                result = pick(Weather::Rainy, 0.15f);
+            }
+            if (result == Weather::Count) {
+                result = pick(Weather::Stormy, 0.20f);
+            }
+            if (result == Weather::Count) {
+                result = pick(Weather::Snowy, 0.0f);
+            }
             break;
         case Season::Fall:
             result = pick(Weather::Sunny, 0.45f);
-            if (result == Weather::Count) result = pick(Weather::Rainy, 0.35f);
-            if (result == Weather::Count) result = pick(Weather::Stormy, 0.15f);
-            if (result == Weather::Count) result = pick(Weather::Snowy, 0.05f);
+            if (result == Weather::Count) {
+                result = pick(Weather::Rainy, 0.35f);
+            }
+            if (result == Weather::Count) {
+                result = pick(Weather::Stormy, 0.15f);
+            }
+            if (result == Weather::Count) {
+                result = pick(Weather::Snowy, 0.05f);
+            }
             break;
         case Season::Winter:
             result = pick(Weather::Sunny, 0.35f);
-            if (result == Weather::Count) result = pick(Weather::Rainy, 0.0f);
-            if (result == Weather::Count) result = pick(Weather::Stormy, 0.10f);
-            if (result == Weather::Count) result = pick(Weather::Snowy, 0.55f);
+            if (result == Weather::Count) {
+                result = pick(Weather::Rainy, 0.0f);
+            }
+            if (result == Weather::Count) {
+                result = pick(Weather::Stormy, 0.10f);
+            }
+            if (result == Weather::Count) {
+                result = pick(Weather::Snowy, 0.55f);
+            }
             break;
         default:
             break;

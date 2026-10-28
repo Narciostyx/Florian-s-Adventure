@@ -59,8 +59,11 @@ const FrameContext& TimeService::context() const {
     return m_context;
 }
 
-void TimeService::beginFrame(double realDeltaSeconds, std::uint32_t fixedStepsThisFrame, float interpolationAlpha,
-                             std::uint64_t fixedStepIndex, double fixedDeltaSeconds) noexcept {
+void TimeService::beginFrame(double realDeltaSeconds,
+                             std::uint32_t fixedStepsThisFrame,
+                             float interpolationAlpha,
+                             std::uint64_t fixedStepIndex,
+                             double fixedDeltaSeconds) noexcept {
     ++m_context.frameIndex;
     m_context.realDeltaSeconds = realDeltaSeconds;
     m_context.fixedStepsThisFrame = fixedStepsThisFrame;
@@ -71,8 +74,7 @@ void TimeService::beginFrame(double realDeltaSeconds, std::uint32_t fixedStepsTh
     const DomainState& gameplay = state(TimeDomain::Gameplay);
     m_context.gameplayScale = gameplay.paused ? 0.0f : gameplay.scale;
     m_context.isPaused = gameplay.paused;
-    m_context.scaledDeltaSeconds =
-        realDeltaSeconds * static_cast<double>(m_context.gameplayScale);
+    m_context.scaledDeltaSeconds = realDeltaSeconds * static_cast<double>(m_context.gameplayScale);
 }
 
 void TimeService::endFrame() noexcept {

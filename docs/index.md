@@ -66,6 +66,7 @@ Florian's Adventure 的全部设计文档入口。当前状态：**28 个模块 
 | [M24 经济/加工/商店・实测](build/m24-economy-crafting-shops.md) | 钱包、买卖原子性、每日限购、季节库存与按日价格波动、配方加工任务、出货箱次日结算、经济事件 |
 | [M25 Game Flow・实测](build/m25-game-flow.md) | 应用状态机、新游戏/读档、暂停/对话、日终结算、自动存档、死亡/复活、退出、叙事/AI/世界对象存档接线 |
 | [M26 编辑器・实测](build/m26-editor-tools.md) | 瓦片笔刷/矩形/填充/擦除/取色、命令差分撤销、JSON 保存/加载、M09 面板；Release 不链接 |
+| [M26 Visual Editor・设计](modules/26-visual-editor.md) | 左地图 / 右组件库 / 右属性检查器；组件与属性描述符注册、文档适配器、JSON 双向同步、扩展点与分阶段落地 |
 | [M27 调试工具・实测](build/m27-debug-tools.md) | 控制台/CVar/日志/统计/实体检查器/物理调试；Release 条件链接；通配符展开后的新文件登记流程 |
 | [M16 玩家控制器・实测](build/m16-player-controller.md) | 输入适配与控制器拆分、只写 `Velocity`、动作锁、闪避速度平台、无敌窗口、测试顺序踩坑 |
 | [M15 内容数据库・实测](build/m15-content-database.md) | ID 前缀/哈希、季节掩码、错误收集与重试、非事务加载、`std::span` 与指针稳定性、`/EHsc` 结论 |
@@ -104,7 +105,7 @@ Florian's Adventure 的全部设计文档入口。当前状态：**28 个模块 
 | M27 Debug Tools | 已实现 | 451 用例 / 28744 断言 | `DebugConsole` 命令/引号/历史、`CVarRegistry` 四种类型与持久化、`DebugLogSink` 环形日志、`DebugStats`（含角色相机与 AI 锁定目标）、实体快照、`UiContext` 覆盖层、M13 `DebugShape` 适配、F3/F4/F5/控制台事件路由；Release 不链接 |
 
 各模块按 ID 排序，实际落地顺序为 M01 → M02 → M04 → M03 → M07 → M06 → M05 → M11 → M13 → M12 → M17 → M16 → M15 → M09 → M18 → M08 → M27 → M14 → M10 → M20 → M22 → M19 → M21 → M26 → M23 → M24 → M25，因此「完成时累计」栏不是单调递增的；
-当前总计 **563 用例 / 30530 断言**。逐模块状态与下一步建议见 [计划完成情况](plan-status.md)。
+当前总计 **564 用例 / 30543 断言**。逐模块状态与下一步建议见 [计划完成情况](plan-status.md)。
 
 三配置（Debug / Development / Release × x64）Rebuild 均零警告零错误。
 
@@ -178,7 +179,7 @@ Florian's Adventure 的全部设计文档入口。当前状态：**28 个模块 
 
 | ID | 文档 | 优先级 |
 |---|---|---|
-| M26 | [Editor Tools](modules/26-editor-tools.md) | P2 |
+| M26 | [Editor Tools](modules/26-editor-tools.md) · [Visual Editor 设计](modules/26-visual-editor.md) | P2 |
 | M27 | [Debug Tools](modules/27-debug-tools.md) | P1 |
 
 ## 状态标记

@@ -20,9 +20,14 @@ LogLevel g_minimumLevel = LogLevel::Info;
 class StderrSink final : public ILogSink {
 public:
     void write(LogLevel level, LogCategory category, std::string_view message) override {
-        std::fprintf(stderr, "[%-5.*s][%-8.*s] %.*s\n", static_cast<int>(toString(level).size()),
-                     toString(level).data(), static_cast<int>(toString(category).size()),
-                     toString(category).data(), static_cast<int>(message.size()), message.data());
+        std::fprintf(stderr,
+                     "[%-5.*s][%-8.*s] %.*s\n",
+                     static_cast<int>(toString(level).size()),
+                     toString(level).data(),
+                     static_cast<int>(toString(category).size()),
+                     toString(category).data(),
+                     static_cast<int>(message.size()),
+                     message.data());
     }
 
     void flush() override { std::fflush(stderr); }
@@ -30,7 +35,9 @@ public:
 
 StderrSink g_stderrSink;
 
-bool isSameSink(ILogSink* a, ILogSink* b) noexcept { return a == b; }
+bool isSameSink(ILogSink* a, ILogSink* b) noexcept {
+    return a == b;
+}
 
 /// \brief Registers the fallback sink exactly once, on the first log call.
 ///
@@ -148,11 +155,17 @@ void flushLogs() {
     }
 }
 
-void setLogLevel(LogLevel minimumLevel) noexcept { g_minimumLevel = minimumLevel; }
+void setLogLevel(LogLevel minimumLevel) noexcept {
+    g_minimumLevel = minimumLevel;
+}
 
-LogLevel logLevel() noexcept { return g_minimumLevel; }
+LogLevel logLevel() noexcept {
+    return g_minimumLevel;
+}
 
-bool isLogEnabled(LogLevel level) noexcept { return level >= g_minimumLevel && g_minimumLevel != LogLevel::Off; }
+bool isLogEnabled(LogLevel level) noexcept {
+    return level >= g_minimumLevel && g_minimumLevel != LogLevel::Off;
+}
 
 void log(LogCategory category, LogLevel level, std::string_view message) {
     ensureStderrSink();
@@ -179,8 +192,8 @@ void logf(LogCategory category, LogLevel level, const char* format, ...) {
     if (written < 0) {
         return;
     }
-    const auto length = written < static_cast<int>(sizeof(buffer)) ? static_cast<std::size_t>(written)
-                                                                   : sizeof(buffer) - 1U;
+    const auto length =
+        written < static_cast<int>(sizeof(buffer)) ? static_cast<std::size_t>(written) : sizeof(buffer) - 1U;
     log(category, level, std::string_view(buffer, length));
 }
 

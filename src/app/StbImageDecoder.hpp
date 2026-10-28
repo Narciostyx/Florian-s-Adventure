@@ -16,8 +16,8 @@ namespace fa::app {
 class StbImageDecoder final : public assets::IImageDecoder {
 public:
     [[nodiscard]] bool supports(std::string_view path) const override;
-    [[nodiscard]] core::Result<assets::ImageData> decode(
-        std::string_view path, std::span<const std::uint8_t> bytes) override;
+    [[nodiscard]] core::Result<assets::ImageData> decode(std::string_view path,
+                                                         std::span<const std::uint8_t> bytes) override;
 };
 
 }  // namespace fa::app

@@ -40,8 +40,7 @@ Tilemap::Tilemap(int width, int height, int tileSize) {
 
 core::Status Tilemap::reset(int width, int height, int tileSize) {
     if (width <= 0 || height <= 0 || width > kMaxDimension || height > kMaxDimension) {
-        return core::errorStatus(tilemap_error::kInvalidDimensions,
-                                 "tilemap dimensions must be between 1 and 4096");
+        return core::errorStatus(tilemap_error::kInvalidDimensions, "tilemap dimensions must be between 1 and 4096");
     }
     if (tileSize <= 0 || tileSize > 1024) {
         return core::errorStatus(tilemap_error::kInvalidTileSize,
@@ -87,7 +86,9 @@ bool Tilemap::setTileTexture(TileId id, render::TextureHandle texture, core::Rec
     return false;
 }
 
-const TileDef* Tilemap::tileDef(TileId id) const noexcept { return defFor(id); }
+const TileDef* Tilemap::tileDef(TileId id) const noexcept {
+    return defFor(id);
+}
 
 const TileDef* Tilemap::defFor(TileId id) const noexcept {
     if (!id.isValid()) {
@@ -150,8 +151,8 @@ TileId Tilemap::tileAt(int column, int row, int layerIndex) const noexcept {
     if (layer == nullptr) {
         return kEmptyTile;
     }
-    const std::size_t index = static_cast<std::size_t>(row) * static_cast<std::size_t>(m_width) +
-                              static_cast<std::size_t>(column);
+    const std::size_t index =
+        static_cast<std::size_t>(row) * static_cast<std::size_t>(m_width) + static_cast<std::size_t>(column);
     return layer->tiles[index];
 }
 
@@ -163,8 +164,8 @@ bool Tilemap::setTile(int column, int row, int layerIndex, TileId id) noexcept {
     if (layer == nullptr) {
         return false;
     }
-    const std::size_t index = static_cast<std::size_t>(row) * static_cast<std::size_t>(m_width) +
-                              static_cast<std::size_t>(column);
+    const std::size_t index =
+        static_cast<std::size_t>(row) * static_cast<std::size_t>(m_width) + static_cast<std::size_t>(column);
     layer->tiles[index] = id;
     return true;
 }
@@ -186,8 +187,8 @@ bool Tilemap::setBorder(int layerIndex, TileId id) noexcept {
         return false;
     }
     const auto at = [this, layer](int column, int row) -> TileId& {
-        const std::size_t index = static_cast<std::size_t>(row) * static_cast<std::size_t>(m_width) +
-                                  static_cast<std::size_t>(column);
+        const std::size_t index =
+            static_cast<std::size_t>(row) * static_cast<std::size_t>(m_width) + static_cast<std::size_t>(column);
         return layer->tiles[index];
     };
     for (int column = 0; column < m_width; ++column) {
@@ -209,8 +210,8 @@ bool Tilemap::anyDefHas(int column, int row, bool TileDef::*member) const noexce
     if (!contains(column, row)) {
         return false;
     }
-    const std::size_t cell = static_cast<std::size_t>(row) * static_cast<std::size_t>(m_width) +
-                             static_cast<std::size_t>(column);
+    const std::size_t cell =
+        static_cast<std::size_t>(row) * static_cast<std::size_t>(m_width) + static_cast<std::size_t>(column);
     for (const TileLayer& layer : m_layers) {
         const TileDef* def = defFor(layer.tiles[cell]);
         if (def != nullptr && def->*member) {
@@ -227,8 +228,8 @@ bool Tilemap::isWalkable(int column, int row) const noexcept {
     if (isSolidCell(column, row)) {
         return false;
     }
-    const std::size_t cell = static_cast<std::size_t>(row) * static_cast<std::size_t>(m_width) +
-                             static_cast<std::size_t>(column);
+    const std::size_t cell =
+        static_cast<std::size_t>(row) * static_cast<std::size_t>(m_width) + static_cast<std::size_t>(column);
     for (const TileLayer& layer : m_layers) {
         const TileDef* def = defFor(layer.tiles[cell]);
         if (def != nullptr && !def->walkable) {
@@ -238,9 +239,13 @@ bool Tilemap::isWalkable(int column, int row) const noexcept {
     return true;
 }
 
-bool Tilemap::isWater(int column, int row) const noexcept { return anyDefHas(column, row, &TileDef::water); }
+bool Tilemap::isWater(int column, int row) const noexcept {
+    return anyDefHas(column, row, &TileDef::water);
+}
 
-bool Tilemap::isTillable(int column, int row) const noexcept { return anyDefHas(column, row, &TileDef::tillable); }
+bool Tilemap::isTillable(int column, int row) const noexcept {
+    return anyDefHas(column, row, &TileDef::tillable);
+}
 
 bool Tilemap::isSolidCell(int column, int row) const noexcept {
     if (!contains(column, row)) {
@@ -254,8 +259,7 @@ TileCoord Tilemap::worldToGrid(core::Vec2 world) const noexcept {
         return TileCoord{};
     }
     const float inverse = 1.0f / static_cast<float>(m_tileSize);
-    return TileCoord{clampToGrid((world.x - m_origin.x) * inverse),
-                     clampToGrid((world.y - m_origin.y) * inverse)};
+    return TileCoord{clampToGrid((world.x - m_origin.x) * inverse), clampToGrid((world.y - m_origin.y) * inverse)};
 }
 
 core::Vec2 Tilemap::gridToWorld(TileCoord coord) const noexcept {
@@ -265,16 +269,19 @@ core::Vec2 Tilemap::gridToWorld(TileCoord coord) const noexcept {
 
 core::Rect Tilemap::tileRect(TileCoord coord) const noexcept {
     const core::Vec2 topLeft = gridToWorld(coord);
-    return core::makeRect(topLeft.x, topLeft.y, static_cast<float>(m_tileSize),
-                          static_cast<float>(m_tileSize));
+    return core::makeRect(topLeft.x, topLeft.y, static_cast<float>(m_tileSize), static_cast<float>(m_tileSize));
 }
 
 core::Rect Tilemap::boundsRect() const noexcept {
-    return core::makeRect(m_origin.x, m_origin.y, static_cast<float>(m_width) * static_cast<float>(m_tileSize),
+    return core::makeRect(m_origin.x,
+                          m_origin.y,
+                          static_cast<float>(m_width) * static_cast<float>(m_tileSize),
                           static_cast<float>(m_height) * static_cast<float>(m_tileSize));
 }
 
-void Tilemap::addArea(MapArea area) { m_areas.push_back(std::move(area)); }
+void Tilemap::addArea(MapArea area) {
+    m_areas.push_back(std::move(area));
+}
 
 std::optional<AreaKind> Tilemap::queryArea(TileCoord coord) const noexcept {
     const MapArea* area = areaAt(coord);
@@ -293,7 +300,9 @@ const MapArea* Tilemap::areaAt(TileCoord coord) const noexcept {
     return nullptr;
 }
 
-void Tilemap::addPortal(MapPortal portal) { m_portals.push_back(std::move(portal)); }
+void Tilemap::addPortal(MapPortal portal) {
+    m_portals.push_back(std::move(portal));
+}
 
 const MapPortal* Tilemap::portalAt(TileCoord coord) const noexcept {
     for (const MapPortal& portal : m_portals) {
@@ -354,8 +363,12 @@ bool TilemapSolids::isSolid(int column, int row) const noexcept {
     return m_map != nullptr ? m_map->isSolidCell(column, row) : true;
 }
 
-int TilemapSolids::columns() const noexcept { return m_map != nullptr ? m_map->width() : 0; }
+int TilemapSolids::columns() const noexcept {
+    return m_map != nullptr ? m_map->width() : 0;
+}
 
-int TilemapSolids::rows() const noexcept { return m_map != nullptr ? m_map->height() : 0; }
+int TilemapSolids::rows() const noexcept {
+    return m_map != nullptr ? m_map->height() : 0;
+}
 
 }  // namespace fa::tilemap

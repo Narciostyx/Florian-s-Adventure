@@ -72,6 +72,8 @@ void DebugLogSink::lock() const noexcept {
     }
 }
 
-void DebugLogSink::unlock() const noexcept { m_lock.clear(std::memory_order_release); }
+void DebugLogSink::unlock() const noexcept {
+    m_lock.clear(std::memory_order_release);
+}
 
 }  // namespace fa::debug

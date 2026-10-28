@@ -29,6 +29,7 @@
 
 namespace {
 
+using Catch::Approx;
 using fa::core::Rect;
 using fa::core::Vec2;
 using fa::physics::Collider;
@@ -47,12 +48,12 @@ using fa::scene::BasicScene;
 using fa::scene::EntityId;
 using fa::scene::Transform;
 using fa::scene::World;
-using Catch::Approx;
 
 constexpr float kTile = 16.0f;
 
 /// \brief A plain body that collides with world geometry.
-Collider makeBox(Vec2 size, CollisionLayer layer = CollisionLayer::Player,
+Collider makeBox(Vec2 size,
+                 CollisionLayer layer = CollisionLayer::Player,
                  fa::physics::CollisionMask mask = fa::physics::maskOf(CollisionLayer::World)) {
     Collider collider;
     collider.size = size;
@@ -62,8 +63,7 @@ Collider makeBox(Vec2 size, CollisionLayer layer = CollisionLayer::Player,
 }
 
 /// \brief Adds a transform (plus an optional collider and velocity) and returns the id.
-EntityId makeBody(World& world, Vec2 position, const Collider* collider = nullptr,
-                  const Velocity* velocity = nullptr) {
+EntityId makeBody(World& world, Vec2 position, const Collider* collider = nullptr, const Velocity* velocity = nullptr) {
     const EntityId id = world.create();
     Transform transform;
     transform.position = position;
@@ -442,7 +442,8 @@ TEST_CASE("A fast move is split so it cannot tunnel", "[physics][move]") {
 
 TEST_CASE("A trigger collider does not block movement", "[physics][move]") {
     World world;
-    Collider trigger = makeBox(Vec2{10.0f, 6.0f}, CollisionLayer::Trigger,
+    Collider trigger = makeBox(Vec2{10.0f, 6.0f},
+                               CollisionLayer::Trigger,
                                fa::physics::maskOf(CollisionLayer::Player) | CollisionLayer::World);
     trigger.isTrigger = true;
     static_cast<void>(makeBody(world, Vec2{40.0f, 4.0f}, &trigger));
@@ -462,8 +463,8 @@ TEST_CASE("Body blocking honours both colliders' masks", "[physics][move]") {
     World world;
     // The mask is mutual: the blocker must also name Player, so the first move below is
     // only ignored because the *player's* mask omits Enemy.
-    Collider blocker = makeBox(Vec2{10.0f, 6.0f}, CollisionLayer::Enemy,
-                               maskOf(CollisionLayer::World) | CollisionLayer::Player);
+    Collider blocker =
+        makeBox(Vec2{10.0f, 6.0f}, CollisionLayer::Enemy, maskOf(CollisionLayer::World) | CollisionLayer::Player);
     static_cast<void>(makeBody(world, Vec2{48.0f, 4.0f}, &blocker));
 
     Collider box = makeBox(Vec2{10.0f, 6.0f}, CollisionLayer::Player, maskOf(CollisionLayer::World));
@@ -540,8 +541,7 @@ TEST_CASE("Overlap queries filter by area and mask", "[physics][overlap]") {
     REQUIRE(all[0] == near);
     REQUIRE(all[1] == alsoNear);
 
-    const auto playersOnly =
-        physics.overlap(world, Rect{-2.0f, -2.0f, 20.0f, 20.0f}, maskOf(CollisionLayer::Player));
+    const auto playersOnly = physics.overlap(world, Rect{-2.0f, -2.0f, 20.0f, 20.0f}, maskOf(CollisionLayer::Player));
     REQUIRE(playersOnly.size() == 1u);
     REQUIRE(playersOnly[0] == near);
 }
@@ -582,8 +582,8 @@ TEST_CASE("Raycasts hit tiles at the exact cell boundary", "[physics][ray]") {
     REQUIRE_FALSE(hit->entity.isValid());
 
     // Too short to reach the wall.
-    REQUIRE_FALSE(physics.raycast(world, Vec2{0.0f, 4.0f}, Vec2{1.0f, 0.0f}, 40.0f, maskOf(CollisionLayer::All))
-                      .has_value());
+    REQUIRE_FALSE(
+        physics.raycast(world, Vec2{0.0f, 4.0f}, Vec2{1.0f, 0.0f}, 40.0f, maskOf(CollisionLayer::All)).has_value());
 }
 
 TEST_CASE("Raycasts report a tile the origin is already inside", "[physics][ray]") {
@@ -597,8 +597,7 @@ TEST_CASE("Raycasts report a tile the origin is already inside", "[physics][ray]
     physics.setTiles(&grid);
     physics.sync(world);
 
-    const auto hit =
-        physics.raycast(world, Vec2{20.0f, 20.0f}, Vec2{1.0f, 0.0f}, 50.0f, maskOf(CollisionLayer::All));
+    const auto hit = physics.raycast(world, Vec2{20.0f, 20.0f}, Vec2{1.0f, 0.0f}, 50.0f, maskOf(CollisionLayer::All));
     REQUIRE(hit.has_value());
     REQUIRE(hit->hitTile);
     REQUIRE(hit->distance == Approx(0.0f));
@@ -623,8 +622,8 @@ TEST_CASE("Raycasts return the nearest collider", "[physics][ray]") {
     REQUIRE(hit->normal.x == Approx(-1.0f));
 
     // Restricting the mask to the player layer skips both enemies.
-    REQUIRE_FALSE(physics.raycast(world, Vec2{0.0f, 4.0f}, Vec2{1.0f, 0.0f}, 200.0f, maskOf(CollisionLayer::Player))
-                      .has_value());
+    REQUIRE_FALSE(
+        physics.raycast(world, Vec2{0.0f, 4.0f}, Vec2{1.0f, 0.0f}, 200.0f, maskOf(CollisionLayer::Player)).has_value());
 
     // A ray that starts beyond the near body still finds the far one.
     const auto behind =
@@ -641,17 +640,16 @@ TEST_CASE("Raycasts reject degenerate input", "[physics][ray]") {
     PhysicsWorld physics;
     physics.sync(world);
 
-    REQUIRE_FALSE(physics.raycast(world, Vec2{0.0f, 0.0f}, Vec2{0.0f, 0.0f}, 10.0f, maskOf(CollisionLayer::All))
-                      .has_value());
-    REQUIRE_FALSE(physics.raycast(world, Vec2{0.0f, 0.0f}, Vec2{1.0f, 0.0f}, 0.0f, maskOf(CollisionLayer::All))
-                      .has_value());
+    REQUIRE_FALSE(
+        physics.raycast(world, Vec2{0.0f, 0.0f}, Vec2{0.0f, 0.0f}, 10.0f, maskOf(CollisionLayer::All)).has_value());
+    REQUIRE_FALSE(
+        physics.raycast(world, Vec2{0.0f, 0.0f}, Vec2{1.0f, 0.0f}, 0.0f, maskOf(CollisionLayer::All)).has_value());
     // A long direction vector is normalised, so distance is still in world pixels.
     TileGrid grid(20, 20, kTile);
     grid.setSolid(2, 0, true);
     physics.setTiles(&grid);
     physics.sync(world);
-    const auto hit =
-        physics.raycast(world, Vec2{0.0f, 4.0f}, Vec2{500.0f, 0.0f}, 200.0f, maskOf(CollisionLayer::All));
+    const auto hit = physics.raycast(world, Vec2{0.0f, 4.0f}, Vec2{500.0f, 0.0f}, 200.0f, maskOf(CollisionLayer::All));
     REQUIRE(hit.has_value());
     REQUIRE(hit->distance == Approx(32.0f));
 }
@@ -698,13 +696,13 @@ TEST_CASE("Triggers report entering and leaving", "[physics][triggers]") {
     using fa::physics::maskOf;
 
     World world;
-    Collider trigger = makeBox(Vec2{4.0f, 4.0f}, CollisionLayer::Trigger,
-                               maskOf(CollisionLayer::Player) | CollisionLayer::World);
+    Collider trigger =
+        makeBox(Vec2{4.0f, 4.0f}, CollisionLayer::Trigger, maskOf(CollisionLayer::Player) | CollisionLayer::World);
     trigger.isTrigger = true;
     const EntityId triggerId = makeBody(world, Vec2{10.0f, 4.0f}, &trigger);
 
-    Collider box = makeBox(Vec2{4.0f, 4.0f}, CollisionLayer::Player,
-                           maskOf(CollisionLayer::World) | CollisionLayer::Trigger);
+    Collider box =
+        makeBox(Vec2{4.0f, 4.0f}, CollisionLayer::Player, maskOf(CollisionLayer::World) | CollisionLayer::Trigger);
     const Velocity velocity{Vec2{60.0f, 0.0f}};
     const EntityId mover = makeBody(world, Vec2{0.0f, 4.0f}, &box, &velocity);
 

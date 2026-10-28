@@ -24,20 +24,34 @@ struct Rect {
     float h = 0.0f;
 };
 
-constexpr Rect makeRect(float x, float y, float w, float h) noexcept { return Rect{x, y, w, h}; }
+constexpr Rect makeRect(float x, float y, float w, float h) noexcept {
+    return Rect{x, y, w, h};
+}
 
 constexpr Rect rectFromCenter(Vec2 center, float w, float h) noexcept {
     return Rect{center.x - w * 0.5f, center.y - h * 0.5f, w, h};
 }
 
-constexpr float left(const Rect& r) noexcept { return r.x; }
-constexpr float right(const Rect& r) noexcept { return r.x + r.w; }
-constexpr float top(const Rect& r) noexcept { return r.y; }
-constexpr float bottom(const Rect& r) noexcept { return r.y + r.h; }
+constexpr float left(const Rect& r) noexcept {
+    return r.x;
+}
+constexpr float right(const Rect& r) noexcept {
+    return r.x + r.w;
+}
+constexpr float top(const Rect& r) noexcept {
+    return r.y;
+}
+constexpr float bottom(const Rect& r) noexcept {
+    return r.y + r.h;
+}
 
-constexpr Vec2 center(const Rect& r) noexcept { return Vec2{r.x + r.w * 0.5f, r.y + r.h * 0.5f}; }
+constexpr Vec2 center(const Rect& r) noexcept {
+    return Vec2{r.x + r.w * 0.5f, r.y + r.h * 0.5f};
+}
 
-constexpr bool isEmpty(const Rect& r) noexcept { return r.w <= 0.0f || r.h <= 0.0f; }
+constexpr bool isEmpty(const Rect& r) noexcept {
+    return r.w <= 0.0f || r.h <= 0.0f;
+}
 
 /// Half-open on both axes: touching edges do not overlap. That is what tile and
 /// trigger queries want, and it makes `rectOverlaps(a, a)` trivially true.
@@ -70,20 +84,28 @@ constexpr Rect inset(const Rect& r, float dx, float dy) noexcept {
     return Rect{r.x + dx, r.y + dy, r.w - dx * 2.0f, r.h - dy * 2.0f};
 }
 
-constexpr float lerp(float a, float b, float t) noexcept { return a + (b - a) * t; }
+constexpr float lerp(float a, float b, float t) noexcept {
+    return a + (b - a) * t;
+}
 
 constexpr Vec2 lerp(Vec2 a, Vec2 b, float t) noexcept {
     return Vec2{fa::core::lerp(a.x, b.x, t), fa::core::lerp(a.y, b.y, t)};
 }
 
 constexpr Color lerp(Color a, Color b, float t) noexcept {
-    return Color{fa::core::lerp(a.r, b.r, t), fa::core::lerp(a.g, b.g, t), fa::core::lerp(a.b, b.b, t),
+    return Color{fa::core::lerp(a.r, b.r, t),
+                 fa::core::lerp(a.g, b.g, t),
+                 fa::core::lerp(a.b, b.b, t),
                  fa::core::lerp(a.a, b.a, t)};
 }
 
-constexpr float clampf(float value, float lo, float hi) noexcept { return value < lo ? lo : (value > hi ? hi : value); }
+constexpr float clampf(float value, float lo, float hi) noexcept {
+    return value < lo ? lo : (value > hi ? hi : value);
+}
 
-constexpr float clamp01(float value) noexcept { return clampf(value, 0.0f, 1.0f); }
+constexpr float clamp01(float value) noexcept {
+    return clampf(value, 0.0f, 1.0f);
+}
 
 /// Moves `current` toward `target` by at most `maxDelta`. Frame-rate independent
 /// for velocity/damping code where a plain lerp would drift with dt.

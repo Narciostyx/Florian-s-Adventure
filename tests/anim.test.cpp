@@ -25,10 +25,10 @@ using fa::anim::AnimationFrame;
 using fa::anim::AnimationParams;
 using fa::anim::AnimationService;
 using fa::anim::AnimationStateMachine;
+using fa::anim::AnimationTransition;
 using fa::anim::Animator;
 using fa::anim::Direction;
 using fa::anim::DirectionalClips;
-using fa::anim::AnimationTransition;
 using fa::anim::directionFromVector;
 
 std::shared_ptr<AnimationClip> makeClip(const std::vector<float>& durations, bool loop, bool withEvents = false) {
@@ -154,10 +154,10 @@ TEST_CASE("AnimationStateMachine transitions and direction variants", "[anim]") 
     CHECK_FALSE(machine.addState("idle", idleClips));
     CHECK_FALSE(machine.addState("", idleClips));
 
-    REQUIRE(machine.addTransition(AnimationTransition{
-        "idle", "walk", [](const AnimationParams& params) { return params.speed > 0.0f; }, 0}));
-    REQUIRE(machine.addTransition(AnimationTransition{
-        "walk", "idle", [](const AnimationParams& params) { return params.speed <= 0.0f; }, 0}));
+    REQUIRE(machine.addTransition(
+        AnimationTransition{"idle", "walk", [](const AnimationParams& params) { return params.speed > 0.0f; }, 0}));
+    REQUIRE(machine.addTransition(
+        AnimationTransition{"walk", "idle", [](const AnimationParams& params) { return params.speed <= 0.0f; }, 0}));
     CHECK_FALSE(machine.addTransition(AnimationTransition{"idle", "", {}, 0}));
 
     Animator animator;

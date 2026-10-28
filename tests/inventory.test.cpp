@@ -91,9 +91,7 @@ int countEvents(const Inventory& inventory, InventoryEvent::Kind kind) {
 /// \brief Records food uses and consumes one item by default.
 class FoodHandler final : public IItemUseHandler {
 public:
-    [[nodiscard]] bool handles(const ItemDef& item) const noexcept override {
-        return item.category == "food";
-    }
+    [[nodiscard]] bool handles(const ItemDef& item) const noexcept override { return item.category == "food"; }
 
     [[nodiscard]] Status use(ItemUseContext& context) override {
         ++uses;

@@ -161,8 +161,8 @@ JobSystem::JobSystem(std::uint32_t workerCount) : m_impl(std::make_unique<detail
     for (std::uint32_t i = 0; i < m_impl->workerCount; ++i) {
         m_impl->workers.emplace_back([impl = m_impl.get()] { workerLoop(*impl); });
     }
-    core::logf(core::LogCategory::Events, core::LogLevel::Info, "JobSystem: %u worker thread(s) started",
-               m_impl->workerCount);
+    core::logf(
+        core::LogCategory::Events, core::LogLevel::Info, "JobSystem: %u worker thread(s) started", m_impl->workerCount);
 }
 
 JobSystem::~JobSystem() {
@@ -207,8 +207,11 @@ JobHandle JobSystem::submit(JobDesc desc) {
         state->ready.notify_all();
 
         if (logFailure) {
-            core::logf(core::LogCategory::Events, core::LogLevel::Error, "JobSystem: job '%s' failed: %s",
-                       state->name.c_str(), status.error().message.c_str());
+            core::logf(core::LogCategory::Events,
+                       core::LogLevel::Error,
+                       "JobSystem: job '%s' failed: %s",
+                       state->name.c_str(),
+                       status.error().message.c_str());
         }
     };
 
@@ -231,8 +234,8 @@ core::Status JobSystem::wait(JobHandle handle) {
     return state.status;
 }
 
-core::Status JobSystem::parallelForErased(std::size_t count, std::size_t grain,
-                                          const std::function<core::Status(std::size_t)>& fn) {
+core::Status
+JobSystem::parallelForErased(std::size_t count, std::size_t grain, const std::function<core::Status(std::size_t)>& fn) {
     if (count == 0) {
         return core::okStatus();
     }

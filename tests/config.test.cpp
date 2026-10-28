@@ -37,8 +37,7 @@ TEST_CASE("GameConfig overrides individual fields and keeps the rest", "[config]
       "stamina": {"run_drain_per_second": 7.5, "tool_cost": 1.0, "max": 80.0}
     })";
 
-    const fa::core::Result<fa::app::GameConfig> parsed =
-        fa::app::GameConfig::loadFromText(text);
+    const fa::core::Result<fa::app::GameConfig> parsed = fa::app::GameConfig::loadFromText(text);
     REQUIRE(parsed.isOk());
     CHECK(parsed.value().window.width == 1600);
     CHECK(parsed.value().window.height == 900);
@@ -67,8 +66,7 @@ TEST_CASE("GameConfig clamps unsafe values", "[config]") {
                   "attack_cost": 999.0, "tool_cost": 999.0}
     })";
 
-    const fa::core::Result<fa::app::GameConfig> parsed =
-        fa::app::GameConfig::loadFromText(text);
+    const fa::core::Result<fa::app::GameConfig> parsed = fa::app::GameConfig::loadFromText(text);
     REQUIRE(parsed.isOk());
     CHECK(parsed.value().window.width >= 320);
     CHECK(parsed.value().window.height >= 180);

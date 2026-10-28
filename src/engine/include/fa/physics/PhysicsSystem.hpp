@@ -25,8 +25,7 @@ public:
 
     [[nodiscard]] std::string_view name() const noexcept override;
 
-    void onFixedUpdate(scene::World& world, const time::FrameContext& context,
-                       scene::CommandBuffer& commands) override;
+    void onFixedUpdate(scene::World& world, const time::FrameContext& context, scene::CommandBuffer& commands) override;
 
     [[nodiscard]] PhysicsWorld& physics() noexcept { return m_physics; }
     [[nodiscard]] const PhysicsWorld& physics() const noexcept { return m_physics; }

@@ -18,8 +18,11 @@ AllowShortLoopsOnASingleLine: false
 AlwaysBreakTemplateDeclarations: Yes
 BinPackArguments: false
 BinPackParameters: false
-IndentCaseLabels: false
+IndentCaseLabels: true
 KeepEmptyLinesAtTheStartOfBlocks: false
 NamespaceIndentation: None
 SpaceBeforeParens: ControlStatements
+# The codebase writes "}  // namespace" and other aligned trailing comments with
+# two spaces; LLVM's default of one made the CI format check fail on every file.
+SpacesBeforeTrailingComments: 2
 Standard: c++20

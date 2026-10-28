@@ -12,7 +12,9 @@ ContentId::ContentId(std::string name) : m_name(std::move(name)) {
     }
 }
 
-ContentId ContentId::fromName(std::string_view name) { return ContentId(std::string(name)); }
+ContentId ContentId::fromName(std::string_view name) {
+    return ContentId(std::string(name));
+}
 
 bool ContentId::isValidName(std::string_view name) noexcept {
     if (name.empty() || name.front() == '.' || name.back() == '.') {

@@ -36,8 +36,8 @@ enum class Facing : std::uint8_t {
 
 /// \brief True when the facing is one of the four diagonals.
 [[nodiscard]] constexpr bool isDiagonal(Facing facing) noexcept {
-    return facing == Facing::NorthEast || facing == Facing::SouthEast ||
-           facing == Facing::SouthWest || facing == Facing::NorthWest;
+    return facing == Facing::NorthEast || facing == Facing::SouthEast || facing == Facing::SouthWest ||
+           facing == Facing::NorthWest;
 }
 
 /// \brief Collapses a diagonal to a four-way facing (vertical wins on ties).

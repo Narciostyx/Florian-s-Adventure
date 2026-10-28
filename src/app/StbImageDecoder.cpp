@@ -26,8 +26,9 @@ std::string extensionOf(std::string_view path) {
         return {};
     }
     std::string extension(path.substr(dot));
-    std::transform(extension.begin(), extension.end(), extension.begin(),
-                   [](unsigned char value) { return static_cast<char>(std::tolower(value)); });
+    std::transform(extension.begin(), extension.end(), extension.begin(), [](unsigned char value) {
+        return static_cast<char>(std::tolower(value));
+    });
     return extension;
 }
 
@@ -35,27 +36,24 @@ std::string extensionOf(std::string_view path) {
 
 bool StbImageDecoder::supports(std::string_view path) const {
     const std::string extension = extensionOf(path);
-    return extension == ".png" || extension == ".jpg" || extension == ".jpeg" ||
-           extension == ".tga" || extension == ".bmp";
+    return extension == ".png" || extension == ".jpg" || extension == ".jpeg" || extension == ".tga" ||
+           extension == ".bmp";
 }
 
-core::Result<assets::ImageData> StbImageDecoder::decode(
-    std::string_view path, std::span<const std::uint8_t> bytes) {
+core::Result<assets::ImageData> StbImageDecoder::decode(std::string_view path, std::span<const std::uint8_t> bytes) {
     if (bytes.empty()) {
-        return core::Result<assets::ImageData>::err(assets::asset_error::kDecodeFailed,
-                                                    "image file is empty");
+        return core::Result<assets::ImageData>::err(assets::asset_error::kDecodeFailed, "image file is empty");
     }
     int width = 0;
     int height = 0;
     int channels = 0;
-    stbi_uc* pixels = stbi_load_from_memory(bytes.data(), static_cast<int>(bytes.size()), &width,
-                                            &height, &channels, 4);
+    stbi_uc* pixels =
+        stbi_load_from_memory(bytes.data(), static_cast<int>(bytes.size()), &width, &height, &channels, 4);
     if (pixels == nullptr) {
         const char* reason = stbi_failure_reason();
-        return core::Result<assets::ImageData>::err(
-            assets::asset_error::kDecodeFailed,
-            "stb_image failed on " + std::string(path) + ": " +
-                (reason != nullptr ? reason : "unknown error"));
+        return core::Result<assets::ImageData>::err(assets::asset_error::kDecodeFailed,
+                                                    "stb_image failed on " + std::string(path) + ": " +
+                                                        (reason != nullptr ? reason : "unknown error"));
     }
 
     assets::ImageData image;
@@ -67,8 +65,7 @@ core::Result<assets::ImageData> StbImageDecoder::decode(
     stbi_image_free(pixels);
 
     if (!image.isValid()) {
-        return core::Result<assets::ImageData>::err(assets::asset_error::kInvalidImage,
-                                                    "decoded image is unusable");
+        return core::Result<assets::ImageData>::err(assets::asset_error::kInvalidImage, "decoded image is unusable");
     }
     return core::Result<assets::ImageData>::ok(std::move(image));
 }

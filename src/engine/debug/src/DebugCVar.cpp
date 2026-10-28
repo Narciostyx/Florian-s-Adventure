@@ -73,24 +73,30 @@ std::string CVarValue::toString() const {
 }
 
 bool CVarRegistry::registerBool(std::string name, bool defaultValue, std::string help, ChangeCallback onChange) {
-    return add(Entry{std::move(name), std::move(help), CVarValue{CVarType::Bool, defaultValue, 0, 0.0f, {}},
-                     std::move(onChange)});
+    return add(Entry{
+        std::move(name), std::move(help), CVarValue{CVarType::Bool, defaultValue, 0, 0.0f, {}}, std::move(onChange)});
 }
 
 bool CVarRegistry::registerInt(std::string name, int defaultValue, std::string help, ChangeCallback onChange) {
-    return add(Entry{std::move(name), std::move(help), CVarValue{CVarType::Int, false, defaultValue, 0.0f, {}},
+    return add(Entry{std::move(name),
+                     std::move(help),
+                     CVarValue{CVarType::Int, false, defaultValue, 0.0f, {}},
                      std::move(onChange)});
 }
 
 bool CVarRegistry::registerFloat(std::string name, float defaultValue, std::string help, ChangeCallback onChange) {
-    return add(Entry{std::move(name), std::move(help), CVarValue{CVarType::Float, false, 0, defaultValue, {}},
-                     std::move(onChange)});
+    return add(Entry{
+        std::move(name), std::move(help), CVarValue{CVarType::Float, false, 0, defaultValue, {}}, std::move(onChange)});
 }
 
-bool CVarRegistry::registerString(std::string name, std::string defaultValue, std::string help,
+bool CVarRegistry::registerString(std::string name,
+                                  std::string defaultValue,
+                                  std::string help,
                                   ChangeCallback onChange) {
-    return add(Entry{std::move(name), std::move(help),
-                     CVarValue{CVarType::String, false, 0, 0.0f, std::move(defaultValue)}, std::move(onChange)});
+    return add(Entry{std::move(name),
+                     std::move(help),
+                     CVarValue{CVarType::String, false, 0, 0.0f, std::move(defaultValue)},
+                     std::move(onChange)});
 }
 
 const CVarValue* CVarRegistry::get(std::string_view name) const noexcept {

@@ -6,7 +6,9 @@
 namespace fa::render {
 namespace {
 
-core::Vec2 halfSize(core::Vec2 size) noexcept { return core::Vec2{size.x * 0.5f, size.y * 0.5f}; }
+core::Vec2 halfSize(core::Vec2 size) noexcept {
+    return core::Vec2{size.x * 0.5f, size.y * 0.5f};
+}
 
 }  // namespace
 
@@ -15,7 +17,9 @@ void Camera2D::setPosition(core::Vec2 position) noexcept {
     applyBounds();
 }
 
-void Camera2D::move(core::Vec2 delta) noexcept { setPosition(m_position + delta); }
+void Camera2D::move(core::Vec2 delta) noexcept {
+    setPosition(m_position + delta);
+}
 
 void Camera2D::setViewportSize(core::Vec2 size) noexcept {
     if (size.x < 1.0f || size.y < 1.0f) {

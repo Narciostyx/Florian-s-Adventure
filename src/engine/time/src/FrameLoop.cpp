@@ -13,9 +13,7 @@ constexpr int kExitNoClock = 1;
 }  // namespace
 
 FrameLoop::FrameLoop(platform::IPlatform& platform, IFrameSink& sink, FrameLoopConfig config)
-    : m_platform(platform),
-      m_sink(sink),
-      m_config(config),
+    : m_platform(platform), m_sink(sink), m_config(config),
       m_clock(config.fixedStepSeconds, config.maxFixedStepsPerFrame, config.maxRealDeltaSeconds) {}
 
 int FrameLoop::run() {
@@ -46,11 +44,15 @@ int FrameLoop::run() {
             realDeltaSeconds = 0.0;
         }
 
-        const double gameplayDelta = realDeltaSeconds * static_cast<double>(m_time.effectiveScale(TimeDomain::Gameplay));
+        const double gameplayDelta =
+            realDeltaSeconds * static_cast<double>(m_time.effectiveScale(TimeDomain::Gameplay));
         const int steps = m_clock.advance(gameplayDelta);
 
-        m_time.beginFrame(realDeltaSeconds, static_cast<std::uint32_t>(steps), m_clock.interpolationAlpha(),
-                          m_clock.fixedStepIndex(), m_clock.fixedStepSeconds());
+        m_time.beginFrame(realDeltaSeconds,
+                          static_cast<std::uint32_t>(steps),
+                          m_clock.interpolationAlpha(),
+                          m_clock.fixedStepIndex(),
+                          m_clock.fixedStepSeconds());
         const FrameContext& context = m_time.context();
 
         for (int step = 0; step < steps; ++step) {

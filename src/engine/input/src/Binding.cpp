@@ -186,8 +186,7 @@ Binding Binding::fromString(std::string_view text) noexcept {
             return Binding{};
         }
         Binding binding;
-        binding.kind = startsWith(text, kGamepadAxisPrefix) ? BindingKind::GamepadAxis
-                                                           : BindingKind::GamepadButton;
+        binding.kind = startsWith(text, kGamepadAxisPrefix) ? BindingKind::GamepadAxis : BindingKind::GamepadButton;
         binding.gamepadControl = control;
         binding.scale = scale;
         return binding;

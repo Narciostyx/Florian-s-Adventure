@@ -37,7 +37,9 @@ SpriteExtractStats extractSprites(const World& world, render::RenderQueue& queue
 
 SpriteExtractSystem::SpriteExtractSystem(SpriteExtractOptions options) : m_options(options) {}
 
-std::string_view SpriteExtractSystem::name() const noexcept { return "SpriteExtractSystem"; }
+std::string_view SpriteExtractSystem::name() const noexcept {
+    return "SpriteExtractSystem";
+}
 
 void SpriteExtractSystem::onRenderExtract(const World& world, render::RenderQueue& queue) {
     m_lastStats = extractSprites(world, queue, m_options);

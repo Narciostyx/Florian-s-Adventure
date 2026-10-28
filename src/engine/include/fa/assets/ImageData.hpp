@@ -62,8 +62,7 @@ struct ImageData {
 ///
 /// Used for placeholders until real art exists; also the cheapest way for tests and
 /// debug overlays to obtain a texture.
-ImageData makeSolidImage(int width, int height, core::Color color,
-                         ImageFormat format = ImageFormat::Rgba8);
+ImageData makeSolidImage(int width, int height, core::Color color, ImageFormat format = ImageFormat::Rgba8);
 
 /// \brief Fills a \p width x \p height image with a two-colour checkerboard.
 ///

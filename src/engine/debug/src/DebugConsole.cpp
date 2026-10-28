@@ -6,13 +6,13 @@ namespace fa::debug {
 
 std::string trimCommandLine(std::string_view line) {
     std::size_t begin = 0;
-    while (begin < line.size() && (line[begin] == ' ' || line[begin] == '\t' || line[begin] == '\r' ||
-                                  line[begin] == '\n')) {
+    while (begin < line.size() &&
+           (line[begin] == ' ' || line[begin] == '\t' || line[begin] == '\r' || line[begin] == '\n')) {
         ++begin;
     }
     std::size_t end = line.size();
-    while (end > begin && (line[end - 1] == ' ' || line[end - 1] == '\t' || line[end - 1] == '\r' ||
-                           line[end - 1] == '\n')) {
+    while (end > begin &&
+           (line[end - 1] == ' ' || line[end - 1] == '\t' || line[end - 1] == '\r' || line[end - 1] == '\n')) {
         --end;
     }
     return std::string(line.substr(begin, end - begin));
@@ -62,7 +62,9 @@ std::vector<std::string> splitCommandLine(std::string_view line) {
     return tokens;
 }
 
-DebugConsole::DebugConsole() { registerBuiltins(); }
+DebugConsole::DebugConsole() {
+    registerBuiltins();
+}
 
 bool DebugConsole::registerCommand(ConsoleCommand command) {
     if (command.name.empty() || !command.handler) {
@@ -116,7 +118,9 @@ void DebugConsole::print(std::string_view line) {
     }
 }
 
-void DebugConsole::clear() { m_lines.clear(); }
+void DebugConsole::clear() {
+    m_lines.clear();
+}
 
 void DebugConsole::setOpen(bool open) noexcept {
     m_open = open;
@@ -126,7 +130,9 @@ void DebugConsole::setOpen(bool open) noexcept {
     }
 }
 
-void DebugConsole::setInput(std::string text) { m_input = std::move(text); }
+void DebugConsole::setInput(std::string text) {
+    m_input = std::move(text);
+}
 
 void DebugConsole::appendInput(std::string_view text) {
     for (const char character : text) {
@@ -170,23 +176,22 @@ void DebugConsole::historyNext() {
 }
 
 void DebugConsole::registerBuiltins() {
-    static_cast<void>(registerCommand(
-        ConsoleCommand{"help", "list commands or show help for one",
-                       [](DebugConsole& console, std::span<const std::string> args) {
-                           if (!args.empty()) {
-                               for (const ConsoleCommand& command : console.commands()) {
-                                   if (command.name == args[0]) {
-                                       console.print(command.name + " - " + command.help);
-                                       return;
-                                   }
-                               }
-                               console.print("no such command: " + args[0]);
-                               return;
-                           }
-                           for (const ConsoleCommand& command : console.commands()) {
-                               console.print(command.name + " - " + command.help);
-                           }
-                       }}));
+    static_cast<void>(registerCommand(ConsoleCommand{
+        "help", "list commands or show help for one", [](DebugConsole& console, std::span<const std::string> args) {
+            if (!args.empty()) {
+                for (const ConsoleCommand& command : console.commands()) {
+                    if (command.name == args[0]) {
+                        console.print(command.name + " - " + command.help);
+                        return;
+                    }
+                }
+                console.print("no such command: " + args[0]);
+                return;
+            }
+            for (const ConsoleCommand& command : console.commands()) {
+                console.print(command.name + " - " + command.help);
+            }
+        }}));
     static_cast<void>(registerCommand(
         ConsoleCommand{"clear", "clear the console output", [](DebugConsole& console, std::span<const std::string>) {
                            console.clear();

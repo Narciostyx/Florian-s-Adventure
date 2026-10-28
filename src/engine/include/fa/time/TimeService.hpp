@@ -68,8 +68,11 @@ public:
     /// \param interpolationAlpha render interpolation factor in `[0, 1)`.
     /// \param fixedStepIndex authoritative tick count after those steps.
     /// \param fixedDeltaSeconds length of one fixed step.
-    void beginFrame(double realDeltaSeconds, std::uint32_t fixedStepsThisFrame, float interpolationAlpha,
-                    std::uint64_t fixedStepIndex, double fixedDeltaSeconds) noexcept;
+    void beginFrame(double realDeltaSeconds,
+                    std::uint32_t fixedStepsThisFrame,
+                    float interpolationAlpha,
+                    std::uint64_t fixedStepIndex,
+                    double fixedDeltaSeconds) noexcept;
 
     /// \brief Discards the mutable state of the current frame. Called by the loop.
     void endFrame() noexcept;

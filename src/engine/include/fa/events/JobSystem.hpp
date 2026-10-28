@@ -87,8 +87,8 @@ public:
     ///
     /// Returns the first failure, if any; remaining chunks are abandoned. `grain` of 0
     /// is treated as 1. This is the type-erased form: prefer the parallelFor template.
-    core::Status parallelForErased(std::size_t count, std::size_t grain,
-                                   const std::function<core::Status(std::size_t)>& fn);
+    core::Status
+    parallelForErased(std::size_t count, std::size_t grain, const std::function<core::Status(std::size_t)>& fn);
 
     /// \brief parallelFor over a lambda. A void-returning body is treated as "no
     /// recoverable failure"; a body returning core::Status propagates its error.

@@ -7,9 +7,12 @@ PhysicsSystem::PhysicsSystem(const ISolidTiles* tiles, float cellSize) {
     m_physics.setCellSize(cellSize);
 }
 
-std::string_view PhysicsSystem::name() const noexcept { return "PhysicsSystem"; }
+std::string_view PhysicsSystem::name() const noexcept {
+    return "PhysicsSystem";
+}
 
-void PhysicsSystem::onFixedUpdate(scene::World& world, const time::FrameContext& context,
+void PhysicsSystem::onFixedUpdate(scene::World& world,
+                                  const time::FrameContext& context,
                                   scene::CommandBuffer& commands) {
     static_cast<void>(commands);
     m_physics.step(world, static_cast<float>(context.fixedDeltaSeconds));

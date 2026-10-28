@@ -76,8 +76,7 @@ struct GameConfig {
         }
         const save::SaveArchive root = std::move(parsed).take();
         if (!root.isObject()) {
-            return core::Result<GameConfig>::err(core::error_code::kInvalidArgument,
-                                                 "config root must be an object");
+            return core::Result<GameConfig>::err(core::error_code::kInvalidArgument, "config root must be an object");
         }
 
         GameConfig config;
@@ -104,15 +103,13 @@ struct GameConfig {
         static_cast<void>(gameplay.getFloat("full_sleep_hours", config.gameplay.fullSleepHours));
         static_cast<void>(gameplay.getInt("hazard_damage", config.gameplay.hazardDamage));
         static_cast<void>(gameplay.getFloat("hazard_interval", config.gameplay.hazardInterval));
-        static_cast<void>(gameplay.getFloat("death_gold_penalty",
-                                            config.gameplay.deathGoldPenalty));
+        static_cast<void>(gameplay.getFloat("death_gold_penalty", config.gameplay.deathGoldPenalty));
         static_cast<void>(gameplay.getInt("autosave_days", config.gameplay.autosaveDays));
 
         const save::SaveArchive stamina = root.child("stamina");
         static_cast<void>(stamina.getFloat("max", config.stamina.max));
         static_cast<void>(stamina.getFloat("regen_per_second", config.stamina.regenPerSecond));
-        static_cast<void>(stamina.getFloat("run_drain_per_second",
-                                           config.stamina.runDrainPerSecond));
+        static_cast<void>(stamina.getFloat("run_drain_per_second", config.stamina.runDrainPerSecond));
         static_cast<void>(stamina.getFloat("dodge_cost", config.stamina.dodgeCost));
         static_cast<void>(stamina.getFloat("attack_cost", config.stamina.attackCost));
         static_cast<void>(stamina.getFloat("tool_cost", config.stamina.toolCost));
@@ -126,19 +123,14 @@ struct GameConfig {
         config.gameplay.fullSleepHours = std::clamp(config.gameplay.fullSleepHours, 1.0f, 24.0f);
         config.gameplay.hazardDamage = std::max(0, config.gameplay.hazardDamage);
         config.gameplay.hazardInterval = std::clamp(config.gameplay.hazardInterval, 0.1f, 10.0f);
-        config.gameplay.deathGoldPenalty =
-            std::clamp(config.gameplay.deathGoldPenalty, 0.0f, 1.0f);
+        config.gameplay.deathGoldPenalty = std::clamp(config.gameplay.deathGoldPenalty, 0.0f, 1.0f);
         config.gameplay.autosaveDays = std::max(1, config.gameplay.autosaveDays);
         config.stamina.max = std::clamp(config.stamina.max, 1.0f, 1000.0f);
         config.stamina.regenPerSecond = std::clamp(config.stamina.regenPerSecond, 0.0f, 1000.0f);
-        config.stamina.runDrainPerSecond =
-            std::clamp(config.stamina.runDrainPerSecond, 0.0f, 1000.0f);
-        config.stamina.dodgeCost =
-            std::clamp(config.stamina.dodgeCost, 0.0f, config.stamina.max);
-        config.stamina.attackCost =
-            std::clamp(config.stamina.attackCost, 0.0f, config.stamina.max);
-        config.stamina.toolCost =
-            std::clamp(config.stamina.toolCost, 0.0f, config.stamina.max);
+        config.stamina.runDrainPerSecond = std::clamp(config.stamina.runDrainPerSecond, 0.0f, 1000.0f);
+        config.stamina.dodgeCost = std::clamp(config.stamina.dodgeCost, 0.0f, config.stamina.max);
+        config.stamina.attackCost = std::clamp(config.stamina.attackCost, 0.0f, config.stamina.max);
+        config.stamina.toolCost = std::clamp(config.stamina.toolCost, 0.0f, config.stamina.max);
         return core::Result<GameConfig>::ok(std::move(config));
     }
 };

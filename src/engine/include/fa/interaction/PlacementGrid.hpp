@@ -54,8 +54,8 @@ public:
     ///
     /// An invalid size returns an empty rect. The rectangle may extend beyond the map
     /// when the origin is out of bounds; callers use `canPlace()` to reject that.
-    [[nodiscard]] static core::Rect footprintRect(const tilemap::Tilemap& map, tilemap::TileCoord origin,
-                                                  core::Vec2 size) noexcept;
+    [[nodiscard]] static core::Rect
+    footprintRect(const tilemap::Tilemap& map, tilemap::TileCoord origin, core::Vec2 size) noexcept;
 
     /// \brief Whether the footprint is in bounds, walkable and unoccupied.
     [[nodiscard]] bool canPlace(const tilemap::Tilemap& map, tilemap::TileCoord origin, core::Vec2 size) const noexcept;
@@ -64,7 +64,10 @@ public:
     ///
     /// No partial writes: if any cell is unusable, nothing changes.
     /// \return false for an invalid owner, invalid size, or an occupied/blocked cell.
-    bool place(const tilemap::Tilemap& map, tilemap::TileCoord origin, core::Vec2 size, scene::EntityId owner,
+    bool place(const tilemap::Tilemap& map,
+               tilemap::TileCoord origin,
+               core::Vec2 size,
+               scene::EntityId owner,
                std::uint32_t payload = 0) noexcept;
 
     /// \brief Clears every cell claimed by `owner`. \return number of cells cleared.

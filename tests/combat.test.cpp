@@ -13,11 +13,11 @@
 #include <fa/combat/CombatService.hpp>
 #include <fa/combat/CombatTypes.hpp>
 #include <fa/core/Math.hpp>
-#include <fa/player/PlayerController.hpp>
-#include <fa/player/PlayerTypes.hpp>
 #include <fa/physics/Collider.hpp>
 #include <fa/physics/CollisionLayer.hpp>
 #include <fa/physics/PhysicsWorld.hpp>
+#include <fa/player/PlayerController.hpp>
+#include <fa/player/PlayerTypes.hpp>
 #include <fa/scene/Components.hpp>
 #include <fa/scene/World.hpp>
 

@@ -38,14 +38,13 @@ public:
     [[nodiscard]] int affinity(const content::ContentId& npc) const noexcept;
 
     /// \brief Gives one liked/normal item; consumes it and raises affinity once per day.
-    [[nodiscard]] core::Status giveGift(const content::ContentId& npc, const content::ContentId& item,
-                                        inventory::Inventory& inventory);
+    [[nodiscard]] core::Status
+    giveGift(const content::ContentId& npc, const content::ContentId& item, inventory::Inventory& inventory);
 
     /// \brief Resets the daily talk/gift caps.
     void onDayChanged() noexcept;
 
-    [[nodiscard]] core::Status startDialogue(const content::ContentId& dialogue,
-                                              scene::EntityId speaker = {});
+    [[nodiscard]] core::Status startDialogue(const content::ContentId& dialogue, scene::EntityId speaker = {});
     [[nodiscard]] bool dialogueActive() const noexcept { return m_active; }
     [[nodiscard]] const DialogueDef* activeDialogue() const noexcept;
     [[nodiscard]] const DialogueNode* currentNode() const noexcept;
@@ -65,8 +64,8 @@ public:
     [[nodiscard]] bool isQuestActive(const content::ContentId& quest) const noexcept;
     [[nodiscard]] bool isQuestCompleted(const content::ContentId& quest) const noexcept;
     [[nodiscard]] std::vector<QuestState> activeQuests() const;
-        /// \brief Every tracked quest, including completed ones, for the quest log.
-        [[nodiscard]] std::vector<QuestState> questStates() const;
+    /// \brief Every tracked quest, including completed ones, for the quest log.
+    [[nodiscard]] std::vector<QuestState> questStates() const;
 
     [[nodiscard]] std::span<const NarrativeEvent> events() const noexcept { return m_events; }
     void clearEvents() noexcept { m_events.clear(); }
@@ -88,8 +87,7 @@ private:
     [[nodiscard]] bool evaluate(const DialogueCondition& condition) const noexcept;
     void apply(const DialogueAction& action);
     void enterNode(std::string_view nodeId);
-    void record(NarrativeEventKind kind, const content::ContentId& item = {}, int amount = 0,
-                std::string text = {});
+    void record(NarrativeEventKind kind, const content::ContentId& item = {}, int amount = 0, std::string text = {});
 
     const NarrativeDatabase* m_database = nullptr;
     inventory::Inventory* m_inventory = nullptr;

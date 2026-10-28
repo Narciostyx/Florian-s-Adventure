@@ -14,7 +14,8 @@ int NarrativeService::affinity(const content::ContentId& npc) const noexcept {
     return found != m_affinity.end() ? found->second : 0;
 }
 
-core::Status NarrativeService::giveGift(const content::ContentId& npc, const content::ContentId& item,
+core::Status NarrativeService::giveGift(const content::ContentId& npc,
+                                        const content::ContentId& item,
                                         inventory::Inventory& inventory) {
     if (m_database == nullptr) {
         return core::errorStatus(narrative_error::kNotLoaded, "narrative database is not loaded");
@@ -34,8 +35,8 @@ core::Status NarrativeService::giveGift(const content::ContentId& npc, const con
         return core::errorStatus(removed.error().code, removed.error().message);
     }
 
-    const bool liked = std::find(definition->likedItems.begin(), definition->likedItems.end(), item) !=
-                       definition->likedItems.end();
+    const bool liked =
+        std::find(definition->likedItems.begin(), definition->likedItems.end(), item) != definition->likedItems.end();
     const int gain = liked ? 3 : 1;
     m_affinity[npc] += gain;
     m_giftedToday[npc] = true;
@@ -112,10 +113,9 @@ std::vector<std::size_t> NarrativeService::availableChoices() const {
     }
     for (std::size_t index = 0; index < node->choices.size(); ++index) {
         const DialogueChoice& choice = node->choices[index];
-        const bool visible = std::all_of(choice.conditions.begin(), choice.conditions.end(),
-                                         [this](const DialogueCondition& condition) {
-                                             return evaluate(condition);
-                                         });
+        const bool visible = std::all_of(choice.conditions.begin(),
+                                         choice.conditions.end(),
+                                         [this](const DialogueCondition& condition) { return evaluate(condition); });
         if (visible) {
             result.push_back(index);
         }
@@ -201,10 +201,9 @@ core::Status NarrativeService::startQuest(const content::ContentId& quest) {
             return core::errorStatus(narrative_error::kAlreadyActive, "quest is already active");
         }
     }
-    const bool allowed = std::all_of(definition->conditions.begin(), definition->conditions.end(),
-                                     [this](const DialogueCondition& condition) {
-                                         return evaluate(condition);
-                                     });
+    const bool allowed = std::all_of(definition->conditions.begin(),
+                                     definition->conditions.end(),
+                                     [this](const DialogueCondition& condition) { return evaluate(condition); });
     if (!allowed) {
         return core::errorStatus(narrative_error::kConditionFailed, "quest conditions are not met");
     }
@@ -465,10 +464,9 @@ void NarrativeService::enterNode(std::string_view nodeId) {
         static_cast<void>(endDialogue());
         return;
     }
-    const bool allowed = std::all_of(node->conditions.begin(), node->conditions.end(),
-                                     [this](const DialogueCondition& condition) {
-                                         return evaluate(condition);
-                                     });
+    const bool allowed = std::all_of(node->conditions.begin(),
+                                     node->conditions.end(),
+                                     [this](const DialogueCondition& condition) { return evaluate(condition); });
     if (!allowed) {
         if (!node->next.empty()) {
             enterNode(node->next);
@@ -485,8 +483,7 @@ void NarrativeService::enterNode(std::string_view nodeId) {
     }
 }
 
-void NarrativeService::record(NarrativeEventKind kind, const content::ContentId& item, int amount,
-                              std::string text) {
+void NarrativeService::record(NarrativeEventKind kind, const content::ContentId& item, int amount, std::string text) {
     NarrativeEvent event;
     event.kind = kind;
     event.dialogue = m_dialogue;

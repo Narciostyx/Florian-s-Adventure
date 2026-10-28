@@ -9,7 +9,11 @@
 namespace fa::save {
 
 /// \brief Current save schema. Bump this when a migration is required.
-inline constexpr int kSaveVersion = 1;
+///
+/// v2 only normalises the optional P0-3/P2-1 sections (`world.objects`,
+/// `world.debris`, `world.ai`, `quests.*`, `economy.*`) so old files gain empty
+/// containers. Readers already treat missing sections as empty.
+inline constexpr int kSaveVersion = 2;
 
 /// \brief File header magic; distinguishes a save from arbitrary JSON.
 inline constexpr std::string_view kSaveMagic = "FA_SAVE";

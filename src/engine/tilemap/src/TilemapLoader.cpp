@@ -19,7 +19,9 @@ namespace {
 
 using Json = nlohmann::json;
 
-[[nodiscard]] core::Error jsonError(int code, std::string message) { return core::makeError(code, std::move(message)); }
+[[nodiscard]] core::Error jsonError(int code, std::string message) {
+    return core::makeError(code, std::move(message));
+}
 
 [[nodiscard]] bool readIntValue(const Json& value, int& out) {
     if (value.is_number_unsigned()) {
@@ -238,8 +240,8 @@ core::Result<Tilemap> loadTilemapFromJson(std::string_view json) {
             jsonError(tilemap_error::kInvalidDocument, "map document needs an integer \"schema_version\""));
     }
     if (schemaVersion != 1) {
-        return core::Result<Tilemap>::err(jsonError(
-            tilemap_error::kUnsupportedSchema, "unsupported map schema version " + std::to_string(schemaVersion)));
+        return core::Result<Tilemap>::err(jsonError(tilemap_error::kUnsupportedSchema,
+                                                    "unsupported map schema version " + std::to_string(schemaVersion)));
     }
 
     int width = 0;
@@ -278,8 +280,7 @@ core::Result<Tilemap> loadTilemapFromJson(std::string_view json) {
 
     if (const auto tiles = document.find("tiles"); tiles != document.end()) {
         if (!tiles->is_array()) {
-            return core::Result<Tilemap>::err(
-                jsonError(tilemap_error::kInvalidDocument, "\"tiles\" must be an array"));
+            return core::Result<Tilemap>::err(jsonError(tilemap_error::kInvalidDocument, "\"tiles\" must be an array"));
         }
         for (const Json& entry : *tiles) {
             if (!entry.is_object()) {
@@ -368,22 +369,21 @@ core::Result<Tilemap> loadTilemapFromJson(std::string_view json) {
 
         const auto tiles = entry.find("tiles");
         if (tiles == entry.end() || !tiles->is_array()) {
-            return core::Result<Tilemap>::err(
-                jsonError(tilemap_error::kInvalidLayer, "layer needs a \"tiles\" array"));
+            return core::Result<Tilemap>::err(jsonError(tilemap_error::kInvalidLayer, "layer needs a \"tiles\" array"));
         }
         if (tiles->size() != expectedCells) {
-            return core::Result<Tilemap>::err(jsonError(
-                tilemap_error::kLayerSizeMismatch,
-                "layer \"" + layer.name + "\" has " + std::to_string(tiles->size()) + " tiles, expected " +
-                    std::to_string(expectedCells)));
+            return core::Result<Tilemap>::err(jsonError(tilemap_error::kLayerSizeMismatch,
+                                                        "layer \"" + layer.name + "\" has " +
+                                                            std::to_string(tiles->size()) + " tiles, expected " +
+                                                            std::to_string(expectedCells)));
         }
 
         layer.tiles.reserve(expectedCells);
         for (const Json& value : *tiles) {
             int id = 0;
             if (!readIntValue(value, id) || id < 0 || id > static_cast<int>(kMaxTileId)) {
-                return core::Result<Tilemap>::err(jsonError(
-                    tilemap_error::kUnknownTileId, "layer \"" + layer.name + "\" has an invalid tile id"));
+                return core::Result<Tilemap>::err(
+                    jsonError(tilemap_error::kUnknownTileId, "layer \"" + layer.name + "\" has an invalid tile id"));
             }
             const TileId tile{static_cast<std::uint16_t>(id)};
             if (tile.isValid() && map.tileDef(tile) == nullptr) {
@@ -402,8 +402,7 @@ core::Result<Tilemap> loadTilemapFromJson(std::string_view json) {
 
     if (const auto areas = document.find("areas"); areas != document.end()) {
         if (!areas->is_array()) {
-            return core::Result<Tilemap>::err(
-                jsonError(tilemap_error::kInvalidRegion, "\"areas\" must be an array"));
+            return core::Result<Tilemap>::err(jsonError(tilemap_error::kInvalidRegion, "\"areas\" must be an array"));
         }
         std::vector<std::uint32_t> areaIds;
         for (const Json& entry : *areas) {
@@ -423,8 +422,8 @@ core::Result<Tilemap> loadTilemapFromJson(std::string_view json) {
                     jsonError(tilemap_error::kInvalidRegion, "duplicate area id " + std::to_string(areaId)));
             }
             if (!readAreaKind(entry, area.kind)) {
-                return core::Result<Tilemap>::err(jsonError(
-                    tilemap_error::kInvalidRegion, "area has an unknown \"kind\" (outdoor or greenhouse)"));
+                return core::Result<Tilemap>::err(
+                    jsonError(tilemap_error::kInvalidRegion, "area has an unknown \"kind\" (outdoor or greenhouse)"));
             }
             const auto bounds = entry.find("bounds");
             if (bounds == entry.end() || !readBoundsValue(*bounds, area.bounds) ||
@@ -439,8 +438,7 @@ core::Result<Tilemap> loadTilemapFromJson(std::string_view json) {
 
     if (const auto portals = document.find("portals"); portals != document.end()) {
         if (!portals->is_array()) {
-            return core::Result<Tilemap>::err(
-                jsonError(tilemap_error::kInvalidRegion, "\"portals\" must be an array"));
+            return core::Result<Tilemap>::err(jsonError(tilemap_error::kInvalidRegion, "\"portals\" must be an array"));
         }
         for (const Json& entry : *portals) {
             if (!entry.is_object()) {
@@ -481,13 +479,13 @@ core::Result<Tilemap> loadTilemapFromJson(std::string_view json) {
             return core::Result<Tilemap>::err(
                 jsonError(tilemap_error::kInvalidDocument, "\"indoor\" must be a boolean"));
         }
-        if (const auto light = ambient->find("light"); light != ambient->end() && !readColorValue(*light, values.light)) {
+        if (const auto light = ambient->find("light");
+            light != ambient->end() && !readColorValue(*light, values.light)) {
             return core::Result<Tilemap>::err(
                 jsonError(tilemap_error::kInvalidDocument, "\"light\" must be four numbers in 0..1"));
         }
         if (ambient->contains("music") && !readStringField(*ambient, "music", values.music)) {
-            return core::Result<Tilemap>::err(
-                jsonError(tilemap_error::kInvalidDocument, "\"music\" must be a string"));
+            return core::Result<Tilemap>::err(jsonError(tilemap_error::kInvalidDocument, "\"music\" must be a string"));
         }
         map.setAmbient(std::move(values));
     }

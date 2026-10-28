@@ -5,8 +5,8 @@
 #include <utility>
 
 #include <fa/core/Math.hpp>
-#include <fa/debug/DebugConsole.hpp>
 #include <fa/debug/DebugCVar.hpp>
+#include <fa/debug/DebugConsole.hpp>
 #include <fa/debug/DebugLog.hpp>
 #include <fa/debug/DebugOverlay.hpp>
 #include <fa/debug/DebugStats.hpp>

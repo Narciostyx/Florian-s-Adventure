@@ -28,9 +28,12 @@ namespace {
     return tool == ToolKind::Axe || tool == ToolKind::Pickaxe || tool == ToolKind::Sword;
 }
 
-[[nodiscard]] core::Rect interactableRect(const scene::Transform& transform, const Interactable& interactable) noexcept {
-    return core::makeRect(transform.position.x + interactable.area.x, transform.position.y + interactable.area.y,
-                          interactable.area.w, interactable.area.h);
+[[nodiscard]] core::Rect interactableRect(const scene::Transform& transform,
+                                          const Interactable& interactable) noexcept {
+    return core::makeRect(transform.position.x + interactable.area.x,
+                          transform.position.y + interactable.area.y,
+                          interactable.area.w,
+                          interactable.area.h);
 }
 
 }  // namespace
@@ -68,12 +71,14 @@ core::Vec2 InteractionService::targetPoint(const scene::World& world, const Grid
     return core::center(m_map.tileRect(target.cell));
 }
 
-float InteractionService::distanceToTarget(const scene::World& world, scene::EntityId actor,
+float InteractionService::distanceToTarget(const scene::World& world,
+                                           scene::EntityId actor,
                                            const GridTarget& target) const noexcept {
     return pointDistance(actorCenter(world, actor), targetPoint(world, target));
 }
 
-bool InteractionService::hasLineOfSight(const tilemap::Tilemap& map, tilemap::TileCoord from,
+bool InteractionService::hasLineOfSight(const tilemap::Tilemap& map,
+                                        tilemap::TileCoord from,
                                         tilemap::TileCoord to) noexcept {
     int x = from.x;
     int y = from.y;
@@ -116,8 +121,8 @@ bool InteractionService::hasLineOfSight(const tilemap::Tilemap& map, tilemap::Ti
     return true;
 }
 
-GridTarget InteractionService::pickTarget(const scene::World& world, scene::EntityId actor,
-                                          core::Vec2 cursorWorld) const {
+GridTarget
+InteractionService::pickTarget(const scene::World& world, scene::EntityId actor, core::Vec2 cursorWorld) const {
     GridTarget target;
     if (!world.isAlive(actor) || world.tryGet<scene::Transform>(actor) == nullptr) {
         return target;
@@ -152,10 +157,9 @@ GridTarget InteractionService::pickTarget(const scene::World& world, scene::Enti
                 }
                 const core::Vec2 point = core::center(area);
                 const float distance = pointDistance(actorCenterPoint, point);
-                const bool better =
-                    !found || interactable.priority > bestPriority ||
-                    (interactable.priority == bestPriority &&
-                     (distance < bestDistance || (distance == bestDistance && id < bestEntity)));
+                const bool better = !found || interactable.priority > bestPriority ||
+                                    (interactable.priority == bestPriority &&
+                                     (distance < bestDistance || (distance == bestDistance && id < bestEntity)));
                 if (better) {
                     found = true;
                     bestEntity = id;
@@ -186,8 +190,8 @@ GridTarget InteractionService::pickTarget(const scene::World& world, scene::Enti
     return target;
 }
 
-GridTarget InteractionService::pickTargetInFront(const scene::World& world, scene::EntityId actor,
-                                                 Facing facing) const {
+GridTarget
+InteractionService::pickTargetInFront(const scene::World& world, scene::EntityId actor, Facing facing) const {
     GridTarget target;
     if (!world.isAlive(actor) || world.tryGet<scene::Transform>(actor) == nullptr) {
         return target;
@@ -258,7 +262,9 @@ core::Status InteractionService::validateInteraction(const scene::World& world,
     return core::okStatus();
 }
 
-bool InteractionService::canInteract(const scene::World& world, scene::EntityId actor, const GridTarget& target,
+bool InteractionService::canInteract(const scene::World& world,
+                                     scene::EntityId actor,
+                                     const GridTarget& target,
                                      ToolKind tool) const {
     InteractionRequest request;
     request.actor = actor;
@@ -337,8 +343,7 @@ core::Status InteractionService::canPlace(const scene::World& world, const Place
             if (request.requiredArea.has_value()) {
                 const std::optional<tilemap::AreaKind> area = m_map.queryArea(tilemap::TileCoord{column, row});
                 if (!area.has_value() || area.value() != request.requiredArea.value()) {
-                    return core::errorStatus(interaction_error::kInvalidArea,
-                                             "placement is outside the required area");
+                    return core::errorStatus(interaction_error::kInvalidArea, "placement is outside the required area");
                 }
             }
         }
@@ -374,8 +379,7 @@ core::Status InteractionService::requestPlacement(scene::World& world, const Pla
     return core::okStatus();
 }
 
-core::Status InteractionService::requestRemoval(scene::World& world, scene::EntityId actor,
-                                                tilemap::TileCoord cell) {
+core::Status InteractionService::requestRemoval(scene::World& world, scene::EntityId actor, tilemap::TileCoord cell) {
     const auto deny = [this, actor, cell](int code) {
         InteractionEvent event;
         event.kind = InteractionEventKind::PlacementDenied;
@@ -433,7 +437,8 @@ IToolHandler* InteractionService::findHandler(ToolKind tool) noexcept {
     return nullptr;
 }
 
-void InteractionService::recordInteraction(InteractionEventKind kind, const InteractionRequest& request,
+void InteractionService::recordInteraction(InteractionEventKind kind,
+                                           const InteractionRequest& request,
                                            int errorCode) {
     InteractionEvent event;
     event.kind = kind;

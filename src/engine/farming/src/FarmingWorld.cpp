@@ -14,8 +14,8 @@ bool WorldObjectLayer::add(WorldObject object) {
 }
 
 bool WorldObjectLayer::removeAt(tilemap::TileCoord cell) noexcept {
-    const auto found = std::find_if(m_objects.begin(), m_objects.end(),
-                                    [cell](const WorldObject& object) { return object.cell == cell; });
+    const auto found = std::find_if(
+        m_objects.begin(), m_objects.end(), [cell](const WorldObject& object) { return object.cell == cell; });
     if (found == m_objects.end()) {
         return false;
     }
@@ -24,8 +24,8 @@ bool WorldObjectLayer::removeAt(tilemap::TileCoord cell) noexcept {
 }
 
 const WorldObject* WorldObjectLayer::at(tilemap::TileCoord cell) const noexcept {
-    const auto found = std::find_if(m_objects.begin(), m_objects.end(),
-                                    [cell](const WorldObject& object) { return object.cell == cell; });
+    const auto found = std::find_if(
+        m_objects.begin(), m_objects.end(), [cell](const WorldObject& object) { return object.cell == cell; });
     return found != m_objects.end() ? &*found : nullptr;
 }
 
@@ -38,8 +38,8 @@ bool DebrisLayer::add(Debris debris) {
 }
 
 bool DebrisLayer::removeAt(tilemap::TileCoord cell) noexcept {
-    const auto found = std::find_if(m_debris.begin(), m_debris.end(),
-                                    [cell](const Debris& debris) { return debris.cell == cell; });
+    const auto found =
+        std::find_if(m_debris.begin(), m_debris.end(), [cell](const Debris& debris) { return debris.cell == cell; });
     if (found == m_debris.end()) {
         return false;
     }
@@ -48,8 +48,8 @@ bool DebrisLayer::removeAt(tilemap::TileCoord cell) noexcept {
 }
 
 const Debris* DebrisLayer::at(tilemap::TileCoord cell) const noexcept {
-    const auto found = std::find_if(m_debris.begin(), m_debris.end(),
-                                    [cell](const Debris& debris) { return debris.cell == cell; });
+    const auto found =
+        std::find_if(m_debris.begin(), m_debris.end(), [cell](const Debris& debris) { return debris.cell == cell; });
     return found != m_debris.end() ? &*found : nullptr;
 }
 

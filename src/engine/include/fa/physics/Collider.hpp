@@ -38,12 +38,16 @@ struct Collider {
 
 /// \brief World-space box of `collider` on `transform`.
 constexpr core::Rect colliderRect(const scene::Transform& transform, const Collider& collider) noexcept {
-    return core::Rect{transform.position.x + collider.offset.x, transform.position.y + collider.offset.y,
-                      collider.size.x, collider.size.y};
+    return core::Rect{transform.position.x + collider.offset.x,
+                      transform.position.y + collider.offset.y,
+                      collider.size.x,
+                      collider.size.y};
 }
 
 /// \brief Whether the box stops movement, i.e. is not a trigger.
-constexpr bool blocksMovement(const Collider& collider) noexcept { return !collider.isTrigger; }
+constexpr bool blocksMovement(const Collider& collider) noexcept {
+    return !collider.isTrigger;
+}
 
 /// \brief Whether two colliders should be tested against each other at all.
 ///
@@ -57,7 +61,10 @@ constexpr bool layersInteract(const Collider& a, const Collider& b) noexcept {
 ///
 /// 3 px of side margin and 18 px down puts the box's top edge 6 px above the feet,
 /// which is the proportion fixed by ADR-0003.
-inline const Collider kPlayerFeetCollider{core::Vec2{3.0f, 18.0f}, core::Vec2{10.0f, 6.0f}, CollisionLayer::Player,
-                                          maskOf(CollisionLayer::World) | CollisionLayer::Enemy, false};
+inline const Collider kPlayerFeetCollider{core::Vec2{3.0f, 18.0f},
+                                          core::Vec2{10.0f, 6.0f},
+                                          CollisionLayer::Player,
+                                          maskOf(CollisionLayer::World) | CollisionLayer::Enemy,
+                                          false};
 
 }  // namespace fa::physics

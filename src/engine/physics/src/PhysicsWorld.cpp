@@ -62,8 +62,7 @@ constexpr float kDirectionEpsilon = 1.0e-6f;
 ///
 /// A ray starting inside the box reports distance 0, which is the honest answer for an
 /// attack that already overlaps its target.
-[[nodiscard]] float rayBox(core::Vec2 origin, core::Vec2 unit, const core::Rect& rect,
-                           float maxDistance) noexcept {
+[[nodiscard]] float rayBox(core::Vec2 origin, core::Vec2 unit, const core::Rect& rect, float maxDistance) noexcept {
     float near = 0.0f;
     float far = maxDistance;
 
@@ -126,7 +125,9 @@ constexpr float kDirectionEpsilon = 1.0e-6f;
 
 }  // namespace
 
-void PhysicsWorld::setCellSize(float cellSize) { m_index.setCellSize(cellSize); }
+void PhysicsWorld::setCellSize(float cellSize) {
+    m_index.setCellSize(cellSize);
+}
 
 void PhysicsWorld::sync(const scene::World& world) {
     m_index.clear();
@@ -270,8 +271,8 @@ void PhysicsWorld::step(scene::World& world, float dt) {
     m_stats.triggerEvents = m_triggerEvents.size();
 }
 
-std::vector<scene::EntityId> PhysicsWorld::overlap(const scene::World& world, const core::Rect& area,
-                                                   CollisionMask mask) const {
+std::vector<scene::EntityId>
+PhysicsWorld::overlap(const scene::World& world, const core::Rect& area, CollisionMask mask) const {
     ++m_stats.overlapQueries;
     std::vector<scene::EntityId> result;
     for (const scene::EntityId id : m_index.queryUnique(area)) {
@@ -291,8 +292,8 @@ std::vector<scene::EntityId> PhysicsWorld::overlap(const scene::World& world, co
     return result;
 }
 
-std::vector<scene::EntityId> PhysicsWorld::overlapCircle(const scene::World& world, core::Vec2 center, float radius,
-                                                         CollisionMask mask) const {
+std::vector<scene::EntityId>
+PhysicsWorld::overlapCircle(const scene::World& world, core::Vec2 center, float radius, CollisionMask mask) const {
     ++m_stats.overlapQueries;
     std::vector<scene::EntityId> result;
     if (radius <= 0.0f) {
@@ -320,8 +321,8 @@ std::vector<scene::EntityId> PhysicsWorld::overlapCircle(const scene::World& wor
     return result;
 }
 
-std::optional<RayHit> PhysicsWorld::raycast(const scene::World& world, core::Vec2 origin, core::Vec2 direction,
-                                            float maxDistance, CollisionMask mask) const {
+std::optional<RayHit> PhysicsWorld::raycast(
+    const scene::World& world, core::Vec2 origin, core::Vec2 direction, float maxDistance, CollisionMask mask) const {
     ++m_stats.rayQueries;
     if (maxDistance <= 0.0f) {
         return std::nullopt;
@@ -335,8 +336,8 @@ std::optional<RayHit> PhysicsWorld::raycast(const scene::World& world, core::Vec
     std::optional<RayHit> best = raycastTiles(origin, unit, maxDistance);
 
     const core::Vec2 end{origin.x + unit.x * maxDistance, origin.y + unit.y * maxDistance};
-    const core::Rect band{std::min(origin.x, end.x), std::min(origin.y, end.y), std::fabs(end.x - origin.x),
-                          std::fabs(end.y - origin.y)};
+    const core::Rect band{
+        std::min(origin.x, end.x), std::min(origin.y, end.y), std::fabs(end.x - origin.x), std::fabs(end.y - origin.y)};
     for (const scene::EntityId id : m_index.queryUnique(band)) {
         const scene::Transform* transform = world.tryGet<scene::Transform>(id);
         const Collider* collider = world.tryGet<Collider>(id);
@@ -387,9 +388,10 @@ void PhysicsWorld::debugDraw(const scene::World& world, std::vector<DebugShape>&
             if (!m_tiles->isSolid(column, row)) {
                 continue;
             }
-            out.push_back(DebugShape{core::makeRect(static_cast<float>(column) * tileSize,
-                                                    static_cast<float>(row) * tileSize, tileSize, tileSize),
-                                     core::Color{0.9f, 0.3f, 0.3f, 0.35f}});
+            out.push_back(DebugShape{
+                core::makeRect(
+                    static_cast<float>(column) * tileSize, static_cast<float>(row) * tileSize, tileSize, tileSize),
+                core::Color{0.9f, 0.3f, 0.3f, 0.35f}});
         }
     }
 }
@@ -401,8 +403,11 @@ void PhysicsWorld::clear() noexcept {
     m_stats = PhysicsStats{};
 }
 
-void PhysicsWorld::gatherBlockers(const scene::World& world, const Collider& self, scene::EntityId ignore,
-                                  const core::Rect& area, std::vector<detail::Candidate>& out) const {
+void PhysicsWorld::gatherBlockers(const scene::World& world,
+                                  const Collider& self,
+                                  scene::EntityId ignore,
+                                  const core::Rect& area,
+                                  std::vector<detail::Candidate>& out) const {
     for (const scene::EntityId other : m_index.queryUnique(area)) {
         if (other == ignore) {
             continue;
@@ -441,8 +446,8 @@ void PhysicsWorld::gatherBlockers(const scene::World& world, const Collider& sel
             }
             out.push_back(detail::Candidate{
                 scene::EntityId{},
-                core::makeRect(static_cast<float>(column) * tileSize, static_cast<float>(row) * tileSize, tileSize,
-                               tileSize),
+                core::makeRect(
+                    static_cast<float>(column) * tileSize, static_cast<float>(row) * tileSize, tileSize, tileSize),
                 maskOf(CollisionLayer::World)});
         }
     }
@@ -520,8 +525,7 @@ void PhysicsWorld::updateTriggers(const scene::World& world) {
     m_activeTriggers = std::move(current);
 }
 
-std::optional<RayHit> PhysicsWorld::raycastTiles(core::Vec2 origin, core::Vec2 direction,
-                                                 float maxDistance) const {
+std::optional<RayHit> PhysicsWorld::raycastTiles(core::Vec2 origin, core::Vec2 direction, float maxDistance) const {
     if (m_tiles == nullptr) {
         return std::nullopt;
     }

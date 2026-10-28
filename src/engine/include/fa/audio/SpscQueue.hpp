@@ -68,9 +68,7 @@ public:
     [[nodiscard]] static constexpr std::size_t capacity() noexcept { return Capacity - 1; }
 
 private:
-    [[nodiscard]] static constexpr std::size_t increment(std::size_t index) noexcept {
-        return (index + 1u) % Capacity;
-    }
+    [[nodiscard]] static constexpr std::size_t increment(std::size_t index) noexcept { return (index + 1u) % Capacity; }
 
     std::array<std::optional<T>, Capacity> m_slots{};
     std::atomic<std::size_t> m_head{0};

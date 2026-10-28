@@ -31,6 +31,7 @@
 
 namespace {
 
+using Catch::Approx;
 using fa::core::Vec2;
 using fa::render::RenderLayer;
 using fa::render::TextureHandle;
@@ -47,12 +48,15 @@ using fa::tilemap::Tilemap;
 using fa::tilemap::TilemapExtractSystem;
 using fa::tilemap::TilemapSolids;
 using fa::tilemap::TilemapStats;
-using Catch::Approx;
 
 constexpr int kTile = 16;
 
-TileDef makeDef(std::uint16_t id, bool walkable = true, bool solid = false, bool water = false,
-                bool tillable = false, std::uint32_t texture = 0) {
+TileDef makeDef(std::uint16_t id,
+                bool walkable = true,
+                bool solid = false,
+                bool water = false,
+                bool tillable = false,
+                std::uint32_t texture = 0) {
     TileDef def;
     def.id = TileId{id};
     def.walkable = walkable;
@@ -65,8 +69,7 @@ TileDef makeDef(std::uint16_t id, bool walkable = true, bool solid = false, bool
     return def;
 }
 
-int addLayer(Tilemap& map, std::string name, RenderLayer renderLayer, int zOrder, TileId id,
-             bool visible = true) {
+int addLayer(Tilemap& map, std::string name, RenderLayer renderLayer, int zOrder, TileId id, bool visible = true) {
     TileLayer layer;
     layer.name = std::move(name);
     layer.renderLayer = renderLayer;
@@ -77,7 +80,9 @@ int addLayer(Tilemap& map, std::string name, RenderLayer renderLayer, int zOrder
 }
 
 /// \brief Builds the most common test map: a ground layer filled with `id`.
-void addGround(Tilemap& map, TileId id) { REQUIRE(addLayer(map, "ground", RenderLayer::Ground, 0, id) == 0); }
+void addGround(Tilemap& map, TileId id) {
+    REQUIRE(addLayer(map, "ground", RenderLayer::Ground, 0, id) == 0);
+}
 
 int loadErrorCode(std::string_view json) {
     const auto result = fa::tilemap::loadTilemapFromJson(json);
@@ -202,8 +207,8 @@ TEST_CASE("Tilemap tile access is bounds checked", "[tilemap][map]") {
 
 TEST_CASE("Tilemap combines walkability and solidity across layers", "[tilemap][map]") {
     Tilemap map(3, 1);
-    REQUIRE(map.addTileDef(makeDef(1)));  // grass
-    REQUIRE(map.addTileDef(makeDef(2, false, true)));  // wall
+    REQUIRE(map.addTileDef(makeDef(1)));                      // grass
+    REQUIRE(map.addTileDef(makeDef(2, false, true)));         // wall
     REQUIRE(map.addTileDef(makeDef(3, false, false, true)));  // water
     addGround(map, TileId{1});
 
@@ -380,8 +385,7 @@ TEST_CASE("JSON loader rejects malformed and inconsistent documents", "[tilemap]
     REQUIRE(loadErrorCode("[]") == kInvalidDocument);
     REQUIRE(loadErrorCode(R"({"width": 2, "height": 2, "layers": []})") == kInvalidDocument);
     REQUIRE(loadErrorCode(R"({"schema_version": 2, "width": 2, "height": 2, "layers": []})") == kUnsupportedSchema);
-    REQUIRE(loadErrorCode(R"({"schema_version": 1, "width": 0, "height": 2, "layers": []})") ==
-            kInvalidDimensions);
+    REQUIRE(loadErrorCode(R"({"schema_version": 1, "width": 0, "height": 2, "layers": []})") == kInvalidDimensions);
     REQUIRE(loadErrorCode(R"({"schema_version": 1, "width": 2, "height": 2, "tile_size": 0,
                              "layers": [{"name": "g", "tiles": [0, 0, 0, 0]}]})") == kInvalidTileSize);
     REQUIRE(loadErrorCode(R"({"schema_version": 1, "width": 2, "height": 2,
@@ -399,8 +403,7 @@ TEST_CASE("JSON loader rejects malformed and inconsistent documents", "[tilemap]
                                         {"name": "g", "tiles": [0, 0, 0, 0]}]})") == kInvalidLayer);
     REQUIRE(loadErrorCode(R"({"schema_version": 1, "width": 2, "height": 2,
                              "layers": [{"name": "g", "tiles": [0, 0, 0, 0]}],
-                             "areas": [{"id": 1, "kind": "greenhouse", "bounds": [1, 1, 4, 4]}]})") ==
-            kInvalidRegion);
+                             "areas": [{"id": 1, "kind": "greenhouse", "bounds": [1, 1, 4, 4]}]})") == kInvalidRegion);
     REQUIRE(loadErrorCode(R"({"schema_version": 1, "width": 2, "height": 2,
                              "layers": [{"name": "g", "tiles": [0, 0, 0, 0]}],
                              "portals": [{"id": "p", "bounds": [0, 0, 1, 1], "target_tile": [1, 1]}]})") ==

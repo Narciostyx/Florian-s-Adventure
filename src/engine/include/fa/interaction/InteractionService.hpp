@@ -63,8 +63,7 @@ public:
     ///
     /// Entities whose `Interactable` rectangle contains the point win over tiles;
     /// among them the highest `priority` wins, then the nearest, then the lowest id.
-    [[nodiscard]] GridTarget pickTarget(const scene::World& world, scene::EntityId actor,
-                                        core::Vec2 cursorWorld) const;
+    [[nodiscard]] GridTarget pickTarget(const scene::World& world, scene::EntityId actor, core::Vec2 cursorWorld) const;
 
     /// \brief Resolves the adjacent cell in `facing` and then applies `pickTarget()`.
     [[nodiscard]] GridTarget pickTargetInFront(const scene::World& world, scene::EntityId actor, Facing facing) const;
@@ -73,8 +72,8 @@ public:
     ///
     /// Recomputes distance and line of sight from `actor` instead of trusting a
     /// possibly stale `GridTarget::reachable`.
-    [[nodiscard]] bool canInteract(const scene::World& world, scene::EntityId actor, const GridTarget& target,
-                                   ToolKind tool) const;
+    [[nodiscard]] bool
+    canInteract(const scene::World& world, scene::EntityId actor, const GridTarget& target, ToolKind tool) const;
 
     /// \brief Validates and dispatches one tool request.
     ///
@@ -92,8 +91,7 @@ public:
     ///
     /// Returns valid bounds even when the placement is illegal, so the caller can draw
     /// a red preview over the rejected cells.
-    [[nodiscard]] PlacementPreview previewPlacement(const scene::World& world,
-                                                    const PlacementRequest& request) const;
+    [[nodiscard]] PlacementPreview previewPlacement(const scene::World& world, const PlacementRequest& request) const;
 
     /// \brief Validates and marks a placement. \return an error code on failure.
     ///
@@ -117,14 +115,14 @@ public:
     /// The start and target cells are ignored, which is what lets a pickaxe target a
     /// solid wall. A diagonal step is blocked when either orthogonal neighbour is
     /// solid, so two walls cannot be squeezed through at a corner.
-    [[nodiscard]] static bool hasLineOfSight(const tilemap::Tilemap& map, tilemap::TileCoord from,
-                                             tilemap::TileCoord to) noexcept;
+    [[nodiscard]] static bool
+    hasLineOfSight(const tilemap::Tilemap& map, tilemap::TileCoord from, tilemap::TileCoord to) noexcept;
 
 private:
     [[nodiscard]] core::Status validateInteraction(const scene::World& world, const InteractionRequest& request) const;
     [[nodiscard]] core::Vec2 targetPoint(const scene::World& world, const GridTarget& target) const noexcept;
-    [[nodiscard]] float distanceToTarget(const scene::World& world, scene::EntityId actor,
-                                        const GridTarget& target) const noexcept;
+    [[nodiscard]] float
+    distanceToTarget(const scene::World& world, scene::EntityId actor, const GridTarget& target) const noexcept;
     [[nodiscard]] IToolHandler* findHandler(ToolKind tool) noexcept;
 
     void recordInteraction(InteractionEventKind kind, const InteractionRequest& request, int errorCode);

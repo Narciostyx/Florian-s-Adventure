@@ -65,7 +65,6 @@ std::string saveAllActionMapsToJson(std::span<const ActionMap> maps, const Actio
 
 /// Contexts missing from the document keep their current bindings, so a partial
 /// file is a merge, not a reset.
-fa::core::Status loadAllActionMapsFromJson(std::string_view json, std::span<ActionMap> maps,
-                                           ActionRegistry& names);
+fa::core::Status loadAllActionMapsFromJson(std::string_view json, std::span<ActionMap> maps, ActionRegistry& names);
 
 }  // namespace fa::input

@@ -16,7 +16,9 @@ constexpr int kScratchFrames = 2048;
 
 }  // namespace
 
-SdlAudioDevice::~SdlAudioDevice() { shutdown(); }
+SdlAudioDevice::~SdlAudioDevice() {
+    shutdown();
+}
 
 fa::core::Status SdlAudioDevice::initialize(int sampleRate, int channels, AudioCallback callback, void* user) {
     shutdown();
@@ -40,8 +42,8 @@ fa::core::Status SdlAudioDevice::initialize(int sampleRate, int channels, AudioC
     spec.channels = channels;
     spec.freq = sampleRate;
 
-    m_stream = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, &SdlAudioDevice::streamCallback,
-                                         this);
+    m_stream =
+        SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, &SdlAudioDevice::streamCallback, this);
     if (m_stream == nullptr) {
         return fa::core::errorStatus(platform_error::kAudioInitFailed,
                                      std::string("SDL_OpenAudioDeviceStream failed: ") + SDL_GetError());
@@ -80,13 +82,21 @@ void SdlAudioDevice::shutdown() {
     m_scratch.clear();
 }
 
-bool SdlAudioDevice::isOpen() const noexcept { return m_stream != nullptr; }
+bool SdlAudioDevice::isOpen() const noexcept {
+    return m_stream != nullptr;
+}
 
-int SdlAudioDevice::sampleRate() const noexcept { return m_sampleRate; }
+int SdlAudioDevice::sampleRate() const noexcept {
+    return m_sampleRate;
+}
 
-int SdlAudioDevice::channels() const noexcept { return m_channels; }
+int SdlAudioDevice::channels() const noexcept {
+    return m_channels;
+}
 
-void SDLCALL SdlAudioDevice::streamCallback(void* userdata, SDL_AudioStream* stream, int additionalAmount,
+void SDLCALL SdlAudioDevice::streamCallback(void* userdata,
+                                            SDL_AudioStream* stream,
+                                            int additionalAmount,
                                             int totalAmount) {
     static_cast<void>(totalAmount);
     if (userdata == nullptr || stream == nullptr) {

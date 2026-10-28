@@ -27,8 +27,11 @@ constexpr float kLineHeight = 8.0f;
 
 }  // namespace
 
-void DebugOverlay::draw(ui::UiContext& ui, core::Rect viewport, const DebugStats& stats,
-                        const DebugConsole& console, const DebugLogSink& log,
+void DebugOverlay::draw(ui::UiContext& ui,
+                        core::Rect viewport,
+                        const DebugStats& stats,
+                        const DebugConsole& console,
+                        const DebugLogSink& log,
                         const DebugOverlayState& state) const {
     const ui::UiTheme& theme = ui.theme();
 
@@ -49,7 +52,8 @@ void DebugOverlay::draw(ui::UiContext& ui, core::Rect viewport, const DebugStats
 
         float y = panel.y + 4.0f;
         for (std::size_t index = 0; index < lines.size(); ++index) {
-            ui.text(lines[index], core::makeRect(panel.x + 4.0f, y, kWidth - 8.0f, 7.0f),
+            ui.text(lines[index],
+                    core::makeRect(panel.x + 4.0f, y, kWidth - 8.0f, 7.0f),
                     index == 0 ? titleStyle : textStyle);
             y += kLineHeight;
         }
@@ -75,8 +79,7 @@ void DebugOverlay::draw(ui::UiContext& ui, core::Rect viewport, const DebugStats
         ui::TextStyle inputStyle = textStyle;
         inputStyle.color = theme.accent;
         const std::string inputText = "> " + console.input() + "_";
-        ui.text(inputText, core::makeRect(panel.x + 4.0f, panel.y + kHeight - 14.0f, width - 8.0f, 7.0f),
-                inputStyle);
+        ui.text(inputText, core::makeRect(panel.x + 4.0f, panel.y + kHeight - 14.0f, width - 8.0f, 7.0f), inputStyle);
     }
 
     if (state.logVisible) {

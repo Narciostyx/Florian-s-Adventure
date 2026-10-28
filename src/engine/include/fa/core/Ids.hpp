@@ -40,9 +40,7 @@ namespace std {
 
 template <typename Tag, typename T>
 struct hash<fa::core::StrongId<Tag, T>> {
-    std::size_t operator()(const fa::core::StrongId<Tag, T>& id) const noexcept {
-        return std::hash<T>{}(id.value());
-    }
+    std::size_t operator()(const fa::core::StrongId<Tag, T>& id) const noexcept { return std::hash<T>{}(id.value()); }
 };
 
 }  // namespace std

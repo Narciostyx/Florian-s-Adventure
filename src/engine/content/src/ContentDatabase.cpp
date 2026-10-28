@@ -91,12 +91,16 @@ using Json = nlohmann::json;
     return found != object.end() && readBoolValue(*found, out);
 }
 
-[[nodiscard]] bool readIdField(const Json& object, const char* key, std::string_view prefix, ContentId& out,
-                               const std::string& context, std::vector<ContentError>& errors) {
+[[nodiscard]] bool readIdField(const Json& object,
+                               const char* key,
+                               std::string_view prefix,
+                               ContentId& out,
+                               const std::string& context,
+                               std::vector<ContentError>& errors) {
     std::string text;
     if (!readStringField(object, key, text)) {
-        errors.push_back(makeError(content_error::kInvalidField, context,
-                                   std::string("\"") + key + "\" must be a string"));
+        errors.push_back(
+            makeError(content_error::kInvalidField, context, std::string("\"") + key + "\" must be a string"));
         return false;
     }
     if (!ContentId::isValidName(text)) {
@@ -104,15 +108,17 @@ using Json = nlohmann::json;
         return false;
     }
     if (!text.starts_with(prefix)) {
-        errors.push_back(makeError(content_error::kInvalidId, context,
-                                   "id \"" + text + "\" must start with \"" + std::string(prefix) + "\""));
+        errors.push_back(makeError(
+            content_error::kInvalidId, context, "id \"" + text + "\" must start with \"" + std::string(prefix) + "\""));
         return false;
     }
     out = ContentId::fromName(text);
     return true;
 }
 
-[[nodiscard]] bool readTags(const Json& object, std::vector<std::string>& out, const std::string& context,
+[[nodiscard]] bool readTags(const Json& object,
+                            std::vector<std::string>& out,
+                            const std::string& context,
                             std::vector<ContentError>& errors) {
     const auto found = object.find("tags");
     if (found == object.end()) {
@@ -125,7 +131,8 @@ using Json = nlohmann::json;
     for (const Json& value : *found) {
         std::string tag;
         if (!readStringValue(value, tag) || tag.empty()) {
-            errors.push_back(makeError(content_error::kInvalidField, context, "\"tags\" entries must be non-empty strings"));
+            errors.push_back(
+                makeError(content_error::kInvalidField, context, "\"tags\" entries must be non-empty strings"));
             return false;
         }
         out.push_back(std::move(tag));
@@ -133,8 +140,8 @@ using Json = nlohmann::json;
     return true;
 }
 
-[[nodiscard]] bool readSeasons(const Json& object, std::uint8_t& out, const std::string& context,
-                               std::vector<ContentError>& errors) {
+[[nodiscard]] bool
+readSeasons(const Json& object, std::uint8_t& out, const std::string& context, std::vector<ContentError>& errors) {
     const auto found = object.find("seasons");
     if (found == object.end()) {
         out = seasonMask(Season::Any);
@@ -168,8 +175,8 @@ using Json = nlohmann::json;
             }
         }
     } else {
-        errors.push_back(makeError(content_error::kInvalidSeason, context,
-                                   "\"seasons\" must be a string or an array of strings"));
+        errors.push_back(
+            makeError(content_error::kInvalidSeason, context, "\"seasons\" must be a string or an array of strings"));
         return false;
     }
     if (mask == 0) {
@@ -180,24 +187,27 @@ using Json = nlohmann::json;
     return true;
 }
 
-[[nodiscard]] bool readAssetIdField(const Json& object, const char* key, assets::AssetId& out,
-                                    const std::string& context, std::vector<ContentError>& errors) {
+[[nodiscard]] bool readAssetIdField(const Json& object,
+                                    const char* key,
+                                    assets::AssetId& out,
+                                    const std::string& context,
+                                    std::vector<ContentError>& errors) {
     const auto found = object.find(key);
     if (found == object.end()) {
         return true;
     }
     std::string name;
     if (!readStringValue(*found, name) || name.empty()) {
-        errors.push_back(makeError(content_error::kInvalidField, context,
-                                   std::string("\"") + key + "\" must be a non-empty string"));
+        errors.push_back(makeError(
+            content_error::kInvalidField, context, std::string("\"") + key + "\" must be a non-empty string"));
         return false;
     }
     out = assets::AssetId::fromName(name);
     return true;
 }
 
-[[nodiscard]] bool readItemAmount(const Json& value, ItemAmount& out, const std::string& context,
-                                  std::vector<ContentError>& errors) {
+[[nodiscard]] bool
+readItemAmount(const Json& value, ItemAmount& out, const std::string& context, std::vector<ContentError>& errors) {
     if (!value.is_object()) {
         errors.push_back(makeError(content_error::kInvalidField, context, "item amount must be an object"));
         return false;
@@ -234,13 +244,14 @@ core::Status ContentDatabase::loadDocument(std::string_view json) {
 
     int schemaVersion = 0;
     if (!readIntField(document, "schema_version", schemaVersion)) {
-        m_parseErrors.push_back(makeError(content_error::kInvalidField, "document",
-                                          "content needs an integer \"schema_version\""));
+        m_parseErrors.push_back(
+            makeError(content_error::kInvalidField, "document", "content needs an integer \"schema_version\""));
         m_allErrors = m_parseErrors;
         return core::errorStatus(content_error::kInvalidField, "content needs an integer \"schema_version\"");
     }
     if (schemaVersion != 1) {
-        m_parseErrors.push_back(makeError(content_error::kUnsupportedSchema, "document",
+        m_parseErrors.push_back(makeError(content_error::kUnsupportedSchema,
+                                          "document",
                                           "unsupported content schema version " + std::to_string(schemaVersion)));
         m_allErrors = m_parseErrors;
         return core::errorStatus(content_error::kUnsupportedSchema, "unsupported content schema version");
@@ -281,17 +292,16 @@ core::Status ContentDatabase::loadDocument(std::string_view json) {
                 }
                 if (entry.contains("tool_kind")) {
                     if (!readStringField(entry, "tool_kind", def.toolKind) || def.toolKind.empty()) {
-                        addError(content_error::kInvalidField, context,
-                                 "\"tool_kind\" must be a non-empty string");
+                        addError(content_error::kInvalidField, context, "\"tool_kind\" must be a non-empty string");
                         continue;
                     }
                     const bool known = def.toolKind == "none" || def.toolKind == "hoe" ||
                                        def.toolKind == "watering_can" || def.toolKind == "axe" ||
-                                       def.toolKind == "pickaxe" || def.toolKind == "sword" ||
-                                       def.toolKind == "seed" || def.toolKind == "harvest" ||
-                                       def.toolKind == "placeable";
+                                       def.toolKind == "pickaxe" || def.toolKind == "sword" || def.toolKind == "seed" ||
+                                       def.toolKind == "harvest" || def.toolKind == "placeable";
                     if (!known) {
-                        addError(content_error::kInvalidField, context,
+                        addError(content_error::kInvalidField,
+                                 context,
                                  "\"tool_kind\" must be one of none/hoe/watering_can/axe/pickaxe/"
                                  "sword/seed/harvest/placeable");
                         continue;
@@ -323,18 +333,14 @@ core::Status ContentDatabase::loadDocument(std::string_view json) {
                     }
                 }
                 if (entry.contains("heal_amount")) {
-                    if (!readIntField(entry, "heal_amount", def.healAmount) ||
-                        def.healAmount < 0) {
-                        addError(content_error::kInvalidAmount, context,
-                                 "\"heal_amount\" must be >= 0");
+                    if (!readIntField(entry, "heal_amount", def.healAmount) || def.healAmount < 0) {
+                        addError(content_error::kInvalidAmount, context, "\"heal_amount\" must be >= 0");
                         continue;
                     }
                 }
                 if (entry.contains("stamina_restore")) {
-                    if (!readIntField(entry, "stamina_restore", def.staminaRestore) ||
-                        def.staminaRestore < 0) {
-                        addError(content_error::kInvalidAmount, context,
-                                 "\"stamina_restore\" must be >= 0");
+                    if (!readIntField(entry, "stamina_restore", def.staminaRestore) || def.staminaRestore < 0) {
+                        addError(content_error::kInvalidAmount, context, "\"stamina_restore\" must be >= 0");
                         continue;
                     }
                 }
@@ -374,7 +380,8 @@ core::Status ContentDatabase::loadDocument(std::string_view json) {
 
                 const auto days = entry.find("stage_days");
                 if (days == entry.end() || !days->is_array() || days->empty()) {
-                    addError(content_error::kInvalidField, context,
+                    addError(content_error::kInvalidField,
+                             context,
                              "\"stage_days\" must be a non-empty array of positive integers");
                     continue;
                 }
@@ -388,8 +395,8 @@ core::Status ContentDatabase::loadDocument(std::string_view json) {
                     def.stageDays.push_back(day);
                 }
                 if (!daysOk) {
-                    addError(content_error::kInvalidField, context,
-                             "\"stage_days\" must contain only positive integers");
+                    addError(
+                        content_error::kInvalidField, context, "\"stage_days\" must contain only positive integers");
                     continue;
                 }
 
@@ -408,12 +415,13 @@ core::Status ContentDatabase::loadDocument(std::string_view json) {
                         def.stageSprites.push_back(assets::AssetId::fromName(name));
                     }
                     if (!spritesOk) {
-                        addError(content_error::kInvalidField, context,
-                                 "\"stage_sprites\" must contain non-empty strings");
+                        addError(
+                            content_error::kInvalidField, context, "\"stage_sprites\" must contain non-empty strings");
                         continue;
                     }
                     if (def.stageSprites.size() != def.stageDays.size()) {
-                        addError(content_error::kInvalidField, context,
+                        addError(content_error::kInvalidField,
+                                 context,
                                  "\"stage_sprites\" must have the same length as \"stage_days\"");
                         continue;
                     }
@@ -422,8 +430,7 @@ core::Status ContentDatabase::loadDocument(std::string_view json) {
                 if (const auto seedSprite = entry.find("seed_sprite"); seedSprite != entry.end()) {
                     std::string name;
                     if (!readStringValue(*seedSprite, name) || name.empty()) {
-                        addError(content_error::kInvalidField, context,
-                                 "\"seed_sprite\" must be a non-empty string");
+                        addError(content_error::kInvalidField, context, "\"seed_sprite\" must be a non-empty string");
                         continue;
                     }
                     def.seedSprite = assets::AssetId::fromName(name);
@@ -442,8 +449,8 @@ core::Status ContentDatabase::loadDocument(std::string_view json) {
                     continue;
                 }
                 if (def.regrow && def.regrowDays <= 0) {
-                    addError(content_error::kInvalidAmount, context,
-                             "a regrowing crop needs a positive \"regrow_days\"");
+                    addError(
+                        content_error::kInvalidAmount, context, "a regrowing crop needs a positive \"regrow_days\"");
                     continue;
                 }
 
@@ -483,8 +490,8 @@ core::Status ContentDatabase::loadDocument(std::string_view json) {
                 std::size_t inputIndex = 0;
                 for (const Json& value : *inputs) {
                     ItemAmount amount;
-                    if (!readItemAmount(value, amount, context + ".inputs[" + std::to_string(inputIndex) + "]",
-                                        m_parseErrors)) {
+                    if (!readItemAmount(
+                            value, amount, context + ".inputs[" + std::to_string(inputIndex) + "]", m_parseErrors)) {
                         inputsOk = false;
                         break;
                     }
@@ -621,8 +628,8 @@ core::Status ContentDatabase::loadDocument(std::string_view json) {
                         break;
                     }
                     if (loot.maxAmount < loot.minAmount) {
-                        addError(content_error::kInvalidAmount, entryContext,
-                                 "\"max_amount\" must be >= \"min_amount\"");
+                        addError(
+                            content_error::kInvalidAmount, entryContext, "\"max_amount\" must be >= \"min_amount\"");
                         entriesOk = false;
                         break;
                     }
@@ -661,11 +668,13 @@ core::Status ContentDatabase::validate() {
 
     for (const CropDef& crop : m_crops) {
         if (m_itemIndex.find(crop.seedItem) == m_itemIndex.end()) {
-            add(content_error::kMissingReference, crop.id.name(),
+            add(content_error::kMissingReference,
+                crop.id.name(),
                 "seed_item \"" + crop.seedItem.name() + "\" is not defined");
         }
         if (m_itemIndex.find(crop.harvestItem) == m_itemIndex.end()) {
-            add(content_error::kMissingReference, crop.id.name(),
+            add(content_error::kMissingReference,
+                crop.id.name(),
                 "harvest_item \"" + crop.harvestItem.name() + "\" is not defined");
         }
     }
@@ -673,19 +682,22 @@ core::Status ContentDatabase::validate() {
     for (const RecipeDef& recipe : m_recipes) {
         for (const ItemAmount& input : recipe.inputs) {
             if (m_itemIndex.find(input.item) == m_itemIndex.end()) {
-                add(content_error::kMissingReference, recipe.id.name(),
+                add(content_error::kMissingReference,
+                    recipe.id.name(),
                     "input \"" + input.item.name() + "\" is not defined");
             }
         }
         if (m_itemIndex.find(recipe.output.item) == m_itemIndex.end()) {
-            add(content_error::kMissingReference, recipe.id.name(),
+            add(content_error::kMissingReference,
+                recipe.id.name(),
                 "output \"" + recipe.output.item.name() + "\" is not defined");
         }
     }
 
     for (const EnemyDef& enemy : m_enemies) {
         if (enemy.lootTable.isValid() && m_lootIndex.find(enemy.lootTable) == m_lootIndex.end()) {
-            add(content_error::kMissingReference, enemy.id.name(),
+            add(content_error::kMissingReference,
+                enemy.id.name(),
                 "loot_table \"" + enemy.lootTable.name() + "\" is not defined");
         }
     }
@@ -693,7 +705,8 @@ core::Status ContentDatabase::validate() {
     for (const LootTableDef& table : m_lootTables) {
         for (const LootEntry& entry : table.entries) {
             if (m_itemIndex.find(entry.item) == m_itemIndex.end()) {
-                add(content_error::kMissingReference, table.id.name(),
+                add(content_error::kMissingReference,
+                    table.id.name(),
                     "loot item \"" + entry.item.name() + "\" is not defined");
             }
         }

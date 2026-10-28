@@ -23,8 +23,7 @@ struct Line {
     return floored < 1.0f ? 1.0f : floored;
 }
 
-[[nodiscard]] std::vector<Line> layoutLines(const FontAtlas& font, std::string_view text, float maxWidth,
-                                            float scale) {
+[[nodiscard]] std::vector<Line> layoutLines(const FontAtlas& font, std::string_view text, float maxWidth, float scale) {
     std::vector<Line> lines;
     if (text.empty()) {
         return lines;
@@ -69,8 +68,8 @@ TextMetrics measureText(const FontAtlas& font, std::string_view text, float maxW
     return metrics;
 }
 
-void drawText(const FontAtlas& font, std::string_view text, core::Rect rect, const TextStyle& style,
-              render::RenderQueue& queue) {
+void drawText(
+    const FontAtlas& font, std::string_view text, core::Rect rect, const TextStyle& style, render::RenderQueue& queue) {
     if (text.empty() || !font.texture.isValid() || font.lineHeight <= 0.0f) {
         return;
     }

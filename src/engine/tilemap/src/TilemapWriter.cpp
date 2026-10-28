@@ -102,11 +102,10 @@ std::string saveTilemapToJson(const Tilemap& map) {
     document["portals"] = std::move(portals);
 
     const MapAmbient& ambient = map.ambient();
-    document["ambient"] = Json{{"indoor", ambient.indoor},
-                               {"light",
-                                Json::array({ambient.light.r, ambient.light.g, ambient.light.b,
-                                             ambient.light.a})},
-                               {"music", ambient.music}};
+    document["ambient"] =
+        Json{{"indoor", ambient.indoor},
+             {"light", Json::array({ambient.light.r, ambient.light.g, ambient.light.b, ambient.light.a})},
+             {"music", ambient.music}};
 
     return document.dump(2);
 }

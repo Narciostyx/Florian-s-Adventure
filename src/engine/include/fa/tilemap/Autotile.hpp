@@ -36,8 +36,7 @@ inline constexpr std::size_t kAutotileVariantCount = 16;
 ///
 /// Cells outside the map count as matches. That is what gives a finite map coherent
 /// edge variants instead of a one-cell-wide seam of "interior" tiles.
-[[nodiscard]] NeighborMask neighborMask(const Tilemap& map, int column, int row, int layerIndex,
-                                        TileId match) noexcept;
+[[nodiscard]] NeighborMask neighborMask(const Tilemap& map, int column, int row, int layerIndex, TileId match) noexcept;
 
 /// \brief Maps a neighbour mask to a variant tile.
 ///

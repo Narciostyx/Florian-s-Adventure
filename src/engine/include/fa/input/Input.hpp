@@ -117,17 +117,11 @@ public:
 
     /// The map queries resolve against, i.e. the top of the stack.
     ActionMap& activeMap() noexcept { return m_maps[static_cast<std::size_t>(m_contexts.top())]; }
-    const ActionMap& activeMap() const noexcept {
-        return m_maps[static_cast<std::size_t>(m_contexts.top())];
-    }
+    const ActionMap& activeMap() const noexcept { return m_maps[static_cast<std::size_t>(m_contexts.top())]; }
 
     /// Per-context map, for authoring and rebinding screens.
-    ActionMap& mapFor(InputContext context) noexcept {
-        return m_maps[static_cast<std::size_t>(context)];
-    }
-    const ActionMap& mapFor(InputContext context) const noexcept {
-        return m_maps[static_cast<std::size_t>(context)];
-    }
+    ActionMap& mapFor(InputContext context) noexcept { return m_maps[static_cast<std::size_t>(context)]; }
+    const ActionMap& mapFor(InputContext context) const noexcept { return m_maps[static_cast<std::size_t>(context)]; }
 
     /// Names for debug output and persistence. Interning is idempotent.
     ActionId registerAction(std::string_view name);

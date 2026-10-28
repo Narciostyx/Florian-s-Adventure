@@ -16,8 +16,8 @@
 #include <fa/core/Log.hpp>
 #include <fa/core/Math.hpp>
 #include <fa/core/Result.hpp>
-#include <fa/debug/DebugConsole.hpp>
 #include <fa/debug/DebugCVar.hpp>
+#include <fa/debug/DebugConsole.hpp>
 #include <fa/debug/DebugInspector.hpp>
 #include <fa/debug/DebugLog.hpp>
 #include <fa/debug/DebugStats.hpp>
@@ -36,8 +36,8 @@ namespace {
 using Catch::Approx;
 
 using fa::core::Status;
-using fa::debug::CVarRegistry;
 using fa::debug::ConsoleCommand;
+using fa::debug::CVarRegistry;
 using fa::debug::DebugConsole;
 using fa::debug::DebugLogSink;
 using fa::debug::DebugStats;
@@ -54,9 +54,7 @@ class MemoryFileSystem final : public fa::platform::IFileSystem {
 public:
     std::map<std::string, std::string, std::less<>> files;
 
-    [[nodiscard]] bool exists(std::string_view path) const override {
-        return files.find(path) != files.end();
-    }
+    [[nodiscard]] bool exists(std::string_view path) const override { return files.find(path) != files.end(); }
     [[nodiscard]] bool isDirectory(std::string_view) const override { return false; }
     fa::core::Result<std::string> readText(std::string_view path) override {
         const auto found = files.find(path);
@@ -287,16 +285,14 @@ TEST_CASE("DebugStats formats a readable snapshot", "[debug]") {
     bool foundAgent = false;
     bool foundPlayer = false;
     for (const std::string& line : extended) {
-        if (line.find("player (112.5, 80.5)") != std::string::npos &&
-            line.find("tile (7, 5)") != std::string::npos) {
+        if (line.find("player (112.5, 80.5)") != std::string::npos && line.find("tile (7, 5)") != std::string::npos) {
             foundPlayer = true;
         }
         if (line.find("camera (320.0, 180.0)") != std::string::npos &&
             line.find("view 640.0x360.0") != std::string::npos) {
             foundCamera = true;
         }
-        if (line.find("follow player e2v1") != std::string::npos &&
-            line.find("dz 48.0x32.0") != std::string::npos) {
+        if (line.find("follow player e2v1") != std::string::npos && line.find("dz 48.0x32.0") != std::string::npos) {
             foundFollow = true;
         }
         if (line.find("e4v1 chase -> e2v1 vis") != std::string::npos) {

@@ -9,7 +9,9 @@ namespace fa::audio {
 
 AudioEngine::AudioEngine() : m_mixer(kSampleRate, kChannels) {}
 
-AudioEngine::~AudioEngine() { shutdown(); }
+AudioEngine::~AudioEngine() {
+    shutdown();
+}
 
 core::Status AudioEngine::initialize(platform::IAudioDevice& device) {
     shutdown();
@@ -43,7 +45,9 @@ void AudioEngine::shutdown() {
     publishStats();
 }
 
-bool AudioEngine::isInitialized() const noexcept { return m_initialized.load(std::memory_order_acquire); }
+bool AudioEngine::isInitialized() const noexcept {
+    return m_initialized.load(std::memory_order_acquire);
+}
 
 SoundHandle AudioEngine::play(std::shared_ptr<const AudioClip> clip, const SoundDesc& desc) {
     if (!isInitialized() || !clip || !clip->isValid()) {
@@ -115,8 +119,7 @@ AudioStats AudioEngine::stats() const noexcept {
     result.played = m_played.load(std::memory_order_relaxed);
     result.stopped = m_stopped.load(std::memory_order_relaxed);
     result.finished = m_finished.load(std::memory_order_relaxed);
-    result.dropped = m_dropped.load(std::memory_order_relaxed) +
-                     static_cast<std::uint64_t>(m_commands.dropped());
+    result.dropped = m_dropped.load(std::memory_order_relaxed) + static_cast<std::uint64_t>(m_commands.dropped());
     result.evicted = m_evicted.load(std::memory_order_relaxed);
     result.mixedFrames = m_mixedFrames.load(std::memory_order_relaxed);
     result.masterVolume = m_masterVolume.load(std::memory_order_relaxed);
@@ -132,8 +135,7 @@ void AudioEngine::audioCallback(void* user, std::int16_t* output, int frames) {
 
 void AudioEngine::render(std::int16_t* output, int frames) {
     drainCommands();
-    const std::size_t samples =
-        static_cast<std::size_t>(frames) * static_cast<std::size_t>(m_mixer.channels());
+    const std::size_t samples = static_cast<std::size_t>(frames) * static_cast<std::size_t>(m_mixer.channels());
     m_mixer.mix(std::span<std::int16_t>(output, samples));
     publishStats();
 }

@@ -11,8 +11,10 @@ void EventBus::assertOwnerThread(const char* operation) const noexcept {
     if (std::this_thread::get_id() == m_ownerThread) {
         return;
     }
-    core::logf(core::LogCategory::Events, core::LogLevel::Fatal,
-               "EventBus: %s called from a thread that does not own the bus", operation);
+    core::logf(core::LogCategory::Events,
+               core::LogLevel::Fatal,
+               "EventBus: %s called from a thread that does not own the bus",
+               operation);
     core::fatal("EventBus: subscribe, unsubscribe, publish and dispatchQueued are owner-thread only");
 }
 
@@ -45,9 +47,11 @@ std::size_t EventBus::dispatchQueued() {
                 m_queue.push_back(std::move(queued));
             }
             const std::size_t deferred = m_queue.size();
-            core::logf(core::LogCategory::Events, core::LogLevel::Warn,
+            core::logf(core::LogCategory::Events,
+                       core::LogLevel::Warn,
                        "EventBus: dispatchQueued stopped after %d waves, %llu event(s) retried next frame",
-                       detail::kMaxDispatchWaves, static_cast<unsigned long long>(deferred));
+                       detail::kMaxDispatchWaves,
+                       static_cast<unsigned long long>(deferred));
             break;
         }
 

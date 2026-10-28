@@ -32,12 +32,13 @@ using Catch::Approx;
 using fa::core::Status;
 using fa::save::ComponentSerializerRegistry;
 using fa::save::IComponentSerializer;
+using fa::save::kSaveVersion;
+using fa::save::registerDefaultMigrations;
 using fa::save::SaveArchive;
 using fa::save::SaveContext;
 using fa::save::SaveFile;
 using fa::save::SaveMetadata;
 using fa::save::SaveService;
-using fa::save::kSaveVersion;
 namespace save_error = fa::save::save_error;
 
 /// \brief In-memory IFileSystem with just enough directory support for save slots.
@@ -45,9 +46,7 @@ class MemoryFileSystem final : public fa::platform::IFileSystem {
 public:
     std::map<std::string, std::string, std::less<>> files;
 
-    [[nodiscard]] bool exists(std::string_view path) const override {
-        return files.find(path) != files.end();
-    }
+    [[nodiscard]] bool exists(std::string_view path) const override { return files.find(path) != files.end(); }
     [[nodiscard]] bool isDirectory(std::string_view) const override { return false; }
     fa::core::Result<std::string> readText(std::string_view path) override {
         const auto found = files.find(path);
@@ -291,6 +290,34 @@ TEST_CASE("SaveService rejects newer versions and runs migrations", "[save]") {
     const fa::core::Result<SaveFile> missing = versionTwoNoMigration.load("slot_1");
     REQUIRE(missing.isError());
     CHECK(missing.error().code == save_error::kMigrationFailed);
+}
+
+TEST_CASE("Default migrations normalize v1 saves", "[save]") {
+    MemoryFileSystem files;
+    SaveService versionOne(files, "saves", 1);
+    SaveContext oldContext;
+    oldContext.inGameDay = 1;
+    oldContext.world.setString("map", "farm");
+    REQUIRE(versionOne.save("old", oldContext).isOk());
+
+    SaveService current(files, "saves");
+    registerDefaultMigrations(current);
+    const fa::core::Result<SaveFile> loaded = current.load("old");
+    REQUIRE(loaded.isOk());
+    CHECK(loaded.value().meta.saveVersion == kSaveVersion);
+    CHECK(loaded.value().world.child("objects").isArray());
+    CHECK(loaded.value().world.child("debris").isArray());
+    CHECK(loaded.value().world.child("ai").isArray());
+    CHECK(loaded.value().quests.child("affinity").isObject());
+    CHECK(loaded.value().quests.child("quests").isArray());
+    CHECK(loaded.value().economy.child("shipping").isArray());
+    CHECK(loaded.value().inventories.isObject());
+
+    // A file already written by v2 keeps loading without double-normalising.
+    REQUIRE(current.save("new", oldContext).isOk());
+    const fa::core::Result<SaveFile> reloaded = current.load("new");
+    REQUIRE(reloaded.isOk());
+    CHECK(reloaded.value().meta.saveVersion == kSaveVersion);
 }
 
 TEST_CASE("ComponentSerializerRegistry saves and loads sections", "[save]") {

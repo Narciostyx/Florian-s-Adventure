@@ -21,8 +21,7 @@ namespace {
 constexpr std::size_t kMaxPathNodes = 4096;
 
 [[nodiscard]] std::uint64_t cellKey(tilemap::TileCoord cell) noexcept {
-    return (static_cast<std::uint64_t>(static_cast<std::uint32_t>(cell.x)) << 32) |
-           static_cast<std::uint32_t>(cell.y);
+    return (static_cast<std::uint64_t>(static_cast<std::uint32_t>(cell.x)) << 32) | static_cast<std::uint32_t>(cell.y);
 }
 
 [[nodiscard]] float distanceBetween(core::Vec2 lhs, core::Vec2 rhs) noexcept {
@@ -68,8 +67,7 @@ AiAgentSnapshot captureAiAgent(const AiAgent& agent) noexcept {
 
 void applyAiAgentSnapshot(AiAgent& agent, const AiAgentSnapshot& snapshot) noexcept {
     const auto rawState = static_cast<std::uint8_t>(snapshot.state);
-    agent.state = rawState < static_cast<std::uint8_t>(AiState::Count) ? snapshot.state
-                                                                      : AiState::Idle;
+    agent.state = rawState < static_cast<std::uint8_t>(AiState::Count) ? snapshot.state : AiState::Idle;
     agent.home = snapshot.home;
     agent.stateTime = snapshot.stateTime;
     agent.attackCooldown = snapshot.attackCooldown;
@@ -78,8 +76,7 @@ void applyAiAgentSnapshot(AiAgent& agent, const AiAgentSnapshot& snapshot) noexc
     agent.targetVisible = snapshot.targetVisible;
 }
 
-AiService::AiService(const tilemap::Tilemap& map, physics::PhysicsWorld& physics,
-                     combat::ICombatService* combat)
+AiService::AiService(const tilemap::Tilemap& map, physics::PhysicsWorld& physics, combat::ICombatService* combat)
     : m_map(map), m_physics(physics), m_combat(combat) {}
 
 void AiService::clear() noexcept {
@@ -97,8 +94,7 @@ std::size_t AiService::pathNodeCount(scene::EntityId agent) const noexcept {
     return 0;
 }
 
-bool AiService::hasLineOfSight(const tilemap::Tilemap& map, tilemap::TileCoord from,
-                               tilemap::TileCoord to) noexcept {
+bool AiService::hasLineOfSight(const tilemap::Tilemap& map, tilemap::TileCoord from, tilemap::TileCoord to) noexcept {
     int x = from.x;
     int y = from.y;
     const int dx = std::abs(to.x - from.x);
@@ -128,8 +124,7 @@ bool AiService::hasLineOfSight(const tilemap::Tilemap& map, tilemap::TileCoord f
     }
 }
 
-bool AiService::findPath(tilemap::TileCoord from, tilemap::TileCoord to,
-                         std::vector<tilemap::TileCoord>& out) const {
+bool AiService::findPath(tilemap::TileCoord from, tilemap::TileCoord to, std::vector<tilemap::TileCoord>& out) const {
     out.clear();
     if (!m_map.contains(from.x, from.y) || !m_map.contains(to.x, to.y)) {
         return false;
@@ -242,187 +237,182 @@ void AiService::update(scene::World& world, float deltaSeconds) {
     ++m_stats.steps;
     m_stats.agents = 0;
 
-    world.each<AiAgent, scene::Transform>(
-        [&](scene::EntityId id, AiAgent& agent, const scene::Transform&) {
-            ++m_stats.agents;
-            PathState& path = pathFor(id);
-            agent.stateTime += deltaSeconds;
-            agent.attackCooldown = std::max(0.0f, agent.attackCooldown - deltaSeconds);
-            agent.repathTimer = std::max(0.0f, agent.repathTimer - deltaSeconds);
+    world.each<AiAgent, scene::Transform>([&](scene::EntityId id, AiAgent& agent, const scene::Transform&) {
+        ++m_stats.agents;
+        PathState& path = pathFor(id);
+        agent.stateTime += deltaSeconds;
+        agent.attackCooldown = std::max(0.0f, agent.attackCooldown - deltaSeconds);
+        agent.repathTimer = std::max(0.0f, agent.repathTimer - deltaSeconds);
 
-            const player::Health* health = world.tryGet<player::Health>(id);
-            if (health != nullptr && health->current <= 0) {
-                resetPath(path);
-                changeState(agent, AiState::Idle);
-                return;
+        const player::Health* health = world.tryGet<player::Health>(id);
+        if (health != nullptr && health->current <= 0) {
+            resetPath(path);
+            changeState(agent, AiState::Idle);
+            return;
+        }
+
+        const core::Vec2 center = agentCenter(world, id);
+        const int interval = std::max(1, agent.profile.perceptionIntervalSteps);
+        if (m_step % static_cast<std::uint64_t>(interval) == 0) {
+            perceive(world, id, agent, center);
+        }
+
+        if (agent.target.isValid()) {
+            const scene::Transform* targetTransform = world.tryGet<scene::Transform>(agent.target);
+            const player::Health* targetHealth = world.tryGet<player::Health>(agent.target);
+            if (targetTransform == nullptr || (targetHealth != nullptr && targetHealth->current <= 0)) {
+                agent.target = scene::EntityId{};
+                agent.targetVisible = false;
             }
+        }
 
-            const core::Vec2 center = agentCenter(world, id);
-            const int interval = std::max(1, agent.profile.perceptionIntervalSteps);
-            if (m_step % static_cast<std::uint64_t>(interval) == 0) {
-                perceive(world, id, agent, center);
-            }
+        const bool shouldFlee = health != nullptr && health->max > 0 &&
+                                health->current <= health->max * agent.profile.fleeHealthRatio &&
+                                agent.target.isValid();
+        if (shouldFlee && agent.state != AiState::Flee) {
+            changeState(agent, AiState::Flee);
+        }
 
-            if (agent.target.isValid()) {
-                const scene::Transform* targetTransform = world.tryGet<scene::Transform>(agent.target);
-                const player::Health* targetHealth = world.tryGet<player::Health>(agent.target);
-                if (targetTransform == nullptr || (targetHealth != nullptr && targetHealth->current <= 0)) {
-                    agent.target = scene::EntityId{};
-                    agent.targetVisible = false;
-                }
-            }
-
-            const bool shouldFlee = health != nullptr && health->max > 0 && health->current <=
-                                                                                  health->max *
-                                                                                      agent.profile.fleeHealthRatio &&
-                                    agent.target.isValid();
-            if (shouldFlee && agent.state != AiState::Flee) {
-                changeState(agent, AiState::Flee);
-            }
-
-            switch (agent.state) {
-                case AiState::Idle: {
-                    if (agent.target.isValid()) {
-                        changeState(agent, AiState::Chase);
-                        break;
-                    }
-                    if (agent.profile.patrol && agent.profile.patrolRadius > 0.0f) {
-                        const tilemap::TileCoord home = m_map.worldToGrid(agent.home);
-                        const int span = static_cast<int>(agent.profile.patrolRadius / 16.0f);
-                        tilemap::TileCoord patrol = offsetCell(home, span, 0);
-                        if (!m_map.isWalkable(patrol.x, patrol.y)) {
-                            patrol = offsetCell(home, -span, 0);
-                        }
-                        if (ensurePath(world, agent, path, patrol)) {
-                            changeState(agent, AiState::Patrol);
-                        }
-                    }
+        switch (agent.state) {
+            case AiState::Idle: {
+                if (agent.target.isValid()) {
+                    changeState(agent, AiState::Chase);
                     break;
                 }
-                case AiState::Patrol: {
-                    if (agent.target.isValid()) {
-                        changeState(agent, AiState::Chase);
-                        break;
+                if (agent.profile.patrol && agent.profile.patrolRadius > 0.0f) {
+                    const tilemap::TileCoord home = m_map.worldToGrid(agent.home);
+                    const int span = static_cast<int>(agent.profile.patrolRadius / 16.0f);
+                    tilemap::TileCoord patrol = offsetCell(home, span, 0);
+                    if (!m_map.isWalkable(patrol.x, patrol.y)) {
+                        patrol = offsetCell(home, -span, 0);
                     }
-                    if (path.hasGoal) {
-                        moveAlongPath(world, id, agent, path, deltaSeconds);
-                    } else {
-                        changeState(agent, AiState::Idle);
+                    if (ensurePath(world, agent, path, patrol)) {
+                        changeState(agent, AiState::Patrol);
                     }
+                }
+                break;
+            }
+            case AiState::Patrol: {
+                if (agent.target.isValid()) {
+                    changeState(agent, AiState::Chase);
                     break;
                 }
-                case AiState::Chase: {
-                    if (!agent.target.isValid()) {
-                        changeState(agent, AiState::Return);
-                        break;
-                    }
-                    const core::Vec2 targetCenter = agentCenter(world, agent.target);
-                    const float distance = distanceBetween(center, targetCenter);
-                    if (!agent.targetVisible) {
-                        agent.loseTimer += deltaSeconds;
-                        if (agent.loseTimer >= agent.profile.loseTargetSeconds) {
-                            agent.target = scene::EntityId{};
-                            agent.targetVisible = false;
-                            changeState(agent, AiState::Return);
-                            break;
-                        }
-                    } else {
-                        agent.loseTimer = 0.0f;
-                    }
-                    if (distance <= agent.profile.attackRange) {
-                        changeState(agent, AiState::Attack);
-                        break;
-                    }
-                    if (!path.hasGoal || agent.repathTimer <= 0.0f) {
-                        const tilemap::TileCoord goal = m_map.worldToGrid(targetCenter);
-                        static_cast<void>(ensurePath(world, agent, path, goal));
-                        agent.repathTimer = std::max(0.05f, agent.profile.repathSeconds);
-                    }
-                    if (path.hasGoal) {
-                        moveAlongPath(world, id, agent, path, deltaSeconds);
-                    } else if (agent.targetVisible &&
-                               hasLineOfSight(m_map, cellAt(world, id), m_map.worldToGrid(targetCenter))) {
-                        const core::Vec2 delta = targetCenter - center;
-                        const float length = glm::length(delta);
-                        if (length > 0.001f) {
-                            static_cast<void>(
-                                m_physics.move(world, id,
-                                               delta / length * agent.profile.moveSpeed * deltaSeconds));
-                            ++m_stats.moves;
-                        }
-                    }
+                if (path.hasGoal) {
+                    moveAlongPath(world, id, agent, path, deltaSeconds);
+                } else {
+                    changeState(agent, AiState::Idle);
+                }
+                break;
+            }
+            case AiState::Chase: {
+                if (!agent.target.isValid()) {
+                    changeState(agent, AiState::Return);
                     break;
                 }
-                case AiState::Attack: {
-                    if (!agent.target.isValid()) {
-                        changeState(agent, AiState::Return);
-                        break;
-                    }
-                    const core::Vec2 targetCenter = agentCenter(world, agent.target);
-                    if (distanceBetween(center, targetCenter) > agent.profile.attackRange) {
-                        changeState(agent, AiState::Chase);
-                        break;
-                    }
-                    if (agent.attackCooldown <= 0.0f) {
-                        if (m_combat != nullptr && agent.profile.attackDamage > 0) {
-                            performAttack(world, id, agent, center, targetCenter);
-                            ++m_stats.attacks;
-                        }
-                        agent.attackCooldown = std::max(0.0f, agent.profile.attackCooldown);
-                    }
-                    break;
-                }
-                case AiState::Flee: {
-                    if (!agent.target.isValid()) {
-                        changeState(agent, AiState::Return);
-                        break;
-                    }
-                    if (distanceBetween(center, agent.home) <= agent.profile.arriveRadius) {
+                const core::Vec2 targetCenter = agentCenter(world, agent.target);
+                const float distance = distanceBetween(center, targetCenter);
+                if (!agent.targetVisible) {
+                    agent.loseTimer += deltaSeconds;
+                    if (agent.loseTimer >= agent.profile.loseTargetSeconds) {
                         agent.target = scene::EntityId{};
                         agent.targetVisible = false;
-                        resetPath(path);
-                        changeState(agent, AiState::Idle);
+                        changeState(agent, AiState::Return);
                         break;
                     }
-                    if (!path.hasGoal || agent.repathTimer <= 0.0f) {
-                        static_cast<void>(
-                            ensurePath(world, agent, path, m_map.worldToGrid(agent.home)));
-                        agent.repathTimer = std::max(0.05f, agent.profile.repathSeconds);
-                    }
-                    if (path.hasGoal) {
-                        moveAlongPath(world, id, agent, path, deltaSeconds);
-                    } else {
-                        changeState(agent, AiState::Idle);
-                    }
+                } else {
+                    agent.loseTimer = 0.0f;
+                }
+                if (distance <= agent.profile.attackRange) {
+                    changeState(agent, AiState::Attack);
                     break;
                 }
-                case AiState::Return: {
-                    if (agent.target.isValid() && agent.targetVisible) {
-                        changeState(agent, AiState::Chase);
-                        break;
-                    }
-                    if (distanceBetween(center, agent.home) <= agent.profile.arriveRadius) {
-                        resetPath(path);
-                        changeState(agent, AiState::Idle);
-                        break;
-                    }
-                    if (!path.hasGoal) {
+                if (!path.hasGoal || agent.repathTimer <= 0.0f) {
+                    const tilemap::TileCoord goal = m_map.worldToGrid(targetCenter);
+                    static_cast<void>(ensurePath(world, agent, path, goal));
+                    agent.repathTimer = std::max(0.05f, agent.profile.repathSeconds);
+                }
+                if (path.hasGoal) {
+                    moveAlongPath(world, id, agent, path, deltaSeconds);
+                } else if (agent.targetVisible &&
+                           hasLineOfSight(m_map, cellAt(world, id), m_map.worldToGrid(targetCenter))) {
+                    const core::Vec2 delta = targetCenter - center;
+                    const float length = glm::length(delta);
+                    if (length > 0.001f) {
                         static_cast<void>(
-                            ensurePath(world, agent, path, m_map.worldToGrid(agent.home)));
+                            m_physics.move(world, id, delta / length * agent.profile.moveSpeed * deltaSeconds));
+                        ++m_stats.moves;
                     }
-                    if (path.hasGoal) {
-                        moveAlongPath(world, id, agent, path, deltaSeconds);
-                    } else {
-                        resetPath(path);
-                        changeState(agent, AiState::Idle);
-                    }
+                }
+                break;
+            }
+            case AiState::Attack: {
+                if (!agent.target.isValid()) {
+                    changeState(agent, AiState::Return);
                     break;
                 }
-                default:
+                const core::Vec2 targetCenter = agentCenter(world, agent.target);
+                if (distanceBetween(center, targetCenter) > agent.profile.attackRange) {
+                    changeState(agent, AiState::Chase);
+                    break;
+                }
+                if (agent.attackCooldown <= 0.0f) {
+                    if (m_combat != nullptr && agent.profile.attackDamage > 0) {
+                        performAttack(world, id, agent, center, targetCenter);
+                        ++m_stats.attacks;
+                    }
+                    agent.attackCooldown = std::max(0.0f, agent.profile.attackCooldown);
+                }
+                break;
+            }
+            case AiState::Flee: {
+                if (!agent.target.isValid()) {
+                    changeState(agent, AiState::Return);
+                    break;
+                }
+                if (distanceBetween(center, agent.home) <= agent.profile.arriveRadius) {
+                    agent.target = scene::EntityId{};
+                    agent.targetVisible = false;
+                    resetPath(path);
                     changeState(agent, AiState::Idle);
                     break;
+                }
+                if (!path.hasGoal || agent.repathTimer <= 0.0f) {
+                    static_cast<void>(ensurePath(world, agent, path, m_map.worldToGrid(agent.home)));
+                    agent.repathTimer = std::max(0.05f, agent.profile.repathSeconds);
+                }
+                if (path.hasGoal) {
+                    moveAlongPath(world, id, agent, path, deltaSeconds);
+                } else {
+                    changeState(agent, AiState::Idle);
+                }
+                break;
             }
-        });
+            case AiState::Return: {
+                if (agent.target.isValid() && agent.targetVisible) {
+                    changeState(agent, AiState::Chase);
+                    break;
+                }
+                if (distanceBetween(center, agent.home) <= agent.profile.arriveRadius) {
+                    resetPath(path);
+                    changeState(agent, AiState::Idle);
+                    break;
+                }
+                if (!path.hasGoal) {
+                    static_cast<void>(ensurePath(world, agent, path, m_map.worldToGrid(agent.home)));
+                }
+                if (path.hasGoal) {
+                    moveAlongPath(world, id, agent, path, deltaSeconds);
+                } else {
+                    resetPath(path);
+                    changeState(agent, AiState::Idle);
+                }
+                break;
+            }
+            default:
+                changeState(agent, AiState::Idle);
+                break;
+        }
+    });
 }
 
 void AiService::setAggro(scene::World& world, scene::EntityId agentId, scene::EntityId target) {
@@ -472,8 +462,7 @@ tilemap::TileCoord AiService::cellAt(const scene::World& world, scene::EntityId 
     return m_map.worldToGrid(agentCenter(world, agent));
 }
 
-bool AiService::ensurePath(const scene::World& world, AiAgent&, PathState& path,
-                           tilemap::TileCoord goal) {
+bool AiService::ensurePath(const scene::World& world, AiAgent&, PathState& path, tilemap::TileCoord goal) {
     if (path.hasGoal && path.goal == goal && path.index < path.nodes.size()) {
         return true;
     }
@@ -501,8 +490,8 @@ bool AiService::ensurePath(const scene::World& world, AiAgent&, PathState& path,
     return true;
 }
 
-void AiService::moveAlongPath(scene::World& world, scene::EntityId id, AiAgent& agent, PathState& path,
-                              float deltaSeconds) {
+void AiService::moveAlongPath(
+    scene::World& world, scene::EntityId id, AiAgent& agent, PathState& path, float deltaSeconds) {
     while (path.index < path.nodes.size()) {
         const tilemap::TileCoord waypoint = path.nodes[path.index];
         const core::Vec2 target = core::center(m_map.tileRect(waypoint));
@@ -513,8 +502,7 @@ void AiService::moveAlongPath(scene::World& world, scene::EntityId id, AiAgent& 
             ++path.index;
             continue;
         }
-        static_cast<void>(
-            m_physics.move(world, id, delta / distance * agent.profile.moveSpeed * deltaSeconds));
+        static_cast<void>(m_physics.move(world, id, delta / distance * agent.profile.moveSpeed * deltaSeconds));
         ++m_stats.moves;
         return;
     }
@@ -527,26 +515,25 @@ void AiService::perceive(scene::World& world, scene::EntityId id, AiAgent& agent
     float bestDistance = std::numeric_limits<float>::max();
     const tilemap::TileCoord agentCell = m_map.worldToGrid(center);
 
-    world.each<AiTargetTag, scene::Transform>(
-        [&](scene::EntityId target, const AiTargetTag&, const scene::Transform&) {
-            if (target == id || !world.isAlive(target)) {
-                return;
-            }
-            const player::Health* health = world.tryGet<player::Health>(target);
-            if (health != nullptr && health->current <= 0) {
-                return;
-            }
-            const core::Vec2 targetCenter = agentCenter(world, target);
-            const float distance = distanceBetween(center, targetCenter);
-            if (distance > agent.profile.sightRadius || distance >= bestDistance) {
-                return;
-            }
-            if (!hasLineOfSight(m_map, agentCell, m_map.worldToGrid(targetCenter))) {
-                return;
-            }
-            best = target;
-            bestDistance = distance;
-        });
+    world.each<AiTargetTag, scene::Transform>([&](scene::EntityId target, const AiTargetTag&, const scene::Transform&) {
+        if (target == id || !world.isAlive(target)) {
+            return;
+        }
+        const player::Health* health = world.tryGet<player::Health>(target);
+        if (health != nullptr && health->current <= 0) {
+            return;
+        }
+        const core::Vec2 targetCenter = agentCenter(world, target);
+        const float distance = distanceBetween(center, targetCenter);
+        if (distance > agent.profile.sightRadius || distance >= bestDistance) {
+            return;
+        }
+        if (!hasLineOfSight(m_map, agentCell, m_map.worldToGrid(targetCenter))) {
+            return;
+        }
+        best = target;
+        bestDistance = distance;
+    });
 
     if (best.isValid()) {
         agent.target = best;
@@ -558,8 +545,8 @@ void AiService::perceive(scene::World& world, scene::EntityId id, AiAgent& agent
     }
 }
 
-void AiService::performAttack(scene::World& world, scene::EntityId id, const AiAgent& agent,
-                              core::Vec2 center, core::Vec2 targetCenter) {
+void AiService::performAttack(
+    scene::World& world, scene::EntityId id, const AiAgent& agent, core::Vec2 center, core::Vec2 targetCenter) {
     if (agent.profile.attackDamage <= 0 || (!m_attackHandler && m_combat == nullptr)) {
         return;
     }
@@ -579,12 +566,12 @@ void AiService::performAttack(scene::World& world, scene::EntityId id, const AiA
     hitbox.damage = agent.profile.attackDamage;
     hitbox.targetMask = agent.profile.attackMask;
     hitbox.knockback = direction * 16.0f;
-        if (m_attackHandler) {
-            m_attackHandler(id, hitbox);
-        } else {
-            m_combat->spawnAttack(world, id, hitbox);
-        }
+    if (m_attackHandler) {
+        m_attackHandler(id, hitbox);
+    } else {
+        m_combat->spawnAttack(world, id, hitbox);
     }
+}
 
 void AiService::changeState(AiAgent& agent, AiState state) {
     if (agent.state == state) {

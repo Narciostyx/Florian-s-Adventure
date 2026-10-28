@@ -70,8 +70,8 @@ AudioClip makeTone(float frequencyHz, float durationSeconds, int sampleRate, int
                 envelope = static_cast<float>(frames - 1u - frame) / static_cast<float>(safeRamp);
             }
         }
-        const float sample = static_cast<float>(std::sin(radiansPerFrame * static_cast<double>(frame))) * peak *
-                             envelope;
+        const float sample =
+            static_cast<float>(std::sin(radiansPerFrame * static_cast<double>(frame))) * peak * envelope;
         const std::int16_t pcm = static_cast<std::int16_t>(core::clampf(sample, -1.0f, 1.0f) * 32767.0f);
         for (int channel = 0; channel < channels; ++channel) {
             clip.samples[frame * static_cast<std::size_t>(channels) + static_cast<std::size_t>(channel)] = pcm;

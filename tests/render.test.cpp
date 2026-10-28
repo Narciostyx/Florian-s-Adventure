@@ -129,9 +129,14 @@ TEST_CASE("RenderLayer names every layer", "[render]") {
 }
 
 TEST_CASE("RenderLayer order is the draw order", "[render]") {
-    const RenderLayer order[] = {RenderLayer::Background, RenderLayer::Ground,    RenderLayer::GroundDetail,
-                                 RenderLayer::Objects,    RenderLayer::Actors,    RenderLayer::Foreground,
-                                 RenderLayer::Weather,    RenderLayer::UI};
+    const RenderLayer order[] = {RenderLayer::Background,
+                                 RenderLayer::Ground,
+                                 RenderLayer::GroundDetail,
+                                 RenderLayer::Objects,
+                                 RenderLayer::Actors,
+                                 RenderLayer::Foreground,
+                                 RenderLayer::Weather,
+                                 RenderLayer::UI};
     constexpr std::size_t count = sizeof(order) / sizeof(order[0]);
     REQUIRE(count == static_cast<std::size_t>(RenderLayer::Count));
 
@@ -536,8 +541,7 @@ TEST_CASE("Camera2D rejects a degenerate viewport size", "[render]") {
 TEST_CASE("Camera2D follows a character across a 128x128 map", "[render][camera]") {
     // 128 tiles at 16 px = a 2048x2048 world. The 640x360 viewport is smaller,
     // so the camera can actually move instead of being pinned by the bounds.
-    const Rect map = makeRect(0.0f, 0.0f, 128.0f * fa::render::kTileSize,
-                              128.0f * fa::render::kTileSize);
+    const Rect map = makeRect(0.0f, 0.0f, 128.0f * fa::render::kTileSize, 128.0f * fa::render::kTileSize);
     Camera2D camera;
     camera.setBounds(map);
     camera.setPosition(Vec2{320.0f, 180.0f});

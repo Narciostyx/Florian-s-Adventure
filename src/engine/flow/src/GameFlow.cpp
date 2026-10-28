@@ -12,40 +12,64 @@ namespace fa::flow {
 
 std::string_view toString(AppState state) noexcept {
     switch (state) {
-        case AppState::Boot: return "boot";
-        case AppState::MainMenu: return "main-menu";
-        case AppState::Loading: return "loading";
-        case AppState::Playing: return "playing";
-        case AppState::Paused: return "paused";
-        case AppState::Dialogue: return "dialogue";
-        case AppState::GameOver: return "game-over";
-        case AppState::Quit: return "quit";
-        case AppState::Count: break;
+        case AppState::Boot:
+            return "boot";
+        case AppState::MainMenu:
+            return "main-menu";
+        case AppState::Loading:
+            return "loading";
+        case AppState::Playing:
+            return "playing";
+        case AppState::Paused:
+            return "paused";
+        case AppState::Dialogue:
+            return "dialogue";
+        case AppState::GameOver:
+            return "game-over";
+        case AppState::Quit:
+            return "quit";
+        case AppState::Count:
+            break;
     }
     return "unknown";
 }
 
 std::string_view toString(FlowEventKind kind) noexcept {
     switch (kind) {
-        case FlowEventKind::StateChanged: return "state-changed";
-        case FlowEventKind::NewGame: return "new-game";
-        case FlowEventKind::GameLoaded: return "game-loaded";
-        case FlowEventKind::LoadFailed: return "load-failed";
-        case FlowEventKind::SaveFailed: return "save-failed";
-        case FlowEventKind::Saved: return "saved";
-        case FlowEventKind::Autosaved: return "autosaved";
-        case FlowEventKind::DayEnded: return "day-ended";
-        case FlowEventKind::GameOver: return "game-over";
-        case FlowEventKind::Respawned: return "respawned";
-        case FlowEventKind::MenuReturned: return "menu-returned";
-        case FlowEventKind::QuitRequested: return "quit-requested";
-        case FlowEventKind::Count: break;
+        case FlowEventKind::StateChanged:
+            return "state-changed";
+        case FlowEventKind::NewGame:
+            return "new-game";
+        case FlowEventKind::GameLoaded:
+            return "game-loaded";
+        case FlowEventKind::LoadFailed:
+            return "load-failed";
+        case FlowEventKind::SaveFailed:
+            return "save-failed";
+        case FlowEventKind::Saved:
+            return "saved";
+        case FlowEventKind::Autosaved:
+            return "autosaved";
+        case FlowEventKind::DayEnded:
+            return "day-ended";
+        case FlowEventKind::GameOver:
+            return "game-over";
+        case FlowEventKind::Respawned:
+            return "respawned";
+        case FlowEventKind::MenuReturned:
+            return "menu-returned";
+        case FlowEventKind::QuitRequested:
+            return "quit-requested";
+        case FlowEventKind::Count:
+            break;
     }
     return "unknown";
 }
 
-GameFlow::GameFlow(save::ISaveService* saves, world::WorldCalendar* calendar,
-                   economy::EconomyService* economy, narrative::NarrativeService* narrative)
+GameFlow::GameFlow(save::ISaveService* saves,
+                   world::WorldCalendar* calendar,
+                   economy::EconomyService* economy,
+                   narrative::NarrativeService* narrative)
     : m_saves(saves), m_calendar(calendar), m_economy(economy), m_narrative(narrative) {
     m_session.autosaveIntervalDays = 1;
 }
@@ -171,16 +195,14 @@ core::Status GameFlow::saveGame() {
     if (m_session.slot.empty()) {
         return core::errorStatus(flow_error::kNoSession, "no active game session");
     }
-    if (m_state != AppState::Playing && m_state != AppState::Paused &&
-        m_state != AppState::Dialogue) {
+    if (m_state != AppState::Playing && m_state != AppState::Paused && m_state != AppState::Dialogue) {
         return core::errorStatus(flow_error::kNotPlaying, "saving is only available during play");
     }
     return saveToSlot(m_session.slot, false);
 }
 
 core::Status GameFlow::saveToSlot(std::string_view slot) {
-    if (m_state != AppState::Playing && m_state != AppState::Paused &&
-        m_state != AppState::Dialogue) {
+    if (m_state != AppState::Playing && m_state != AppState::Paused && m_state != AppState::Dialogue) {
         return core::errorStatus(flow_error::kNotPlaying, "saving is only available during play");
     }
     return saveToSlot(slot, false);
@@ -253,8 +275,7 @@ core::Status GameFlow::onDayChanged() {
 }
 
 core::Status GameFlow::settleDay(bool skipClock) {
-    if (m_state != AppState::Playing && m_state != AppState::Paused &&
-        m_state != AppState::Dialogue) {
+    if (m_state != AppState::Playing && m_state != AppState::Paused && m_state != AppState::Dialogue) {
         return core::errorStatus(flow_error::kNotPlaying, "day settlement needs an active session");
     }
 
@@ -264,8 +285,7 @@ core::Status GameFlow::settleDay(bool skipClock) {
             if (m_dayStartHour != world::kStartHour) {
                 // Sleep resumes later than the calendar's default start; restore the
                 // clock before the day handlers and autosave so the save agrees.
-                m_calendar->restore(m_calendar->date(), m_dayStartHour, m_calendar->today(),
-                                    m_calendar->tomorrow());
+                m_calendar->restore(m_calendar->date(), m_dayStartHour, m_calendar->today(), m_calendar->tomorrow());
             }
         } else {
             ++m_day;
@@ -350,8 +370,7 @@ core::Status GameFlow::exitDialogue() {
 }
 
 core::Status GameFlow::requestGameOver(std::string_view reason) {
-    if (m_state != AppState::Playing && m_state != AppState::Paused &&
-        m_state != AppState::Dialogue) {
+    if (m_state != AppState::Playing && m_state != AppState::Paused && m_state != AppState::Dialogue) {
         return core::errorStatus(flow_error::kNotPlaying, "game over needs an active session");
     }
     const core::Status moved = transition(AppState::GameOver, reason);
@@ -428,8 +447,7 @@ core::Status GameFlow::transition(AppState next, std::string_view message) {
     }
     if (!canTransition(m_state, next)) {
         return core::errorStatus(flow_error::kInvalidTransition,
-                                 std::string("cannot transition from ") +
-                                     std::string(toString(m_state)) + " to " +
+                                 std::string("cannot transition from ") + std::string(toString(m_state)) + " to " +
                                      std::string(toString(next)));
     }
 
@@ -457,22 +475,19 @@ bool GameFlow::canTransition(AppState from, AppState to) const noexcept {
     }
     switch (to) {
         case AppState::MainMenu:
-            return from == AppState::Boot || from == AppState::Loading ||
-                   from == AppState::Playing || from == AppState::Paused ||
-                   from == AppState::Dialogue || from == AppState::GameOver;
+            return from == AppState::Boot || from == AppState::Loading || from == AppState::Playing ||
+                   from == AppState::Paused || from == AppState::Dialogue || from == AppState::GameOver;
         case AppState::Loading:
-            return from == AppState::Boot || from == AppState::MainMenu ||
-                   from == AppState::GameOver;
+            return from == AppState::Boot || from == AppState::MainMenu || from == AppState::GameOver;
         case AppState::Playing:
-            return from == AppState::Loading || from == AppState::Paused ||
-                   from == AppState::Dialogue || from == AppState::GameOver;
+            return from == AppState::Loading || from == AppState::Paused || from == AppState::Dialogue ||
+                   from == AppState::GameOver;
         case AppState::Paused:
             return from == AppState::Playing;
         case AppState::Dialogue:
             return from == AppState::Playing;
         case AppState::GameOver:
-            return from == AppState::Playing || from == AppState::Paused ||
-                   from == AppState::Dialogue;
+            return from == AppState::Playing || from == AppState::Paused || from == AppState::Dialogue;
         case AppState::Boot:
         case AppState::Count:
             return false;
@@ -490,8 +505,7 @@ void GameFlow::applyPauseState(AppState state) {
     }
 }
 
-void GameFlow::record(FlowEventKind kind, std::string_view slot, int day,
-                      std::string_view message) {
+void GameFlow::record(FlowEventKind kind, std::string_view slot, int day, std::string_view message) {
     FlowEvent event;
     event.kind = kind;
     event.from = m_state;

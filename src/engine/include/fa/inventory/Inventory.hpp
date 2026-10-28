@@ -59,8 +59,7 @@ public:
     /// \param slotCount Clamped to at least 0.
     /// \param defaultMaxStack Clamped to at least 1; used when content has no item.
     /// \param content Borrowed and may be null; setContentDatabase() can bind it later.
-    explicit Inventory(int slotCount, int defaultMaxStack = 99,
-                       const content::ContentDatabase* content = nullptr);
+    explicit Inventory(int slotCount, int defaultMaxStack = 99, const content::ContentDatabase* content = nullptr);
 
     Inventory(const Inventory&) = default;
     Inventory& operator=(const Inventory&) = default;

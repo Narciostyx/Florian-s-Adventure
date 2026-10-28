@@ -10,7 +10,9 @@ namespace fa::platform::detail {
 
 SdlGlContext::SdlGlContext(SdlWindow& window) : m_window(window) {}
 
-SdlGlContext::~SdlGlContext() { destroyContext(); }
+SdlGlContext::~SdlGlContext() {
+    destroyContext();
+}
 
 fa::core::Status SdlGlContext::createContext(const GlContextDesc& desc) {
     destroyContext();
@@ -63,7 +65,9 @@ void SdlGlContext::destroyContext() {
     m_swapInterval = 0;
 }
 
-bool SdlGlContext::hasContext() const { return m_context != nullptr; }
+bool SdlGlContext::hasContext() const {
+    return m_context != nullptr;
+}
 
 bool SdlGlContext::makeCurrent() {
     if (m_context == nullptr || m_contextWindow == nullptr) {
@@ -89,7 +93,9 @@ bool SdlGlContext::setSwapInterval(int interval) {
     return true;
 }
 
-int SdlGlContext::swapInterval() const { return m_swapInterval; }
+int SdlGlContext::swapInterval() const {
+    return m_swapInterval;
+}
 
 void* SdlGlContext::procAddress(std::string_view name) {
     if (m_context == nullptr || name.empty()) {

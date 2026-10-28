@@ -11,8 +11,7 @@ namespace {
 
 [[nodiscard]] std::string formatVector(core::Vec2 value) {
     char buffer[64]{};
-    std::snprintf(buffer, sizeof(buffer), "(%.1f, %.1f)", static_cast<double>(value.x),
-                  static_cast<double>(value.y));
+    std::snprintf(buffer, sizeof(buffer), "(%.1f, %.1f)", static_cast<double>(value.x), static_cast<double>(value.y));
     return buffer;
 }
 
@@ -25,8 +24,7 @@ std::vector<EntityInspection> inspectWorld(const scene::World& world, std::size_
     }
     result.reserve(maxEntities < 64 ? maxEntities : 64);
 
-    world.each<scene::Transform>([&result, &world, maxEntities](scene::EntityId id,
-                                                                const scene::Transform& transform) {
+    world.each<scene::Transform>([&result, &world, maxEntities](scene::EntityId id, const scene::Transform& transform) {
         if (result.size() >= maxEntities) {
             return;
         }
@@ -57,9 +55,13 @@ std::string formatInspection(const EntityInspection& inspection) {
     }
     if (inspection.hasCollider) {
         char buffer[64]{};
-        std::snprintf(buffer, sizeof(buffer), " collider (%.1f, %.1f, %.1f, %.1f)",
-                      static_cast<double>(inspection.collider.x), static_cast<double>(inspection.collider.y),
-                      static_cast<double>(inspection.collider.w), static_cast<double>(inspection.collider.h));
+        std::snprintf(buffer,
+                      sizeof(buffer),
+                      " collider (%.1f, %.1f, %.1f, %.1f)",
+                      static_cast<double>(inspection.collider.x),
+                      static_cast<double>(inspection.collider.y),
+                      static_cast<double>(inspection.collider.w),
+                      static_cast<double>(inspection.collider.h));
         result += buffer;
     }
     return result;

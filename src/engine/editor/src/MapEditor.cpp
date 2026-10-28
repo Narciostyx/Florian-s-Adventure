@@ -86,8 +86,7 @@ core::Status MapEditor::fillRect(tilemap::TileCoord from, tilemap::TileCoord to,
     if (bounds.isEmpty()) {
         return core::errorStatus(core::error_code::kOutOfRange, "rectangle is outside the map");
     }
-    if (static_cast<std::size_t>(bounds.width) * static_cast<std::size_t>(bounds.height) >
-        kMaxEditedCells) {
+    if (static_cast<std::size_t>(bounds.width) * static_cast<std::size_t>(bounds.height) > kMaxEditedCells) {
         return core::errorStatus(core::error_code::kOutOfRange, "rectangle exceeds the edit limit");
     }
 
@@ -121,8 +120,7 @@ core::Status MapEditor::floodFill(tilemap::TileCoord start, tilemap::TileId tile
 
     const int width = m_map.width();
     const int height = m_map.height();
-    std::vector<std::uint8_t> visited(static_cast<std::size_t>(width) * static_cast<std::size_t>(height),
-                                      0);
+    std::vector<std::uint8_t> visited(static_cast<std::size_t>(width) * static_cast<std::size_t>(height), 0);
     std::vector<tilemap::TileCoord> stack;
     std::vector<TileChange> changes;
     stack.push_back(start);
@@ -136,8 +134,8 @@ core::Status MapEditor::floodFill(tilemap::TileCoord start, tilemap::TileId tile
         if (!m_map.contains(cell.x, cell.y)) {
             continue;
         }
-        const std::size_t index = static_cast<std::size_t>(cell.y) * static_cast<std::size_t>(width) +
-                                  static_cast<std::size_t>(cell.x);
+        const std::size_t index =
+            static_cast<std::size_t>(cell.y) * static_cast<std::size_t>(width) + static_cast<std::size_t>(cell.x);
         if (visited[index] != 0) {
             continue;
         }
