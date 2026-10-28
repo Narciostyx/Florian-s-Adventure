@@ -9,7 +9,8 @@
 > 商店做汤/收取、F3 角色坐标、背包面板、荆棘死亡/床边复活、
 > 死亡菜单（复活/读自动存档/主菜单）、叙事/AI/世界对象/生命存档、
 > 林地敌人反击与受击闪烁/伤害数字，数据/配置/地图 JSON/PNG 纹理均已接通；
-> 剩余攻击动画/命中音效与内容量。
+> 3 作物 / 2 敌人 / 12 物品 / 8 SFX + 1 音乐已由 JSON 提供；
+> 剩余攻击动画与真实美术/音频素材。
 > 详见 [计划完成情况](docs/plan-status.md) 与 [垂直切片](docs/roadmap/vertical-slice.md)。
 
 ## 目标
@@ -88,7 +89,7 @@ Florian-s-Adventure/
 │  ├─ game/          # 玩法层：player / farming / combat / ai / npc ...
 │  └─ app/           # 唯一 composition root 与 main
 ├─ assets/           # 纹理 PNG（当前为纯色/棋盘占位）
-├─ data/             # 内容/商店/叙事/资源目录/实体生成表 JSON
+├─ data/             # 内容/商店/叙事/音频/资源目录/实体生成表 JSON（格式见 docs/content-format.md）
 ├─ config/           # game.json（窗口/UI 缩放/路径/玩法参数）
 ├─ tools/            # 资源导入、校验、打包工具
 ├─ tests/            # 单元测试与集成测试
@@ -133,10 +134,10 @@ $msbuild='C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\
 | `Space` | 闪避/冲刺，消耗一次体力 |
 | `1`–`9` / 滚轮 | 选择快捷栏（1 锄头、2 浇水壶、3 萝卜种子） |
 | 左键 | 使用当前工具/种子；指向成熟作物自动收获（消耗体力） |
-| 右键 | 近战攻击（伤害读取装备武器 `damage`）；林地史莱姆会追击/反击；命中显示受击闪烁与 `-N` 伤害数字，敌人死亡掉落并自动拾取 |
+| 右键 | 近战攻击（伤害读取装备武器 `damage`）；林地史莱姆/蝙蝠会追击/反击；命中显示受击闪烁、`-N` 伤害数字与 SFX，敌人死亡掉落并自动拾取 |
 | `F` | 食用选中的食物（汤：+20 HP、+30 体力） |
 | `E` | Elder 对话；床边睡觉；出货箱出货；商人开商店（季节库存/每日余量/今日价，可做汤/收取） |
-| 林地 | 两个史莱姆会主动索敌/攻击；被它们打倒同样进入死亡菜单 |
+| 林地 | 史莱姆与快速蝙蝠会主动索敌/攻击；被打倒同样进入死亡菜单 |
 | `I` | 打开背包：`ALL/SEED/CROP/FOOD/TOOL/WEAPON/OTHER` 分类 + `PREV/NEXT`/滚轮翻页，点击 MOVE 移动物品 |
 | `J` | 打开任务日志（进行中/已完成与目标进度） |
 | `Esc` | 关闭面板 / 暂停（继续/保存/存档槽/主菜单） |
@@ -149,6 +150,8 @@ $msbuild='C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\
 武器伤害与食物效果在 `data/content.json` 的 `damage`、`heal_amount`、
 `stamina_restore` 字段配置。商店面板提供 `COOK SOUP`（消耗 2 个萝卜，30 游戏分钟）与 `COLLECT`；
 `data/shops.json` 的 `seasons` 控制季节库存，`price_swing` 控制按日价格波动幅度。
+`data/audio.json` 配置 8 个 SFX 与 1 首循环音乐（程序化音色），`data/catalog.json`
+注册纹理；完整字段见 [内容 JSON 格式](docs/content-format.md)。
 
 存档包含日期/时间/天气、位置/朝向/生命/耐力、背包/快捷栏/装备、农田/作物、
 金币/出货/加工/商店余量、地面掉落、敌人存活与生命、杂物/放置物、AI 状态/目标，

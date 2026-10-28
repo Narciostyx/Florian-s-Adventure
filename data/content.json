@@ -66,8 +66,58 @@
       "tags": [
         "weapon"
       ]
-    }
-  ],
+        },
+        {
+          "id": "item.potato_seed",
+          "display_name": "Potato Seed",
+          "category": "seed",
+          "tool_kind": "seed",
+          "max_stack": 99,
+          "sell_price": 8,
+          "tags": ["seed", "summer"]
+        },
+        {
+          "id": "item.potato",
+          "display_name": "Potato",
+          "category": "crop",
+          "max_stack": 99,
+          "sell_price": 55,
+          "tags": ["crop", "summer"]
+        },
+        {
+          "id": "item.strawberry_seed",
+          "display_name": "Strawberry Seed",
+          "category": "seed",
+          "tool_kind": "seed",
+          "max_stack": 99,
+          "sell_price": 15,
+          "tags": ["seed", "spring"]
+        },
+        {
+          "id": "item.strawberry",
+          "display_name": "Strawberry",
+          "category": "crop",
+          "max_stack": 99,
+          "sell_price": 70,
+          "tags": ["crop", "spring"]
+        },
+        {
+          "id": "item.slime_gel",
+          "display_name": "Slime Gel",
+          "category": "material",
+          "max_stack": 99,
+          "sell_price": 12,
+          "tags": ["material", "loot"]
+        },
+        {
+          "id": "item.bat_wing",
+          "display_name": "Bat Wing",
+          "category": "material",
+          "max_stack": 99,
+          "sell_price": 18,
+          "tags": ["material", "loot"]
+        }
+      ],
   "crops": [
     {
       "id": "crop.turnip",
@@ -90,8 +140,39 @@
       "regrow": false,
       "regrow_days": 0,
       "seed_sprite": "tex.crop.turnip_seed"
-    }
-  ],
+          },
+          {
+            "id": "crop.potato",
+            "seed_item": "item.potato_seed",
+            "harvest_item": "item.potato",
+            "stage_days": [1, 2, 3],
+            "stage_sprites": [
+              "tex.crop.potato_sprout",
+              "tex.crop.potato_young",
+              "tex.crop.potato_mature"
+            ],
+            "seasons": ["spring", "summer"],
+            "regrow": false,
+            "regrow_days": 0,
+            "seed_sprite": "tex.crop.potato_seed"
+          },
+          {
+            "id": "crop.strawberry",
+            "seed_item": "item.strawberry_seed",
+            "harvest_item": "item.strawberry",
+            "stage_days": [2, 2, 2, 2],
+            "stage_sprites": [
+              "tex.crop.strawberry_sprout",
+              "tex.crop.strawberry_young",
+              "tex.crop.strawberry_young",
+              "tex.crop.strawberry_mature"
+            ],
+            "seasons": ["spring", "summer"],
+            "regrow": true,
+            "regrow_days": 3,
+            "seed_sprite": "tex.crop.strawberry_seed"
+          }
+        ],
   "recipes": [
     {
       "id": "recipe.turnip_soup",
@@ -120,8 +201,16 @@
       "tags": [
         "slime"
       ]
-    }
-  ],
+        },
+        {
+          "id": "enemy.bat",
+          "max_health": 18,
+          "damage": 7,
+          "move_speed": 90,
+          "loot_table": "loot.bat",
+          "tags": ["bat", "forest"]
+        }
+      ],
   "loot_tables": [
     {
       "id": "loot.slime",
@@ -131,9 +220,26 @@
           "min_amount": 1,
           "max_amount": 2,
           "chance": 0.5
-        }
-      ]
-    },
+            },
+            {
+              "item": "item.slime_gel",
+              "min_amount": 1,
+              "max_amount": 1,
+              "chance": 0.6
+            }
+          ]
+        },
+        {
+          "id": "loot.bat",
+          "entries": [
+            {
+              "item": "item.bat_wing",
+              "min_amount": 1,
+              "max_amount": 2,
+              "chance": 1.0
+            }
+          ]
+        },
     {
       "id": "loot.test",
       "entries": [

@@ -1205,7 +1205,7 @@ classDiagram
 | `AssetUploaderAdapter` | 把 M05 的 `ITextureUploader` 桥到 M06 `IRenderer` |
 | `fa::app::GameConfig` | `config/game.json` → 窗口/UI 缩放/路径/玩法参数/体力参数（`stamina`），缺失逐项回落 |
 | `fa::app::StbImageDecoder` | 注册给 M05 的 PNG/JPG/TGA/BMP 解码器（独立 TU） |
-| `EntitySpawn` / `parseEntitySpawns` | `data/entities.json` 的 bed/shipping/merchant/enemy/hazard 生成表 |
+| `EntitySpawn` / `parseEntitySpawns` | `data/entities.json` 的 bed/shipping/merchant/enemy/hazard 生成表；敌人可选 `texture`/`tint`/`sight_radius`/`attack_range`/`move_speed`/`attack_damage`/`attack_cooldown` |
 | `EventsAndJobsDemo` | 演示 M03 的 tick/upload 事件与作业完成 |
 | `CountingToolHandler` | 记录一次 M17 工具调用（Sword），避免与 M19 冲突 |
 | `ConsumableUseHandler` | 记录一次 M18 食物使用 |
@@ -1218,6 +1218,8 @@ classDiagram
 **启动选项**：`--window` 显示窗口并默认进入 play（可用 `--play` 显式指定）；`--frames N` 无窗口时跑 scripted smoke；`--play-test` 无头跑通对话/任务/种植/战斗/换图/存档并返回失败码。
 
 **地图装配**：`makeDemoScene(map, spawn)` 按 `DemoMap` 选择 `maps/farm.json`、`maps/farm-scripted.json` 或 `maps/forest.json`，把文本交给 `DemoScene`；`loadTilemapFromJson()` 成功后 `m_mapLoaded=true`，失败则用 `buildWorld()` 的代码内布局。`switchMap()` 调 `SceneStack::replace()`，随后重建编辑器并重新链玩家快捷栏；`GameState` 保证农田/叙事/生命耐力跨图不丢。
+
+**内容接线**：`data/content.json`（物品/作物/配方/敌人/掉落）、`data/entities.json`（摆放与敌人 AI）、`data/shops.json`（季节库存/价格波动）、`data/audio.json`（8 SFX + 1 音乐）、`data/catalog.json`（纹理）共同驱动 play；app 遍历 catalog 加载全部 texture，场景按名称查表，因此新增贴图/作物/敌人不需要改 C++。字段见 [内容 JSON 格式](content-format.md)。
 
 **存档接线**：`fillSaveContext()` 写 `world.objects`（role → alive/position/health）、`world.debris`、`world.ai`（role 数组：`AiAgentSnapshot` + target role）、`quests`（`NarrativeSnapshot`）与 `player.health`；`applySaveFile()` 在 play 模式先 `switchMap()` 重建当前地图，再恢复这些段，已死敌人/杂物/AI 目标不会残留。
 

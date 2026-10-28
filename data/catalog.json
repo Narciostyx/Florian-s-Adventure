@@ -134,6 +134,78 @@
       ],
       "color": "#4fa84a",
       "altColor": "#2f7a36"
+        },
+        {
+          "id": "tex.crop.potato_seed",
+          "kind": "texture",
+          "path": "potato_seed.png",
+          "size": [16, 16],
+          "color": "#6b4a2f",
+          "altColor": "#a97c4f"
+        },
+        {
+          "id": "tex.crop.potato_sprout",
+          "kind": "texture",
+          "path": "potato_sprout.png",
+          "size": [16, 16],
+          "color": "#3f7d32",
+          "altColor": "#5fae45"
+        },
+        {
+          "id": "tex.crop.potato_young",
+          "kind": "texture",
+          "path": "potato_young.png",
+          "size": [16, 16],
+          "color": "#3f7d32",
+          "altColor": "#7ac95a"
+        },
+        {
+          "id": "tex.crop.potato_mature",
+          "kind": "texture",
+          "path": "potato_mature.png",
+          "size": [16, 16],
+          "color": "#a67c52",
+          "altColor": "#c6a070"
+        },
+        {
+          "id": "tex.crop.strawberry_seed",
+          "kind": "texture",
+          "path": "strawberry_seed.png",
+          "size": [16, 16],
+          "color": "#6b4a2f",
+          "altColor": "#a97c4f"
+        },
+        {
+          "id": "tex.crop.strawberry_sprout",
+          "kind": "texture",
+          "path": "strawberry_sprout.png",
+          "size": [16, 16],
+          "color": "#3f7d32",
+          "altColor": "#5fae45"
+        },
+        {
+          "id": "tex.crop.strawberry_young",
+          "kind": "texture",
+          "path": "strawberry_young.png",
+          "size": [16, 16],
+          "color": "#3f7d32",
+          "altColor": "#7ac95a"
+        },
+        {
+          "id": "tex.crop.strawberry_mature",
+          "kind": "texture",
+          "path": "strawberry_mature.png",
+          "size": [16, 16],
+          "color": "#c43640",
+          "altColor": "#e86068"
+        },
+        {
+          "id": "tex.enemy.bat",
+          "kind": "texture",
+          "path": "bat.png",
+          "size": [16, 16],
+          "color": "#4e3e6e",
+          "altColor": "#947cbe"
+        }
+      ]
     }
-  ]
-}

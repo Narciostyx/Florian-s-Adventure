@@ -20,6 +20,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -505,6 +506,17 @@ inline constexpr float kHitFlashSeconds = 0.12f;
 inline constexpr float kDamageTextSeconds = 0.7f;
 inline constexpr std::size_t kMaxDamageTexts = 32;
 
+/// \brief One procedural clip from `data/audio.json`.
+struct AudioClipDef {
+    std::string id;
+    fa::audio::AudioBus bus = fa::audio::AudioBus::SFX;
+    float frequency = 440.0f;
+    float duration = 0.2f;
+    float amplitude = 0.25f;
+    float volume = 0.6f;
+    bool loop = false;
+};
+
 /// \brief One play-mode entity from `data/entities.json`.
 struct EntitySpawn {
     std::string id;
@@ -520,6 +532,12 @@ struct EntitySpawn {
     int health = 20;
     std::string loot;
     int damage = 5;
+    /// \brief Optional AI tuning; omitted fields keep the slime defaults.
+    float sightRadius = 150.0f;
+    float attackRange = 22.0f;
+    float moveSpeed = 42.0f;
+    int attackDamage = 6;
+    float attackCooldown = 1.2f;
 };
 
 /// \brief Parses and validates the entity spawn table; bad rows are skipped.
@@ -566,6 +584,11 @@ struct EntitySpawn {
         static_cast<void>(entry.getInt("health", spawn.health));
         static_cast<void>(entry.getString("loot", spawn.loot));
         static_cast<void>(entry.getInt("damage", spawn.damage));
+        static_cast<void>(entry.getFloat("sight_radius", spawn.sightRadius));
+        static_cast<void>(entry.getFloat("attack_range", spawn.attackRange));
+        static_cast<void>(entry.getFloat("move_speed", spawn.moveSpeed));
+        static_cast<void>(entry.getInt("attack_damage", spawn.attackDamage));
+        static_cast<void>(entry.getFloat("attack_cooldown", spawn.attackCooldown));
 
         const bool duplicate =
             std::any_of(spawns.begin(), spawns.end(), [&spawn](const EntitySpawn& existing) {
@@ -1172,6 +1195,14 @@ public:
     [[nodiscard]] fa::scene::EntityId combatDummy2() const noexcept { return m_combatDummy2; }
     [[nodiscard]] fa::scene::EntityId forestDummy1() const noexcept { return m_forestDummy1; }
     [[nodiscard]] fa::scene::EntityId forestDummy2() const noexcept { return m_forestDummy2; }
+    [[nodiscard]] std::size_t enemyCount() const noexcept { return m_enemyIds.size(); }
+    [[nodiscard]] fa::scene::EntityId enemyAt(std::size_t index) const noexcept {
+        return index < m_enemyIds.size() ? m_enemyIds[index] : fa::scene::EntityId{};
+    }
+    [[nodiscard]] std::string_view enemyRole(std::size_t index) const noexcept {
+        return index < m_enemyRoles.size() ? std::string_view(m_enemyRoles[index])
+                                           : std::string_view{};
+    }
     [[nodiscard]] fa::scene::EntityId aiAgentEntity() const noexcept { return m_aiAgentEntity; }
     [[nodiscard]] fa::scene::EntityId aiDecoyEntity() const noexcept { return m_aiTargetEntity; }
     [[nodiscard]] fa::scene::EntityId placedEntity() const noexcept { return m_placedEntity; }
@@ -1225,8 +1256,20 @@ public:
         return spawn.hasPosition ? spawn.position : m_map.gridToWorld(spawn.cell);
     }
 
+    /// \brief Catalog-driven texture table owned by the composition root.
+    void setNamedTextures(
+        const std::unordered_map<std::string, fa::render::TextureHandle>* textures) {
+        m_namedTextures = textures;
+    }
+
     /// \brief Maps a catalog texture name to one of the handles the scene owns.
     [[nodiscard]] fa::render::TextureHandle textureForName(std::string_view name) const {
+        if (m_namedTextures != nullptr) {
+            const auto found = m_namedTextures->find(std::string(name));
+            if (found != m_namedTextures->end() && found->second.isValid()) {
+                return found->second;
+            }
+        }
         if (name == "tex.ground.grass") {
             return m_grass;
         }
@@ -1828,20 +1871,27 @@ private:
                 world().add<fa::ai::AiTargetTag>(m_markerEntity, fa::ai::AiTargetTag{}));
         }
 
-        const auto makeDummy = [this](fa::core::Vec2 position, int health, std::string_view loot)
-            -> fa::scene::EntityId {
+        const auto makeDummy = [this](fa::core::Vec2 position, int health, std::string_view loot,
+                                      std::string_view textureName, fa::core::Color tint,
+                                      const EntitySpawn* tuning) -> fa::scene::EntityId {
             const fa::scene::EntityId id = world().create();
             fa::scene::Transform transform;
             transform.position = position;
             static_cast<void>(world().add<fa::scene::Transform>(id, transform));
 
             fa::scene::Sprite sprite;
-            const bool hasSlime = m_slime.isValid();
-            sprite.texture = hasSlime ? m_slime : m_wall;
+            if (!textureName.empty()) {
+                sprite.texture = textureForName(textureName);
+                sprite.tint = tint;
+            } else if (m_slime.isValid()) {
+                sprite.texture = m_slime;
+                sprite.tint = fa::core::Color{1.0f, 1.0f, 1.0f, 1.0f};
+            } else {
+                sprite.texture = m_wall;
+                sprite.tint = fa::core::Color{1.0f, 0.55f, 0.55f, 1.0f};
+            }
             sprite.size = fa::core::Vec2{16.0f, 16.0f};
             sprite.layer = fa::render::RenderLayer::Objects;
-            sprite.tint = hasSlime ? fa::core::Color{1.0f, 1.0f, 1.0f, 1.0f}
-                                   : fa::core::Color{1.0f, 0.55f, 0.55f, 1.0f};
             static_cast<void>(world().add<fa::scene::Sprite>(id, sprite));
 
             fa::physics::Collider collider;
@@ -1861,15 +1911,18 @@ private:
             static_cast<void>(world().add<fa::combat::LootSource>(id, lootSource));
 
             // Forest enemies chase and hit the player; farm dummies stay as training
-            // targets for the scripted smoke and the manual test route.
+            // targets for the scripted smoke and the manual test route. Tuning comes
+            // from `data/entities.json`, so a new enemy is data-only.
             if (!m_scripted && !isFarm()) {
                 fa::ai::AiAgent agent;
                 agent.home = fa::core::Vec2{position.x + 8.0f, position.y + 8.0f};
-                agent.profile.sightRadius = 150.0f;
-                agent.profile.attackRange = 22.0f;
-                agent.profile.moveSpeed = 42.0f;
-                agent.profile.attackDamage = 6;
-                agent.profile.attackCooldown = 1.2f;
+                agent.profile.sightRadius = tuning != nullptr ? tuning->sightRadius : 150.0f;
+                agent.profile.attackRange = tuning != nullptr ? tuning->attackRange : 22.0f;
+                agent.profile.moveSpeed = tuning != nullptr ? tuning->moveSpeed : 42.0f;
+                agent.profile.attackDamage =
+                    tuning != nullptr ? tuning->attackDamage : 6;
+                agent.profile.attackCooldown =
+                    tuning != nullptr ? tuning->attackCooldown : 1.2f;
                 agent.profile.fleeHealthRatio = 0.0f;
                 agent.profile.loseTargetSeconds = 4.0f;
                 agent.profile.repathSeconds = 0.6f;
@@ -1882,23 +1935,46 @@ private:
         };
 
         if (isFarm()) {
-            m_combatDummy1 = makeDummy(fa::core::Vec2{300.0f, 220.0f}, 20, "loot.test");
-            m_combatDummy2 = makeDummy(fa::core::Vec2{300.0f, 240.0f}, 30, "loot.slime");
+            m_combatDummy1 = makeDummy(fa::core::Vec2{300.0f, 220.0f}, 20, "loot.test", {},
+                                       fa::core::Color{1.0f, 1.0f, 1.0f, 1.0f}, nullptr);
+            m_combatDummy2 = makeDummy(fa::core::Vec2{300.0f, 240.0f}, 30, "loot.slime", {},
+                                       fa::core::Color{1.0f, 1.0f, 1.0f, 1.0f}, nullptr);
             return;
         }
 
         const std::vector<const EntitySpawn*> enemies = findSpawns("enemy");
+        const auto spawnEnemy = [&](std::size_t index, fa::core::Vec2 fallbackPosition,
+                                    int fallbackHealth, std::string_view fallbackLoot) {
+            const EntitySpawn* spawn = index < enemies.size() ? enemies[index] : nullptr;
+            const fa::core::Vec2 position =
+                spawn != nullptr ? spawnPosition(*spawn) : fallbackPosition;
+            const int health = spawn != nullptr ? spawn->health : fallbackHealth;
+            const std::string loot = spawn != nullptr ? spawn->loot : std::string(fallbackLoot);
+            const fa::scene::EntityId id = makeDummy(
+                position, health, loot, spawn != nullptr ? spawn->texture : std::string_view{},
+                spawn != nullptr ? spawn->tint : fa::core::Color{1.0f, 1.0f, 1.0f, 1.0f},
+                spawn);
+            m_enemyIds.push_back(id);
+            m_enemyRoles.push_back(index == 0
+                                       ? "dummy1"
+                                       : (index == 1
+                                              ? "dummy2"
+                                              : (spawn != nullptr ? spawn->id
+                                                                  : "enemy" +
+                                                                        std::to_string(index))));
+            return id;
+        };
         if (enemies.empty()) {
-            m_forestDummy1 = makeDummy(fa::core::Vec2{320.0f, 128.0f}, 25, "loot.slime");
-            m_forestDummy2 = makeDummy(fa::core::Vec2{400.0f, 224.0f}, 20, "loot.test");
-        } else {
-            if (enemies.size() >= 1) {
-                m_forestDummy1 = makeDummy(spawnPosition(*enemies[0]), enemies[0]->health,
-                                           enemies[0]->loot);
-            }
-            if (enemies.size() >= 2) {
-                m_forestDummy2 = makeDummy(spawnPosition(*enemies[1]), enemies[1]->health,
-                                           enemies[1]->loot);
+            m_forestDummy1 = spawnEnemy(0, fa::core::Vec2{320.0f, 128.0f}, 25, "loot.slime");
+            m_forestDummy2 = spawnEnemy(1, fa::core::Vec2{400.0f, 224.0f}, 20, "loot.test");
+            return;
+        }
+        for (std::size_t index = 0; index < enemies.size(); ++index) {
+            const fa::scene::EntityId id = spawnEnemy(index, fa::core::Vec2{}, 20, "loot.test");
+            if (index == 0) {
+                m_forestDummy1 = id;
+            } else if (index == 1) {
+                m_forestDummy2 = id;
             }
         }
     }
@@ -2276,6 +2352,10 @@ private:
     fa::scene::EntityId m_combatDummy2;
     fa::scene::EntityId m_forestDummy1;
     fa::scene::EntityId m_forestDummy2;
+    /// \brief Every enemy spawned from `data/entities.json`, with its save role.
+    std::vector<fa::scene::EntityId> m_enemyIds;
+    std::vector<std::string> m_enemyRoles;
+    const std::unordered_map<std::string, fa::render::TextureHandle>* m_namedTextures = nullptr;
     CombatDemoStats m_combatStats;
     /// \brief M21 service and the scripted agent/decoy pair.
     std::unique_ptr<fa::ai::AiService> m_ai;
@@ -2523,6 +2603,7 @@ public:
                                  gpuTextureOf(cropSproutTexture), gpuTextureOf(cropYoungTexture),
                                  gpuTextureOf(cropMatureTexture), gpuTextureOf(chestTexture),
                                  gpuTextureOf(slimeTexture));
+        scene->setNamedTextures(&namedTextureHandles);
         return scene;
     }
 
@@ -2631,6 +2712,30 @@ public:
         loadOptional("tex.crop.turnip_mature", cropMatureTexture);
         loadOptional("tex.object.chest", chestTexture);
         loadOptional("tex.enemy.slime", slimeTexture);
+
+        // Load every other catalog texture generically so new crops/enemies only need
+        // a catalog entry plus a PNG; no code change is required for the handle table.
+        namedTextureAssets.clear();
+        namedTextureHandles.clear();
+        for (const fa::assets::AssetEntry& entry : catalog.entries()) {
+            if (entry.kind != fa::assets::AssetKind::Texture) {
+                continue;
+            }
+            fa::core::Result<fa::assets::AssetHandle<fa::assets::TextureAsset>> loaded =
+                assets->loadTexture(entry.id);
+            if (loaded.isError() || !loaded.value()) {
+                std::printf("asset: %s unavailable, using fallback\n", entry.id.name().c_str());
+                continue;
+            }
+            fa::assets::AssetHandle<fa::assets::TextureAsset> handle = std::move(loaded).take();
+            const fa::assets::TextureAsset* texture = handle.get();
+            if (texture == nullptr) {
+                continue;
+            }
+            namedTextureHandles[entry.id.name()] =
+                fa::render::TextureHandle{texture->gpuTexture};
+            namedTextureAssets[entry.id.name()] = std::move(handle);
+        }
 
         const fa::assets::TextureAsset* grassAsset = grassTexture.get();
         const fa::assets::TextureAsset* wallAsset = wallTexture.get();
@@ -3157,6 +3262,11 @@ public:
         if (role == "dummy2") {
             return demoScene->forestDummy2();
         }
+        for (std::size_t index = 2; index < demoScene->enemyCount(); ++index) {
+            if (role == demoScene->enemyRole(index)) {
+                return demoScene->enemyAt(index);
+            }
+        }
         return {};
     }
 
@@ -3188,6 +3298,11 @@ public:
         }
         if (id == demoScene->forestDummy2()) {
             return "dummy2";
+        }
+        for (std::size_t index = 2; index < demoScene->enemyCount(); ++index) {
+            if (id == demoScene->enemyAt(index)) {
+                return demoScene->enemyRole(index);
+            }
         }
         return {};
     }
@@ -3307,8 +3422,9 @@ public:
                 writeWorldObject("ai.agent", demoScene->aiAgentEntity());
                 writeWorldObject("ai.decoy", demoScene->aiDecoyEntity());
             } else {
-                writeWorldObject("dummy1", demoScene->forestDummy1());
-                writeWorldObject("dummy2", demoScene->forestDummy2());
+                for (std::size_t index = 0; index < demoScene->enemyCount(); ++index) {
+                    writeWorldObject(demoScene->enemyRole(index), demoScene->enemyAt(index));
+                }
             }
             context.world.setChild("objects", std::move(objects));
 
@@ -3946,11 +4062,86 @@ public:
         return flowDemo;
     }
 
+    /// \brief Loads `data/audio.json`; missing content keeps the built-in fallback.
+    bool loadAudioCatalog() {
+        const std::string text = readDataText("audio.json", std::string_view{});
+        if (text.empty()) {
+            return false;
+        }
+        const fa::core::Result<fa::save::SaveArchive> parsed =
+            fa::save::SaveArchive::parse(text);
+        if (parsed.isError()) {
+            std::printf("audio: %s, using fallback tones\n", parsed.error().message.c_str());
+            return false;
+        }
+        const fa::save::SaveArchive clips = parsed.value().child("clips");
+        if (!clips.isArray()) {
+            std::printf("audio: \"clips\" must be an array, using fallback tones\n");
+            return false;
+        }
+        audioClipDefs.clear();
+        audioClips.clear();
+        for (std::size_t index = 0; index < clips.size(); ++index) {
+            const fa::save::SaveArchive entry = clips.at(index);
+            AudioClipDef def;
+            if (!entry.isObject() || !entry.getString("id", def.id) || def.id.empty()) {
+                continue;
+            }
+            std::string bus;
+            if (entry.getString("bus", bus)) {
+                if (bus == "music") {
+                    def.bus = fa::audio::AudioBus::Music;
+                } else if (bus == "ambience") {
+                    def.bus = fa::audio::AudioBus::Ambience;
+                } else if (bus == "master") {
+                    def.bus = fa::audio::AudioBus::Master;
+                }
+            }
+            static_cast<void>(entry.getFloat("frequency_hz", def.frequency));
+            static_cast<void>(entry.getFloat("duration", def.duration));
+            static_cast<void>(entry.getFloat("amplitude", def.amplitude));
+            static_cast<void>(entry.getFloat("volume", def.volume));
+            static_cast<void>(entry.getBool("loop", def.loop));
+            if (def.frequency <= 0.0f || def.duration <= 0.0f) {
+                std::printf("audio: clip %s has a non-positive frequency/duration\n",
+                            def.id.c_str());
+                continue;
+            }
+            def.amplitude = fa::core::clampf(def.amplitude, 0.0f, 1.0f);
+            def.volume = fa::core::clampf(def.volume, 0.0f, 1.0f);
+            audioClipDefs[def.id] = def;
+            audioClips[def.id] = std::make_shared<fa::audio::AudioClip>(
+                fa::audio::makeTone(def.frequency, def.duration, 48000, 2, def.amplitude));
+        }
+        return !audioClips.empty();
+    }
+
+    /// \brief Plays one catalog clip; unknown ids and a missing device are no-ops.
+    void playSfx(std::string_view id, float volumeScale = 1.0f) {
+        if (audioEngine == nullptr) {
+            return;
+        }
+        const auto clip = audioClips.find(std::string(id));
+        if (clip == audioClips.end() || !clip->second) {
+            return;
+        }
+        const auto def = audioClipDefs.find(std::string(id));
+        fa::audio::SoundDesc desc;
+        if (def != audioClipDefs.end()) {
+            desc.bus = def->second.bus;
+            desc.volume = def->second.volume * volumeScale;
+            desc.loop = def->second.loop;
+        } else {
+            desc.volume = 0.6f * volumeScale;
+        }
+        static_cast<void>(audioEngine->play(clip->second, desc));
+    }
+
     /// \brief Opens the platform audio device and starts the scripted M08 voices.
     ///
-    /// v1 has no decoder, so the clips are generated here: a 0.25 s 440 Hz tone
-    /// followed by 0.1 s of silence, plus a looping 220 Hz tone. The one-shot is
-    /// stopped after two rendered frames in onRender().
+    /// v1 has no decoder, so clips come from `data/audio.json` as tone specs. The
+    /// built-in fallback is a 0.25 s 440 Hz tone followed by 0.1 s of silence and a
+    /// looping 220 Hz tone. The one-shot is stopped after two rendered frames.
     fa::core::Status initializeAudio(fa::platform::IPlatform& platform) {
         fa::platform::IAudioDevice* device = platform.audio();
         if (device == nullptr) {
@@ -3965,25 +4156,48 @@ public:
             return status;
         }
 
-        fa::audio::AudioClip tone = fa::audio::makeTone(440.0f, 0.25f);
-        const fa::audio::AudioClip silence = fa::audio::makeSilence(0.1f);
-        tone.samples.insert(tone.samples.end(), silence.samples.begin(), silence.samples.end());
-        toneClip = std::make_shared<fa::audio::AudioClip>(std::move(tone));
-        loopClip = std::make_shared<fa::audio::AudioClip>(fa::audio::makeTone(220.0f, 0.5f));
-
         audioEngine->setBusVolume(fa::audio::AudioBus::Master, 0.8f);
         audioEngine->setBusVolume(fa::audio::AudioBus::SFX, 0.7f);
 
-        fa::audio::SoundDesc oneShot;
-        oneShot.bus = fa::audio::AudioBus::SFX;
-        oneShot.volume = 0.6f;
-        toneHandle = audioEngine->play(toneClip, oneShot);
+        if (!loadAudioCatalog()) {
+            fa::audio::AudioClip tone = fa::audio::makeTone(440.0f, 0.25f);
+            const fa::audio::AudioClip silence = fa::audio::makeSilence(0.1f);
+            tone.samples.insert(tone.samples.end(), silence.samples.begin(), silence.samples.end());
+            toneClip = std::make_shared<fa::audio::AudioClip>(std::move(tone));
+            loopClip = std::make_shared<fa::audio::AudioClip>(fa::audio::makeTone(220.0f, 0.5f));
 
-        fa::audio::SoundDesc loop;
-        loop.bus = fa::audio::AudioBus::Music;
-        loop.volume = 0.25f;
-        loop.loop = true;
-        loopHandle = audioEngine->play(loopClip, loop);
+            fa::audio::SoundDesc oneShot;
+            oneShot.bus = fa::audio::AudioBus::SFX;
+            oneShot.volume = 0.6f;
+            toneHandle = audioEngine->play(toneClip, oneShot);
+
+            fa::audio::SoundDesc loop;
+            loop.bus = fa::audio::AudioBus::Music;
+            loop.volume = 0.25f;
+            loop.loop = true;
+            loopHandle = audioEngine->play(loopClip, loop);
+            return fa::core::okStatus();
+        }
+
+        // Music: the first looping Music clip in the catalog.
+        for (const auto& [id, def] : audioClipDefs) {
+            if (!def.loop || def.bus != fa::audio::AudioBus::Music) {
+                continue;
+            }
+            fa::audio::SoundDesc music;
+            music.bus = def.bus;
+            music.volume = def.volume;
+            music.loop = true;
+            loopHandle = audioEngine->play(audioClips[id], music);
+            break;
+        }
+        // Keep one shot so the M08 smoke still proves the one-shot path.
+        if (const auto one = audioClips.find("sfx.pickup"); one != audioClips.end()) {
+            fa::audio::SoundDesc oneShot;
+            oneShot.bus = fa::audio::AudioBus::SFX;
+            oneShot.volume = audioClipDefs["sfx.pickup"].volume;
+            toneHandle = audioEngine->play(one->second, oneShot);
+        }
         return fa::core::okStatus();
     }
 
@@ -4205,7 +4419,12 @@ public:
             return fa::core::errorStatus(fa::economy::economy_error::kNotLoaded,
                                          "the shop is not available");
         }
-        return economy->buy(shopGeneralId(), item, count, playerInventory->backpack());
+        const fa::core::Status status =
+            economy->buy(shopGeneralId(), item, count, playerInventory->backpack());
+        if (status.isOk()) {
+            playSfx("sfx.buy");
+        }
+        return status;
     }
 
     /// \brief Sells from the hotbar first, then the backpack.
@@ -4345,6 +4564,22 @@ public:
         }
         const std::string toolName(toString(tool));
         if (status.isOk()) {
+            switch (tool) {
+                case fa::interaction::ToolKind::Hoe:
+                    playSfx("sfx.till");
+                    break;
+                case fa::interaction::ToolKind::WateringCan:
+                    playSfx("sfx.water");
+                    break;
+                case fa::interaction::ToolKind::Seed:
+                    playSfx("sfx.plant");
+                    break;
+                case fa::interaction::ToolKind::Harvest:
+                    playSfx("sfx.harvest");
+                    break;
+                default:
+                    break;
+            }
             setPlayMessage(toolName + " OK");
         } else {
             setPlayMessage(toolName + ": " + status.error().message);
@@ -4521,6 +4756,7 @@ public:
                 continue;
             }
             const bool onPlayer = damage.target == demoScene->playerEntity();
+            playSfx(onPlayer ? "sfx.hurt" : "sfx.hit");
             setPlayMessage((onPlayer ? "HURT " : "HIT ") + std::to_string(damage.amount));
             spawnDamageText(damage.target, damage.amount, onPlayer);
             applyHitFlash(damage.target);
@@ -4599,6 +4835,9 @@ public:
             });
         for (const fa::scene::EntityId id : collected) {
             demoScene->world().destroy(id);
+        }
+        if (!collected.empty()) {
+            playSfx("sfx.pickup");
         }
     }
 
@@ -4791,6 +5030,7 @@ public:
             }
         }
         lastDeathPenalty = penalty;
+        playSfx("sfx.hurt");
         lastDeathReason = reason == "thorns" ? "THORNS" : "COMBAT";
         const fa::core::Status over = flow->requestGameOver(reason);
         if (over.isError()) {
@@ -5082,6 +5322,49 @@ public:
         std::printf("play-test: weapon damage %d (content %d) -> %s\n", weaponDamage(),
                     swordDef != nullptr ? swordDef->damage : 0, weaponOk ? "ok" : "bad");
         ok = ok && weaponOk;
+
+        const fa::content::ContentStats contentStats = content.stats();
+        const fa::content::CropDef* potatoDef =
+            content.crop(fa::content::ContentId::fromName("crop.potato"));
+        const fa::content::CropDef* strawberryDef =
+            content.crop(fa::content::ContentId::fromName("crop.strawberry"));
+        const fa::content::EnemyDef* batDef =
+            content.enemy(fa::content::ContentId::fromName("enemy.bat"));
+        int potatoDays = 0;
+        if (potatoDef != nullptr) {
+            for (const int days : potatoDef->stageDays) {
+                potatoDays += days;
+            }
+        }
+        const bool contentOk =
+            contentStats.items == 12 && contentStats.crops == 3 &&
+            contentStats.enemies == 2 && contentStats.lootTables == 3 &&
+            potatoDef != nullptr && potatoDays == 6 &&
+            strawberryDef != nullptr && strawberryDef->regrow &&
+            strawberryDef->regrowDays == 3 &&
+            strawberryDef->stageSprites.size() == strawberryDef->stageDays.size() &&
+            batDef != nullptr && batDef->maxHealth == 18 &&
+            batDef->lootTable == fa::content::ContentId::fromName("loot.bat");
+        std::printf("play-test: content %zu item(s), %zu crop(s), %zu enemy(ies), "
+                    "%zu loot table(s) -> %s\n",
+                    contentStats.items, contentStats.crops, contentStats.enemies,
+                    contentStats.lootTables, contentOk ? "ok" : "bad");
+        ok = ok && contentOk;
+
+        int sfxCount = 0;
+        bool hasMusic = false;
+        for (const auto& [id, def] : audioClipDefs) {
+            static_cast<void>(id);
+            if (def.bus == fa::audio::AudioBus::Music && def.loop) {
+                hasMusic = true;
+            } else if (def.bus == fa::audio::AudioBus::SFX) {
+                ++sfxCount;
+            }
+        }
+        const bool audioOk = sfxCount >= 8 && hasMusic;
+        std::printf("play-test: audio %d sfx, looping music %s -> %s\n", sfxCount,
+                    hasMusic ? "ok" : "bad", audioOk ? "ok" : "bad");
+        ok = ok && audioOk;
 
         const fa::content::ContentId soup = fa::content::ContentId::fromName("item.turnip_soup");
         const int soupBefore = hotbar.inventory().countOf(soup);
@@ -5486,15 +5769,21 @@ public:
         ok = ok && shipPropOk && merchantPropOk;
 
         bool spawnOk = true;
+        bool batSpawnOk = false;
         for (const EntitySpawn& spawn : entitySpawns) {
             if (spawn.kind == "bed" && spawn.hasPosition) {
                 const fa::core::Vec2 spawnBed = demoScene->bedPosition();
                 spawnOk = spawnBed.x == spawn.position.x && spawnBed.y == spawn.position.y;
             }
+            if (spawn.id == "forest_bat" && spawn.kind == "enemy" &&
+                spawn.texture == "tex.enemy.bat" && spawn.moveSpeed > 60.0f) {
+                batSpawnOk = true;
+            }
         }
-        std::printf("play-test: %zu entity spawn(s), bed from table %s\n", entitySpawns.size(),
-                    spawnOk ? "ok" : "bad");
-        ok = ok && spawnOk;
+        std::printf("play-test: %zu entity spawn(s), bed from table %s, bat spawn %s\n",
+                    entitySpawns.size(), spawnOk ? "ok" : "bad",
+                    batSpawnOk ? "ok" : "bad");
+        ok = ok && spawnOk && batSpawnOk;
 
         // Separate maps: the farm-side gate replaces the farm scene with the forest.
         const bool farmGateOk = demoScene->editableMap().isWalkable(22, 11) &&
@@ -5960,6 +6249,9 @@ public:
         cropMatureTexture = fa::assets::AssetHandle<fa::assets::TextureAsset>{};
         chestTexture = fa::assets::AssetHandle<fa::assets::TextureAsset>{};
         slimeTexture = fa::assets::AssetHandle<fa::assets::TextureAsset>{};
+        // Catalog-driven handles must go before the manager that owns their storage.
+        namedTextureHandles.clear();
+        namedTextureAssets.clear();
         assets.reset();
         uploader.reset();
         fileSystem = nullptr;
@@ -5985,6 +6277,8 @@ public:
         }
         toneClip.reset();
         loopClip.reset();
+        audioClips.clear();
+        audioClipDefs.clear();
         toneHandle = fa::audio::kInvalidSoundHandle;
         loopHandle = fa::audio::kInvalidSoundHandle;
     }
@@ -6356,6 +6650,10 @@ public:
     fa::assets::AssetHandle<fa::assets::TextureAsset> cropMatureTexture;
     fa::assets::AssetHandle<fa::assets::TextureAsset> chestTexture;
     fa::assets::AssetHandle<fa::assets::TextureAsset> slimeTexture;
+    /// \brief Catalog-driven handles; scenes only keep the raw GPU handles.
+    std::unordered_map<std::string, fa::assets::AssetHandle<fa::assets::TextureAsset>>
+        namedTextureAssets;
+    std::unordered_map<std::string, fa::render::TextureHandle> namedTextureHandles;
     /// \brief Session state shared by every map scene; declared before the stack so
     /// it outlives the scenes that borrow it.
     GameState gameState;
@@ -6393,6 +6691,9 @@ public:
     std::unique_ptr<fa::audio::AudioEngine> audioEngine;
     std::shared_ptr<const fa::audio::AudioClip> toneClip;
     std::shared_ptr<const fa::audio::AudioClip> loopClip;
+    /// \brief `data/audio.json` content: definitions plus generated PCM.
+    std::unordered_map<std::string, AudioClipDef> audioClipDefs;
+    std::unordered_map<std::string, std::shared_ptr<const fa::audio::AudioClip>> audioClips;
     fa::audio::SoundHandle toneHandle = fa::audio::kInvalidSoundHandle;
     fa::audio::SoundHandle loopHandle = fa::audio::kInvalidSoundHandle;
     bool audioOneShotStopped = false;

@@ -69,6 +69,7 @@ Florian's Adventure 的全部设计文档入口。当前状态：**28 个模块 
 | [M27 调试工具・实测](build/m27-debug-tools.md) | 控制台/CVar/日志/统计/实体检查器/物理调试；Release 条件链接；通配符展开后的新文件登记流程 |
 | [M16 玩家控制器・实测](build/m16-player-controller.md) | 输入适配与控制器拆分、只写 `Velocity`、动作锁、闪避速度平台、无敌窗口、测试顺序踩坑 |
 | [M15 内容数据库・实测](build/m15-content-database.md) | ID 前缀/哈希、季节掩码、错误收集与重试、非事务加载、`std::span` 与指针稳定性、`/EHsc` 结论 |
+| [内容 JSON 格式](content-format.md) | `content` / `entities` / `shops` / `audio` / `catalog` 的字段、默认值与校验规则 |
 
 ## 已实现模块
 
