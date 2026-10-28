@@ -560,7 +560,7 @@ void AiService::perceive(scene::World& world, scene::EntityId id, AiAgent& agent
 
 void AiService::performAttack(scene::World& world, scene::EntityId id, const AiAgent& agent,
                               core::Vec2 center, core::Vec2 targetCenter) {
-    if (m_combat == nullptr || agent.profile.attackDamage <= 0) {
+    if (agent.profile.attackDamage <= 0 || (!m_attackHandler && m_combat == nullptr)) {
         return;
     }
     core::Vec2 direction = targetCenter - center;
@@ -579,8 +579,12 @@ void AiService::performAttack(scene::World& world, scene::EntityId id, const AiA
     hitbox.damage = agent.profile.attackDamage;
     hitbox.targetMask = agent.profile.attackMask;
     hitbox.knockback = direction * 16.0f;
-    m_combat->spawnAttack(world, id, hitbox);
-}
+        if (m_attackHandler) {
+            m_attackHandler(id, hitbox);
+        } else {
+            m_combat->spawnAttack(world, id, hitbox);
+        }
+    }
 
 void AiService::changeState(AiAgent& agent, AiState state) {
     if (agent.state == state) {

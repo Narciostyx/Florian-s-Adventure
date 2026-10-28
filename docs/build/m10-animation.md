@@ -32,6 +32,13 @@
 - **状态机**：转换按优先级选最高；`setState` 与状态/方向变化都会强制重启动画。
 - **app 集成**：`DemoScene` 新增一个无碰撞的 4 帧草地实体；每固定步更新
   `Sprite::source`，纹理取 `AnimationClip::texture`。事件计数与最后事件进入摘要。
+- play 模式新增 3 帧挥砍（`tex.effect.slash`）：`DemoScene::startAttack()` 播放，
+  `updateAnimation()` 在 `hit` 帧调用 `playerAttack()`；动作期间再输入返回
+  `ATTACK BUSY`。
+- 踩坑：挥砍最初写在草地动画的 `updateAnimation()` 末尾，而林地没有草地动画，
+  函数在 `m_animator.clip == nullptr` 处提前返回，导致林地攻击不触发命中。
+  已拆成独立的 `updateAttackEffect()` 并在早退之前调用，`--play-test` 增加
+  `forest attack animation ok` 覆盖这条路径。
 
 ### app 动画内容
 
@@ -102,7 +109,8 @@ foreach ($cfg in @('Debug','Development','Release')) {
 
 - 没有混合树/上下半身/武器叠加；需要多 `Animator` 通道。
 - 方向切换会重启 clip；8 向动画未实现。
-- 事件是字符串，没有参数；攻击判定窗口需要结构化事件。
+- 事件是字符串，没有参数；玩家挥砍已用 `hit` 事件驱动 M20 命中盒（P2-1b），
+  更复杂的攻击段/倍率仍需结构化事件。
 - 没有 clip 资源格式；真实动画数据由 M05 loader 或 M26 生成。
 - `std::shared_ptr<const AnimationClip>` 的拷贝有原子引用计数成本；不在每帧热路径之外。
 - 状态机条件 `std::function` 注册时分配一次，更新时只调用。

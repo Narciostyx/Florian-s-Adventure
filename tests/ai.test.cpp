@@ -270,6 +270,38 @@ TEST_CASE("Attack fires at range and respects cooldown", "[ai]") {
     CHECK(service.stats().attacks >= 2);
 }
 
+TEST_CASE("Attack handler intercepts enemy attacks", "[ai]") {
+    Tilemap map = makeMap();
+    PhysicsWorld physics;
+    RecordingCombat combat;
+    AiService service(map, physics, &combat);
+    World world;
+
+    int hookCalls = 0;
+    EntityId hookOwner{};
+    fa::combat::AttackHitbox hookHitbox;
+    service.setAttackHandler([&](EntityId agent, const fa::combat::AttackHitbox& hitbox) {
+        ++hookCalls;
+        hookOwner = agent;
+        hookHitbox = hitbox;
+    });
+
+    BehaviorProfile profile = directProfile();
+    profile.sightRadius = 100.0f;
+    profile.attackRange = 30.0f;
+    profile.attackDamage = 9;
+    const EntityId agent = makeAgent(world, fa::core::Vec2{100.0f, 100.0f}, profile);
+    static_cast<void>(makeTarget(world, fa::core::Vec2{115.0f, 100.0f}));
+
+    updateSteps(service, world, 3);
+    CHECK(hookCalls == 1);
+    CHECK(hookOwner == agent);
+    CHECK(hookHitbox.damage == 9);
+    // The handler owns the hitbox; M21 must not also spawn one itself.
+    CHECK(combat.attacks == 0);
+    CHECK(service.stats().attacks == 1);
+}
+
 TEST_CASE("An agent returns home after losing its target", "[ai]") {
     Tilemap map = makeMap();
     PhysicsWorld physics;

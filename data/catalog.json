@@ -206,6 +206,13 @@
           "size": [16, 16],
           "color": "#4e3e6e",
           "altColor": "#947cbe"
+        },
+        {
+          "id": "tex.effect.slash",
+          "kind": "texture",
+          "path": "slash.png",
+          "size": [48, 16],
+          "color": "#c8e6ff"
         }
       ]
     }

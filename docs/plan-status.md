@@ -6,7 +6,7 @@
 >
 > 需要定位代码时看 [代码速查](code-reference.md)：按模块列出命名空间、依赖、公开头文件、类型、方法、枚举与常量。
 
-- 最后更新：P2-1 内容补齐（3 作物 / 2 敌人 / 12 物品 / 8 SFX + 1 音乐 / 21 纹理，全部 JSON 驱动）
+- 最后更新：玩家与敌人攻击动画（M10 三帧挥砍，`hit` 帧事件生成 M20 命中盒；M21 `setAttackHandler`）+ P2-1 内容补齐（3 作物 / 2 敌人 / 12 物品 / 8 SFX + 1 音乐 / 22 纹理）
 - 下一步：**P2-2 工程收尾（全新克隆 CI、性能/内存基线、soak）**
 - 当前总体：**28 个模块全部已实现**（M00–M27）
 - 当前可运行内容：窗口 + 主循环 + 事件/作业 + 输入 + 渲染 + 资源缓存 + **ECS 世界与场景栈** + **AABB 碰撞与查询** + **瓦片地图与图层提取** + **交互目标选择与格子放置** + **玩家移动/朝向/耐力/闪避** + **带引用校验的内容数据库** + **内置位图字体与即时模式 HUD/控件** + **物品堆叠/背包/快捷栏/装备/使用分发** + **PCM16 软件混音与总线音量** + **调试控制台/统计覆盖层/日志窗口/实体检查器/物理调试** + **JSON 存档槽/原子写/`.bak` 恢复/迁移** + **帧动画/循环/事件/四向状态机** + **伤害/攻击窗口/投射物/状态/死亡事件**；画面是**全部色块占位**，scripted 用 40×23 地图（920 格、143 实心、16 可耕地），play 用两张独立的 40×23 地图（农场/林地），标记由 M16 以八向朝向驱动、M13 求解并停在 x=344，M17 在标记旁选目标、调用一次工具并占一个放置格，M15 加载物品/作物/配方/敌人/掉落表，M18 堆叠 120 个种子、转移 21 个到快捷栏、装备锄头并使用一份汤，M09 每帧绘制 HUD、耐力条、按钮、复选框、滑条与热键栏文本，M08 从 `data/audio.json` 生成 8 个 SFX + 1 首循环音乐、播放 one-shot 与循环、设置总线音量并在 2 帧后淡出 one-shot，M27 在 Debug/Development 提供 F3 统计、F4 日志、F5 物理调试与控制台（`teleport`/`give`/`entities`/`save`/`load`/`slots`），M14 每轮 smoke 写 `saves/autosave.json` 并读回版本/场景/实体/标记/耐力摘要，M10 在固定步推进一个 4 帧草地动画并在 frame 0/2 触发 `step` 事件，M20 用两个 dummy 跑通两次近战、投射物与中毒并击杀一个 dummy，M19 在 (4,8) 跑通锄地 → 播种 → 浇水 → 5 天成熟 → 收获，并在 (7,11) 温室与 (6,9) 室外验证冬季规则，M21 用一个紫色 agent 追击静止假人、攻击一次并在丢失目标后返回出生点，M22 用 0.01 s/game-minute 的快速时钟跑出 08:00 → 09:40、计算环境光并在 Weather 层绘制暗化层与两个占位点光，M23 用一个 NPC 跑通对话分支、接任务、收集完成、送礼与每日上限，并在底部对话框留下可交互选项，M24 用玩家背包跑通买种子、卖萝卜、做汤、出货与次日结算（金币显示在 HUD），M25 用脚本跑通新游戏 → 暂停 → 保存 → 日终 → 死亡 → 复活 → 主菜单 → 读档 → 退出（交互式主菜单/暂停/存档槽由 `--play` 提供），M26 在 Debug/Development 提供 F2 瓦片编辑器、撤销/重做与 JSON 保存/加载（Release 不链接）；`--play` 启动进入**主菜单**（新游戏/继续/存档槽/退出），`Esc` 暂停（继续/保存/存档槽/主菜单）；快捷栏 1–3 = 锄头/水壶/种子，左键使用，指向成熟作物自动收获；右键近战，敌人死亡掉落并自动拾取；床边 `E` 任意时间睡觉，醒来固定次日 08:00，睡满 8 h 回满体力、不足按 `(小时/8)²` 递减至最低 1%；橙色出货箱旁 `E` 把作物加入待结算清单并在次日换成金币，紫色商人旁 `E` 打开商店买种子/卖萝卜、做汤/收取，农场 Elder 旁 `E` 对话接取/完成任务（HUD 显示任务状态）；`F` 食用选中的汤（+20 HP/+30 体力），右键伤害读取装备武器；`I` 打开背包面板，点击 MOVE 在背包/快捷栏之间移动物品；`Shift` 奔跑、`Space` 闪避、攻击/工具都消耗体力，数值由 `config/game.json` 的 `stamina` 段配置；F3 显示玩家世界/格子坐标；HUD 同时显示生命、耐力与任务状态；启动从 `data/*.json` 读取内容/商店/叙事/资源目录与实体生成表，地图布局从 `data/maps/*.json` 读取（`farm.json` / `farm-scripted.json` / `forest.json`），`config/game.json` 控制窗口/UI/玩法参数（缺失回落默认），纹理优先 `assets/*.png`、缺图回落程序占位，面板居中且字号 1.25×，窗口最小 1280×720 可放大；play 模式使用两张独立 40×23 地图（农场/林地），门口 `portalAt` 触发 `SceneStack::replace` 换场景，农田/背包/叙事等跨场景状态由 `GameState` 持有；林地有两个会索敌/追击/攻击玩家的 AI 史莱姆、一个快速蝙蝠与 3 格荆棘（每 0.7s 扣 5 血），受击有闪烁与上浮伤害数字，HUD 显示 `FARM`/`FOREST`；商店按库存显示今日价格/每日余量/季节可用性，`J` 打开任务日志，背包可分类筛选并分页/滚轮滚动；生命归零会先扣 10% 金币并打开 GameOver 面板（复活/读自动存档/主菜单），复活后回到农场床边；当前地图、地面掉落物、金币、出货清单、加工任务与每日商店余量随存档写入并读回；`--play-test` 无头跑通体力上限校验 → 对话 → 接任务 → 耕地 → 播种 → 浇水 → 5 天 → 收获（任务完成与奖励）→ 击杀 dummy → 拾取掉落 → 8h/7h/1h 睡眠档位 → 商店买卖 → 出货结算 → 农场门/双向换图 → 保存/主菜单/存档槽/读档往返（位置、耐力、背包、作物、日期、金币、当前地图一致）并返回失败码；林地敌人反击、叙事/AI/世界对象存档、商店/任务/背包 UI 与 P2-1 内容均已接入，仍有真实美术/音频素材与工程基线缺口
@@ -90,7 +90,7 @@
 | M18 | Inventory & Items | 22 | `ItemStack` + 内容驱动堆叠、`Inventory` 固定槽位与原子移除/交换/拆分/合并/转移、`Hotbar` 选中与消耗、`Equipment` Tool/Weapon、`IItemUseHandler` 分发（play `F` 食用汤）、`PlayerInventory` 快速转移 | [设计](modules/18-inventory-items.md) · [实测](build/m18-inventory-items.md) |
 | M19 | Farming & World Objects | 14 | `FarmTile`/`CropState`、无 ECS 的按格农田、锄地/浇水/播种/按天生长/收获、季节与温室、再生作物、`FarmingDayContext` 消费 M22 天气、`FarmingToolHandler`（Hoe/WateringCan/Seed/Harvest/Axe/Pickaxe，可 `setInventory` 切到玩家快捷栏）、`WorldObjectLayer`/`DebrisLayer`、`entries()`/`restore()` 整块农田快照 | [设计](modules/19-farming-world-objects.md) · [实测](build/m19-farming-world-objects.md) |
 | M20 | Combat | 7 | `Damage`/`Health` 结算、M16 闪避无敌、攻击窗口与单实例去重、投射物 raycast/move、击退、Poison/Burn/Slow、四类事件与 `CombatStats`；play 模式右键攻击（伤害读取装备武器）、敌人反击伤害、受击闪烁/伤害数字、命中/受伤/拾取 SFX、死亡掉落与自动拾取；玩家死亡不再被当作敌人销毁 | [设计](modules/20-combat.md) · [实测](build/m20-combat.md) |
-| M21 | AI | 11 | `AiService` + `AiAgent`/`AiTargetTag`/`BehaviorProfile`、A*（4 邻接 + 视线平滑）、Bresenham 视线、感知节流、Idle/Patrol/Chase/Attack/Flee/Return、M13 移动、M20 攻击执行、`AiStats`、`AiAgentSnapshot`/`captureAiAgent`/`applyAiAgentSnapshot`、`clearPaths`；play 林地史莱姆/蝙蝠 AI 参数由 `entities.json` 提供 | [设计](modules/21-ai.md) · [实测](build/m21-ai.md) |
+| M21 | AI | 11 | `AiService` + `AiAgent`/`AiTargetTag`/`BehaviorProfile`、A*（4 邻接 + 视线平滑）、Bresenham 视线、感知节流、Idle/Patrol/Chase/Attack/Flee/Return、M13 移动、M20 攻击执行、`AiStats`、`AiAgentSnapshot`/`captureAiAgent`/`applyAiAgentSnapshot`、`clearPaths`、`setAttackHandler`；play 林地史莱姆/蝙蝠 AI 参数由 `entities.json` 提供，攻击由 M10 挥砍的 `hit` 帧触发 | [设计](modules/21-ai.md) · [实测](build/m21-ai.md) |
 | M22 | Calendar / Weather / Lighting | 22 | `Season`/`Weather`/`GameDate`/`WorldClock`、0–24 时刻与跨日/季/年、`HourChanged`/`DayChanged`/`SeasonChanged`/`WeatherChanged`、按季节权重随机天气与 RNG 状态保存、自动浇水/生长倍率、环境光曲线与室内外、`LightSet` 点光与线性衰减采样 | [设计](modules/22-calendar-weather-lighting.md) · [实测](build/m22-calendar-weather-lighting.md) |
 | M23 | NPC / Dialogue / Quests | 10 | `NarrativeDatabase` + `NarrativeService`、NPC/对话图/任务 JSON、白名单条件与动作、每日好感/送礼、事件驱动任务进度与物品奖励、底部对话框与 Digit1–3 选择、`NarrativeSnapshot`/`snapshot`/`restore`、`questStates()`；app 已接农场 Elder 交互、`J` 任务日志与任务奖励 | [设计](modules/23-npc-dialogue-quests.md) · [实测](build/m23-npc-dialogue-quests.md) |
 | M24 | Economy / Crafting / Shops | 11 | `EconomyService` + `ShopDatabase`、钱包、买卖原子性、每日限购、季节库存（`ShopEntry::seasons`）、按日确定性价格波动（`price_swing`）、M15 配方加工任务、出货箱次日结算、`restore*` 存档；app 商店显示今日价/余量/季节，橙色出货箱 + 做汤/收取 | [设计](modules/24-economy-crafting-shops.md) · [实测](build/m24-economy-crafting-shops.md) |
@@ -177,7 +177,7 @@ M18 只引用 `fa_core` 与 `fa_content`，**不引用 `fa_assets`、`fa_render`
 **验收快照**（测试三配置一致；冒烟三配置都是 exit 0。固定步数由墙钟累积，并行负载下可能明显多于 60，不要逐字比对帧数或 y 坐标；x 坐标才是稳定断言）：
 
 ```text
-fa_tests.exe → All tests passed (30521 assertions in 562 test cases)
+fa_tests.exe → All tests passed (30530 assertions in 563 test cases)
              "[anim]"     → 59 assertions in 4 test cases
              "[audio]"    → 9808 assertions in 12 test cases
              "[combat]"   → 50 assertions in 7 test cases
@@ -237,6 +237,8 @@ fa_app.exe --play-test
              → play-test: content 12 item(s), 3 crop(s), 2 enemy(ies),
                     3 loot table(s) -> ok
              → play-test: audio 8 sfx, looping music ok -> ok
+             → play-test: attack animation start ok, wind-up ok, hit ok -> ok
+             → play-test: forest attack animation ok
              → play-test: food hp 50 -> 70, stamina 50 -> 80.0, soup 3 -> 2 -> ok
              → play-test: dialogue ok, quest accepted ok
              → play-test: till ok / plant ok / water ok / harvest ok / replant ok
@@ -257,7 +259,7 @@ fa_app.exe --play-test
              → play-test: 9 entity spawn(s), bed from table ok, bat spawn ok
              → play-test: farm gate ok, portal farm->forest ok, forest->farm ok,
                     forest dummy ok
-             → play-test: enemy counterattack chase ok, attack ok, hurt ok -> ok
+             → play-test: enemy counterattack chase ok, attack ok, swing ok, wind-up ok, hurt ok -> ok
              → play-test: combat death ok, player intact ok, respawn ok -> ok
              → play-test: thorns death menu ok, respawn ok, gold 154 -> 139 -> ok
              → play-test: save ok / menu ok / load ok
@@ -431,7 +433,7 @@ fa_app.exe --frames 60 (Release)
 | 自动存档调度未接 | M25 已按天/退出调度；每 12 游戏小时与安全状态判定仍未实现 | M25 / M22 |
 | 无渲染目标 / 后处理 | 做不了光照、屏幕扭曲 | M22 需要时再加 `RenderPass` |
 | 单一混合模式 | 预乘 alpha、加色做不了 | M06（分批断点已留好） |
-| 图片仍是占位美术 | 已支持 `assets/*.png`，当前 21 张图是简单像素占位 | 真实美术后置，见 [art-policy](architecture/art-policy.md) |
+| 图片仍是占位美术 | 已支持 `assets/*.png`，当前 22 张图是简单像素占位 | 真实美术后置，见 [art-policy](architecture/art-policy.md) |
 | 只接了 PNG 解码 | app 注册的是 stb_image；JPEG/WebP 等其他格式仍需扩展解码器 | M05（注册 `IImageDecoder`） |
 | 隐藏窗口依赖驱动 | 无 GL 驱动的 CI 镜像拿不到上下文 | M06 已降级为非致命 |
 | `/EHsc` 依赖第三方 include 图 | 新增 JSON/`<chrono>` 依赖会连锁要求 `/EHsc` | M00 规约 |
@@ -520,10 +522,9 @@ fa_app.exe --frames 60 (Release)
 | 方向 | 理由 | 主要风险 |
 |---|---|---|
 | 流程打磨 | 菜单键盘焦点、场景切换过渡、死亡面板的读档槽选择 | 输入上下文与暂停状态 |
-| 战斗打磨 | 敌人反击、受击闪烁/伤害数字已完成；还需攻击动画/朝向反馈与命中音效 | 攻击窗口与动画同步；M10/M20 反馈 |
-| 真实素材与手感 | 占位 PNG/程序化音频替换为真实美术/音乐，补攻击动画与数值平衡 | M05 / M06 / M08 / M10 |
-| 工程收尾 | 全新克隆 CI、60 FPS/内存基线、1920×1080 像素检查、30 分钟 soak | 第三方依赖与 CI runner 差异 |
-| 工程收尾 | 全新克隆 CI、性能基线、存档迁移链 | 第三方依赖与 CI runner 差异 |
+| 战斗打磨 | 玩家与敌人攻击动画（`hit` 帧事件生成命中盒）、受击闪烁/伤害数字、SFX 已完成；还需敌人专属招式与受击硬直 | M10/M20 反馈与敌人表现 |
+| 真实素材与手感 | 占位 PNG/程序化音频替换为真实美术/音乐，补数值平衡 | M05 / M06 / M08 / M10 |
+| 工程收尾 | 全新克隆 CI、60 FPS/内存基线、1920×1080 像素检查、30 分钟 soak、存档迁移链 | 第三方依赖与 CI runner 差异 |
 
 **种植、战斗、睡眠/存档、菜单/背包、出货箱/商店（季节库存+价格波动）、任务日志、林地传送、敌人反击、死亡菜单/读档、Elder 对话/任务、武器/食物/加工与体力已可用 `--play` 手动验证；独立地图与 `SceneStack::replace` 已接通。叙事/AI/世界对象/玩家生命存档已由组装根接线，读档固定重建场景后再应用。**
 后续每项改动仍按既有节奏推进：

@@ -25,7 +25,8 @@
 - 动画事件：进入帧时触发；首帧事件在第一次 `update` 触发；跨多帧时每个进入的帧最多一次。
 - 四向：`Direction`（Down/Up/Left/Right）、`directionFromVector` 主导轴选择。
 - `AnimationStateMachine`：命名状态、方向变体、条件转换（`AnimationParams`）、优先级。
-- app 集成：在 marker 之外创建一个 4 帧草地动画实体，每固定步更新 `Sprite::source`。
+- app 集成：在 marker 之外创建一个 4 帧草地动画实体，每固定步更新 `Sprite::source`；
+  play 模式另有 3 帧挥砍实体，`hit` 帧事件触发 M20 命中盒。
 
 **未实现 / 后续**
 
@@ -160,5 +161,6 @@ public:
 - 没有混合；上下半身分离与武器叠加需要多通道。
 - `std::shared_ptr<const AnimationClip>` 让 Animator 可安全持有 clip，但每次拷贝增加原子引用计数；动画不在热路径之外。
 - 状态机条件使用 `std::function`，每帧可能分配？条件本身不分配；注册时分配一次。
-- 事件是字符串，没有参数；M20 的攻击判定窗口需要结构化事件时再扩展。
+- 事件是字符串，没有参数；玩家挥砍只用 `hit` 名称，伤害/距离仍由 app 传入。
+  更复杂的攻击段/倍率需要结构化事件。
 - 没有动画资源格式；clip 由代码/loader 构建，真实数据驱动要等 M05/M26。

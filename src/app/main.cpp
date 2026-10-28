@@ -953,6 +953,19 @@ public:
         systems().add(std::move(physics));
         m_combat = std::make_unique<fa::combat::CombatService>(m_physics->physics());
         m_ai = std::make_unique<fa::ai::AiService>(m_map, m_physics->physics(), m_combat.get());
+        if (m_ai != nullptr && !m_scripted) {
+            // Wind-up + `hit` frame, matching the player swing. Enemies without a
+            // dedicated effect (e.g. the farm's training agent) keep instant attacks.
+            m_ai->setAttackHandler([this](fa::scene::EntityId agent,
+                                          const fa::combat::AttackHitbox& hitbox) {
+                if (startEnemyAttack(agent, hitbox)) {
+                    return;
+                }
+                if (m_combat != nullptr) {
+                    static_cast<void>(m_combat->spawnAttack(world(), agent, hitbox));
+                }
+            });
+        }
 
         auto tiles = std::make_unique<fa::tilemap::TilemapExtractSystem>(m_map);
         m_tileSystem = tiles.get();
@@ -1173,6 +1186,197 @@ public:
         hitbox.targetMask = fa::physics::maskOf(fa::physics::CollisionLayer::Enemy);
         m_combat->spawnAttack(world(), m_markerEntity, hitbox);
         return true;
+    }
+
+    /// \brief Creates the 3-frame swing sprite. Play mode only; scripted smoke keeps
+    /// its original entity budget.
+    void buildAttackEffect() {
+        const fa::render::TextureHandle slash = textureForName("tex.effect.slash");
+        if (!slash.isValid()) {
+            return;
+        }
+        m_slashEntity = world().create();
+        fa::scene::Transform transform;
+        transform.position = markerPosition();
+        static_cast<void>(world().add<fa::scene::Transform>(m_slashEntity, transform));
+
+        fa::scene::Sprite sprite;
+        sprite.texture = slash;
+        sprite.size = fa::core::Vec2{16.0f, 16.0f};
+        sprite.layer = fa::render::RenderLayer::Actors;
+        sprite.tint = fa::core::Color{1.0f, 1.0f, 1.0f, 0.0f};
+        static_cast<void>(world().add<fa::scene::Sprite>(m_slashEntity, sprite));
+
+        auto clip = std::make_shared<fa::anim::AnimationClip>();
+        clip->texture = slash;
+        clip->loop = false;
+        clip->frames = {
+            fa::anim::AnimationFrame{fa::core::makeRect(0.0f, 0.0f, 16.0f, 16.0f), 0.07f, {}},
+            fa::anim::AnimationFrame{fa::core::makeRect(16.0f, 0.0f, 16.0f, 16.0f), 0.07f, "hit"},
+            fa::anim::AnimationFrame{fa::core::makeRect(32.0f, 0.0f, 16.0f, 16.0f), 0.10f, {}},
+        };
+        m_slashClip = std::move(clip);
+    }
+
+    /// \brief Starts one swing; the hitbox is spawned by the clip's `hit` event.
+    ///
+    /// Returns false when a swing is already running. Without a swing texture the
+    /// attack falls back to the old immediate hitbox so combat never breaks.
+    [[nodiscard]] bool startAttack(int damage, float reach) {
+        if (!m_slashClip || !m_slashEntity.isValid()) {
+            return playerAttack(damage, reach);
+        }
+        if (m_slashActive) {
+            return false;
+        }
+        m_slashDamage = damage;
+        m_slashReach = reach;
+        m_slashActive = true;
+        m_animService.play(m_slashAnimator, m_slashClip, true);
+        updateSlashTransform();
+        if (fa::scene::Sprite* sprite = world().tryGet<fa::scene::Sprite>(m_slashEntity);
+            sprite != nullptr) {
+            sprite->tint.a = 1.0f;
+            if (const fa::anim::AnimationFrame* frame =
+                    m_animService.currentFrame(m_slashAnimator);
+                frame != nullptr) {
+                sprite->source = frame->source;
+            }
+        }
+        return true;
+    }
+
+    [[nodiscard]] bool attackAnimationActive() const noexcept { return m_slashActive; }
+
+    /// \brief One enemy's in-flight wind-up and the hitbox it will spawn.
+    struct EnemySwing {
+        fa::scene::EntityId owner{};
+        fa::scene::EntityId effect{};
+        fa::anim::Animator animator;
+        fa::combat::AttackHitbox hitbox;
+        bool active = false;
+    };
+
+    /// \brief Creates one reusable swing sprite per forest enemy.
+    void buildEnemyAttackEffects() {
+        if (m_slashClip == nullptr) {
+            return;
+        }
+        const fa::render::TextureHandle slash = textureForName("tex.effect.slash");
+        if (!slash.isValid()) {
+            return;
+        }
+        for (const fa::scene::EntityId owner : m_enemyIds) {
+            EnemySwing swing;
+            swing.owner = owner;
+            swing.effect = world().create();
+            fa::scene::Transform transform;
+            transform.position = markerPosition();
+            static_cast<void>(world().add<fa::scene::Transform>(swing.effect, transform));
+
+            fa::scene::Sprite sprite;
+            sprite.texture = slash;
+            sprite.size = fa::core::Vec2{16.0f, 16.0f};
+            sprite.layer = fa::render::RenderLayer::Actors;
+            sprite.tint = fa::core::Color{1.0f, 0.35f, 0.30f, 0.0f};
+            static_cast<void>(world().add<fa::scene::Sprite>(swing.effect, sprite));
+            m_enemySwings.push_back(std::move(swing));
+        }
+    }
+
+    /// \brief Starts an enemy wind-up; the hitbox spawns from its `hit` frame.
+    [[nodiscard]] bool startEnemyAttack(fa::scene::EntityId owner,
+                                        const fa::combat::AttackHitbox& hitbox) {
+        for (EnemySwing& swing : m_enemySwings) {
+            if (swing.owner != owner || swing.active) {
+                continue;
+            }
+            swing.hitbox = hitbox;
+            swing.active = true;
+            m_animService.play(swing.animator, m_slashClip, true);
+            if (fa::scene::Sprite* sprite =
+                    world().tryGet<fa::scene::Sprite>(swing.effect);
+                sprite != nullptr) {
+                sprite->tint.a = 1.0f;
+                if (const fa::anim::AnimationFrame* frame =
+                        m_animService.currentFrame(swing.animator);
+                    frame != nullptr) {
+                    sprite->source = frame->source;
+                }
+            }
+            updateEnemySwingTransform(swing);
+            return true;
+        }
+        return false;
+    }
+
+    [[nodiscard]] bool enemyAttackAnimationActive(fa::scene::EntityId owner) const noexcept {
+        for (const EnemySwing& swing : m_enemySwings) {
+            if (swing.owner == owner) {
+                return swing.active;
+            }
+        }
+        return false;
+    }
+
+    void updateEnemySwingTransform(EnemySwing& swing) {
+        fa::scene::Transform* effect = world().tryGet<fa::scene::Transform>(swing.effect);
+        const fa::scene::Transform* owner = world().tryGet<fa::scene::Transform>(swing.owner);
+        if (effect == nullptr || owner == nullptr) {
+            return;
+        }
+        fa::core::Vec2 direction = swing.hitbox.offset;
+        const float length = glm::length(direction);
+        direction = length > 0.001f ? direction / length : fa::core::Vec2{1.0f, 0.0f};
+        const fa::core::Vec2 center{owner->position.x + 8.0f, owner->position.y + 8.0f};
+        effect->position = fa::core::Vec2{center.x + direction.x * 10.0f - 8.0f,
+                                          center.y + direction.y * 10.0f - 8.0f};
+    }
+
+    /// \brief Advances every enemy wind-up and spawns its hitbox on `hit`.
+    void updateEnemyAttackEffects(float deltaSeconds) {
+        for (EnemySwing& swing : m_enemySwings) {
+            if (!swing.active) {
+                continue;
+            }
+            m_animService.update(swing.animator, deltaSeconds);
+            updateEnemySwingTransform(swing);
+            if (fa::scene::Sprite* sprite =
+                    world().tryGet<fa::scene::Sprite>(swing.effect);
+                sprite != nullptr) {
+                if (const fa::anim::AnimationFrame* frame =
+                        m_animService.currentFrame(swing.animator);
+                    frame != nullptr) {
+                    sprite->texture = m_slashClip->texture;
+                    sprite->source = frame->source;
+                }
+            }
+            for (const fa::anim::AnimationEvent& event : swing.animator.events) {
+                if (event.name == "hit" && m_combat != nullptr) {
+                    static_cast<void>(m_combat->spawnAttack(world(), swing.owner,
+                                                            swing.hitbox));
+                }
+            }
+            if (swing.animator.finished) {
+                swing.active = false;
+                if (fa::scene::Sprite* sprite =
+                        world().tryGet<fa::scene::Sprite>(swing.effect);
+                    sprite != nullptr) {
+                    sprite->tint.a = 0.0f;
+                }
+            }
+        }
+    }
+
+    void updateSlashTransform() {
+        fa::scene::Transform* transform = world().tryGet<fa::scene::Transform>(m_slashEntity);
+        if (transform == nullptr) {
+            return;
+        }
+        const fa::core::Vec2 center = markerCenter();
+        const fa::core::Vec2 direction = fa::player::directionVector(playerFacing());
+        transform->position = fa::core::Vec2{center.x + direction.x * 10.0f - 8.0f,
+                                             center.y + direction.y * 10.0f - 8.0f};
     }
 
     [[nodiscard]] std::span<const fa::combat::DamageEvent> damageEvents() const noexcept {
@@ -1870,6 +2074,9 @@ private:
             static_cast<void>(
                 world().add<fa::ai::AiTargetTag>(m_markerEntity, fa::ai::AiTargetTag{}));
         }
+        if (!m_scripted) {
+            buildAttackEffect();
+        }
 
         const auto makeDummy = [this](fa::core::Vec2 position, int health, std::string_view loot,
                                       std::string_view textureName, fa::core::Color tint,
@@ -1977,6 +2184,7 @@ private:
                 m_forestDummy2 = id;
             }
         }
+        buildEnemyAttackEffects();
     }
 
     /// \brief Creates one M21 agent and a stationary decoy target.
@@ -2110,8 +2318,43 @@ private:
         }
     }
 
+    /// \brief Advances the player swing independently of the decorative grass clip.
+    ///
+    /// The forest map has no grass animator, so this must not sit behind the
+    /// `m_animator.clip == nullptr` early return or forest attacks never hit.
+    void updateAttackEffect(float deltaSeconds) {
+        if (!m_slashActive || !m_slashClip) {
+            return;
+        }
+        m_animService.update(m_slashAnimator, deltaSeconds);
+        updateSlashTransform();
+        if (fa::scene::Sprite* sprite = world().tryGet<fa::scene::Sprite>(m_slashEntity);
+            sprite != nullptr) {
+            if (const fa::anim::AnimationFrame* frame =
+                    m_animService.currentFrame(m_slashAnimator);
+                frame != nullptr) {
+                sprite->texture = m_slashClip->texture;
+                sprite->source = frame->source;
+            }
+        }
+        for (const fa::anim::AnimationEvent& event : m_slashAnimator.events) {
+            if (event.name == "hit") {
+                static_cast<void>(playerAttack(m_slashDamage, m_slashReach));
+            }
+        }
+        if (m_slashAnimator.finished) {
+            m_slashActive = false;
+            if (fa::scene::Sprite* sprite = world().tryGet<fa::scene::Sprite>(m_slashEntity);
+                sprite != nullptr) {
+                sprite->tint.a = 0.0f;
+            }
+        }
+    }
+
     /// \brief Advances M10 on the fixed step and copies the current source rect.
     void updateAnimation(float deltaSeconds) {
+        updateAttackEffect(deltaSeconds);
+        updateEnemyAttackEffects(deltaSeconds);
         if (m_animEntity.index == 0 || m_animator.clip == nullptr) {
             return;
         }
@@ -2347,6 +2590,15 @@ private:
     fa::anim::AnimationService m_animService;
     fa::anim::Animator m_animator;
     AnimationDemoStats m_animStats;
+    /// \brief Player swing effect; its `hit` frame starts the M20 hitbox.
+    fa::scene::EntityId m_slashEntity;
+    fa::anim::Animator m_slashAnimator;
+    std::shared_ptr<const fa::anim::AnimationClip> m_slashClip;
+    bool m_slashActive = false;
+    int m_slashDamage = 0;
+    float m_slashReach = 14.0f;
+    /// \brief One reusable wind-up effect per forest enemy.
+    std::vector<EnemySwing> m_enemySwings;
     std::unique_ptr<fa::combat::CombatService> m_combat;
     fa::scene::EntityId m_combatDummy1;
     fa::scene::EntityId m_combatDummy2;
@@ -4608,8 +4860,10 @@ public:
             return;
         }
         const int damage = weaponDamage();
-        const bool spawned = demoScene->playerAttack(damage, 14.0f);
-        setPlayMessage(spawned ? "ATTACK " + std::to_string(damage) : "ATTACK UNAVAILABLE");
+        const bool started = demoScene->startAttack(damage, 14.0f);
+        setPlayMessage(started ? "ATTACK " + std::to_string(damage)
+                               : (demoScene->attackAnimationActive() ? "ATTACK BUSY"
+                                                                     : "ATTACK UNAVAILABLE"));
     }
 
     /// \brief Consumes the selected hotbar item; only food has an effect.
@@ -5541,9 +5795,48 @@ public:
         const fa::content::ContentId seed = fa::content::ContentId::fromName("item.turnip_seed");
         const int seedsBefore = playerInventory->backpack().countOf(seed);
         const fa::scene::EntityId dummy = demoScene->combatDummy1();
+
+        // Attack animation: the hitbox comes from the clip's `hit` frame, so the
+        // first frames must not damage the target.
+        int timingBefore = 0;
+        if (const fa::player::Health* hp = demoScene->world().tryGet<fa::player::Health>(dummy);
+            hp != nullptr) {
+            timingBefore = hp->current;
+        }
+        handleAttack();
+        const bool attackAnimStarted = demoScene->attackAnimationActive();
+        int timingEarly = timingBefore;
+        for (int step = 0; step < 2; ++step) {
+            demoScene->advanceAnimation(1.0f / 60.0f);
+            demoScene->advanceCombat(1.0f / 60.0f);
+            if (const fa::player::Health* hp =
+                    demoScene->world().tryGet<fa::player::Health>(dummy);
+                hp != nullptr) {
+                timingEarly = hp->current;
+            }
+        }
+        for (int step = 0; step < 30 && demoScene->attackAnimationActive(); ++step) {
+            demoScene->advanceAnimation(1.0f / 60.0f);
+            demoScene->advanceCombat(1.0f / 60.0f);
+        }
+        int timingAfter = timingBefore;
+        if (const fa::player::Health* hp = demoScene->world().tryGet<fa::player::Health>(dummy);
+            hp != nullptr) {
+            timingAfter = hp->current;
+        }
+        const bool attackAnimOk = attackAnimStarted && timingEarly == timingBefore &&
+                                  timingAfter < timingBefore;
+        std::printf("play-test: attack animation start %s, wind-up %s, hit %s -> %s\n",
+                    attackAnimStarted ? "ok" : "bad",
+                    timingEarly == timingBefore ? "ok" : "bad",
+                    timingAfter < timingBefore ? "ok" : "bad",
+                    attackAnimOk ? "ok" : "bad");
+        ok = ok && attackAnimOk;
+
         for (int attempt = 0; attempt < 6 && demoScene->isAlive(dummy); ++attempt) {
             handleAttack();
-            for (int step = 0; step < 12; ++step) {
+            for (int step = 0; step < 18; ++step) {
+                demoScene->advanceAnimation(1.0f / 60.0f);
                 demoScene->advanceCombat(1.0f / 60.0f);
                 processCombatEvents();
                 collectLoot();
@@ -5794,6 +6087,42 @@ public:
                               demoScene->editableMap().isWalkable(0, 11);
         const bool forestDummyOk = demoScene->isAlive(demoScene->forestDummy1());
 
+        // The forest map has no decorative grass animator, so this proves the swing
+        // still advances and its `hit` frame spawns the hitbox on both maps.
+        const fa::scene::EntityId forestTarget = demoScene->forestDummy1();
+        fa::core::Vec2 forestTargetPosition{};
+        if (const fa::scene::Transform* transform =
+                demoScene->world().tryGet<fa::scene::Transform>(forestTarget);
+            transform != nullptr) {
+            forestTargetPosition = transform->position;
+        }
+        demoScene->teleportMarker(
+            fa::core::Vec2{forestTargetPosition.x - 18.0f, forestTargetPosition.y});
+        demoScene->setPlayerFacing(fa::player::Facing::East);
+        demoScene->syncPhysics();
+        int forestHealthBefore = 0;
+        if (const fa::player::Health* hp =
+                demoScene->world().tryGet<fa::player::Health>(forestTarget);
+            hp != nullptr) {
+            forestHealthBefore = hp->current;
+        }
+        handleAttack();
+        for (int step = 0; step < 30 && demoScene->attackAnimationActive(); ++step) {
+            demoScene->advanceAnimation(1.0f / 60.0f);
+            demoScene->advanceCombat(1.0f / 60.0f);
+        }
+        int forestHealthAfter = forestHealthBefore;
+        if (const fa::player::Health* hp =
+                demoScene->world().tryGet<fa::player::Health>(forestTarget);
+            hp != nullptr) {
+            forestHealthAfter = hp->current;
+        }
+        const bool forestAttackOk =
+            forestHealthBefore > 0 && forestHealthAfter < forestHealthBefore;
+        std::printf("play-test: forest attack animation %s\n",
+                    forestAttackOk ? "ok" : "bad");
+        ok = ok && forestAttackOk;
+
         // P1-1: forest dummies are AI agents that chase and hit the player.
         const fa::scene::EntityId attacker = demoScene->forestDummy1();
         fa::core::Vec2 attackerPosition{};
@@ -5809,7 +6138,10 @@ public:
         const float healthBeforeCounter = demoScene->playerHealth();
         bool sawChase = false;
         bool sawAttack = false;
+        bool sawSwing = false;
+        bool swingWindupOk = false;
         bool hurtByEnemy = false;
+        float previousHealth = healthBeforeCounter;
         for (int step = 0; step < 240 && flow != nullptr &&
                             flow->state() == fa::flow::AppState::Playing;
              ++step) {
@@ -5820,18 +6152,27 @@ public:
                 sawChase = sawChase || agent->state == fa::ai::AiState::Chase;
                 sawAttack = sawAttack || agent->state == fa::ai::AiState::Attack;
             }
+            if (!sawSwing && demoScene->enemyAttackAnimationActive(attacker)) {
+                sawSwing = true;
+                // A wind-up must not damage on the frame it starts.
+                swingWindupOk = demoScene->playerHealth() == previousHealth;
+            }
+            demoScene->advanceAnimation(1.0f / 60.0f);
             demoScene->advanceCombat(1.0f / 60.0f);
             processCombatEvents();
+            previousHealth = demoScene->playerHealth();
             if (demoScene->playerHealth() < healthBeforeCounter) {
                 hurtByEnemy = true;
                 break;
             }
         }
         const bool counterOk = toForest && forestDummyOk && sawChase && sawAttack &&
-                               hurtByEnemy && flow != nullptr &&
+                               sawSwing && swingWindupOk && hurtByEnemy && flow != nullptr &&
                                flow->state() == fa::flow::AppState::Playing;
-        std::printf("play-test: enemy counterattack chase %s, attack %s, hurt %s -> %s\n",
+        std::printf("play-test: enemy counterattack chase %s, attack %s, swing %s, "
+                    "wind-up %s, hurt %s -> %s\n",
                     sawChase ? "ok" : "bad", sawAttack ? "ok" : "bad",
+                    sawSwing ? "ok" : "bad", swingWindupOk ? "ok" : "bad",
                     hurtByEnemy ? "ok" : "bad", counterOk ? "ok" : "bad");
         ok = ok && counterOk;
         demoScene->setPlayerHealth(demoScene->playerMaxHealth());
@@ -5867,6 +6208,7 @@ public:
                             flow->state() == fa::flow::AppState::Playing;
              ++step) {
             demoScene->advanceAi(1.0f / 60.0f);
+            demoScene->advanceAnimation(1.0f / 60.0f);
             demoScene->advanceCombat(1.0f / 60.0f);
             processCombatEvents();
         }

@@ -1,9 +1,12 @@
 #pragma once
 
 #include <cstddef>
+#include <functional>
+#include <utility>
 #include <vector>
 
 #include "fa/ai/AiTypes.hpp"
+#include "fa/combat/CombatTypes.hpp"
 #include "fa/core/Math.hpp"
 #include "fa/tilemap/TileId.hpp"
 
@@ -49,6 +52,15 @@ public:
     AiService& operator=(AiService&&) = delete;
 
     void setCombatService(combat::ICombatService* combat) noexcept { m_combat = combat; }
+
+    /// \brief Intercepts an agent's attack instead of spawning it immediately.
+    ///
+    /// The composition root uses this to play a wind-up animation and spawn the
+    /// hitbox from the animation's `hit` frame. Without a handler M21 keeps its
+    /// original behaviour and calls `ICombatService::spawnAttack` directly.
+    using AttackHandler =
+        std::function<void(scene::EntityId agent, const combat::AttackHitbox& hitbox)>;
+    void setAttackHandler(AttackHandler handler) { m_attackHandler = std::move(handler); }
 
     /// \brief Advances every `AiAgent` by one fixed step.
     void update(scene::World& world, float deltaSeconds);
@@ -102,7 +114,8 @@ private:
     const tilemap::Tilemap& m_map;
     physics::PhysicsWorld& m_physics;
     combat::ICombatService* m_combat = nullptr;
-    std::vector<PathState> m_paths;
+        AttackHandler m_attackHandler;
+        std::vector<PathState> m_paths;
     AiStats m_stats;
     std::uint64_t m_step = 0;
 };

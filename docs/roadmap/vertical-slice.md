@@ -3,13 +3,17 @@
 垂直切片的目标不是“做完一个系统”，而是用最小内容验证**完整玩家体验**：一天之内，玩家能种地、能战斗、能存档。
 
 > **当前状态（玩法验证第十九增量，2026-10-27 实测）**：28 个模块全部实现；
-> `fa_tests.exe` 562 用例 / 30521 断言全绿，Debug / Development / Release × x64
+> `fa_tests.exe` 563 用例 / 30530 断言全绿，Debug / Development / Release × x64
 > 零 warning，`--frames 60` 与 `--play-test` 三配置 exit 0。
 >
-> **本轮更新**：完成 **P2-1 内容补齐**——作物 3 种（萝卜/土豆/草莓，草莓可再生）、
-> 敌人 2 种（史莱姆/蝙蝠）、物品 12 件、8 个程序化 SFX + 1 首循环音乐、21 张纹理；
-> 敌人数量/AI 参数/纹理全部由 JSON 驱动，新增 crop/enemy 不再需要改 C++。
-> 格式见 [内容 JSON 格式](../content-format.md)。
+> **本轮更新**：完成 **玩家与敌人攻击动画**——3 帧挥砍（`tex.effect.slash`）由 M10
+> 播放，命中判定改由动画 `hit` 事件触发；M21 新增 `setAttackHandler()`，敌人攻击
+> 先起手再在 `hit` 帧生成命中盒。`--play-test` 断言玩家“起手不伤害、`hit` 帧才掉血”，
+> 以及敌人“进入 Attack 后先出现 swing、起手帧不伤害、随后才命中”。
+>
+> **上一增量**：P2-1 内容补齐——3 作物（萝卜/土豆/草莓）、2 敌人（史莱姆/蝙蝠）、
+> 12 物品、8 个程序化 SFX + 1 首循环音乐、22 张纹理；敌人数量/AI 参数/纹理全部由
+> JSON 驱动。格式见 [内容 JSON 格式](../content-format.md)。
 >
 > 已完成的 play 闭环：叙事接入、体力/坐标、武器伤害、食物使用、加工入口、
 > 死亡菜单/读档、叙事/AI/世界对象存档、敌人反击与命中反馈、商店/任务/背包 UI、
@@ -59,7 +63,7 @@
 > 音频是 8 个程序化 SFX + 1 首程序化循环曲，不是真实素材；
 > 1920×1080、60 FPS 与 30 分钟稳定性尚未验证。
 >
-> 当前实际内容为 **12 物品 / 3 作物 / 1 配方 / 2 敌人 / 3 掉落表 / 21 纹理 /
+> 当前实际内容为 **12 物品 / 3 作物 / 1 配方 / 2 敌人 / 3 掉落表 / 22 纹理 /
 > 8 SFX + 1 音乐**，已达到原定切片的内容数量；格式见
 > [内容 JSON 格式](../content-format.md)。
 
@@ -97,12 +101,14 @@
   `stamina max 100.0 -> ok`、`weapon damage 12 (content 12) -> ok`、
   `content 12 item(s), 3 crop(s), 2 enemy(ies), 3 loot table(s) -> ok`、
   `audio 8 sfx, looping music ok -> ok`、
+  `attack animation start ok, wind-up ok, hit ok -> ok`、
+  `forest attack animation ok`、
   `food hp 50 -> 70, stamina 50 -> 80.0, soup 3 -> 2 -> ok`、
   `craft soup ok (ready ok, collect ok), soup 2 -> 3 -> ok`、
   `save-state ai ok, enemy ok, debris ok, placed ok, narrative ok, health ok -> ok`、
   `quest log ok`、`inventory filter ok`、
   `shop season ok, price swing ok -> ok`、
-  `enemy counterattack chase ok, attack ok, hurt ok -> ok`、
+  `enemy counterattack chase ok, attack ok, swing ok, wind-up ok, hurt ok -> ok`、
   `combat death ok, player intact ok, respawn ok -> ok`、
   `thorns death menu ok, respawn ok, gold 154 -> 139 -> ok`、
   `death load menu ok, loaded ok -> ok`、`death main-menu ok -> ok`、
@@ -118,7 +124,7 @@
   是 `40x23 map ... 1 portal(s)`（农场或林地），scripted smoke 仍是
   `40x23 map ... 0 portal(s)`。
 - 启动打印 `config: window 1280x720 (min 1280x720), ui scale 1.25, 9 entity spawn(s)`；
-  M05 为 `21 catalog entr(ies), 21 texture(s) cached, 0 placeholder(s)`（PNG 解码成功），
+  M05 为 `22 catalog entr(ies), 22 texture(s) cached, 0 placeholder(s)`（PNG 解码成功），
   M15 为 `12 item(s), 3 crop(s), 1 recipe(s), 2 enemy(ies), 3 loot table(s)`；
   `play-test` 额外校验 `9 entity spawn(s), bed from table ok, bat spawn ok` 与
   `crop sprites ok, detail textures ok`。
@@ -191,9 +197,9 @@
 | 加工 / 配方 | ✅ 基础版已接 play | 商店 `COOK SOUP` 消耗 2 萝卜，30 游戏分钟后 `COLLECT`；无设备实体/燃料/队列上限 |
 | 食物 / 消耗品 | ✅ 基础版已接 play | `F` 食用选中食物；汤 +20 HP、+30 体力；效果由 JSON 字段配置 |
 | 死亡 | ✅ 已落地 | 10% 金币只扣一次；GameOver 面板：复活 / 读自动存档 / 主菜单 |
-| 战斗深度 | 🟡 基础版 | 林地敌人主动索敌/追击/攻击；受击闪烁与伤害数字；仍无攻击动画与命中音效 |
+| 战斗深度 | 🟡 基础版 | 玩家与林地敌人都是 3 帧挥砍，命中由动画 `hit` 事件触发；敌人主动索敌/追击/攻击，受击闪烁、伤害数字与命中/受伤 SFX；仍无敌人专属招式/受击硬直 |
 | 音频 | 🟡 占位素材 | `data/audio.json` 提供 8 个 SFX（锄/浇/种/收/拾取/命中/受伤/购买）+ 1 首循环音乐；程序化音色，无真实素材/流式 |
-| 美术 | 🟡 占位 | 21 张简单像素占位 PNG + 程序化回落；catalog 驱动，新增贴图无需改代码 |
+| 美术 | 🟡 占位 | 22 张简单像素占位 PNG + 程序化回落；catalog 驱动，新增贴图无需改代码 |
 | 手柄 | ❌ 未做 | 架构预留 |
 | 动物 / 钓鱼 / 节日 | ❌ 未做 | 不在 v1 切片 |
 
@@ -231,7 +237,8 @@
 - [x] 武器伤害来自 `ItemDef::damage`；食物效果来自 `heal_amount`/`stamina_restore`；
   加工可从商店面板完成。
 - [x] 敌人会反击；受击闪烁与伤害数字已接。
-- [ ] 更深的战斗/加工表现：攻击动画/命中音效、设备实体与队列上限。
+- [x] 玩家与敌人攻击动画：3 帧挥砍，命中盒由 `hit` 帧事件生成。
+- [ ] 更深的战斗/加工表现：敌人专属招式/受击硬直、设备实体与队列上限。
 - [x] NPC 对话、任务接取/完成/奖励在 play 中可完成（1 个 Elder / 1 条任务）。
 - [x] 生命归零进入死亡菜单（复活 / 读自动存档 / 主菜单），三条路径均通过
   `--play-test`。
@@ -308,7 +315,7 @@
 **被敌人打死→GameOver→复活** → 荆棘死亡菜单/复活 → 保存/主菜单/读档（含林地 AI）→
 存档槽往返 → 做汤/收取 → 死亡读档 → 死亡回主菜单。
 
-**尚未自动覆盖**：攻击动画/命中音效、真实音频、1920×1080/60 FPS/30 分钟稳定性。
+**尚未自动覆盖**：真实音频素材、1920×1080/60 FPS/30 分钟稳定性。
 
 ## 7. 下一步计划（2026-10-27）
 
@@ -323,7 +330,8 @@
 | ✅ P0-3 | 剩余存档段（已完成） | 叙事（好感/任务/flags）、AI（agent 状态/目标）、世界对象（敌人/杂物/放置物）与玩家生命写入 `SaveFile` 并读回；新增段均为可选字段，旧档按空段加载，无需版本升级 | `--play-test` 已断言保存→改状态→读档后 AI/敌人/杂物/放置物/任务/生命逐项一致；三配置通过 |
 | ✅ P1-1 | 战斗手感与敌人反击（已完成） | 林地敌人接入 M21 主动索敌/追击/攻击；受击闪烁 + 上浮伤害数字；被敌人打死进入 GameOver 且玩家不被销毁 | `--play-test` 已断言 chase/attack/hurt、combat death→respawn、林地 AI 存档；三配置通过 |
 | ✅ P1-2 | 商店/任务/背包 UI（已完成） | 商店显示每日余量/季节可用性并按日确定性波动价格；`J` 任务日志；背包分类过滤 + 分页 + 滚轮 | `--play-test` 已断言季节库存、价格波动、任务日志与分类过滤；三配置通过 |
-| ✅ P2-1 | 内容补齐（已完成） | 土豆/草莓、蝙蝠、12 物品、8 SFX + 1 音乐、21 张纹理；敌人 AI/纹理全部 JSON 驱动 | `--play-test` 断言 12/3/2/3 内容计数、音频目录与蝙蝠 spawn；三配置通过 |
+| ✅ P2-1 | 内容补齐（已完成） | 土豆/草莓、蝙蝠、12 物品、8 SFX + 1 音乐、22 张纹理；敌人 AI/纹理全部 JSON 驱动 | `--play-test` 断言 12/3/2/3 内容计数、音频目录与蝙蝠 spawn；三配置通过 |
+| ✅ P2-1b | 攻击动画（已完成） | 玩家与林地敌人都用 M10 三帧挥砍，`hit` 帧事件生成 M20 命中盒；M21 新增 `setAttackHandler()` 让 AI 攻击先起手；无纹理时回落为即时命中 | `--play-test` 断言玩家与敌人都是“起手不掉血、命中帧掉血” |
 | P2-2 | 工程收尾 | 全新克隆 CI、60 FPS/内存基线、1920×1080 像素检查、存档迁移链 | 新克隆一次通过；30 分钟 soak 无增长 |
 
 **P0-1 已完成的落点**：
@@ -340,6 +348,23 @@
 
 **下一步建议做 P2-2（工程收尾）**：全新克隆 CI、60 FPS/内存基线、1920×1080
 像素检查与 30 分钟 soak。内容数量已达标，剩余风险集中在工程稳定性。
+
+**P2-1b 已完成的落点**：
+
+1. `assets/slash.png`（48×16，3 帧）登记为 `tex.effect.slash`；catalog 驱动加载。
+2. `DemoScene::buildAttackEffect()` 创建隐藏的挥砍实体，clip 为 0.07/0.07/0.10 秒，
+   第 2 帧事件 `hit`。
+3. `DemoScene::startAttack()` 播放动画并记录伤害/距离；`updateAnimation()` 每步
+   让挥砍跟随玩家朝向，在 `hit` 事件里调用 `playerAttack()` 生成 M20 命中盒。
+4. `handleAttack()` 改为调用 `startAttack()`；动画播放中再按右键返回
+   `ATTACK BUSY`，动画结束才能再次挥砍。
+5. 没有 `tex.effect.slash` 时自动回落到旧的即时命中，战斗不会因缺资源失效。
+6. M21 新增 `AiService::setAttackHandler()`；`DemoScene` 为每个林地敌人创建红色
+   挥砍精灵，AI 攻击先播放同一 3 帧 clip，`hit` 帧才 `spawnAttack`。农场训练
+   agent 没有专属精灵，回落为即时攻击。
+7. `--play-test` 断言 `attack animation start ok, wind-up ok, hit ok`、
+   `forest attack animation ok` 与
+   `enemy counterattack chase ok, attack ok, swing ok, wind-up ok, hurt ok`。
 
 **P2-1 已完成的落点**：
 
@@ -381,7 +406,7 @@
 ## 8. 开放问题
 
 - 切片是否需要战斗？**已决定：保留**，M20/M21 已实现并跑通；林地敌人已会反击，
-  攻击动画与命中音效仍待补。
+  攻击动画仍待补。
 - 瓦片尺寸与角色比例：**已定** 16×16、640×360、脚部盒 10×6（ADR-0003）。
 - 死亡菜单已实现「复活 / 读自动存档 / 主菜单」；金币惩罚在死亡时先扣一次，
   读档会回到存档中的金币。是否需要在读档路径上保留惩罚，仍需产品确认。
