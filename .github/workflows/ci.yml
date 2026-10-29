@@ -41,7 +41,8 @@ jobs:
           path: |
             C:\vcpkg\installed
             C:\vcpkg\downloads
-          key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}
+            vcpkg_installed
+          key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'Directory.Build.props') }}
           restore-keys: |
             vcpkg-${{ runner.os }}-
 
@@ -62,6 +63,24 @@ jobs:
             throw 'vcpkg.json still contains the placeholder builtin-baseline.'
           }
 
+      # The project builds in manifest mode (VcpkgEnableManifest), so the dependency tree
+      # lives in ./vcpkg_installed, not in C:\vcpkg\installed. Without this step nothing
+      # ever populates it and the build dies on missing glm/SDL3 headers.
+      - name: Install vcpkg dependencies
+        if: steps.detect.outputs.ready == 'true'
+        shell: pwsh
+        run: |
+          & "$env:VCPKG_ROOT\vcpkg.exe" install --triplet x64-windows-static-md --host-triplet x64-windows
+          if ($LASTEXITCODE -ne 0) { throw "vcpkg install failed: $LASTEXITCODE" }
+          # The installed tree nests as vcpkg_installed/<triplet>[/<triplet>]/include depending
+          # on whether MSBuild's manifest support or the CLI created it, so search for the
+          # headers instead of assuming one layout.
+          foreach ($header in 'glm.hpp', 'SDL.h', 'json.hpp') {
+            if (-not (Get-ChildItem -Recurse -Path 'vcpkg_installed' -Filter $header -ErrorAction SilentlyContinue | Select-Object -First 1)) {
+              throw "vcpkg install finished but no $header exists under vcpkg_installed"
+            }
+          }
+
       - name: Build
         if: steps.detect.outputs.ready == 'true'
         shell: pwsh
@@ -69,7 +88,9 @@ jobs:
           $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
           $msbuild = (& $vswhere -latest -products * -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\MSBuild.exe' | Select-Object -First 1)
           if (-not $msbuild) { throw 'MSBuild.exe not found.' }
-          & $msbuild FloriansAdventure.sln /m /nologo /v:minimal /p:Configuration=${{ matrix.configuration }} /p:Platform=x64
+          # VcpkgRoot is passed explicitly: the runner has no user-wide `vcpkg integrate
+          # install`, and MSBuild's built-in manifest support needs to locate the root.
+          & $msbuild FloriansAdventure.sln /m /nologo /v:minimal /p:Configuration=${{ matrix.configuration }} /p:Platform=x64 "/p:VcpkgRoot=$env:VCPKG_ROOT"
           if ($LASTEXITCODE -ne 0) { throw "Build failed: $LASTEXITCODE" }
 
       - name: Test
