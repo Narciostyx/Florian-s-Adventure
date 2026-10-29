@@ -166,7 +166,7 @@ v1 没有解码器，音频是“音色参数 → PCM”生成；同一份 JSON 
 
 ```json
 {"assets": [
-  {"id": "tex.enemy.bat", "kind": "texture", "path": "bat.png",
+  {"id": "tex.enemy.bat", "kind": "texture", "path": "textures/characters/bat.png",
    "size": [16, 16], "color": "#4e3e6e", "altColor": "#947cbe"}
 ]}
 ```
@@ -175,12 +175,12 @@ v1 没有解码器，音频是“音色参数 → PCM”生成；同一份 JSON 
 |---|---|---|
 | `id` | 是 | 纹理 id；`content`/`entities`/地图都用它引用 |
 | `kind` | 是 | `texture` 或 `json` |
-| `path` | 否 | 相对 `assets/` 的文件名；缺省为纯色占位 |
+| `path` | 否 | 相对 `assets/` 的路径，形如 `textures/<类别>/<名字>.png`（见[规范第 11 节](architecture/conventions.md#11-资源命名)）；缺省为纯色占位 |
 | `size` | 占位时必填 | `[w,h]` |
 | `color` / `altColor` / `tile` | 否 | 占位颜色与棋盘格尺寸 |
 
 app 会遍历 catalog 加载全部 `texture` 条目，因此新增作物/敌人贴图只需：
-1. 放 PNG 到 `assets/`；
+1. 放 PNG 到 `assets/textures/<类别>/`；
 2. 在 `catalog.json` 加一条；
 3. 在 `content.json` 的作物阶段或 `entities.json` 的 `texture` 中引用。
 不需要改 C++ 句柄表。
@@ -193,3 +193,5 @@ app 会遍历 catalog 加载全部 `texture` 条目，因此新增作物/敌人�
   [`modules/12-tilemap-and-world.md`](modules/12-tilemap-and-world.md)。
 - `config/game.json`：窗口/UI/玩法/体力参数，格式见
   [`build/m02-platform.md`](build/m02-platform.md) 与 `src/app/GameConfig.hpp`。
+  `window.fill` 为 `false`（默认）时按整数倍缩放并留黑边；为 `true` 时按精确比例填满窗口
+  （nearest 采样，个别源像素宽度为 2 或 3 个窗口像素）。

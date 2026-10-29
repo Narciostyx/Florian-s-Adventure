@@ -199,6 +199,24 @@ assets/content/crops/turnip.json
 - 同一资源的 ID 与路径解耦；ID 稳定，路径可迁移。
 - 大文件使用 Git LFS；提交前确认 `.gitattributes`。
 
+### 纹理类别目录
+
+`catalog.json` 的 `path` 相对 `assets/`，一律写成 `textures/<类别>/<名字>.png`。类别与
+纹理 ID 的命名空间一一对应，文件名不再重复类别前缀（`textures/items/hoe.png`，
+不是 `textures/items/item_hoe.png`）：
+
+| ID 前缀 | 类别目录 | 例 |
+|---|---|---|
+| `tex.ground.*` | `textures/tiles/` | `textures/tiles/grass.png` |
+| `tex.actor.*`、`tex.enemy.*` | `textures/characters/` | `textures/characters/player.png` |
+| `tex.crop.*` | `textures/crops/` | `textures/crops/turnip_mature.png` |
+| `tex.object.*` | `textures/objects/` | `textures/objects/chest.png` |
+| `tex.effect.*` | `textures/effects/` | `textures/effects/slash.png` |
+| `tex.item.*` | `textures/items/` | `textures/items/watering_can.png` |
+| `tex.marker` 等 UI 辅助图 | `textures/ui/` | `textures/ui/marker.png` |
+
+新增 ID 命名空间时先在表里补一行，再落文件；音频沿用 `audio/<类别>/`。
+
 ## 12. Git 与提交
 
 - 分支：`feat/<topic>`、`fix/<topic>`、`docs/<topic>`、`refactor/<topic>`。

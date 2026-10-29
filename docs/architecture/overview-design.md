@@ -110,7 +110,7 @@ int App::Run() {
 
 - 世界为 2D，y 轴向下，单位 1 = 逻辑像素。
 - 原点在地图左上角；相机变换后才映射到屏幕。
-- 渲染使用虚拟分辨率 640×360，整数缩放到窗口，保证像素锐利。
+- 渲染使用虚拟分辨率 640×360，默认整数缩放到窗口，保证像素锐利；`window.fill` 可改为精确比例填满。
 - 排序键：`(layer, sortY, entityId)`，地形层不参与 `sortY` 排序。
 - 碰撞体与精灵尺寸解耦，碰撞盒通常小于精灵。
 
@@ -130,7 +130,7 @@ sequenceDiagram
   participant Scene
   participant Assets as M05
   participant Render as M06
-  Scene->>Assets: Load<Texture>("tiles/grass.png")
+  Scene->>Assets: Load<Texture>("textures/tiles/grass.png")
   Assets-->>Scene: AssetHandle<Texture>
   Assets->>Render: IAssetUploader::Upload(...)
   Scene->>Assets: Release(handle)

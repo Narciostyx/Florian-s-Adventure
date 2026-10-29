@@ -59,8 +59,7 @@ public:
     void update(const VisualEditorInput& input, core::Rect mapViewport);
 
     /// \brief Draws the toolbar, palette and property inspector.
-    void draw(ui::UiContext& ui, core::Rect screen,
-              std::span<const std::string> textureIds, const SaveHandler& save);
+    void draw(ui::UiContext& ui, core::Rect screen, std::span<const std::string> textureIds, const SaveHandler& save);
 
     [[nodiscard]] tilemap::Tilemap& map() noexcept { return m_editor.map(); }
     [[nodiscard]] const tilemap::Tilemap& map() const noexcept { return m_editor.map(); }
@@ -81,10 +80,11 @@ public:
 private:
     void resizeMap(int width, int height);
     void drawToolbar(ui::UiContext& ui, core::Rect screen);
-    void drawPalette(ui::UiContext& ui, core::Rect screen,
-                     std::span<const std::string> textureIds);
-    void drawProperties(ui::UiContext& ui, core::Rect screen,
-                        std::span<const std::string> textureIds, const SaveHandler& save);
+    void drawPalette(ui::UiContext& ui, core::Rect screen, std::span<const std::string> textureIds);
+    void drawProperties(ui::UiContext& ui,
+                        core::Rect screen,
+                        std::span<const std::string> textureIds,
+                        const SaveHandler& save);
     void updateHover(const core::Vec2& cursor);
 
     EditorHistory m_history;

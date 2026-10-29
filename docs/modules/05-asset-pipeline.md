@@ -13,7 +13,7 @@
 
 为所有资源提供统一的稳定 ID、异步加载、缓存、引用计数句柄与重载，并把「拿不到资源怎么办」变成一条**确定的、可测的**规则。
 
-玩法与渲染都不直接读文件，也不关心资源来自磁盘、pak 还是内存。资源缺失时游戏仍然能跑起来：当前优先读 `assets/*.png` 占位图，缺文件/解码失败再回落到色块占位（见 [美术资源策略](../architecture/art-policy.md)）。
+玩法与渲染都不直接读文件，也不关心资源来自磁盘、pak 还是内存。资源缺失时游戏仍然能跑起来：当前优先读 `assets/textures/**/*.png`，缺文件/解码失败再回落到色块占位（见 [美术资源策略](../architecture/art-policy.md)）。
 
 ## 2. 范围
 
@@ -187,21 +187,21 @@ struct AssetEntry {
 `AssetCatalog` 是**独立的** id→文件表，不挂在缓存里：换一份 catalog 就是换一整套内容，
 这是后续内容包 / mod 的挂钩点，而不是资源系统的改动。
 
-v1 现用的 catalog 在 `data/catalog.json`，五条都带 `path` 指向 `assets/` 占位 PNG，
-同时保留 `color`/`altColor`/`tile` 作为缺图兜底：
+v1 现用的 catalog 在 `data/catalog.json`，31 条纹理都带 `path`，指向
+`assets/textures/<类别>/` 下的 PNG，同时保留 `color`/`altColor`/`tile` 作为缺图兜底：
 
 ```json
 {
   "assets": [
-    {"id": "tex.ground.grass", "kind": "texture", "path": "grass.png", "size": [16, 16],
+    {"id": "tex.ground.grass", "kind": "texture", "path": "textures/tiles/grass.png", "size": [16, 16],
      "tile": 8, "color": "#4a8250", "altColor": "#5c8a42"},
-    {"id": "tex.ground.soil", "kind": "texture", "path": "soil.png", "size": [16, 16],
+    {"id": "tex.ground.soil", "kind": "texture", "path": "textures/tiles/soil.png", "size": [16, 16],
      "tile": 4, "color": "#6b4a2f", "altColor": "#7d5a3a"},
-    {"id": "tex.ground.wall", "kind": "texture", "path": "wall.png", "size": [16, 16],
+    {"id": "tex.ground.wall", "kind": "texture", "path": "textures/tiles/wall.png", "size": [16, 16],
      "tile": 4, "color": "#3d465e", "altColor": "#55627e"},
-    {"id": "tex.actor.player", "kind": "texture", "path": "player.png", "size": [16, 24],
+    {"id": "tex.actor.player", "kind": "texture", "path": "textures/characters/player.png", "size": [16, 24],
      "color": "#e8c39e", "altColor": "#c79a74"},
-    {"id": "tex.marker", "kind": "texture", "path": "marker.png", "size": [8, 8],
+    {"id": "tex.marker", "kind": "texture", "path": "textures/ui/marker.png", "size": [8, 8],
      "color": "#ffffff"}
   ]
 }

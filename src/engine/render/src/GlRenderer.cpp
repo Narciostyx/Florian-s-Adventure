@@ -607,7 +607,7 @@ void GlRenderer::beginFrame(const Camera2D& camera) {
     const platform::IWindow& window = m_platform->window();
     const int virtualWidth = static_cast<int>(camera.viewportSize().x);
     const int virtualHeight = static_cast<int>(camera.viewportSize().y);
-    m_viewport = Viewport::fit(window.width(), window.height(), virtualWidth, virtualHeight);
+    m_viewport = Viewport::fit(window.width(), window.height(), virtualWidth, virtualHeight, m_desc.fillWindow);
 
     // Vertices are already in virtual pixels, so the projection is a plain
     // 0..size orthographic box; the camera transform happened on the CPU.

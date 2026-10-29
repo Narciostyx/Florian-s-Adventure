@@ -36,7 +36,7 @@
 > 内容/商店/叙事/资源目录已移到 `data/*.json`，地图布局在 `data/maps/*.json`
 > （`farm.json` / `farm-scripted.json` / `forest.json`），play 实体由
 > `data/entities.json` 生成；窗口/UI 缩放/玩法参数在 `config/game.json`，缺失时回落默认值。
-> 纹理优先读 `assets/*.png`（stb_image），缺图/解码失败回落到程序占位。
+> 纹理优先读 `assets/textures/**/*.png`（stb_image），缺图/解码失败回落到程序占位。
 > 主菜单等面板居中，字号由 `ui.scale`（默认 1.25×）放大；窗口最小 1280×720、可放大。
 >
 > HUD 已去掉多余的 `PAUSE` 按钮（`Esc` 仍暂停），日期/时间/季节/区域移入左侧
@@ -205,7 +205,7 @@
 | 死亡 | ✅ 已落地 | 10% 金币只扣一次；GameOver 面板：复活 / 读自动存档 / 主菜单 |
 | 战斗深度 | 🟡 基础版 | 玩家与林地敌人都是 3 帧挥砍，命中由动画 `hit` 事件触发；敌人主动索敌/追击/攻击，受击闪烁、伤害数字与命中/受伤 SFX；仍无敌人专属招式/受击硬直 |
 | 音频 | 🟡 占位素材 | `data/audio.json` 提供 8 个 SFX（锄/浇/种/收/拾取/命中/受伤/购买）+ 1 首循环音乐；程序化音色，无真实素材/流式 |
-| 美术 | 🟡 占位 | 22 张简单像素占位 PNG + 程序化回落；catalog 驱动，新增贴图无需改代码 |
+| 美术 | 🟡 占位 | 31 张 AI 生成的像素 PNG（`assets/textures/<类别>/`）+ 程序化回落；catalog 驱动，新增贴图无需改代码 |
 | 手柄 | ❌ 未做 | 架构预留 |
 | 动物 / 钓鱼 / 节日 | ❌ 未做 | 不在 v1 切片 |
 
@@ -380,7 +380,7 @@
 
 **P2-1b 已完成的落点**：
 
-1. `assets/slash.png`（48×16，3 帧）登记为 `tex.effect.slash`；catalog 驱动加载。
+1. `assets/textures/effects/slash.png`（48×16，3 帧）登记为 `tex.effect.slash`；catalog 驱动加载。
 2. `DemoScene::buildAttackEffect()` 创建隐藏的挥砍实体，clip 为 0.07/0.07/0.10 秒，
    第 2 帧事件 `hit`。
 3. `DemoScene::startAttack()` 播放动画并记录伤害/距离；`updateAnimation()` 每步

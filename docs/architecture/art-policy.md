@@ -6,12 +6,13 @@
 
 **仓库可以放占位图片，但程序必须能在缺图时独立运行。** 每张纹理的加载顺序是：
 
-1. catalog 的 `path` → `assets/<file>`（当前是 `grass.png` 等 5 张纯色/棋盘占位）；
+1. catalog 的 `path` → `assets/textures/<类别>/<file>.png`（当前是 31 张已生成的像素素材）；
 2. 文件缺失、无解码器或解码失败 → 用 catalog 的 `color`/`altColor`/`tile`
    **程序化生成**同样的占位。
 
-v1 的 PNG 只是“可替换的占位文件”，不代表最终美术；真实美术接入时只换文件，
-不改代码。app 注册了 stb_image 解码器，因此 PNG/JPG/TGA/BMP 都能读。
+PNG 换成真实美术时只换文件，不改代码；即使换成正式素材，第 2 步的回落仍然保留，
+冒烟、CI 与全新克隆都不依赖图片文件。app 注册了 stb_image 解码器，因此
+PNG/JPG/TGA/BMP 都能读。目录与文件命名遵循[编码与内容规范第 11 节](conventions.md#11-资源命名)。
 
 理由：
 
@@ -72,7 +73,7 @@ tile >  0         → 以 tile 为边长的双色棋盘（color / altColor）
 真实图片到位时**不改代码**，只改 catalog：
 
 ```json
-{ "id": "tex.ground.grass", "kind": "texture", "path": "tiles/grass.png",
+{ "id": "tex.ground.grass", "kind": "texture", "path": "textures/tiles/grass.png",
   "size": [16, 16], "tile": 8, "color": "#4a8250", "altColor": "#5c8a42" }
 ```
 
@@ -88,15 +89,22 @@ tile >  0         → 以 tile 为边长的双色棋盘（color / altColor）
 
 ## 6. 当前 catalog 清单
 
-`data/catalog.json` 里的五条，均带 `path` 指向 `assets/` 下的占位 PNG：
+`data/catalog.json` 当前有 31 条纹理，全部带 `path` 指向 `assets/textures/<类别>/` 下的 PNG
+（下表只列最早的 5 条基准项，
+其余是三种作物 × 4 阶段、第二个敌人、挥砍特效，以及 9 张 `tex.item.*` 物品图标）：
 
 | id | 尺寸 | 文件 | 用途 |
 |---|---|---|---|
-| `tex.ground.grass` | 16×16 | `grass.png` | 草地瓦片 |
-| `tex.ground.soil` | 16×16 | `soil.png` | 耕地瓦片 |
-| `tex.ground.wall` | 16×16 | `wall.png` | 墙/树 |
-| `tex.actor.player` | 16×24 | `player.png` | 玩家 |
-| `tex.marker` | 8×8 | `marker.png` | 鼠标位置标记 / 调试图元底色 |
+| `tex.ground.grass` | 16×16 | `textures/tiles/grass.png` | 草地瓦片 |
+| `tex.ground.soil` | 16×16 | `textures/tiles/soil.png` | 耕地瓦片 |
+| `tex.ground.wall` | 16×16 | `textures/tiles/wall.png` | 墙/树 |
+| `tex.actor.player` | 16×24 | `textures/characters/player.png` | 玩家 |
+| `tex.marker` | 8×8 | `textures/ui/marker.png` | 鼠标位置标记 / 调试图元底色 |
+
+`tex.item.*` 物品图标已接入 **M09 的 `UiContext::icon`**：组合根按 `item.<x> → tex.item.<x>`
+解析句柄（三种种子没有专属图标，复用 `tex.crop.<x>_seed` 的播种贴图），背包面板的
+背包列与快捷栏列都在每行左侧画 16×16 图标。解析不到图标时画洋红块，符合第 3 节的约定。
+商店与任务日志仍只显示文字，接图标是后续工作。
 
 新增资源时按 [模块文档](../modules/05-asset-pipeline.md) 的校验规则填写：
 `id` 唯一、`kind` 合法、path-less 纹理必须给 `size`、颜色必须是合法 HEX。
@@ -105,7 +113,7 @@ tile >  0         → 以 tile 为边长的双色棋盘（color / altColor）
 
 | 不做 | 原因 |
 |---|---|
-| 提交大尺寸/未压缩的美术源文件 | 仓库只放小占位 PNG；真实美术与 `.aseprite` 源文件届时再定目录与 LFS 策略 |
+| 提交大尺寸/未压缩的美术源文件 | 仓库只放运行时 PNG；`.aseprite` 等源文件与 LFS 策略等正式美术阶段再定，目录结构已按[规范第 11 节](conventions.md#11-资源命名)固定 |
 | 用字体图标 / emoji 当占位 | 渲染器不画文字（文字归 M09），色块是唯一能画的形态 |
 | 程序化生成「像样的」贴图（噪声草地等） | 会掩盖对齐问题；色块最容易暴露尺寸与排序错误 |
 | 占位尺寸随窗口/缩放变化 | 尺寸是玩法参数，不是显示参数 |

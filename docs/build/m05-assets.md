@@ -374,8 +374,9 @@ fa_app.exe   → ran 60 frame(s)
 
 ## 图片接入增量
 
-- catalog 移到 `data/catalog.json`，五条都带 `path`（`grass.png`/`soil.png`/`wall.png`/
-  `player.png`/`marker.png`），`rootPath` 取 `config.paths.assets`。
+- catalog 移到 `data/catalog.json`，五条都带 `path`，`rootPath` 取 `config.paths.assets`。
+  接入时用的是 `assets/` 根目录下的裸文件名（`grass.png` 等）；按[规范第 11 节](../architecture/conventions.md#11-资源命名)
+  迁移后，同一批文件现在位于 `assets/textures/<类别>/`（`textures/tiles/grass.png` 等）。
 - app 新增 `StbImageDecoder`（独立 TU，编译期屏蔽 stb 的 /W4 警告）并在
   `AssetManagerDesc::decoders` 注册；支持 PNG/JPG/TGA/BMP。
 - 缺图、无解码器、解码失败仍由 M05 回落到 `color`/`altColor`/`tile`：

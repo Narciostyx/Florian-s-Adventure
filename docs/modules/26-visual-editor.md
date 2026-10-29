@@ -337,6 +337,7 @@ struct EditorCommand {
 | 地图属性 | `OUTSIDE SOLID`、`INDOOR`（`ambient.indoor`） |
 | 瓦片属性 | 贴图名循环选择（来自 `catalog.json` 的 `Texture` 条目）、`WALKABLE`、`SOLID`、`TILLABLE`、`WATER` |
 | 保存 | `SAVE JSON` 调用组装根回调，原子写入 `data/maps/farm.json`，成功后 `markSaved()` 并重新绑定纹理 |
+| 字号 | 编辑器局部把 `UiTheme::textScale` 压到 `clamp(hud * 0.55, 1.25, 1.6)`，避免 11–13 px 行高里的按钮文字被裁切 |
 | 关闭 | `BACK` 或 `Esc`；控件状态与撤销历史保留 |
 
 尚未实现（后续阶段）：

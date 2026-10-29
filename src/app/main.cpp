@@ -213,19 +213,19 @@ constexpr std::string_view kCatalogText = R"({
     {"id": "tex.actor.player", "kind": "texture", "size": [16, 24],
      "color": "#e8c39e", "altColor": "#c79a74"},
     {"id": "tex.marker", "kind": "texture", "size": [8, 8], "color": "#ffffff"},
-    {"id": "tex.ground.soil_wet", "kind": "texture", "path": "soil_wet.png", "size": [16, 16],
+    {"id": "tex.ground.soil_wet", "kind": "texture", "path": "textures/tiles/soil_wet.png", "size": [16, 16],
      "tile": 4, "color": "#4a3322", "altColor": "#372418"},
-    {"id": "tex.crop.turnip_seed", "kind": "texture", "path": "turnip_seed.png", "size": [16, 16],
+    {"id": "tex.crop.turnip_seed", "kind": "texture", "path": "textures/crops/turnip_seed.png", "size": [16, 16],
      "color": "#6b4a2f", "altColor": "#a97c4f"},
-    {"id": "tex.crop.turnip_sprout", "kind": "texture", "path": "turnip_sprout.png",
+    {"id": "tex.crop.turnip_sprout", "kind": "texture", "path": "textures/crops/turnip_sprout.png",
      "size": [16, 16], "color": "#3f7d32", "altColor": "#5fae45"},
-    {"id": "tex.crop.turnip_young", "kind": "texture", "path": "turnip_young.png",
+    {"id": "tex.crop.turnip_young", "kind": "texture", "path": "textures/crops/turnip_young.png",
      "size": [16, 16], "color": "#3f7d32", "altColor": "#7ac95a"},
-    {"id": "tex.crop.turnip_mature", "kind": "texture", "path": "turnip_mature.png",
+    {"id": "tex.crop.turnip_mature", "kind": "texture", "path": "textures/crops/turnip_mature.png",
      "size": [16, 16], "color": "#9a6fb0", "altColor": "#efe6f0"},
-    {"id": "tex.object.chest", "kind": "texture", "path": "chest.png", "size": [16, 16],
+    {"id": "tex.object.chest", "kind": "texture", "path": "textures/objects/chest.png", "size": [16, 16],
      "color": "#8a5a2b", "altColor": "#5d3a1a"},
-    {"id": "tex.enemy.slime", "kind": "texture", "path": "slime.png", "size": [16, 16],
+    {"id": "tex.enemy.slime", "kind": "texture", "path": "textures/characters/slime.png", "size": [16, 16],
      "color": "#4fa84a", "altColor": "#2f7a36"}
   ]
 })";
@@ -2710,11 +2710,12 @@ public:
                 hazardCells.push_back(spawn.cell);
             }
         }
-        std::printf("config: window %dx%d (min %dx%d), ui scale %.2f, %zu entity spawn(s)\n",
+        std::printf("config: window %dx%d (min %dx%d, %s), ui scale %.2f, %zu entity spawn(s)\n",
                     config.window.width,
                     config.window.height,
                     config.window.minWidth,
                     config.window.minHeight,
+                    config.window.fill ? "fill" : "integer scale",
                     static_cast<double>(config.ui.scale),
                     entitySpawns.size());
         std::printf("config: stamina max %.0f, regen %.1f/s, run %.1f/s, dodge %.0f, "
@@ -2779,6 +2780,7 @@ public:
 
         fa::render::RendererDesc desc;
         desc.vsync = vsync;
+        desc.fillWindow = config.window.fill;
         const fa::core::Status status = renderer->initialize(platform, desc);
         if (status.isError()) {
             renderer.reset();
@@ -3062,6 +3064,8 @@ public:
         visualEditor->clearCloseRequest();
         editorWindowOpen = true;
         slotsOpen = false;
+        std::printf("editor: visual open (%dx%d)\n", visualEditor->map().width(), visualEditor->map().height());
+        std::fflush(stdout);
     }
 
     /// \brief Hides the visual editor without discarding its undo history.
@@ -3070,6 +3074,8 @@ public:
             visualEditor->setActive(false);
         }
         editorWindowOpen = false;
+        std::printf("editor: visual closed\n");
+        std::fflush(stdout);
     }
 
     /// \brief Writes the edited map back to the file the runtime loads.
@@ -7362,6 +7368,52 @@ private:
         }
     }
 
+    /// \brief The catalog texture that icons \p itemId, or an invalid handle.
+    ///
+    /// `item.<x>` maps to `tex.item.<x>`. The three seeds have no dedicated icon and
+    /// reuse their `tex.crop.<x>_seed` planting sprite, which is the same pixels.
+    [[nodiscard]] fa::render::TextureHandle itemIconTexture(std::string_view itemId) const {
+        static constexpr std::string_view kPrefix = "item.";
+        if (!itemId.starts_with(kPrefix)) {
+            return {};
+        }
+        const std::string_view suffix = itemId.substr(kPrefix.size());
+        for (const std::string_view table : {std::string_view("tex.item."), std::string_view("tex.crop.")}) {
+            const auto found = namedTextureHandles.find(std::string(table) + std::string(suffix));
+            if (found != namedTextureHandles.end() && found->second.isValid()) {
+                return found->second;
+            }
+        }
+        return {};
+    }
+
+    /// \brief Draws one inventory row: 16 px icon, then `name xN`.
+    ///
+    /// Rows without art get the magenta placeholder block from the art policy so a
+    /// missing `tex.item.*` entry is visible instead of looking like an intentional gap.
+    void inventoryRow(float iconX,
+                      float textX,
+                      float rowY,
+                      float textWidth,
+                      const fa::inventory::ItemStack& itemStack,
+                      const fa::ui::TextStyle& label) {
+        const fa::render::TextureHandle icon = itemIconTexture(itemStack.id.name());
+        const fa::core::Rect slot{iconX, rowY, 16.0f, 16.0f};
+        if (icon.isValid()) {
+            ui->icon(slot, icon);
+        } else {
+            ui->panel(slot, fa::core::Color{1.0f, 0.0f, 1.0f, 1.0f});
+        }
+        const fa::content::ItemDef* def = content.item(itemStack.id);
+        char line[64]{};
+        std::snprintf(line,
+                      sizeof(line),
+                      "%s x%d",
+                      def != nullptr ? def->displayName.c_str() : itemStack.id.name().c_str(),
+                      itemStack.count);
+        ui->text(line, fa::core::makeRect(textX, rowY + 4.0f, textWidth, 8.0f), label);
+    }
+
     void buildInventoryPanel(const fa::ui::UiTheme& theme) {
         if (!inventoryOpen || ui == nullptr || flow == nullptr || playerInventory == nullptr) {
             return;
@@ -7435,14 +7487,7 @@ private:
         for (int index = first; index < static_cast<int>(bagSlots.size()) && shown < kPageSize; ++index, ++shown) {
             const int slot = bagSlots[static_cast<std::size_t>(index)];
             const fa::inventory::ItemStack& itemStack = bag.at(slot);
-            const fa::content::ItemDef* def = content.item(itemStack.id);
-            char line[64]{};
-            std::snprintf(line,
-                          sizeof(line),
-                          "%s x%d",
-                          def != nullptr ? def->displayName.c_str() : itemStack.id.name().c_str(),
-                          itemStack.count);
-            ui->text(line, fa::core::makeRect(panel.x + 12.0f, bagY + 4.0f, 200.0f, 8.0f), label);
+            inventoryRow(panel.x + 12.0f, panel.x + 32.0f, bagY, 176.0f, itemStack, label);
 
             char id[32]{};
             std::snprintf(id, sizeof(id), "inv.bag.%d", slot);
@@ -7465,14 +7510,7 @@ private:
             if (itemStack.empty()) {
                 continue;
             }
-            const fa::content::ItemDef* def = content.item(itemStack.id);
-            char line[64]{};
-            std::snprintf(line,
-                          sizeof(line),
-                          "%s x%d",
-                          def != nullptr ? def->displayName.c_str() : itemStack.id.name().c_str(),
-                          itemStack.count);
-            ui->text(line, fa::core::makeRect(panel.x + 272.0f, hotY + 4.0f, 200.0f, 8.0f), label);
+            inventoryRow(panel.x + 270.0f, panel.x + 290.0f, hotY, 176.0f, itemStack, label);
 
             char id[32]{};
             std::snprintf(id, sizeof(id), "inv.hot.%d", slot);

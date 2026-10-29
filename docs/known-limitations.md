@@ -82,7 +82,7 @@
 | 自动存档调度未接 | M25 已按天/退出调度；每 12 游戏小时与安全状态判定仍未实现 | M25 / M22 |
 | 无渲染目标 / 后处理 | 做不了光照、屏幕扭曲 | M22 需要时再加 `RenderPass` |
 | 单一混合模式 | 预乘 alpha、加色做不了 | M06（分批断点已留好） |
-| 图片仍是占位美术 | 已支持 `assets/*.png`，当前 22 张图是纯色/棋盘占位 | 真实美术后置，见 [art-policy](architecture/art-policy.md) |
+| 图片仍是占位美术 | 已支持 `assets/textures/**/*.png`，当前 31 张是 AI 生成的像素素材（非正式美术） | 正式美术后置，见 [art-policy](architecture/art-policy.md) |
 | 解码器在 app | M05 本身不带解码器；app 注册 stb_image，其他宿主需自行注册 | M05（`IImageDecoder`） |
 | 隐藏窗口依赖驱动 | 无 GL 驱动的 CI 镜像拿不到上下文 | M06 已降级为非致命 |
 | `/EHsc` 依赖第三方 include 图 | 新增 JSON/`<chrono>` 依赖会连锁要求 `/EHsc` | M00 规约 |
@@ -213,7 +213,7 @@
 | 问题 | 结论/状态 |
 |---|---|
 | M02 是否直接创建 GL 上下文？ | **已定**：不创建。M02 创建窗口时带上 `SDL_WINDOW_OPENGL` 标志并提供 `nativeHandle()`，WGL 上下文由 M06 建 |
-| 高 DPI 下像素风非整数缩放 | 未解决，归 M06：需虚拟分辨率 + 整数倍缩放 + 黑边策略 |
+| 高 DPI 下像素风非整数缩放 | **已提供开关**：默认整数倍；`window.fill = true` 时按精确比例填满窗口（nearest，不插值），见 M06 `Viewport::fit` |
 | `SDL_Quit` 是全局状态 | 未解决：同一进程只能有一个 `IPlatform` 存活；将来做多窗口编辑器需引用计数 |
 | 无显示设备的 CI | 窗口用例降级为 `WARN` 跳过，覆盖率下降；后续可在 CI 上跑 Xvfb 等价方案或拆出无窗口用例 |
 | 手柄抽象 | 接口预留（SDL 子系统已初始化），但 `PlatformEvent` 暂无手柄事件；v1 不启用 |

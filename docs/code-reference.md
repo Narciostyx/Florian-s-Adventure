@@ -663,7 +663,7 @@ classDiagram
 | `FontAtlas` / `Glyph` | 内置 3×5 ASCII 图集：`glyphs`、`width`、`height`；`buildBuiltinFont`、`glyphFor` |
 | `TextStyle` / `TextMetrics` | 颜色、缩放、对齐、投影/描边；测量结果 |
 | 文字函数 | `measureText`、`drawText` |
-| `UiContext` | `setOrigin`、`origin`、`setTheme`、`theme`、`beginFrame`、`endFrame`、`panel`、`border`、`progressBar`、`text`、`button`、`checkbox`、`slider`、`submit`、`itemCount`、`font` |
+| `UiContext` | `setOrigin`、`origin`、`setTheme`、`theme`、`beginFrame`、`endFrame`、`panel`、`icon`、`border`、`progressBar`、`text`、`button`、`checkbox`、`slider`、`submit`、`itemCount`、`font` |
 | `UiId` / `UiInputState` / `UiResult` / `UiTheme` | 控件身份、鼠标快照、控件结果、主题色/缩放 |
 
 - **枚举**：`TextAlign { Left, Center, Right }`。
@@ -673,7 +673,7 @@ classDiagram
 
 | 类型 | 关系 | 类职责 | 方法职责 |
 |---|---|---|---|
-| `UiContext` | 借用 `FontAtlas` 与白纹理；拥有帧内控件状态 | 立即模式 UI 绘制与命中 | `beginFrame/endFrame` 管帧；`panel/text/button/checkbox/slider/progressBar` 生成绘制项；`submit` 追加到队列 |
+| `UiContext` | 借用 `FontAtlas` 与白纹理；拥有帧内控件状态 | 立即模式 UI 绘制与命中 | `beginFrame/endFrame` 管帧；`panel/text/button/checkbox/slider/progressBar/icon` 生成绘制项；`submit` 追加到队列 |
 | `FontAtlas` | 拥有字形数据与纹理 | 3×5 位图字体 | `glyph/measure` 查询；`texture` 给渲染 |
 | `TextStyle` / `UiTheme` / `UiId` | 纯值 | 颜色/缩放/对齐、配色、控件身份 | 字段读取；`UiId::fromName` 生成稳定 id |
 | `Text` 辅助函数 | 无状态 | 测量/换行/对齐 | `measure/wrap/align` 纯计算 |

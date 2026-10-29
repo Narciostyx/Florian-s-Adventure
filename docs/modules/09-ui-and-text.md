@@ -118,6 +118,7 @@ public:
     void beginFrame(const UiInputState& input) noexcept;
     void endFrame() noexcept;
     void panel(core::Rect rect, core::Color color);
+    void icon(core::Rect rect, render::TextureHandle texture, core::Color tint = {1,1,1,1});
     void border(core::Rect rect, core::Color color, float thickness = 1.0f);
     void progressBar(core::Rect rect, float value, float minimum, float maximum, core::Color fill);
     void text(std::string_view text, core::Rect rect, const TextStyle& style = {});

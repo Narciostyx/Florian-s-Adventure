@@ -126,23 +126,28 @@ struct DrawItem {
 `pixels` 允许为 `nullptr`（内容未定义，只对将来的渲染目标有意义）；`rowPitchBytes == 0` 表示紧打包。
 非零的 `rowPitchBytes` 被 `effectiveRowPitch()` **原样返回**——是否合法（不小于一行、不小于 `width * bytesPerPixel`）由 `GlRenderer::createTexture` 判定并拒绝。契约是「描述结构不做校验，执行者做校验」。
 
-### `Viewport`：整数缩放 + letterbox
+### `Viewport`：整数缩放 + letterbox（可选 fill）
 
 ```cpp
 static Viewport fit(int windowWidth, int windowHeight,
-                    int virtualWidth = kVirtualWidth, int virtualHeight = kVirtualHeight);
+                    int virtualWidth = kVirtualWidth, int virtualHeight = kVirtualHeight,
+                    bool fill = false);
 ```
 
-`scale = max(1, min(windowWidth / virtualWidth, windowHeight / virtualHeight))`，
+`fill = false`（默认）：`scale = max(1, min(windowWidth / virtualWidth, windowHeight / virtualHeight))` 取整，
 `offset = (窗口尺寸 - 虚拟尺寸 * scale) / 2`。
 窗口比虚拟分辨率还小时 `scale` 停在 1，靠裁剪而不是缩到 1:1 以下——像素风宁可裁掉边缘也不要糊。
+
+`fill = true`：`scale = min(windowWidth / virtualWidth, windowHeight / virtualHeight)`（允许小数），
+让画面在受限轴上贴满窗口；采样仍是 nearest，不插值，只是个别源像素会占 2 或 3 个窗口像素。
+由 `RendererDesc::fillWindow` 传入，配置项为 `config/game.json` 的 `window.fill`。
 
 `windowToVirtual()` **不做夹取**：需要判断「鼠标是否落在黑边上」的调用方先查 `windowRect()`。
 
 ### `Camera2D`：只平移
 
 位置是「显示在虚拟画布正中央的世界点」，没有 zoom 字段。
-自由缩放被**刻意去掉**：像素画相机一旦缩放系数不是整数，精灵边缘就会落在半像素上。放大窗口靠 `Viewport` 的整数倍放大完成，这是两种完全不同的东西。
+自由缩放被**刻意去掉**：像素画相机一旦缩放系数不是整数，精灵边缘就会落在半像素上。放大窗口默认走 `Viewport` 的整数倍放大；需要贴满窗口时由 `window.fill` 显式开启分数缩放，这是两种完全不同的东西。
 
 `setBounds()` 保证视野不越出地图：区域比视口大时夹取相机中心，比视口小时把区域居中。
 `projection()` 手写列主序正交矩阵（y 翻转，因为世界 y 向下而裁剪空间 y 向上），直接喂 `glUniformMatrix4fv(..., GL_FALSE, ...)`。

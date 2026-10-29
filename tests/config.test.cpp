@@ -13,6 +13,7 @@ TEST_CASE("GameConfig defaults cover window, UI and gameplay", "[config]") {
     CHECK(config.window.minWidth == 1280);
     CHECK(config.window.minHeight == 720);
     CHECK(config.window.resizable);
+    CHECK_FALSE(config.window.fill);
     CHECK(config.ui.scale == Catch::Approx(1.25f));
     CHECK(config.paths.data == "data");
     CHECK(config.paths.assets == "assets");
@@ -30,7 +31,7 @@ TEST_CASE("GameConfig defaults cover window, UI and gameplay", "[config]") {
 
 TEST_CASE("GameConfig overrides individual fields and keeps the rest", "[config]") {
     constexpr std::string_view text = R"({
-      "window": {"width": 1600, "height": 900, "min_width": 1280, "min_height": 720},
+      "window": {"width": 1600, "height": 900, "min_width": 1280, "min_height": 720, "fill": true},
       "ui": {"scale": 1.5},
       "paths": {"data": "content", "assets": "art"},
       "gameplay": {"wake_hour": 7.0, "hazard_damage": 9},
@@ -41,6 +42,7 @@ TEST_CASE("GameConfig overrides individual fields and keeps the rest", "[config]
     REQUIRE(parsed.isOk());
     CHECK(parsed.value().window.width == 1600);
     CHECK(parsed.value().window.height == 900);
+    CHECK(parsed.value().window.fill);
     CHECK(parsed.value().ui.scale == Catch::Approx(1.5f));
     CHECK(parsed.value().paths.data == "content");
     CHECK(parsed.value().paths.assets == "art");

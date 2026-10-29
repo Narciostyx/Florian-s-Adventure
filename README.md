@@ -10,7 +10,7 @@
 > 死亡菜单（复活/读自动存档/主菜单）、叙事/AI/世界对象/生命存档、
 > 林地敌人反击与受击闪烁/伤害数字，数据/配置/地图 JSON/PNG 纹理均已接通；
 > 3 作物 / 2 敌人 / 12 物品 / 8 SFX + 1 音乐已由 JSON 提供，玩家与敌人都用
-> 3 帧挥砍 + `hit` 帧判定；剩余真实美术/音频素材与敌人专属招式。
+> 3 帧挥砍 + `hit` 帧判定；剩余正式美术/音频素材与敌人专属招式。
 > 详见 [计划完成情况](docs/plan-status.md) 与 [垂直切片](docs/roadmap/vertical-slice.md)。
 
 ## 目标
@@ -32,7 +32,7 @@
 | 窗口 / 输入 / 音频 | SDL3 |
 | 图形 | OpenGL 4.1 Core（自研 42 项 GL 函数表，不引 glad） |
 | 数学 | glm |
-| 图像解码 | v1 无解码器；纹理由 catalog 色块程序化生成 |
+| 图像解码 | stb_image（app 注册为 `IImageDecoder`）；纹理优先读 `assets/textures/**/*.png`，缺图回落 catalog 色块 |
 | 数据格式 | nlohmann/json |
 | 调试 UI | M09 即时模式 UI（不引 ImGui） |
 | 测试 | Catch2 |
@@ -88,7 +88,7 @@ Florian-s-Adventure/
 │  ├─ engine/        # 引擎层：core / platform / render / input / audio / ecs ...
 │  ├─ game/          # 玩法层：player / farming / combat / ai / npc ...
 │  └─ app/           # 唯一 composition root 与 main
-├─ assets/           # 纹理 PNG（当前为纯色/棋盘占位）
+├─ assets/           # 纹理 PNG（assets/textures/<类别>/，命名见 docs/architecture/conventions.md §11）
 ├─ data/             # 内容/商店/叙事/音频/资源目录/实体生成表 JSON（格式见 docs/content-format.md）
 ├─ config/           # game.json（窗口/UI 缩放/路径/玩法参数）
 ├─ tools/            # 资源导入、校验、打包工具

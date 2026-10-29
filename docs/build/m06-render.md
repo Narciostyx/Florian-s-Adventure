@@ -76,7 +76,7 @@ GitHub 的 Windows runner 走的是另一套图形栈。
 | `RenderConstants.hpp` | `kVirtualWidth = 640`、`kVirtualHeight = 360`、`kTileSize = 16`、`kDefaultMaxQuads = 4096`、`kMaxTextures = 4096`、`kMaxTextureSize = 16384` |
 | `RenderError.hpp` | `render_error` 4000–4005（M06 初版误用 5000–5005，与 Ecs/Physics 区间冲突，M05 期间一并改正） |
 | `RenderTypes.hpp` | `TextureHandle`、`TextureFormat`、`bytesPerPixel`、`TextureDesc`、`RenderLayer`、`DrawItem`、`depthKey`、`drawsBefore`、`RenderStats` |
-| `Viewport.hpp` | `Viewport`：整数缩放 + letterbox + 双向坐标换算 |
+| `Viewport.hpp` | `Viewport`：整数缩放 + letterbox（可选 fill 分数缩放）+ 双向坐标换算 |
 | `Camera2D.hpp` | `Camera2D`：只平移、边界夹取、死区/平滑/限速跟随、正交投影矩阵 |
 | `RenderQueue.hpp` | `RenderQueue` + 静态 `countDrawCalls` / `countTextureSwitches` |
 | `IRenderer.hpp` | `RendererDesc`、`IRenderer`、`createRenderer()` |

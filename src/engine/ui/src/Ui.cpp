@@ -71,6 +71,22 @@ void UiContext::progressBar(core::Rect rect, float value, float minimum, float m
     quad(offset(core::makeRect(rect.x, rect.y, rect.w * fraction, rect.h)), fill);
 }
 
+void UiContext::icon(core::Rect rect, render::TextureHandle texture, core::Color tint) {
+    if (rect.w <= 0.0f || rect.h <= 0.0f || !texture.isValid()) {
+        return;
+    }
+    const core::Rect placed = offset(rect);
+    render::DrawItem item;
+    item.texture = texture;
+    item.position = core::Vec2{placed.x, placed.y};
+    item.size = core::Vec2{placed.w, placed.h};
+    item.tint = tint;
+    item.layer = render::RenderLayer::UI;
+    item.sortY = placed.y;
+    item.entityId = m_nextEntityId++;
+    m_queue.submit(item);
+}
+
 void UiContext::text(std::string_view value, core::Rect rect, const TextStyle& style) {
     ::fa::ui::drawText(m_font, value, offset(rect), style, m_queue);
 }
