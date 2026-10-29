@@ -8508,6 +8508,36 @@ private:
     bool cameraReady = false;
 };
 
+/// \brief Moves the process into the repo root when the launcher left us somewhere else.
+///
+/// Visual Studio starts the debugger in `src/app` and a double-click starts beside the exe,
+/// while every content path (`config/`, `data/`, `assets/`, `saves/`) is relative to the
+/// repo root. A wrong directory never fails loudly: `data/catalog.json` is simply missing,
+/// the inline smoke catalog takes over, and the run shows colour blocks instead of the PNGs.
+/// The root is the nearest ancestor holding a `data` directory.
+void adoptProjectRoot(fa::platform::IFileSystem& fileSystem) {
+    static constexpr std::string_view kMarker = "data";
+    if (fileSystem.exists(kMarker)) {
+        return;  // already inside the repo root
+    }
+
+    const std::string started = fileSystem.currentPath();
+    std::string dir = started;
+    for (int depth = 0; depth < 8; ++depth) {
+        const std::size_t separator = dir.find_last_of("/\\");
+        if (separator == std::string::npos || separator == 0u) {
+            break;
+        }
+        dir = dir.substr(0, separator);
+        if (fileSystem.exists(dir + "/" + std::string(kMarker)) && fileSystem.setCurrentPath(dir)) {
+            std::printf(
+                "root: working directory %s is not the repo root, switched to %s\n", started.c_str(), dir.c_str());
+            return;
+        }
+    }
+    std::printf("root: no data/ above %s, falling back to built-in defaults\n", started.c_str());
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -8515,6 +8545,7 @@ int main(int argc, char** argv) {
     printBanner();
 
     std::unique_ptr<fa::platform::IPlatform> platform = fa::platform::createPlatform();
+    adoptProjectRoot(platform->files());
 
     EventsAndJobsDemo demo;
     SmokeSink sink;

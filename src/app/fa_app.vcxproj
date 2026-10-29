@@ -35,6 +35,11 @@
       <ExceptionHandling>Sync</ExceptionHandling>
     </ClCompile>
   </ItemDefinitionGroup>
+  <!-- VS would otherwise start the debugger in $(ProjectDir) (src/app), where config/,
+       data/, assets/ and saves/ are not reachable; the game resolves them from the repo root. -->
+  <PropertyGroup>
+    <LocalDebuggerWorkingDirectory>$([MSBuild]::NormalizePath('$(ProjectDir)..\..\'))</LocalDebuggerWorkingDirectory>
+  </PropertyGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />
     <ClCompile Include="StbImageDecoder.cpp" />
