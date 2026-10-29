@@ -81,6 +81,18 @@ jobs:
             }
           }
 
+      # MSBuild's VS-bundled vcpkg SDK resolver does not engage on the GitHub runner, so
+      # the manifest auto-install never fires (no "Building a vcpkg tree" in any log).
+      # `integrate install` writes the user-wide vcpkg.props that inject the include/lib
+      # directories, and it resolves the same `vcpkg_installed/<triplet>` layout the CLI
+      # install above produces.
+      - name: Integrate vcpkg with MSBuild
+        if: steps.detect.outputs.ready == 'true'
+        shell: pwsh
+        run: |
+          & "$env:VCPKG_ROOT\vcpkg.exe" integrate install
+          if ($LASTEXITCODE -ne 0) { throw "vcpkg integrate install failed: $LASTEXITCODE" }
+
       - name: Build
         if: steps.detect.outputs.ready == 'true'
         shell: pwsh
