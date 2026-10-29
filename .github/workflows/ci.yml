@@ -102,19 +102,8 @@ jobs:
           if (-not $msbuild) { throw 'MSBuild.exe not found.' }
           # VcpkgRoot is passed explicitly: the runner has no user-wide `vcpkg integrate
           # install`, and MSBuild's built-in manifest support needs to locate the root.
-          & $msbuild FloriansAdventure.sln /m /nologo /v:minimal /p:Configuration=${{ matrix.configuration }} /p:Platform=x64 "/p:VcpkgRoot=$env:VCPKG_ROOT" 2>&1 |
-            Tee-Object -FilePath "build-${{ matrix.configuration }}.log"
-          if ($LASTEXITCODE -ne 0) {
-            # TEMP DIAGNOSTICS: the runner log host is unreachable from some networks, and
-            # annotations do come through the REST API, so surface the real error here.
-            Select-String -Path "build-${{ matrix.configuration }}.log" -Pattern 'error [A-Z]+\d+' |
-              Select-Object -First 4 | ForEach-Object { Write-Host "::error::$($_.Line.Trim())" }
-            Get-ChildItem -Recurse -Depth 2 -Directory vcpkg_installed -ErrorAction SilentlyContinue |
-              Select-Object -First 6 | ForEach-Object { Write-Host "::notice::tree $($_.FullName)" }
-            $integrated = "$env:LOCALAPPDATA\Microsoft\MSBuild\v4\Microsoft.Cpp.props"
-            Write-Host "::notice::integrated props present: $(Test-Path $integrated)"
-            throw "Build failed: $LASTEXITCODE"
-          }
+          & $msbuild FloriansAdventure.sln /m /nologo /v:minimal /p:Configuration=${{ matrix.configuration }} /p:Platform=x64 "/p:VcpkgRoot=$env:VCPKG_ROOT"
+          if ($LASTEXITCODE -ne 0) { throw "Build failed: $LASTEXITCODE" }
 
       - name: Test
         if: steps.detect.outputs.ready == 'true'
@@ -133,18 +122,35 @@ jobs:
           & $exe --frames 60 2>&1 | Tee-Object -FilePath 'frames-${{ matrix.configuration }}.log'
           if ($LASTEXITCODE -ne 0) { throw "Scripted smoke failed: $LASTEXITCODE" }
 
-      - name: Play smoke
+      # The runners have no GPU, so Windows only offers the generic opengl32 (GL 1.1) and
+      # the engine's function table rejects it: "render init failed ... continuing without
+      # rendering". Assets and the scene come up only after a renderer exists, so
+      # --play-test, --soak and the resolution run cannot verify anything in that state.
+      # Detect it once and let the three GL-dependent steps report as skipped instead of
+      # pretending a headless run exercised gameplay.
+      - name: Probe OpenGL
         if: steps.detect.outputs.ready == 'true'
+        id: probe
         shell: pwsh
         run: |
-          # Headless: the app degrades when the runner has no GL/audio device, so
-          # gameplay and save checks still run on a plain windows-latest image.
+          $exe = 'build\bin\x64\${{ matrix.configuration }}\fa_app.exe'
+          $log = 'probe-${{ matrix.configuration }}.log'
+          & $exe --frames 2 2>&1 | Tee-Object -FilePath $log | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "OpenGL probe failed: $LASTEXITCODE" }
+          $gl = -not (Select-String -Path $log -Pattern 'continuing without rendering' -Quiet)
+          "gl=$($gl.ToString().ToLower())" >> $env:GITHUB_OUTPUT
+          Write-Host "OpenGL usable: $gl"
+
+      - name: Play smoke
+        if: steps.detect.outputs.ready == 'true' && steps.probe.outputs.gl == 'true'
+        shell: pwsh
+        run: |
           $exe = 'build\bin\x64\${{ matrix.configuration }}\fa_app.exe'
           & $exe --play-test 2>&1 | Tee-Object -FilePath 'play-${{ matrix.configuration }}.log'
           if ($LASTEXITCODE -ne 0) { throw "Play smoke failed: $LASTEXITCODE" }
 
       - name: Soak (simulated 20 s)
-        if: steps.detect.outputs.ready == 'true'
+        if: steps.detect.outputs.ready == 'true' && steps.probe.outputs.gl == 'true'
         shell: pwsh
         run: |
           $exe = 'build\bin\x64\${{ matrix.configuration }}\fa_app.exe'
@@ -152,13 +158,21 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Soak failed: $LASTEXITCODE" }
 
       - name: 1080p smoke
-        if: steps.detect.outputs.ready == 'true'
+        if: steps.detect.outputs.ready == 'true' && steps.probe.outputs.gl == 'true'
         shell: pwsh
         run: |
           $exe = 'build\bin\x64\${{ matrix.configuration }}\fa_app.exe'
           & $exe --resolution 1920x1080 --frames 5 2>&1 |
             Tee-Object -FilePath 'hd-${{ matrix.configuration }}.log'
           if ($LASTEXITCODE -ne 0) { throw "1080p smoke failed: $LASTEXITCODE" }
+
+      # Keeps the skip visible instead of silently green: the job still succeeds, but the
+      # run carries a warning that gameplay was not exercised.
+      - name: Note skipped GL smoke
+        if: steps.detect.outputs.ready == 'true' && steps.probe.outputs.gl != 'true'
+        shell: pwsh
+        run: |
+          Write-Host "::warning::No usable OpenGL context on this runner - Play smoke, Soak and 1080p smoke were skipped. Gameplay and save round trips are only verified locally (fa_app --play-test)."
 
       - name: Upload smoke logs
         if: failure()
