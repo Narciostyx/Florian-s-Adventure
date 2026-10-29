@@ -400,6 +400,48 @@ TEST_CASE("slider tracks the mouse and clamps to its range", "[ui]") {
     CHECK(value == Approx(0.2f));
 }
 
+TEST_CASE("icon submits one textured UI item and ignores unusable input", "[ui]") {
+    const FontAtlas font = testFont();
+    UiContext ui(font, TextureHandle{kWhiteTexture});
+    ui.beginFrame(mouseAt(Vec2{0.0f, 0.0f}));
+
+    ui.icon(Rect{4.0f, 6.0f, 16.0f, 16.0f}, TextureHandle{7}, Color{1.0f, 0.5f, 0.25f, 1.0f});
+    REQUIRE(ui.itemCount() == 1);
+
+    RenderQueue queue;
+    ui.submit(queue);
+    const DrawItem& item = queue.items()[0];
+    CHECK(item.texture.value() == 7u);
+    CHECK(item.position.x == Approx(4.0f));
+    CHECK(item.position.y == Approx(6.0f));
+    CHECK(item.size.x == Approx(16.0f));
+    CHECK(item.size.y == Approx(16.0f));
+    // An empty source rect means "the whole texture", which is what an icon wants.
+    CHECK(item.source.w == Approx(0.0f));
+    CHECK(item.tint.g == Approx(0.5f));
+    CHECK(item.layer == RenderLayer::UI);
+    CHECK(item.sortY == Approx(6.0f));
+
+    // Nothing is queued for an invalid handle or a degenerate rect.
+    ui.icon(Rect{0.0f, 0.0f, 16.0f, 16.0f}, TextureHandle{});
+    ui.icon(Rect{0.0f, 0.0f, 0.0f, 16.0f}, TextureHandle{7});
+    CHECK(ui.itemCount() == 1);
+}
+
+TEST_CASE("icon follows the UI origin like every other widget", "[ui]") {
+    const FontAtlas font = testFont();
+    UiContext ui(font, TextureHandle{kWhiteTexture});
+    ui.beginFrame(mouseAt(Vec2{0.0f, 0.0f}));
+    ui.setOrigin(Vec2{100.0f, 50.0f});
+    ui.icon(Rect{4.0f, 6.0f, 16.0f, 16.0f}, TextureHandle{3});
+
+    RenderQueue queue;
+    ui.submit(queue);
+    REQUIRE(queue.size() == 1);
+    CHECK(queue.items()[0].position.x == Approx(104.0f));
+    CHECK(queue.items()[0].position.y == Approx(56.0f));
+}
+
 TEST_CASE("submit appends every queued item to the caller's queue", "[ui]") {
     const FontAtlas font = testFont();
     UiContext ui(font, TextureHandle{kWhiteTexture});

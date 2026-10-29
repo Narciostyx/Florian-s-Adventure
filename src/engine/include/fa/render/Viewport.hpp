@@ -17,19 +17,26 @@ struct Viewport {
     int windowHeight = 0;
     int virtualWidth = kVirtualWidth;
     int virtualHeight = kVirtualHeight;
-    /// Whole-number magnification, never 0: a window smaller than the virtual
-    /// surface gets scale 1 and is cropped rather than shrunk below 1:1.
-    int scale = 1;
+    /// Whole-number magnification for the default pixel-perfect mode; `fill`
+    /// mode uses a fractional value so the surface reaches the window edge.
+    /// Never 0: a window smaller than the virtual surface gets scale 1 and is
+    /// cropped rather than shrunk below 1:1.
+    float scale = 1.0f;
     /// Left edge of the drawn surface inside the window, in window pixels.
     int offsetX = 0;
     /// Top edge of the drawn surface inside the window, in window pixels.
     int offsetY = 0;
 
     /// \brief Computes the best fit for a window of \p windowWidth x \p windowHeight.
+    ///
+    /// \param fill When true the surface is scaled by the exact fitting factor so
+    ///        it reaches the window edge in one axis; otherwise only whole-number
+    ///        factors are used, keeping every source pixel the same size.
     static Viewport fit(int windowWidth,
                         int windowHeight,
                         int virtualWidth = kVirtualWidth,
-                        int virtualHeight = kVirtualHeight) noexcept;
+                        int virtualHeight = kVirtualHeight,
+                        bool fill = false) noexcept;
 
     /// \brief Width of the drawn surface in window pixels (`scale * virtualWidth`).
     int drawableWidth() const noexcept;

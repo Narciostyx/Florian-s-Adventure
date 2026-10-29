@@ -63,6 +63,7 @@
 #include <fa/flow/Sleep.hpp>
 #if defined(FA_ENABLE_EDITOR)
 #include <fa/editor/EditorOverlay.hpp>
+#include <fa/editor/VisualEditor.hpp>
 #endif
 #include <fa/events/EventBus.hpp>
 #include <fa/events/JobSystem.hpp>
@@ -212,19 +213,19 @@ constexpr std::string_view kCatalogText = R"({
     {"id": "tex.actor.player", "kind": "texture", "size": [16, 24],
      "color": "#e8c39e", "altColor": "#c79a74"},
     {"id": "tex.marker", "kind": "texture", "size": [8, 8], "color": "#ffffff"},
-    {"id": "tex.ground.soil_wet", "kind": "texture", "path": "soil_wet.png", "size": [16, 16],
+    {"id": "tex.ground.soil_wet", "kind": "texture", "path": "textures/tiles/soil_wet.png", "size": [16, 16],
      "tile": 4, "color": "#4a3322", "altColor": "#372418"},
-    {"id": "tex.crop.turnip_seed", "kind": "texture", "path": "turnip_seed.png", "size": [16, 16],
+    {"id": "tex.crop.turnip_seed", "kind": "texture", "path": "textures/crops/turnip_seed.png", "size": [16, 16],
      "color": "#6b4a2f", "altColor": "#a97c4f"},
-    {"id": "tex.crop.turnip_sprout", "kind": "texture", "path": "turnip_sprout.png",
+    {"id": "tex.crop.turnip_sprout", "kind": "texture", "path": "textures/crops/turnip_sprout.png",
      "size": [16, 16], "color": "#3f7d32", "altColor": "#5fae45"},
-    {"id": "tex.crop.turnip_young", "kind": "texture", "path": "turnip_young.png",
+    {"id": "tex.crop.turnip_young", "kind": "texture", "path": "textures/crops/turnip_young.png",
      "size": [16, 16], "color": "#3f7d32", "altColor": "#7ac95a"},
-    {"id": "tex.crop.turnip_mature", "kind": "texture", "path": "turnip_mature.png",
+    {"id": "tex.crop.turnip_mature", "kind": "texture", "path": "textures/crops/turnip_mature.png",
      "size": [16, 16], "color": "#9a6fb0", "altColor": "#efe6f0"},
-    {"id": "tex.object.chest", "kind": "texture", "path": "chest.png", "size": [16, 16],
+    {"id": "tex.object.chest", "kind": "texture", "path": "textures/objects/chest.png", "size": [16, 16],
      "color": "#8a5a2b", "altColor": "#5d3a1a"},
-    {"id": "tex.enemy.slime", "kind": "texture", "path": "slime.png", "size": [16, 16],
+    {"id": "tex.enemy.slime", "kind": "texture", "path": "textures/characters/slime.png", "size": [16, 16],
      "color": "#4fa84a", "altColor": "#2f7a36"}
   ]
 })";
@@ -2709,11 +2710,12 @@ public:
                 hazardCells.push_back(spawn.cell);
             }
         }
-        std::printf("config: window %dx%d (min %dx%d), ui scale %.2f, %zu entity spawn(s)\n",
+        std::printf("config: window %dx%d (min %dx%d, %s), ui scale %.2f, %zu entity spawn(s)\n",
                     config.window.width,
                     config.window.height,
                     config.window.minWidth,
                     config.window.minHeight,
+                    config.window.fill ? "fill" : "integer scale",
                     static_cast<double>(config.ui.scale),
                     entitySpawns.size());
         std::printf("config: stamina max %.0f, regen %.1f/s, run %.1f/s, dodge %.0f, "
@@ -2778,6 +2780,7 @@ public:
 
         fa::render::RendererDesc desc;
         desc.vsync = vsync;
+        desc.fillWindow = config.window.fill;
         const fa::core::Status status = renderer->initialize(platform, desc);
         if (status.isError()) {
             renderer.reset();
@@ -3047,6 +3050,133 @@ public:
         }
         const fa::core::Result<fa::tilemap::Tilemap> loaded = fa::tilemap::loadTilemapFromJson(text.value());
         editorDemo.loadOk = loaded.isOk();
+    }
+
+    /// \brief Opens the visual editor on the map the running demo scene owns.
+    void openVisualEditor() {
+        if (demoScene == nullptr) {
+            return;
+        }
+        if (visualEditor == nullptr) {
+            visualEditor = std::make_unique<fa::editor::VisualEditor>(demoScene->editableMap());
+        }
+        visualEditor->setActive(true);
+        visualEditor->clearCloseRequest();
+        editorWindowOpen = true;
+        slotsOpen = false;
+        std::printf("editor: visual open (%dx%d)\n", visualEditor->map().width(), visualEditor->map().height());
+        std::fflush(stdout);
+    }
+
+    /// \brief Hides the visual editor without discarding its undo history.
+    void closeVisualEditor() {
+        if (visualEditor != nullptr) {
+            visualEditor->setActive(false);
+        }
+        editorWindowOpen = false;
+        std::printf("editor: visual closed\n");
+        std::fflush(stdout);
+    }
+
+    /// \brief Writes the edited map back to the file the runtime loads.
+    [[nodiscard]] fa::core::Status saveVisualEditorMap() {
+        if (fileSystem == nullptr || visualEditor == nullptr) {
+            return fa::core::Status::err(
+                fa::core::makeError(fa::core::error_code::kInvalidArgument, std::string{"editor unavailable"}));
+        }
+        const std::string path = config.paths.data + "/maps/farm.json";
+        const fa::core::Status saved = fileSystem->writeTextAtomic(path, visualEditor->mapText());
+        if (saved.isOk()) {
+            // Repaint with the freshly chosen texture names so the live map keeps
+            // drawing correctly after the editor closes.
+            fa::tilemap::Tilemap& map = visualEditor->map();
+            for (const fa::tilemap::TileDef& def : map.tileDefs()) {
+                static_cast<void>(map.setTileTexture(def.id, demoScene->textureForName(def.textureName), def.source));
+            }
+        }
+        return saved;
+    }
+
+    /// \brief Submits the edited map into the render queue with live textures.
+    void drawEditorMap() {
+        if (visualEditor == nullptr || demoScene == nullptr) {
+            return;
+        }
+        const fa::core::Rect view = camera.visibleRect();
+        const fa::core::Rect screen = fa::core::makeRect(0.0f, 0.0f, view.w, view.h);
+        const fa::core::Rect viewport = fa::editor::VisualEditor::mapRect(screen);
+        const fa::tilemap::Tilemap& map = visualEditor->map();
+        const float step = 16.0f * visualEditor->tileScale();
+        for (int index = 0; index < map.layerCount(); ++index) {
+            const fa::tilemap::TileLayer* layer = map.layerAt(index);
+            if (layer == nullptr || !layer->visible) {
+                continue;
+            }
+            for (int row = 0; row < map.height(); ++row) {
+                for (int column = 0; column < map.width(); ++column) {
+                    const fa::tilemap::TileDef* def = map.tileDef(map.tileAt(column, row, index));
+                    if (def == nullptr) {
+                        continue;
+                    }
+                    fa::render::DrawItem item;
+                    item.texture = demoScene->textureForName(def->textureName);
+                    if (!item.texture.isValid()) {
+                        continue;
+                    }
+                    item.position = fa::core::Vec2{view.x + viewport.x + static_cast<float>(column) * step,
+                                                   view.y + viewport.y + static_cast<float>(row) * step};
+                    item.size = fa::core::Vec2{step, step};
+                    item.source = def->source;
+                    item.layer = layer->renderLayer;
+                    renderQueue.submit(item);
+                }
+            }
+        }
+    }
+
+    /// \brief Paints one cell through the editor input path and reloads the text.
+    bool runVisualEditorCheck() {
+        if (fileSystem == nullptr || demoScene == nullptr) {
+            return false;
+        }
+        openVisualEditor();
+        if (visualEditor == nullptr) {
+            return false;
+        }
+        const fa::core::Rect visible = camera.visibleRect();
+        const fa::core::Rect mapArea =
+            fa::editor::VisualEditor::mapRect(fa::core::makeRect(0.0f, 0.0f, visible.w, visible.h));
+        // The first pass only establishes the tile scale, so park the cursor outside.
+        fa::editor::VisualEditorInput idle;
+        idle.cursorScreen = fa::core::Vec2{-100.0f, -100.0f};
+        visualEditor->update(idle, mapArea);
+        const float step = 16.0f * visualEditor->tileScale();
+        fa::tilemap::Tilemap& map = visualEditor->map();
+        const fa::tilemap::TileId original = map.tileAt(5, 5, 0);
+        fa::tilemap::TileId brush = original;
+        for (const fa::tilemap::TileDef& def : map.tileDefs()) {
+            if (!(def.id == original)) {
+                brush = def.id;
+                break;
+            }
+        }
+        visualEditor->editor().setBrush(brush);
+
+        fa::editor::VisualEditorInput click;
+        click.cursorScreen = fa::core::Vec2{mapArea.x + 5.5f * step, mapArea.y + 5.5f * step};
+        click.primaryPressed = true;
+        visualEditor->update(click, mapArea);
+        const bool painted = map.tileAt(5, 5, 0) == brush;
+
+        const std::string text = visualEditor->mapText();
+        static_cast<void>(fileSystem->createDirectories("saves"));
+        const bool saved = fileSystem->writeTextAtomic("saves/editor-visual.json", text).isOk();
+        const fa::core::Result<fa::tilemap::Tilemap> loaded = fa::tilemap::loadTilemapFromJson(text);
+        const bool reloaded = saved && loaded.isOk() && loaded.value().tileAt(5, 5, 0) == brush;
+
+        static_cast<void>(map.setTile(5, 5, 0, original));
+        closeVisualEditor();
+        return painted && reloaded;
     }
 #endif
 
@@ -5985,6 +6115,14 @@ public:
         std::printf("play-test: save migration v1->v2 %s\n", migrationOk ? "ok" : "bad");
         ok = ok && migrationOk;
 
+#if defined(FA_ENABLE_EDITOR)
+        // M26: the visual editor must paint through its pointer path and round-trip
+        // the edited cell through the runtime map loader.
+        const bool visualEditorOk = runVisualEditorCheck();
+        std::printf("play-test: visual editor %s\n", visualEditorOk ? "ok" : "bad");
+        ok = ok && visualEditorOk;
+#endif
+
         // Bed proximity + save/load round-trip.
         const fa::core::Vec2 bed = demoScene->bedPosition();
         demoScene->teleportMarker(fa::core::Vec2{bed.x - 16.0f, bed.y});
@@ -6698,6 +6836,17 @@ public:
         const bool editorActive = false;
 #endif
         const bool dialogueWasOpen = demoScene != nullptr && demoScene->narrative().dialogueActive();
+#if defined(FA_ENABLE_EDITOR)
+        if (editorWindowOpen) {
+            for (const fa::platform::PlatformEvent& event : events) {
+                if (event.type == fa::platform::PlatformEventType::KeyDown &&
+                    event.scancode == fa::platform::Scancode::Escape) {
+                    closeVisualEditor();
+                    break;
+                }
+            }
+        }
+#endif
         if (!editorActive && dialogueWasOpen) {
             for (const fa::platform::PlatformEvent& event : events) {
                 if (event.type != fa::platform::PlatformEventType::KeyDown) {
@@ -6729,7 +6878,7 @@ public:
         // Escape opens/closes the pause overlay; the browser-style slot panel
         // consumes it first so it never resumes gameplay by accident.
         const bool dialogueOpen = demoScene != nullptr && demoScene->narrative().dialogueActive();
-        if (playMode && flow != nullptr && !editorActive && !dialogueOpen && !dialogueWasOpen) {
+        if (playMode && flow != nullptr && !editorActive && !editorWindowOpen && !dialogueOpen && !dialogueWasOpen) {
             for (const fa::platform::PlatformEvent& event : events) {
                 if (event.type != fa::platform::PlatformEventType::KeyDown ||
                     event.scancode != fa::platform::Scancode::Escape) {
@@ -7009,8 +7158,12 @@ public:
 #if defined(FA_ENABLE_EDITOR)
     /// \brief Declared after `stack` so it is destroyed before the scene's map.
     std::unique_ptr<fa::editor::EditorOverlay> editor;
+    /// \brief Visual editor opened from the main menu; owns only UI state.
+    std::unique_ptr<fa::editor::VisualEditor> visualEditor;
     EditorDemoStats editorDemo;
 #endif
+    /// \brief True while the M26 visual editor owns the frame; always false without it.
+    bool editorWindowOpen = false;
     fa::render::RenderQueue renderQueue;
     std::size_t extractedItems = 0;
     /// M09 holds only borrowed handles; `uiFont` is declared before `ui` so the
@@ -7215,6 +7368,52 @@ private:
         }
     }
 
+    /// \brief The catalog texture that icons \p itemId, or an invalid handle.
+    ///
+    /// `item.<x>` maps to `tex.item.<x>`. The three seeds have no dedicated icon and
+    /// reuse their `tex.crop.<x>_seed` planting sprite, which is the same pixels.
+    [[nodiscard]] fa::render::TextureHandle itemIconTexture(std::string_view itemId) const {
+        static constexpr std::string_view kPrefix = "item.";
+        if (!itemId.starts_with(kPrefix)) {
+            return {};
+        }
+        const std::string_view suffix = itemId.substr(kPrefix.size());
+        for (const std::string_view table : {std::string_view("tex.item."), std::string_view("tex.crop.")}) {
+            const auto found = namedTextureHandles.find(std::string(table) + std::string(suffix));
+            if (found != namedTextureHandles.end() && found->second.isValid()) {
+                return found->second;
+            }
+        }
+        return {};
+    }
+
+    /// \brief Draws one inventory row: 16 px icon, then `name xN`.
+    ///
+    /// Rows without art get the magenta placeholder block from the art policy so a
+    /// missing `tex.item.*` entry is visible instead of looking like an intentional gap.
+    void inventoryRow(float iconX,
+                      float textX,
+                      float rowY,
+                      float textWidth,
+                      const fa::inventory::ItemStack& itemStack,
+                      const fa::ui::TextStyle& label) {
+        const fa::render::TextureHandle icon = itemIconTexture(itemStack.id.name());
+        const fa::core::Rect slot{iconX, rowY, 16.0f, 16.0f};
+        if (icon.isValid()) {
+            ui->icon(slot, icon);
+        } else {
+            ui->panel(slot, fa::core::Color{1.0f, 0.0f, 1.0f, 1.0f});
+        }
+        const fa::content::ItemDef* def = content.item(itemStack.id);
+        char line[64]{};
+        std::snprintf(line,
+                      sizeof(line),
+                      "%s x%d",
+                      def != nullptr ? def->displayName.c_str() : itemStack.id.name().c_str(),
+                      itemStack.count);
+        ui->text(line, fa::core::makeRect(textX, rowY + 4.0f, textWidth, 8.0f), label);
+    }
+
     void buildInventoryPanel(const fa::ui::UiTheme& theme) {
         if (!inventoryOpen || ui == nullptr || flow == nullptr || playerInventory == nullptr) {
             return;
@@ -7288,14 +7487,7 @@ private:
         for (int index = first; index < static_cast<int>(bagSlots.size()) && shown < kPageSize; ++index, ++shown) {
             const int slot = bagSlots[static_cast<std::size_t>(index)];
             const fa::inventory::ItemStack& itemStack = bag.at(slot);
-            const fa::content::ItemDef* def = content.item(itemStack.id);
-            char line[64]{};
-            std::snprintf(line,
-                          sizeof(line),
-                          "%s x%d",
-                          def != nullptr ? def->displayName.c_str() : itemStack.id.name().c_str(),
-                          itemStack.count);
-            ui->text(line, fa::core::makeRect(panel.x + 12.0f, bagY + 4.0f, 200.0f, 8.0f), label);
+            inventoryRow(panel.x + 12.0f, panel.x + 32.0f, bagY, 176.0f, itemStack, label);
 
             char id[32]{};
             std::snprintf(id, sizeof(id), "inv.bag.%d", slot);
@@ -7318,14 +7510,7 @@ private:
             if (itemStack.empty()) {
                 continue;
             }
-            const fa::content::ItemDef* def = content.item(itemStack.id);
-            char line[64]{};
-            std::snprintf(line,
-                          sizeof(line),
-                          "%s x%d",
-                          def != nullptr ? def->displayName.c_str() : itemStack.id.name().c_str(),
-                          itemStack.count);
-            ui->text(line, fa::core::makeRect(panel.x + 272.0f, hotY + 4.0f, 200.0f, 8.0f), label);
+            inventoryRow(panel.x + 270.0f, panel.x + 290.0f, hotY, 176.0f, itemStack, label);
 
             char id[32]{};
             std::snprintf(id, sizeof(id), "inv.hot.%d", slot);
@@ -7653,7 +7838,7 @@ private:
         };
 
         if (showMainMenu && !slotsOpen) {
-            const fa::core::Rect panel = centeredRect(300.0f, 220.0f);
+            const fa::core::Rect panel = centeredRect(300.0f, 246.0f);
             ui->panel(panel, theme.panel);
             ui->border(panel, theme.panelBorder);
             ui->text("FLORIAN'S ADVENTURE",
@@ -7676,14 +7861,19 @@ private:
                 refreshSlots();
                 slotsOpen = true;
             }
-            if (press("menu.quit", "QUIT", buttonX, panel.y + 142.0f, buttonWidth, 20.0f)) {
+#if defined(FA_ENABLE_EDITOR)
+            if (press("menu.editor", "MAP EDITOR", buttonX, panel.y + 142.0f, buttonWidth, 20.0f)) {
+                openVisualEditor();
+            }
+#endif
+            if (press("menu.quit", "QUIT", buttonX, panel.y + 168.0f, buttonWidth, 20.0f)) {
                 flow->requestQuit();
                 if (requestAppQuit) {
                     requestAppQuit();
                 }
             }
             ui->text(
-                "E SLEEP AT THE BED", fa::core::makeRect(panel.x + 8.0f, panel.y + 184.0f, panel.w - 16.0f, 8.0f), dim);
+                "E SLEEP AT THE BED", fa::core::makeRect(panel.x + 8.0f, panel.y + 208.0f, panel.w - 16.0f, 8.0f), dim);
         }
 
         if (showPause && !slotsOpen) {
@@ -7809,6 +7999,25 @@ private:
 
         const fa::ui::UiTheme& theme = ui->theme();
         const fa::flow::AppState menuState = flow != nullptr ? flow->state() : fa::flow::AppState::Boot;
+#if defined(FA_ENABLE_EDITOR)
+        if (editorWindowOpen && visualEditor != nullptr) {
+            std::vector<std::string> textureIds;
+            textureIds.reserve(catalog.size());
+            for (const fa::assets::AssetEntry& entry : catalog.entries()) {
+                if (entry.kind == fa::assets::AssetKind::Texture) {
+                    textureIds.emplace_back(entry.id.name());
+                }
+            }
+            const fa::core::Rect screen = fa::core::makeRect(0.0f, 0.0f, visible.w, visible.h);
+            visualEditor->draw(*ui, screen, textureIds, [this](std::string_view) { return saveVisualEditorMap(); });
+            if (visualEditor->closeRequested()) {
+                closeVisualEditor();
+            }
+            uiItems = ui->itemCount();
+            ui->submit(renderQueue);
+            return;
+        }
+#endif
         const bool inMenu = playMode && flow != nullptr && menuState != fa::flow::AppState::Playing;
         if (showHud && !inMenu) {
             const fa::core::Rect panel = fa::core::makeRect(8.0f, 8.0f, 236.0f, 86.0f);
@@ -8054,21 +8263,11 @@ private:
             camera.setPosition(demoScene != nullptr ? demoScene->markerCenter() : fa::core::Vec2{320.0f, 200.0f});
             cameraReady = true;
         }
-        if (demoScene != nullptr) {
+        if (demoScene != nullptr && !editorWindowOpen) {
             camera.follow(demoScene->markerCenter(), static_cast<float>(lastRealDelta));
         }
 
         renderer->beginFrame(camera);
-
-        // M12 -> M11 -> M06: the extraction system culls tiles against the camera,
-        // the sprite extractor appends entities, the queue sorts itself, and the
-        // renderer takes the whole batch at once.
-        if (demoScene != nullptr) {
-            demoScene->setViewBounds(camera.visibleRect());
-        }
-        renderQueue.clear();
-        stack.renderExtract(renderQueue);
-        extractedItems = renderQueue.size();
 
         // Mouse position proves the window -> virtual -> world chain: the viewport
         // strips the letterbox, the camera removes its own offset.
@@ -8077,6 +8276,47 @@ private:
         if (demoScene != nullptr && !playMode) {
             demoScene->setCursorWorld(cursor);
         }
+
+#if defined(FA_ENABLE_EDITOR)
+        if (editorWindowOpen && visualEditor != nullptr) {
+            const fa::core::Rect visible = camera.visibleRect();
+            const fa::core::Rect mapArea =
+                fa::editor::VisualEditor::mapRect(fa::core::makeRect(0.0f, 0.0f, visible.w, visible.h));
+            const fa::core::Vec2 uiCursor = camera.worldToViewport(cursor);
+            fa::editor::VisualEditorInput editorInput;
+            editorInput.cursorScreen = uiCursor;
+            const bool overMap = uiCursor.x >= mapArea.x && uiCursor.y >= mapArea.y + 22.0f &&
+                                 uiCursor.x < mapArea.x + mapArea.w && uiCursor.y < mapArea.y + mapArea.h;
+            if (overMap) {
+                if (fa::input::MouseDevice* mouse = input.mouse(); mouse != nullptr) {
+                    editorInput.primaryPressed = mouse->pressed(fa::platform::MouseButton::Left);
+                    editorInput.secondaryPressed = mouse->pressed(fa::platform::MouseButton::Right);
+                }
+            }
+            visualEditor->update(editorInput, mapArea);
+        }
+#endif
+
+        // M12 -> M11 -> M06: the extraction system culls tiles against the camera,
+        // the sprite extractor appends entities, the queue sorts itself, and the
+        // renderer takes the whole batch at once.
+        if (demoScene != nullptr) {
+            demoScene->setViewBounds(camera.visibleRect());
+        }
+        renderQueue.clear();
+#if defined(FA_ENABLE_EDITOR)
+        if (editorWindowOpen && visualEditor != nullptr) {
+            // The editor draws its own tile view so a resized or repainted map is
+            // visible immediately, before the next scene reload.
+            drawEditorMap();
+        } else {
+            stack.renderExtract(renderQueue);
+        }
+#else
+        stack.renderExtract(renderQueue);
+#endif
+        extractedItems = renderQueue.size();
+
 #if defined(FA_ENABLE_EDITOR)
         if (editor != nullptr) {
             fa::editor::EditorFrameInput editorInput;

@@ -26,6 +26,8 @@ struct WindowConfig {
     bool resizable = true;
     bool vsync = true;
     bool highDpi = true;
+    /// \brief Scale to the exact window fit instead of whole-number steps.
+    bool fill = false;
 };
 
 struct UiConfig {
@@ -88,6 +90,7 @@ struct GameConfig {
         static_cast<void>(window.getBool("resizable", config.window.resizable));
         static_cast<void>(window.getBool("vsync", config.window.vsync));
         static_cast<void>(window.getBool("high_dpi", config.window.highDpi));
+        static_cast<void>(window.getBool("fill", config.window.fill));
 
         const save::SaveArchive ui = root.child("ui");
         static_cast<void>(ui.getFloat("scale", config.ui.scale));
