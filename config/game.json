@@ -6,7 +6,8 @@
     "min_height": 720,
     "resizable": true,
     "vsync": true,
-    "high_dpi": true
+        "high_dpi": true,
+        "fill": true
   },
   "ui": {
     "scale": 1.25

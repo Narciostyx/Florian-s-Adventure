@@ -88,6 +88,12 @@ public:
     void endFrame() noexcept {}
 
     void panel(core::Rect rect, core::Color color);
+    /// \brief Draws \p texture over \p rect on the UI layer.
+    ///
+    /// Item icons use this. Pixel art only stays crisp when the destination is an
+    /// integer multiple of the source size, so callers pass 16 -> 16 or 32 px.
+    /// An invalid texture or an empty rect is a no-op.
+    void icon(core::Rect rect, render::TextureHandle texture, core::Color tint = {1.0f, 1.0f, 1.0f, 1.0f});
     void border(core::Rect rect, core::Color color, float thickness = 1.0f);
     void progressBar(core::Rect rect, float value, float minimum, float maximum, core::Color fill);
     void text(std::string_view text, core::Rect rect, const TextStyle& style = {});

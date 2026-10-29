@@ -325,6 +325,20 @@ TEST_CASE("Viewport letterboxes a window that is not a whole multiple", "[render
     REQUIRE(viewport.windowRect().h == 360.0f);
 }
 
+TEST_CASE("Viewport fill mode reaches the window edge", "[render]") {
+    const Viewport viewport = Viewport::fit(1536, 840, 640, 360, true);
+
+    REQUIRE(viewport.scale == Catch::Approx(7.0f / 3.0f).epsilon(0.001));
+    REQUIRE(viewport.offsetY == 0);
+    REQUIRE(viewport.drawableHeight() == 840);
+    REQUIRE(viewport.offsetX == 21);
+    REQUIRE(viewport.drawableWidth() == 1493);
+
+    const Vec2 virtualPoint = viewport.windowToVirtual(Vec2{21.0f + 64.0f * (7.0f / 3.0f), 70.0f});
+    REQUIRE(std::fabs(virtualPoint.x - 64.0f) < 0.01f);
+    REQUIRE(std::fabs(virtualPoint.y - 30.0f) < 0.01f);
+}
+
 TEST_CASE("Viewport crops instead of shrinking below 1:1", "[render]") {
     const Viewport viewport = Viewport::fit(320, 180);
 

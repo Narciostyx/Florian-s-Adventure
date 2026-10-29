@@ -90,6 +90,18 @@ const TileDef* Tilemap::tileDef(TileId id) const noexcept {
     return defFor(id);
 }
 
+TileDef* Tilemap::mutableTileDef(TileId id) noexcept {
+    if (!id.isValid()) {
+        return nullptr;
+    }
+    for (TileDef& def : m_tileDefs) {
+        if (def.id == id) {
+            return &def;
+        }
+    }
+    return nullptr;
+}
+
 const TileDef* Tilemap::defFor(TileId id) const noexcept {
     if (!id.isValid()) {
         return nullptr;

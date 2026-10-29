@@ -51,6 +51,18 @@ bool StdFileSystem::isDirectory(std::string_view path) const {
     return !ec && directory;
 }
 
+std::string StdFileSystem::currentPath() const {
+    std::error_code ec;
+    const std::filesystem::path path = std::filesystem::current_path(ec);
+    return ec ? std::string{} : fromPath(path);
+}
+
+bool StdFileSystem::setCurrentPath(std::string_view path) {
+    std::error_code ec;
+    std::filesystem::current_path(toPath(path), ec);
+    return !ec;
+}
+
 fa::core::Result<std::string> StdFileSystem::readBinary(std::string_view path) {
     std::ifstream stream(toPath(path), std::ios::binary);
     if (!stream) {

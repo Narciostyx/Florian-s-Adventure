@@ -25,6 +25,9 @@ struct RendererDesc {
     int maxQuadsPerFrame = kDefaultMaxQuads;
     /// Asks for vsync on top of whatever the platform context already uses.
     bool vsync = true;
+    /// Scales the virtual surface by the exact fit factor instead of whole
+    /// numbers, so a maximized window has no letterbox in the shorter axis.
+    bool fillWindow = false;
     /// Requests a debug OpenGL context; wiring it to the log is M27's job.
     bool debugContext = false;
 };

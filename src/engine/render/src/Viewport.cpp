@@ -1,8 +1,11 @@
 #include <fa/render/Viewport.hpp>
 
+#include <algorithm>
+#include <cmath>
+
 namespace fa::render {
 
-Viewport Viewport::fit(int windowWidth, int windowHeight, int virtualWidth, int virtualHeight) noexcept {
+Viewport Viewport::fit(int windowWidth, int windowHeight, int virtualWidth, int virtualHeight, bool fill) noexcept {
     Viewport viewport;
     viewport.windowWidth = windowWidth;
     viewport.windowHeight = windowHeight;
@@ -13,24 +16,27 @@ Viewport Viewport::fit(int windowWidth, int windowHeight, int virtualWidth, int 
         return viewport;
     }
 
-    const int scaleX = windowWidth / viewport.virtualWidth;
-    const int scaleY = windowHeight / viewport.virtualHeight;
-    viewport.scale = scaleX < scaleY ? scaleX : scaleY;
-    if (viewport.scale < 1) {
-        viewport.scale = 1;
+    const float fitX = static_cast<float>(windowWidth) / static_cast<float>(viewport.virtualWidth);
+    const float fitY = static_cast<float>(windowHeight) / static_cast<float>(viewport.virtualHeight);
+    if (fill) {
+        viewport.scale = std::max(0.1f, std::min(fitX, fitY));
+    } else {
+        const int scaleX = windowWidth / viewport.virtualWidth;
+        const int scaleY = windowHeight / viewport.virtualHeight;
+        viewport.scale = static_cast<float>(std::max(1, std::min(scaleX, scaleY)));
     }
 
-    viewport.offsetX = (windowWidth - viewport.virtualWidth * viewport.scale) / 2;
-    viewport.offsetY = (windowHeight - viewport.virtualHeight * viewport.scale) / 2;
+    viewport.offsetX = (windowWidth - viewport.drawableWidth()) / 2;
+    viewport.offsetY = (windowHeight - viewport.drawableHeight()) / 2;
     return viewport;
 }
 
 int Viewport::drawableWidth() const noexcept {
-    return virtualWidth * scale;
+    return static_cast<int>(std::lround(static_cast<float>(virtualWidth) * scale));
 }
 
 int Viewport::drawableHeight() const noexcept {
-    return virtualHeight * scale;
+    return static_cast<int>(std::lround(static_cast<float>(virtualHeight) * scale));
 }
 
 bool Viewport::isEmpty() const noexcept {
