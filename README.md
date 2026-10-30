@@ -117,8 +117,11 @@ $msbuild='C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\
 # 冒烟（60 帧、隐藏窗口）
 & ".\build\bin\x64\Debug\fa_app.exe" --frames 60
 
-# 可操作种植会话（需要窗口）
-& ".\build\bin\x64\Debug\fa_app.exe" --window --play
+# 正式游戏（默认带窗口，运行到关闭为止；写 data/log/Log_<时间戳>.txt）
+& ".\build\bin\x64\Debug\fa_app.exe" --play
+
+# 调试会话：正式游戏 + 统计/物理/AI 连线叠加 + Debug 级日志文件
+& ".\build\bin\x64\Debug\fa_app.exe" --debug
 
 # 无头自检：种植闭环 + 击杀 dummy + 拾取掉落；失败返回 1
 & ".\build\bin\x64\Debug\fa_app.exe" --play-test
@@ -133,8 +136,21 @@ $msbuild='C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\
 & ".\build\bin\x64\Release\fa_app.exe" --stress 1000
 ```
 
-`--window` 现在直接进入 play 模式（`--play` 仍可显式指定）；`--frames N` 无窗口时
-仍跑 scripted smoke。`--play` 操作：
+**运行模式**（2026-10-30 起）：
+
+| 选项 | 用途 | 窗口 | 内容 | 日志文件 |
+|---|---|---|---|---|
+| `--play` | 正式游戏 | 默认有 | `data/maps/play/`（当前是占位农场：草地 + 可耕土，无脚本 NPC/任务/传送门） | `data/log/Log_<时间戳>.txt` |
+| `--debug` | 正式游戏 + 调试 | 默认有 | 同 `--play`，并默认打开统计面板、物理调试与 AI 目标连线 | 同 `--play`，级别 `Debug` |
+| `--play-test` | 无头自检（CI） | 默认隐藏 | 演示地图与脚本化内容（Elder/任务/商人/出货箱/床/荆棘/林地敌人） | 不写 |
+| `--frames N` / `--soak N` / `--stress N` | 冒烟与基线 | 默认隐藏 | scripted smoke 地图 | 不写 |
+| `--window` | 强制开窗口 | 有 | 与自动化模式组合用于本机复现 | 仅与 `--play`/`--debug` 组合时写 |
+
+`--resolution WxH` 覆盖窗口尺寸。演示地图（`data/maps/farm.json`、`farm-scripted.json`、
+`forest.json`）与 `data/entities.json` 的脚本化实体只服务自动化模式；正式玩法的起始内容
+是下一步的设计项，见 [交接文档](docs/handoff.md)。
+
+`--play` 操作：
 
 | 输入 | 动作 |
 |---|---|
@@ -145,14 +161,14 @@ $msbuild='C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\
 | 左键 | 使用当前工具/种子；指向成熟作物自动收获（消耗体力） |
 | 右键 | 近战攻击（3 帧挥砍，`hit` 帧才判定；伤害读取装备武器 `damage`）；林地史莱姆/蝙蝠会追击/反击；命中显示受击闪烁、`-N` 伤害数字与 SFX，敌人死亡掉落并自动拾取 |
 | `F` | 食用选中的食物（汤：+20 HP、+30 体力） |
-| `E` | Elder 对话；床边睡觉；出货箱出货；商人开商店（季节库存/每日余量/今日价，可做汤/收取） |
-| 林地 | 史莱姆与快速蝙蝠会主动索敌/攻击，出招前有 3 帧挥砍起手；被打倒同样进入死亡菜单 |
-| `I` | 打开背包：`ALL/SEED/CROP/FOOD/TOOL/WEAPON/OTHER` 分类 + `PREV/NEXT`/滚轮翻页，点击 MOVE 移动物品 |
+| `E` | 交互（演示内容：Elder 对话、床边睡觉、出货箱出货、商人开商店）——**当前只在 `--play-test` 的演示地图里存在** |
+| 林地 | 史莱姆与快速蝙蝠会主动索敌/攻击，出招前有 3 帧挥砍起手；被打倒同样进入死亡菜单（演示地图内容） |
+| `I` | 打开背包：`全部/种子/工具/作物/食物/…` 分类 + `上一页/下一页`/滚轮翻页，点击「移动」在背包与快捷栏间转移 |
 | `J` | 打开任务日志（进行中/已完成与目标进度） |
 | `Esc` | 关闭面板 / 暂停（继续/保存/存档槽/主菜单） |
-| 死亡 | GameOver 面板：`RESPAWN AT BED` / `LOAD AUTOSAVE` / `MAIN MENU`（鼠标） |
-| 反引号 | 调试控制台（`time.addDays N`、`time.set HH:MM`、`give`、`teleport`） |
-| `F3` / `F4` / `F5` | 统计（含角色世界/格子坐标）/ 日志 / 物理调试（非 Release） |
+| 死亡 | GameOver 面板：`在床上复活` / `读取自动存档` / `主菜单`（鼠标） |
+| 反引号 | 调试控制台（`time.addDays N`、`time.set HH:MM`、`give`、`teleport`；命令保持英文） |
+| `F3` / `F4` / `F5` | 统计（含角色世界/格子坐标）/ 日志 / 物理调试（非 Release；`--debug` 下 F3 与物理默认开启） |
 
 体力数值在 `config/game.json` 的 `stamina` 段配置：`max`、`regen_per_second`、
 `run_drain_per_second`、`dodge_cost`、`attack_cost`、`tool_cost`。

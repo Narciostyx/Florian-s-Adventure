@@ -115,9 +115,16 @@ constexpr std::int32_t depthKey(float sortY) noexcept {
 ///
 /// Callers that need a total order still have to use a stable sort, because two
 /// items may agree on all three fields.
+///
+/// The UI layer is exempt from depth ordering: immediate-mode widgets are submitted
+/// back-to-front by their owner, and a label's line y is *inside* its widget, so sorting
+/// UI by depth lets an opaque panel or button paint its own text out.
 constexpr bool drawsBefore(const DrawItem& lhs, const DrawItem& rhs) noexcept {
     if (lhs.layer != rhs.layer) {
         return static_cast<std::uint8_t>(lhs.layer) < static_cast<std::uint8_t>(rhs.layer);
+    }
+    if (lhs.layer == RenderLayer::UI) {
+        return false;
     }
     const std::int32_t lhsDepth = depthKey(lhs.sortY);
     const std::int32_t rhsDepth = depthKey(rhs.sortY);

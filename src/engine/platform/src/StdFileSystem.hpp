@@ -18,6 +18,8 @@ public:
 
     bool exists(std::string_view path) const override;
     bool isDirectory(std::string_view path) const override;
+    std::string currentPath() const override;
+    bool setCurrentPath(std::string_view path) override;
     fa::core::Result<std::string> readText(std::string_view path) override;
     fa::core::Result<std::string> readBinary(std::string_view path) override;
     fa::core::Status writeText(std::string_view path, std::string_view content) override;

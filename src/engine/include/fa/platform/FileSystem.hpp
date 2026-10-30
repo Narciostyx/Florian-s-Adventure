@@ -24,6 +24,18 @@ public:
     /// \brief Whether \p path names an existing directory.
     virtual bool isDirectory(std::string_view path) const = 0;
 
+    /// \brief Absolute UTF-8 path of the process working directory; empty when unsupported.
+    ///
+    /// Not pure on purpose: in-memory test file systems have no notion of a current
+    /// directory and inherit the "unsupported" defaults below.
+    virtual std::string currentPath() const { return {}; }
+
+    /// \brief Switches the process working directory to \p path; false when unsupported.
+    virtual bool setCurrentPath(std::string_view path) {
+        static_cast<void>(path);
+        return false;
+    }
+
     /// \brief Reads \p path as UTF-8 text; the bytes are returned unmodified.
     virtual fa::core::Result<std::string> readText(std::string_view path) = 0;
 

@@ -3,7 +3,7 @@
   "items": [
     {
       "id": "item.turnip_seed",
-      "display_name": "Turnip Seed",
+      "display_name": "萝卜种子",
       "category": "seed",
       "tool_kind": "seed",
       "max_stack": 99,
@@ -15,7 +15,7 @@
     },
     {
       "id": "item.turnip",
-      "display_name": "Turnip",
+      "display_name": "萝卜",
       "category": "crop",
       "max_stack": 99,
       "sell_price": 35,
@@ -26,7 +26,7 @@
     },
     {
       "id": "item.turnip_soup",
-      "display_name": "Turnip Soup",
+      "display_name": "萝卜汤",
       "category": "food",
       "max_stack": 10,
       "sell_price": 120,
@@ -35,7 +35,7 @@
     },
     {
       "id": "item.hoe",
-      "display_name": "Hoe",
+      "display_name": "锄头",
       "category": "tool",
       "tool_kind": "hoe",
       "max_stack": 1,
@@ -46,7 +46,7 @@
     },
     {
       "id": "item.watering_can",
-      "display_name": "Watering Can",
+      "display_name": "水壶",
       "category": "tool",
       "tool_kind": "watering_can",
       "max_stack": 1,
@@ -57,7 +57,7 @@
     },
     {
       "id": "item.sword",
-      "display_name": "Wooden Sword",
+      "display_name": "木剑",
       "category": "weapon",
       "tool_kind": "sword",
       "max_stack": 1,
@@ -69,7 +69,7 @@
         },
         {
           "id": "item.potato_seed",
-          "display_name": "Potato Seed",
+          "display_name": "土豆种子",
           "category": "seed",
           "tool_kind": "seed",
           "max_stack": 99,
@@ -78,7 +78,7 @@
         },
         {
           "id": "item.potato",
-          "display_name": "Potato",
+          "display_name": "土豆",
           "category": "crop",
           "max_stack": 99,
           "sell_price": 55,
@@ -86,7 +86,7 @@
         },
         {
           "id": "item.strawberry_seed",
-          "display_name": "Strawberry Seed",
+          "display_name": "草莓种子",
           "category": "seed",
           "tool_kind": "seed",
           "max_stack": 99,
@@ -95,7 +95,7 @@
         },
         {
           "id": "item.strawberry",
-          "display_name": "Strawberry",
+          "display_name": "草莓",
           "category": "crop",
           "max_stack": 99,
           "sell_price": 70,
@@ -103,7 +103,7 @@
         },
         {
           "id": "item.slime_gel",
-          "display_name": "Slime Gel",
+          "display_name": "史莱姆凝胶",
           "category": "material",
           "max_stack": 99,
           "sell_price": 12,
@@ -111,7 +111,7 @@
         },
         {
           "id": "item.bat_wing",
-          "display_name": "Bat Wing",
+          "display_name": "蝙蝠翅膀",
           "category": "material",
           "max_stack": 99,
           "sell_price": 18,

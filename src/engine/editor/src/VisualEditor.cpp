@@ -91,10 +91,10 @@ void VisualEditor::update(const VisualEditorInput& input, Rect mapViewport) {
     }
     if (input.primaryPressed) {
         const core::Status status = m_editor.applyPrimary();
-        m_status = status.isOk() ? "EDIT OK" : status.error().message;
+        m_status = status.isOk() ? "编辑完成" : status.error().message;
     } else if (input.secondaryPressed) {
         const core::Status status = m_editor.applySecondary();
-        m_status = status.isOk() ? "ERASED" : status.error().message;
+        m_status = status.isOk() ? "已擦除" : status.error().message;
     }
 }
 
@@ -148,11 +148,13 @@ void VisualEditor::draw(ui::UiContext& ui,
     if (!m_active) {
         return;
     }
-    // The editor packs many rows into the 640x360 virtual screen, so it uses a
-    // denser text scale than the HUD; otherwise widget labels overflow their rows.
+    // The editor packs many rows into the 640x360 virtual screen. With the 10 px baked
+    // atlas there is only one usable widget scale (1x), and the default 5 px padding would
+    // leave the 20 px size buttons no inner width at all, so the editor draws denser.
     const ui::UiTheme hudTheme = ui.theme();
     ui::UiTheme denseTheme = hudTheme;
-    denseTheme.textScale = std::clamp(hudTheme.textScale * 0.55f, 1.25f, 1.6f);
+    denseTheme.textScale = 1.0f;
+    denseTheme.padding = 2.0f;
     ui.setTheme(denseTheme);
     const ui::UiTheme& theme = ui.theme();
 
@@ -171,7 +173,7 @@ void VisualEditor::draw(ui::UiContext& ui,
             1.0f);
     }
     if (m_editor.map().empty()) {
-        ui.text("EMPTY MAP", makeRect(map.x + 8.0f, map.y + 8.0f, 200.0f, 8.0f), dimStyle(theme));
+        ui.text("空地图", makeRect(map.x + 8.0f, map.y + 8.0f, 200.0f, 8.0f), dimStyle(theme));
     }
     ui.setTheme(hudTheme);
 }
@@ -188,34 +190,34 @@ void VisualEditor::drawToolbar(ui::UiContext& ui, Rect screen) {
         return pressed;
     };
 
-    if (button("ve.brush", "BRUSH", 44.0f)) {
+    if (button("ve.brush", "笔刷", 44.0f)) {
         m_editor.setTool(EditorTool::Brush);
     }
-    if (button("ve.erase", "ERASE", 42.0f)) {
+    if (button("ve.erase", "橡皮", 42.0f)) {
         m_editor.setTool(EditorTool::Erase);
     }
-    if (button("ve.fill", "FILL", 34.0f)) {
+    if (button("ve.fill", "填充", 34.0f)) {
         m_editor.setTool(EditorTool::Fill);
     }
-    if (button("ve.undo", "UNDO", 40.0f)) {
+    if (button("ve.undo", "撤销", 40.0f)) {
         static_cast<void>(m_history.undo(m_editor.map()));
-        m_status = "UNDO";
+        m_status = "已撤销";
     }
-    if (button("ve.redo", "REDO", 40.0f)) {
+    if (button("ve.redo", "重做", 40.0f)) {
         static_cast<void>(m_history.redo(m_editor.map()));
-        m_status = "REDO";
+        m_status = "已重做";
     }
-    if (button("ve.back", "BACK", 40.0f)) {
+    if (button("ve.back", "返回", 40.0f)) {
         m_closeRequested = true;
     }
 
     char info[96]{};
     std::snprintf(info,
                   sizeof(info),
-                  "LAYER %d   BRUSH %u   %s",
+                  "图层 %d  笔刷 %u  %s",
                   m_editor.layer(),
                   m_editor.brush().value,
-                  m_history.dirty() ? "DIRTY" : "SAVED");
+                  m_history.dirty() ? "未保存" : "已保存");
     ui.text(info, makeRect(x + 4.0f, bar.y + 4.0f, screen.x + screen.w - x - 8.0f, 8.0f), dimStyle(theme));
 }
 
@@ -225,8 +227,8 @@ void VisualEditor::drawPalette(ui::UiContext& ui, Rect screen, std::span<const s
     const Rect panel = panelRect(screen);
     const Rect palette = makeRect(panel.x, panel.y, panel.w, panel.h * 0.43f);
     ui.panel(palette, theme.panel);
-    ui.text("COMPONENTS", makeRect(palette.x + 6.0f, palette.y + 4.0f, 180.0f, 8.0f), labelStyle(theme));
-    ui.text("TILES", makeRect(palette.x + 6.0f, palette.y + 16.0f, 60.0f, 8.0f), dimStyle(theme));
+    ui.text("组件", makeRect(palette.x + 6.0f, palette.y + 4.0f, 180.0f, 8.0f), labelStyle(theme));
+    ui.text("瓦片", makeRect(palette.x + 6.0f, palette.y + 16.0f, 60.0f, 8.0f), dimStyle(theme));
 
     float y = palette.y + 28.0f;
     for (const tilemap::TileDef& def : m_editor.map().tileDefs()) {
@@ -242,7 +244,7 @@ void VisualEditor::drawPalette(ui::UiContext& ui, Rect screen, std::span<const s
         if (ui.button(ui::UiId::fromName(id), line, rect).pressed) {
             m_selectedTile = def.id;
             m_editor.setBrush(def.id);
-            m_status = "TILE " + def.name;
+            m_status = "瓦片 " + def.name;
         }
         if (selected) {
             ui.border(rect, theme.accent, 1.0f);
@@ -261,33 +263,33 @@ void VisualEditor::drawProperties(ui::UiContext& ui,
     const Rect props =
         makeRect(panel.x, paletteHeight.y + paletteHeight.h + 4.0f, panel.w, panel.h - paletteHeight.h - 4.0f);
     ui.panel(props, theme.panel);
-    ui.text("PROPERTIES", makeRect(props.x + 6.0f, props.y + 4.0f, 180.0f, 8.0f), labelStyle(theme));
+    ui.text("属性", makeRect(props.x + 6.0f, props.y + 4.0f, 180.0f, 8.0f), labelStyle(theme));
 
     tilemap::Tilemap& map = m_editor.map();
     float y = props.y + 16.0f;
     char line[96]{};
-    std::snprintf(line, sizeof(line), "MAP %dx%d  @%dpx", map.width(), map.height(), map.tileSize());
+    std::snprintf(line, sizeof(line), "地图 %dx%d  @%dpx", map.width(), map.height(), map.tileSize());
     ui.text(line, makeRect(props.x + 6.0f, y, props.w - 12.0f, 8.0f), dimStyle(theme));
     y += 11.0f;
 
-    const float small = 16.0f;
-    if (ui.button(ui::UiId::fromName("ve.w-"), "W-", makeRect(props.x + 6.0f, y, small, 11.0f)).pressed) {
+    const float small = 20.0f;
+    if (ui.button(ui::UiId::fromName("ve.w-"), "宽-", makeRect(props.x + 6.0f, y, small, 11.0f)).pressed) {
         resizeMap(map.width() - 1, map.height());
     }
-    if (ui.button(ui::UiId::fromName("ve.w+"), "W+", makeRect(props.x + 24.0f, y, small, 11.0f)).pressed) {
+    if (ui.button(ui::UiId::fromName("ve.w+"), "宽+", makeRect(props.x + 28.0f, y, small, 11.0f)).pressed) {
         resizeMap(map.width() + 1, map.height());
     }
-    if (ui.button(ui::UiId::fromName("ve.h-"), "H-", makeRect(props.x + 44.0f, y, small, 11.0f)).pressed) {
+    if (ui.button(ui::UiId::fromName("ve.h-"), "高-", makeRect(props.x + 50.0f, y, small, 11.0f)).pressed) {
         resizeMap(map.width(), map.height() - 1);
     }
-    if (ui.button(ui::UiId::fromName("ve.h+"), "H+", makeRect(props.x + 62.0f, y, small, 11.0f)).pressed) {
+    if (ui.button(ui::UiId::fromName("ve.h+"), "高+", makeRect(props.x + 72.0f, y, small, 11.0f)).pressed) {
         resizeMap(map.width(), map.height() + 1);
     }
     y += 14.0f;
 
     bool outsideSolid = map.outsideIsSolid();
     if (ui.checkbox(ui::UiId::fromName("ve.outside"),
-                    "OUTSIDE SOLID",
+                    "界外阻挡",
                     outsideSolid,
                     makeRect(props.x + 6.0f, y, props.w - 12.0f, 10.0f))
             .pressed) {
@@ -296,7 +298,7 @@ void VisualEditor::drawProperties(ui::UiContext& ui,
     y += 12.0f;
     tilemap::MapAmbient ambient = map.ambient();
     if (ui.checkbox(ui::UiId::fromName("ve.indoor"),
-                    "INDOOR",
+                    "室内",
                     ambient.indoor,
                     makeRect(props.x + 6.0f, y, props.w - 12.0f, 10.0f))
             .pressed) {
@@ -306,14 +308,14 @@ void VisualEditor::drawProperties(ui::UiContext& ui,
 
     tilemap::TileDef* def = map.mutableTileDef(m_editor.brush());
     if (def == nullptr) {
-        ui.text("NO TILE SELECTED", makeRect(props.x + 6.0f, y, props.w - 12.0f, 8.0f), dimStyle(theme));
+        ui.text("未选中瓦片", makeRect(props.x + 6.0f, y, props.w - 12.0f, 8.0f), dimStyle(theme));
         return;
     }
-    std::snprintf(line, sizeof(line), "TILE #%u  %s", def->id.value, def->name.c_str());
+    std::snprintf(line, sizeof(line), "瓦片 #%u  %s", def->id.value, def->name.c_str());
     ui.text(line, makeRect(props.x + 6.0f, y, props.w - 12.0f, 8.0f), labelStyle(theme));
     y += 11.0f;
 
-    std::snprintf(line, sizeof(line), "TEX %s", def->textureName.empty() ? "-" : def->textureName.c_str());
+    std::snprintf(line, sizeof(line), "贴图 %s", def->textureName.empty() ? "-" : def->textureName.c_str());
     ui.text(line, makeRect(props.x + 6.0f, y, props.w - 12.0f, 8.0f), dimStyle(theme));
     y += 11.0f;
     if (!textureIds.empty()) {
@@ -352,29 +354,29 @@ void VisualEditor::drawProperties(ui::UiContext& ui,
         y += 11.0f;
     };
     bool walkable = def->walkable;
-    applyFlag(flag("ve.walk", "WALKABLE", walkable), walkable, def->walkable);
+    applyFlag(flag("ve.walk", "可通行", walkable), walkable, def->walkable);
     bool solid = def->solid;
-    applyFlag(flag("ve.solid", "SOLID", solid), solid, def->solid);
+    applyFlag(flag("ve.solid", "阻挡", solid), solid, def->solid);
     bool tillable = def->tillable;
-    applyFlag(flag("ve.till", "TILLABLE", tillable), tillable, def->tillable);
+    applyFlag(flag("ve.till", "可耕", tillable), tillable, def->tillable);
     bool water = def->water;
-    applyFlag(flag("ve.water", "WATER", water), water, def->water);
+    applyFlag(flag("ve.water", "水", water), water, def->water);
 
     if (ui.button(ui::UiId::fromName("ve.save"),
-                  "SAVE JSON",
+                  "保存",
                   makeRect(props.x + 6.0f, props.y + props.h - 26.0f, props.w - 12.0f, 12.0f))
             .pressed) {
         const core::Status saved = save(m_editor.mapText());
         if (saved.isOk()) {
             m_history.markSaved();
-            m_status = "SAVED";
+            m_status = "已保存";
         } else {
-            m_status = "SAVE FAILED: " + saved.error().message;
+            m_status = "保存失败：" + saved.error().message;
         }
     }
 
     if (!m_status.empty()) {
-        ui.text(m_status.substr(0, 40),
+        ui.text(fa::ui::fitToCodepoints(m_status, 40),
                 makeRect(props.x + 6.0f, props.y + props.h - 12.0f, props.w - 12.0f, 8.0f),
                 dimStyle(theme));
     }

@@ -5,7 +5,9 @@
 /// M07 (input) so window, event, timing, drawing and input behave end to end.
 
 #include "GameConfig.hpp"
+#include "LogToFile.hpp"
 #include "StbImageDecoder.hpp"
+#include "UiFontAtlas.hpp"
 
 #include <algorithm>
 #include <array>
@@ -128,12 +130,15 @@
 namespace {
 
 struct Options {
-    /// A visible window is opt-in so CI and automated runs never block.
+    /// A visible window is opt-in for the automation modes so CI never blocks; the player
+    /// modes (`--play`, `--debug`) turn it on by default.
     bool visibleWindow = false;
     /// 0 means "run until the user closes the window".
     int frames = 0;
-    /// \brief Skips the scripted demos and starts a clean playable farming session.
+    /// \brief Playable session rather than the headless scripted smoke.
     bool playMode = false;
+    /// \brief `--debug`: the playable session plus debug overlays and a verbose log file.
+    bool debugMode = false;
     /// \brief Runs the headless play-loop self check instead of waiting for input.
     bool playTest = false;
     /// \brief Optional window-size override applied after `config/game.json`.
@@ -143,6 +148,9 @@ struct Options {
     int soakSeconds = 0;
     /// \brief Sprite-only stress scene size; 0 disables `--stress`.
     int stressSprites = 0;
+
+    /// \brief Modes a human plays: windowed by default and the only ones that write a log file.
+    [[nodiscard]] bool isPlayerMode() const noexcept { return playMode && !playTest; }
 };
 
 Options parseOptions(int argc, char** argv) {
@@ -153,6 +161,9 @@ Options parseOptions(int argc, char** argv) {
             options.visibleWindow = true;
         } else if (arg == "--play") {
             options.playMode = true;
+        } else if (arg == "--debug") {
+            options.playMode = true;
+            options.debugMode = true;
         } else if (arg == "--play-test") {
             options.playMode = true;
             options.playTest = true;
@@ -183,9 +194,15 @@ Options parseOptions(int argc, char** argv) {
     if (options.stressSprites > 0 && options.frames <= 0) {
         options.frames = 600;
     }
-    // A visible window is the game, not the headless scripted smoke. Keeping this
-    // implicit avoids the old "window + drifting marker + sealed demo map" trap;
-    // `--frames` without `--window` still runs the scripted smoke.
+    // The player modes are the game, so they open a window; the automation modes
+    // (`--play-test`, `--frames`, `--soak`, `--stress`) stay hidden so CI never blocks on
+    // a display, and `--window` still forces a window for any of them.
+    if (options.isPlayerMode()) {
+        options.visibleWindow = true;
+    }
+    // A visible window without an explicit mode is the game, not the headless scripted
+    // smoke. Keeping this implicit avoids the old "window + drifting marker + sealed demo
+    // map" trap; `--frames` without `--window` still runs the scripted smoke.
     if (options.visibleWindow && !options.playMode && !options.playTest) {
         options.playMode = true;
     }
@@ -238,17 +255,17 @@ constexpr std::string_view kCatalogText = R"({
 constexpr std::string_view kContentText = R"({
   "schema_version": 1,
   "items": [
-    {"id": "item.turnip_seed", "display_name": "Turnip Seed", "category": "seed",
+    {"id": "item.turnip_seed", "display_name": "萝卜种子", "category": "seed",
      "tool_kind": "seed", "max_stack": 99, "sell_price": 5, "tags": ["seed", "spring"]},
-    {"id": "item.turnip", "display_name": "Turnip", "category": "crop",
+    {"id": "item.turnip", "display_name": "萝卜", "category": "crop",
      "max_stack": 99, "sell_price": 35, "tags": ["crop", "spring"]},
-    {"id": "item.turnip_soup", "display_name": "Turnip Soup", "category": "food",
+    {"id": "item.turnip_soup", "display_name": "萝卜汤", "category": "food",
      "max_stack": 10, "sell_price": 120, "heal_amount": 20, "stamina_restore": 30},
-    {"id": "item.hoe", "display_name": "Hoe", "category": "tool",
+    {"id": "item.hoe", "display_name": "锄头", "category": "tool",
      "tool_kind": "hoe", "max_stack": 1, "sell_price": 0, "tags": ["tool"]},
-    {"id": "item.watering_can", "display_name": "Watering Can", "category": "tool",
+    {"id": "item.watering_can", "display_name": "水壶", "category": "tool",
      "tool_kind": "watering_can", "max_stack": 1, "sell_price": 0, "tags": ["tool"]},
-    {"id": "item.sword", "display_name": "Wooden Sword", "category": "weapon",
+    {"id": "item.sword", "display_name": "木剑", "category": "weapon",
      "tool_kind": "sword", "max_stack": 1, "sell_price": 0, "damage": 12,
      "tags": ["weapon"]}
   ],
@@ -283,27 +300,27 @@ constexpr std::string_view kContentText = R"({
 constexpr std::string_view kNarrativeText = R"({
   "schema_version": 1,
   "npcs": [
-    {"id": "npc.elder", "name": "Elder", "liked_items": ["item.turnip"]}
+    {"id": "npc.elder", "name": "村长", "liked_items": ["item.turnip"]}
   ],
   "dialogues": [
     {"id": "dialogue.elder", "npc": "npc.elder", "start": "greet", "nodes": [
-      {"id": "greet", "speaker": "Elder",
-       "text": "The soil remembers every season. Will you help?",
+      {"id": "greet", "speaker": "村长",
+       "text": "土地记得每一个季节。你愿意帮忙吗？",
        "choices": [
-         {"text": "I will bring a turnip.", "next": "quest"},
-         {"text": "Not now.", "next": "bye"}
+         {"text": "我去拔一个萝卜给你。", "next": "quest"},
+         {"text": "现在不行。", "next": "bye"}
        ]},
-      {"id": "quest", "speaker": "Elder",
-       "text": "Bring me one turnip and I will trade seeds.",
+      {"id": "quest", "speaker": "村长",
+       "text": "给我一个萝卜，我就跟你换种子。",
        "actions": [{"kind": "start_quest", "id": "quest.turnip"}],
        "next": "bye"},
-      {"id": "bye", "speaker": "Elder",
-       "text": "Come back when the sun is high.", "next": ""}
+      {"id": "bye", "speaker": "村长",
+       "text": "等太阳升高了再来吧。", "next": ""}
     ]}
   ],
   "quests": [
-    {"id": "quest.turnip", "title": "A Turnip for the Elder",
-     "description": "Bring one turnip.",
+    {"id": "quest.turnip", "title": "给村长的萝卜",
+     "description": "拔一个萝卜。",
      "objectives": [{"kind": "collect", "target": "item.turnip", "required": 1}],
      "rewards": [{"item": "item.turnip_seed", "amount": 2}], "gold": 10}
   ]
@@ -313,7 +330,7 @@ constexpr std::string_view kNarrativeText = R"({
 constexpr std::string_view kShopText = R"({
   "schema_version": 1,
   "shops": [
-    {"id": "shop.general", "name": "General Store",
+    {"id": "shop.general", "name": "杂货店",
      "buy_multiplier": 1.0, "sell_multiplier": 0.5,
      "stock": [
        {"item": "item.turnip_seed", "price": 10, "daily_limit": 5},
@@ -1336,6 +1353,7 @@ public:
         direction = length > 0.001f ? direction / length : fa::core::Vec2{1.0f, 0.0f};
         const fa::core::Vec2 center{owner->position.x + 8.0f, owner->position.y + 8.0f};
         effect->position = fa::core::Vec2{center.x + direction.x * 10.0f - 8.0f, center.y + direction.y * 10.0f - 8.0f};
+        effect->rotation = std::atan2(direction.y, direction.x);
     }
 
     /// \brief Advances every enemy wind-up and spawns its hitbox on `hit`.
@@ -1376,6 +1394,10 @@ public:
         const fa::core::Vec2 direction = fa::player::directionVector(playerFacing());
         transform->position =
             fa::core::Vec2{center.x + direction.x * 10.0f - 8.0f, center.y + direction.y * 10.0f - 8.0f};
+        // The arc art points east, so the facing vector's angle is exactly the rotation
+        // that aims it. The renderer turns the quad about its centre, which the position
+        // above already places, so the swing stays anchored to the player.
+        transform->rotation = std::atan2(direction.y, direction.x);
     }
 
     [[nodiscard]] std::span<const fa::combat::DamageEvent> damageEvents() const noexcept {
@@ -2618,6 +2640,50 @@ private:
 /// render queue and the renderer takes it in one submitAll() call. M17 adds the
 /// per-frame cursor target and the debug highlight; its scripted sequence runs once
 /// in `DemoScene::onEnter()`.
+/// \brief Chinese label for a season name coming from M15/M22's `toString`.
+///
+/// The engine and the data packs keep season ids language-neutral (`"spring"`), so the
+/// translation lives at the display edge instead of leaking into content or world code.
+[[nodiscard]] std::string_view seasonLabel(std::string_view season) {
+    if (season == "spring") {
+        return "春";
+    }
+    if (season == "summer") {
+        return "夏";
+    }
+    if (season == "fall") {
+        return "秋";
+    }
+    if (season == "winter") {
+        return "冬";
+    }
+    return season;
+}
+
+/// \brief Chinese label for a tool kind; `toString` stays language-neutral for logs/JSON.
+[[nodiscard]] std::string_view toolLabel(fa::interaction::ToolKind tool) noexcept {
+    switch (tool) {
+        case fa::interaction::ToolKind::Hoe:
+            return "锄头";
+        case fa::interaction::ToolKind::WateringCan:
+            return "水壶";
+        case fa::interaction::ToolKind::Axe:
+            return "斧头";
+        case fa::interaction::ToolKind::Pickaxe:
+            return "镐";
+        case fa::interaction::ToolKind::Sword:
+            return "剑";
+        case fa::interaction::ToolKind::Seed:
+            return "种子";
+        case fa::interaction::ToolKind::Harvest:
+            return "收获";
+        case fa::interaction::ToolKind::Placeable:
+            return "放置";
+        default:
+            return "工具";
+    }
+}
+
 class SmokeSink final : public fa::time::IFrameSink {
 public:
     SmokeSink() {
@@ -2728,8 +2794,13 @@ public:
                     static_cast<double>(config.stamina.toolCost));
     }
 
-    /// \brief True for `--play`: scripted demos are skipped and input drives tools.
+    /// \brief True for `--play` / `--debug` / `--play-test`: input drives the session.
     bool playMode = false;
+    /// \brief True for `--debug`: debug overlays on, verbose log level, log file.
+    bool debugMode = false;
+    /// \brief Run log owned by main; null unless this is a player mode.
+    fa::app::RunLogFileSink* runLogFile = nullptr;
+    int logFlushTick = 0;
     /// \brief True for `--play-test`: initializeFlow uses the `playtest` slot.
     bool playTest = false;
     /// \brief Set by main once the frame loop exists; the menu's Quit calls it.
@@ -2834,12 +2905,34 @@ public:
     }
 
     /// \brief Builds one map scene over the shared session state.
+    /// \brief Map file and spawn table for the current mode.
+    ///
+    /// The three demo worlds (`maps/farm.json`, `maps/farm-scripted.json`,
+    /// `maps/forest.json`) carry the scripted content the automation modes assert on:
+    /// Elder + quest chain, merchant, shipping bin, bed, thorns and the forest enemies.
+    /// They therefore stay owned by `--play-test` / the smoke run. `--play` and `--debug`
+    /// start from the placeholder world under `maps/play/` with **no spawns at all** -
+    /// the real starting content is the next design step. A missing play map falls back to
+    /// M12's built-in layout, so the game still boots.
+    [[nodiscard]] bool usesDemoContent() const noexcept { return !playMode || playTest; }
+
     std::unique_ptr<DemoScene> makeDemoScene(DemoMap map, std::optional<fa::core::Vec2> spawn) {
-        const char* mapFile =
-            map == DemoMap::Forest ? "maps/forest.json" : (playMode ? "maps/farm.json" : "maps/farm-scripted.json");
+        const bool demoContent = usesDemoContent();
+        const char* mapFile = demoContent
+                                  ? (map == DemoMap::Forest ? "maps/forest.json"
+                                                            : (playMode ? "maps/farm.json" : "maps/farm-scripted.json"))
+                                  : (map == DemoMap::Forest ? "maps/play/forest.json" : "maps/play/farm.json");
         const std::string mapText = readDataText(mapFile, std::string_view{});
-        auto scene = std::make_unique<DemoScene>(
-            input, content, narrative, gameState, map, !playMode, &entitySpawns, spawn, mapText);
+        static const std::vector<EntitySpawn> kNoSpawns;
+        auto scene = std::make_unique<DemoScene>(input,
+                                                 content,
+                                                 narrative,
+                                                 gameState,
+                                                 map,
+                                                 !playMode,
+                                                 demoContent ? &entitySpawns : &kNoSpawns,
+                                                 spawn,
+                                                 mapText);
         scene->setTextures(gpuTextureOf(grassTexture),
                            gpuTextureOf(wallTexture),
                            gpuTextureOf(soilTexture),
@@ -2867,7 +2960,7 @@ public:
         auto scene = makeDemoScene(target, spawn);
         DemoScene* raw = scene.get();
         if (const fa::core::Status replaced = stack.replace(std::move(scene)); replaced.isError()) {
-            setPlayMessage("MAP LOAD FAILED");
+            setPlayMessage("地图加载失败");
             return false;
         }
         demoScene = raw;
@@ -4527,6 +4620,12 @@ public:
     void initializeDebug() {
         debugTools = std::make_unique<fa::debug::DebugTools>();
         debugTools->attachLogSink();
+        if (debugMode) {
+            // `--debug` opens with the overlays the play session needs: the stats panel
+            // (which also draws each AI's target line) and the physics shapes.
+            debugTools->toggleStats();
+            debugTools->setPhysicsVisible(true);
+        }
 
         static_cast<void>(debugTools->registerCommand(
             fa::debug::ConsoleCommand{"entities",
@@ -4848,13 +4947,13 @@ public:
         }
         const fa::inventory::ItemStack& selected = playerInventory->hotbar().selectedStack();
         if (selected.empty()) {
-            setPlayMessage("NO TOOL IN THE SELECTED SLOT");
+            setPlayMessage("当前栏位没有工具");
             return fa::core::errorStatus(fa::inventory::inventory_error::kSlotEmpty, "the selected slot is empty");
         }
         const fa::content::ItemDef* def = content.item(selected.id);
         fa::interaction::ToolKind tool = toolKindFor(def);
         if (tool == fa::interaction::ToolKind::None) {
-            setPlayMessage("NOT A TOOL: " + std::string(selected.id.name()));
+            setPlayMessage("不是工具：" + std::string(selected.id.name()));
             return fa::core::errorStatus(fa::core::error_code::kUnsupported, "the selected item is not a tool");
         }
 
@@ -4893,7 +4992,7 @@ public:
                 demoScene->narrative().reportEvent(event);
             }
         }
-        const std::string toolName(toString(tool));
+        const std::string_view toolName = toolLabel(tool);
         if (status.isOk()) {
             switch (tool) {
                 case fa::interaction::ToolKind::Hoe:
@@ -4911,9 +5010,9 @@ public:
                 default:
                     break;
             }
-            setPlayMessage(toolName + " OK");
+            setPlayMessage(std::string(toolName) + " 完成");
         } else {
-            setPlayMessage(toolName + ": " + status.error().message);
+            setPlayMessage(std::string(toolName) + "失败：" + status.error().message);
         }
         return status;
     }
@@ -4939,8 +5038,8 @@ public:
         }
         const int damage = weaponDamage();
         const bool started = demoScene->startAttack(damage, 14.0f);
-        setPlayMessage(started ? "ATTACK " + std::to_string(damage)
-                               : (demoScene->attackAnimationActive() ? "ATTACK BUSY" : "ATTACK UNAVAILABLE"));
+        setPlayMessage(started ? "攻击 " + std::to_string(damage)
+                               : (demoScene->attackAnimationActive() ? "攻击收势中" : "无法攻击"));
     }
 
     /// \brief Consumes the selected hotbar item; only food has an effect.
@@ -4952,19 +5051,19 @@ public:
         fa::inventory::Inventory& hotbar = playerInventory->hotbar().inventory();
         const fa::inventory::ItemStack& selected = hotbar.at(slot);
         if (selected.empty()) {
-            setPlayMessage("NO ITEM SELECTED");
+            setPlayMessage("未选中物品");
             return fa::core::errorStatus(fa::inventory::inventory_error::kSlotEmpty, "the selected slot is empty");
         }
         const fa::content::ItemDef* def = content.item(selected.id);
         if (def == nullptr || def->category != "food") {
-            setPlayMessage("NOT FOOD: " + std::string(selected.id.name()));
+            setPlayMessage("不是食物：" + std::string(selected.id.name()));
             return fa::core::errorStatus(fa::core::error_code::kUnsupported, "the selected item is not food");
         }
         const int heal = def->healAmount;
         const int stamina = def->staminaRestore;
         const fa::core::Status status = itemUse->use(hotbar, slot, demoScene->playerEntity());
         if (status.isError()) {
-            setPlayMessage("USE FAILED: " + status.error().message);
+            setPlayMessage("使用失败：" + status.error().message);
             return status;
         }
         if (heal > 0) {
@@ -4973,12 +5072,12 @@ public:
         if (stamina > 0) {
             demoScene->setPlayerStamina(demoScene->playerStamina() + static_cast<float>(stamina));
         }
-        std::string message = "ATE " + def->displayName;
+        std::string message = "吃下 " + def->displayName;
         if (heal > 0) {
-            message += " +" + std::to_string(heal) + "HP";
+            message += " +" + std::to_string(heal) + "生命";
         }
         if (stamina > 0) {
-            message += " +" + std::to_string(stamina) + "STA";
+            message += " +" + std::to_string(stamina) + "体力";
         }
         setPlayMessage(std::move(message));
         return status;
@@ -5080,7 +5179,7 @@ public:
             }
             const bool onPlayer = damage.target == demoScene->playerEntity();
             playSfx(onPlayer ? "sfx.hurt" : "sfx.hit");
-            setPlayMessage((onPlayer ? "HURT " : "HIT ") + std::to_string(damage.amount));
+            setPlayMessage((onPlayer ? "受伤 " : "命中 ") + std::to_string(damage.amount));
             spawnDamageText(damage.target, damage.amount, onPlayer);
             applyHitFlash(damage.target);
         }
@@ -5111,7 +5210,7 @@ public:
             if (demoScene->isAlive(death.entity)) {
                 demoScene->world().destroy(death.entity);
             }
-            setPlayMessage("ENEMY DOWN");
+            setPlayMessage("击倒敌人");
         }
         demoScene->clearCombatEvents();
     }
@@ -5134,12 +5233,12 @@ public:
                 }
                 const fa::inventory::ItemStack stack{drop.item, drop.count, -1};
                 if (bag.spaceFor(stack) < drop.count) {
-                    setPlayMessage("BAG FULL");
+                    setPlayMessage("背包已满");
                     return;
                 }
                 const fa::core::Result<int> added = bag.add(stack);
                 if (added.isError() || added.value() != 0) {
-                    setPlayMessage("BAG FULL");
+                    setPlayMessage("背包已满");
                     return;
                 }
                 collected.push_back(id);
@@ -5149,7 +5248,7 @@ public:
                 questEvent.amount = drop.count;
                 demoScene->narrative().reportEvent(questEvent);
                 const fa::content::ItemDef* def = content.item(drop.item);
-                setPlayMessage("PICKED " + (def != nullptr ? def->displayName : std::string(drop.item.name())) + " x" +
+                setPlayMessage("拾取 " + (def != nullptr ? def->displayName : std::string(drop.item.name())) + " x" +
                                std::to_string(drop.count));
             });
         for (const fa::scene::EntityId id : collected) {
@@ -5223,10 +5322,10 @@ public:
         const fa::core::Status started = demoScene->startNpcDialogue();
         if (started.isError()) {
             static_cast<void>(flow->exitDialogue());
-            setPlayMessage("TALK: " + started.error().message);
+            setPlayMessage("交谈：" + started.error().message);
             return false;
         }
-        setPlayMessage("ELDER: 1/2 CHOOSE  ENTER CONTINUE");
+        setPlayMessage("村长：按 1/2 选择  回车继续");
         return true;
     }
 
@@ -5236,7 +5335,7 @@ public:
         }
         const fa::core::Status status = demoScene->narrative().choose(index);
         if (status.isError()) {
-            setPlayMessage("DIALOGUE: " + status.error().message);
+            setPlayMessage("对话：" + status.error().message);
         }
         syncDialogueState();
         processNarrativeEvents();
@@ -5248,7 +5347,7 @@ public:
         }
         const fa::core::Status status = demoScene->narrative().advance();
         if (status.isError()) {
-            setPlayMessage("DIALOGUE: " + status.error().message);
+            setPlayMessage("对话：" + status.error().message);
         }
         syncDialogueState();
         processNarrativeEvents();
@@ -5270,13 +5369,13 @@ public:
         for (const fa::narrative::NarrativeEvent& event : demoScene->narrative().events()) {
             switch (event.kind) {
                 case fa::narrative::NarrativeEventKind::QuestStarted:
-                    setPlayMessage("QUEST STARTED: " + event.text);
+                    setPlayMessage("任务开始：" + event.text);
                     break;
                 case fa::narrative::NarrativeEventKind::QuestCompleted: {
                     if (event.amount > 0 && economy != nullptr) {
                         economy->addGold(event.amount);
                     }
-                    std::string message = "QUEST COMPLETE: " + event.text;
+                    std::string message = "任务完成：" + event.text;
                     if (event.amount > 0) {
                         message += " +" + std::to_string(event.amount) + "G";
                     }
@@ -5323,7 +5422,7 @@ public:
             handlePassOut();
             return true;
         }
-        setPlayMessage("THORNS -" + std::to_string(config.gameplay.hazardDamage));
+        setPlayMessage("荆棘 -" + std::to_string(config.gameplay.hazardDamage));
         return true;
     }
 
@@ -5345,7 +5444,7 @@ public:
         }
         lastDeathPenalty = penalty;
         playSfx("sfx.hurt");
-        lastDeathReason = reason == "thorns" ? "THORNS" : "COMBAT";
+        lastDeathReason = reason == "thorns" ? "荆棘" : "战斗";
         const fa::core::Status over = flow->requestGameOver(reason);
         if (over.isError()) {
             // The state already changed or the session is gone; do not leave a
@@ -5387,7 +5486,7 @@ public:
         if (flow->respawn().isError()) {
             return false;
         }
-        setPlayMessage("RESPAWNED");
+        setPlayMessage("已复活");
         return true;
     }
 
@@ -5400,7 +5499,7 @@ public:
             // GameFlow moves to the main menu on a failed load.
             return false;
         }
-        setPlayMessage("LOADED AUTOSAVE");
+        setPlayMessage("已读取自动存档");
         return true;
     }
 
@@ -5467,7 +5566,7 @@ public:
             demoScene->syncPhysics();
         }
         portalCooldown = 0.6f;
-        setPlayMessage(target == DemoMap::Forest ? "ENTERED FOREST" : "ENTERED FARM");
+        setPlayMessage(target == DemoMap::Forest ? "进入林地" : "进入农场");
         return true;
     }
 
@@ -5493,7 +5592,7 @@ public:
         char message[64]{};
         std::snprintf(message,
                       sizeof(message),
-                      "SLEPT %.1fh  STAMINA +%d%%",
+                      "睡了 %.1f 小时  体力 +%d%%",
                       static_cast<double>(hours),
                       static_cast<int>(recovery * 100.0f + 0.5f));
         setPlayMessage(message);
@@ -5519,12 +5618,12 @@ public:
                     } else if (demoScene->isNearBed()) {
                         const fa::core::Status slept = sleepAtBed();
                         if (slept.isError()) {
-                            setPlayMessage("SLEEP FAILED: " + slept.error().message);
+                            setPlayMessage("睡觉失败：" + slept.error().message);
                         }
                     } else if (demoScene->isNearShippingBox()) {
                         const int shipped = shipAllCrops();
-                        setPlayMessage(shipped > 0 ? "SHIPPED " + std::to_string(shipped) + " CROP(S)"
-                                                   : "NOTHING TO SHIP");
+                        setPlayMessage(shipped > 0 ? "已出货 " + std::to_string(shipped) + " 作物"
+                                                   : "没有可出货的东西");
                     } else if (demoScene->isNearMerchant() && flow != nullptr &&
                                flow->state() == fa::flow::AppState::Playing) {
                         if (flow->enterDialogue().isOk()) {
@@ -5533,7 +5632,7 @@ public:
                             shopMessageTimer = 0.0f;
                         }
                     } else {
-                        setPlayMessage("INTERACT: elder, bed, shipping box or merchant");
+                        setPlayMessage("交互：村长 / 床 / 出货箱 / 商人");
                     }
                     break;
                 case fa::player::PlayerActionKind::OpenInventory:
@@ -5541,11 +5640,11 @@ public:
                     break;
                 case fa::player::PlayerActionKind::ActionRejected:
                     if (action.errorCode == fa::player::player_error::kInsufficientStamina) {
-                        setPlayMessage("NOT ENOUGH STAMINA");
+                        setPlayMessage("体力不足");
                     } else if (action.errorCode == fa::player::player_error::kCooldown) {
-                        setPlayMessage("DODGE ON COOLDOWN");
+                        setPlayMessage("闪避冷却中");
                     } else {
-                        setPlayMessage("ACTION LOCKED");
+                        setPlayMessage("动作锁定中");
                     }
                     break;
                 default:
@@ -5600,7 +5699,7 @@ public:
         }
         calendar->clearEvents();
         syncEconomyCalendar();
-        setPlayMessage("ADVANCED " + std::to_string(days) + " DAY(S)");
+        setPlayMessage("前进 " + std::to_string(days) + " 天");
     }
 
     /// \brief Starts `--soak`: counts live entities and textures before the loop.
@@ -6570,7 +6669,7 @@ public:
         const float timeOfDay = static_cast<float>(hour) + static_cast<float>(minute) / 60.0f;
         calendar->restore(calendar->date(), timeOfDay, calendar->today(), calendar->tomorrow());
         calendar->clearEvents();
-        setPlayMessage("TIME SET");
+        setPlayMessage("时间已设置");
     }
 
 #if defined(FA_ENABLE_DEBUG_TOOLS)
@@ -6664,15 +6763,27 @@ public:
     }
 #endif
 
-    /// \brief Uploads the built-in font atlas and the 1x1 white quad texture.
+    /// \brief Uploads the UI font atlas and the 1x1 white quad texture.
     ///
     /// M09 owns no GL objects: the composition root creates both textures and hands
     /// M09 plain handles, exactly like the asset pipeline hands handles to sprites.
-    fa::core::Status initializeUi() {
+    ///
+    /// The baked atlas (tools/build_font_atlas.py) carries Chinese; when it is absent the
+    /// built-in 3x5 ASCII font takes over, which keeps a fresh clone, CI and the smoke run
+    /// working with no art on disk - the same degradation rule as textures.
+    fa::core::Status initializeUi(fa::platform::IPlatform& platform) {
         if (renderer == nullptr) {
             return fa::core::errorStatus(fa::render::render_error::kNotInitialized, "no renderer to upload the font");
         }
-        uiFont = fa::ui::buildBuiltinFont();
+        fontSource = "builtin";
+        fa::core::Result<fa::ui::FontAtlas> baked = fa::app::loadBakedUiFont(platform.files(), config.paths.assets);
+        if (baked.isOk()) {
+            uiFont = std::move(baked).take();
+            fontSource = "baked";
+        } else {
+            std::printf("font: %s, using the built-in 3x5 ASCII atlas\n", baked.error().message.c_str());
+            uiFont = fa::ui::buildBuiltinFont();
+        }
 
         fa::render::TextureDesc fontDesc;
         fontDesc.width = uiFont.width;
@@ -6698,7 +6809,11 @@ public:
         }
 
         fa::ui::UiTheme theme;
-        theme.textScale = 2.0f * config.ui.scale;
+        // The baked atlas is a 10 px pixel font, so widget text is already legible at 1x.
+        // 2x made labels (20 px) as tall as the 16-20 px buttons they sit in, and the
+        // centring then pushed their sortY to or above the button's own, so the opaque
+        // button quad painted over the label.
+        theme.textScale = 1.0f * config.ui.scale;
         theme.padding = 4.0f * config.ui.scale;
         ui = std::make_unique<fa::ui::UiContext>(uiFont, uiWhiteTexture, theme);
         return fa::core::okStatus();
@@ -7031,6 +7146,11 @@ public:
 
     void onVariableUpdate(const fa::time::FrameContext& context) override {
         lastRealDelta = context.realDeltaSeconds;
+        // Keep the run log close to live without rewriting the file every frame.
+        if (runLogFile != nullptr && ++logFlushTick >= 60) {
+            logFlushTick = 0;
+            fa::core::flushLogs();
+        }
         if (stressMode && context.realDeltaSeconds > 0.0f) {
             stressFrameTimes.push_back(static_cast<float>(context.realDeltaSeconds));
         }
@@ -7068,8 +7188,8 @@ public:
                 static_cast<void>(playerInventory->hotbar().select(static_cast<int>(index)));
                 const fa::inventory::ItemStack& selected = playerInventory->hotbar().selectedStack();
                 const fa::content::ItemDef* selectedDef = selected.empty() ? nullptr : content.item(selected.id);
-                setPlayMessage("SLOT " + std::to_string(index + 1) + ": " +
-                               (selectedDef != nullptr ? selectedDef->displayName : "EMPTY"));
+                setPlayMessage("栏位 " + std::to_string(index + 1) + ": " +
+                               (selectedDef != nullptr ? selectedDef->displayName : "空"));
             }
             const fa::core::Vec2 wheel = input.scroll();
             if (wheel.y > 0.0f) {
@@ -7169,6 +7289,8 @@ public:
     /// M09 holds only borrowed handles; `uiFont` is declared before `ui` so the
     /// context (which references the atlas) is destroyed first.
     fa::ui::FontAtlas uiFont;
+    /// \brief Which atlas is live: `baked` (Chinese-capable) or `builtin` (ASCII only).
+    const char* fontSource = "builtin";
     fa::render::TextureHandle uiWhiteTexture;
     std::unique_ptr<fa::ui::UiContext> ui;
     bool showHud = true;
@@ -7221,7 +7343,7 @@ public:
     float playMessageTimer = 0.0f;
     /// \brief Penalty applied by the most recent death, shown on the GameOver panel.
     int lastDeathPenalty = 0;
-    std::string lastDeathReason = "THORNS";
+    std::string lastDeathReason = "荆棘";
     /// \brief Rising damage numbers; app-local because they never enter a save.
     std::vector<FloatingDamage> damageTexts;
     int quitEvents = 0;
@@ -7330,7 +7452,9 @@ public:
     fa::core::Vec2 cameraPosition() const { return camera.position(); }
     fa::render::CameraFollowConfig cameraFollowConfig() const { return camera.followConfig(); }
     std::size_t sceneSystemCount() const { return demoScene != nullptr ? demoScene->systems().size() : 0; }
-    std::size_t uiFontGlyphCount() const { return uiFont.glyphs.size(); }
+    /// Includes the extended table so the marker can tell a baked CJK atlas apart from the
+    /// built-in 95-glyph ASCII fallback.
+    std::size_t uiFontGlyphCount() const { return uiFont.glyphs.size() + uiFont.extended.size(); }
     int uiAtlasWidth() const { return uiFont.width; }
     int uiAtlasHeight() const { return uiFont.height; }
     std::size_t uiDrawnItems() const { return uiItems; }
@@ -7341,7 +7465,7 @@ public:
 private:
     /// \brief Draws the backpack panel: one stack moves per click.
     static constexpr std::array<const char*, 7> kInventoryFilters{
-        "ALL", "SEED", "CROP", "FOOD", "TOOL", "WEAPON", "OTHER"};
+        "全部", "种子", "作物", "食物", "工具", "武器", "其他"};
 
     /// \brief Whether \p def belongs to the selected backpack filter.
     [[nodiscard]] static bool itemMatchesInventoryFilter(const fa::content::ItemDef* def, int filter) {
@@ -7431,10 +7555,20 @@ private:
         label.color = theme.text;
         label.scale = scale;
 
-        const fa::core::Rect panel = centeredRect(540.0f, 300.0f);
+        // Sized for the 640x360 virtual screen: the old 540x300 panel covered 84% of it.
+        const fa::core::Rect panel = centeredRect(420.0f, 250.0f);
+        fa::ui::TextStyle dim = label;
+        dim.color = theme.textDisabled;
+        static constexpr float kMargin = 10.0f;
+        static constexpr float kColPitch = 200.0f;
+        static constexpr float kColWidth = 194.0f;
+        static constexpr float kRowPitch = 16.0f;
+        static constexpr float kRowsTop = 74.0f;
+        static constexpr float kActionsY = 224.0f;
+        const float colX[2] = {panel.x + kMargin, panel.x + kMargin + kColPitch};
         ui->panel(panel, theme.panel);
         ui->border(panel, theme.panelBorder);
-        ui->text("BACKPACK", fa::core::makeRect(panel.x + 12.0f, panel.y + 8.0f, 300.0f, 16.0f), title);
+        ui->text("背包", fa::core::makeRect(panel.x + kMargin, panel.y + 6.0f, 200.0f, 20.0f), title);
 
         for (std::size_t index = 0; index < kInventoryFilters.size(); ++index) {
             char id[24]{};
@@ -7442,7 +7576,7 @@ private:
             if (ui->button(fa::ui::UiId::fromName(id),
                            kInventoryFilters[index],
                            fa::core::makeRect(
-                               panel.x + 12.0f + static_cast<float>(index) * 71.0f, panel.y + 28.0f, 68.0f, 18.0f))
+                               panel.x + kMargin + static_cast<float>(index) * 56.0f, panel.y + 30.0f, 54.0f, 16.0f))
                     .pressed) {
                 ++uiPresses;
                 inventoryCategory = static_cast<int>(index);
@@ -7471,38 +7605,43 @@ private:
         const int filterIndex = std::clamp(inventoryCategory, 0, static_cast<int>(kInventoryFilters.size()) - 1);
         std::snprintf(filterText,
                       sizeof(filterText),
-                      "FILTER %s   PAGE %d/%d",
+                      "筛选 %s   第 %d/%d 页",
                       kInventoryFilters[static_cast<std::size_t>(filterIndex)],
                       inventoryPage + 1,
                       pageCount);
-        ui->text(filterText, fa::core::makeRect(panel.x + 12.0f, panel.y + 50.0f, 300.0f, 8.0f), label);
-        ui->text("BAG -> HOTBAR", fa::core::makeRect(panel.x + 12.0f, panel.y + 62.0f, 180.0f, 8.0f), label);
-        ui->text("HOTBAR -> BAG", fa::core::makeRect(panel.x + 272.0f, panel.y + 62.0f, 180.0f, 8.0f), label);
+        ui->text(filterText, fa::core::makeRect(panel.x + kMargin, panel.y + 50.0f, 200.0f, 10.0f), label);
+        ui->text("背包 → 快捷栏", fa::core::makeRect(colX[0], panel.y + 62.0f, kColWidth, 10.0f), label);
+        ui->text("快捷栏 → 背包", fa::core::makeRect(colX[1], panel.y + 62.0f, kColWidth, 10.0f), label);
 
         int moveBag = -1;
         int moveHot = -1;
-        float bagY = panel.y + 74.0f;
+        constexpr float kTextX = 18.0f;
+        constexpr float kMoveWidth = 44.0f;
+        constexpr float kTextWidth = kColWidth - kTextX - kMoveWidth;
+        float bagY = panel.y + kRowsTop;
         int shown = 0;
         const int first = inventoryPage * kPageSize;
         for (int index = first; index < static_cast<int>(bagSlots.size()) && shown < kPageSize; ++index, ++shown) {
             const int slot = bagSlots[static_cast<std::size_t>(index)];
             const fa::inventory::ItemStack& itemStack = bag.at(slot);
-            inventoryRow(panel.x + 12.0f, panel.x + 32.0f, bagY, 176.0f, itemStack, label);
+            inventoryRow(colX[0], colX[0] + kTextX, bagY, kTextWidth, itemStack, label);
 
             char id[32]{};
             std::snprintf(id, sizeof(id), "inv.bag.%d", slot);
-            if (ui->button(fa::ui::UiId::fromName(id), "MOVE", fa::core::makeRect(panel.x + 212.0f, bagY, 50.0f, 16.0f))
+            if (ui->button(fa::ui::UiId::fromName(id),
+                           "移动",
+                           fa::core::makeRect(colX[0] + kColWidth - kMoveWidth, bagY, kMoveWidth, 16.0f))
                     .pressed) {
                 ++uiPresses;
                 moveBag = slot;
             }
-            bagY += 18.0f;
+            bagY += kRowPitch;
         }
         if (shown == 0) {
-            ui->text("EMPTY", fa::core::makeRect(panel.x + 12.0f, bagY + 4.0f, 120.0f, 8.0f), label);
+            ui->text("空", fa::core::makeRect(colX[0], bagY + 2.0f, kColWidth, 10.0f), label);
         }
 
-        float hotY = panel.y + 74.0f;
+        float hotY = panel.y + kRowsTop;
         int hotShown = 0;
         fa::inventory::Inventory& hotbarInventory = playerInventory->hotbar().inventory();
         for (int slot = 0; slot < hotbarInventory.slotCount() && hotShown < 9; ++slot) {
@@ -7510,39 +7649,42 @@ private:
             if (itemStack.empty()) {
                 continue;
             }
-            inventoryRow(panel.x + 270.0f, panel.x + 290.0f, hotY, 176.0f, itemStack, label);
+            inventoryRow(colX[1], colX[1] + kTextX, hotY, kTextWidth, itemStack, label);
 
             char id[32]{};
             std::snprintf(id, sizeof(id), "inv.hot.%d", slot);
-            if (ui->button(fa::ui::UiId::fromName(id), "MOVE", fa::core::makeRect(panel.x + 472.0f, hotY, 50.0f, 16.0f))
+            if (ui->button(fa::ui::UiId::fromName(id),
+                           "移动",
+                           fa::core::makeRect(colX[1] + kColWidth - kMoveWidth, hotY, kMoveWidth, 16.0f))
                     .pressed) {
                 ++uiPresses;
                 moveHot = slot;
             }
-            hotY += 18.0f;
+            hotY += kRowPitch;
             ++hotShown;
         }
         if (hotShown == 0) {
-            ui->text("EMPTY", fa::core::makeRect(panel.x + 272.0f, hotY + 4.0f, 120.0f, 8.0f), label);
+            ui->text("空", fa::core::makeRect(colX[1], hotY + 2.0f, kColWidth, 10.0f), label);
         }
 
         if (ui->button(fa::ui::UiId::fromName("inv.prev"),
-                       "PREV",
-                       fa::core::makeRect(panel.x + 12.0f, panel.y + 238.0f, 62.0f, 18.0f))
+                       "上一页",
+                       fa::core::makeRect(panel.x + kMargin, panel.y + kActionsY, 54.0f, 16.0f))
                 .pressed) {
             ++uiPresses;
             inventoryPage = std::max(0, inventoryPage - 1);
         }
         if (ui->button(fa::ui::UiId::fromName("inv.next"),
-                       "NEXT",
-                       fa::core::makeRect(panel.x + 80.0f, panel.y + 238.0f, 62.0f, 18.0f))
+                       "下一页",
+                       fa::core::makeRect(panel.x + 68.0f, panel.y + kActionsY, 54.0f, 16.0f))
                 .pressed) {
             ++uiPresses;
             inventoryPage = std::min(pageCount - 1, inventoryPage + 1);
         }
+        ui->text("J / ESC 关闭", fa::core::makeRect(panel.x + 130.0f, panel.y + kActionsY + 3.0f, 150.0f, 10.0f), dim);
         if (ui->button(fa::ui::UiId::fromName("inv.close"),
-                       "CLOSE",
-                       fa::core::makeRect(panel.x + 412.0f, panel.y + 238.0f, 96.0f, 18.0f))
+                       "关闭",
+                       fa::core::makeRect(panel.x + 356.0f, panel.y + kActionsY, 54.0f, 16.0f))
                 .pressed) {
             ++uiPresses;
             closeInventoryPanel();
@@ -7551,11 +7693,11 @@ private:
 
         if (moveBag >= 0) {
             const fa::core::Result<int> moved = playerInventory->moveToHotbar(moveBag, 1);
-            setInventoryMessage(moved.isOk() && moved.value() > 0 ? "MOVED TO HOTBAR" : "HOTBAR IS FULL");
+            setInventoryMessage(moved.isOk() && moved.value() > 0 ? "已移到快捷栏" : "快捷栏已满");
         }
         if (moveHot >= 0) {
             const fa::core::Result<int> moved = playerInventory->moveToBackpack(moveHot, 1);
-            setInventoryMessage(moved.isOk() && moved.value() > 0 ? "MOVED TO BACKPACK" : "BACKPACK IS FULL");
+            setInventoryMessage(moved.isOk() && moved.value() > 0 ? "已移到背包" : "背包已满");
         }
         if (inventoryMessageTimer > 0.0f && !inventoryMessage.empty()) {
             fa::ui::TextStyle message = label;
@@ -7587,7 +7729,7 @@ private:
         const fa::core::Rect panel = centeredRect(520.0f, 280.0f);
         ui->panel(panel, theme.panel);
         ui->border(panel, theme.panelBorder);
-        ui->text("QUEST LOG", fa::core::makeRect(panel.x + 12.0f, panel.y + 8.0f, 300.0f, 16.0f), title);
+        ui->text("任务日志", fa::core::makeRect(panel.x + 12.0f, panel.y + 8.0f, 300.0f, 16.0f), title);
 
         const fa::narrative::NarrativeService& narrativeState = demoScene->narrative();
         std::vector<fa::narrative::QuestState> states = narrativeState.questStates();
@@ -7614,13 +7756,14 @@ private:
             std::snprintf(header,
                           sizeof(header),
                           "%s  %s",
-                          state.active ? "ACTIVE" : (state.completed ? "COMPLETE" : "UNKNOWN"),
+                          state.active ? "进行中" : (state.completed ? "已完成" : "未知"),
                           def->title.c_str());
             fa::ui::TextStyle headerStyle = state.completed ? dim : label;
             ui->text(header, fa::core::makeRect(panel.x + 12.0f, y, panel.w - 24.0f, 8.0f), headerStyle);
             y += 13.0f;
-            ui->text(
-                def->description.substr(0, 64), fa::core::makeRect(panel.x + 20.0f, y, panel.w - 32.0f, 8.0f), dim);
+            ui->text(fa::ui::fitToCodepoints(def->description, 20),
+                     fa::core::makeRect(panel.x + 20.0f, y, panel.w - 32.0f, 10.0f),
+                     dim);
             y += 12.0f;
             for (std::size_t index = 0; index < def->objectives.size() && index < 4; ++index) {
                 const fa::narrative::QuestObjective& objective = def->objectives[index];
@@ -7643,20 +7786,18 @@ private:
             ++rendered;
         }
         if (rendered == 0) {
-            ui->text("NO QUESTS YET - TALK TO THE ELDER",
-                     fa::core::makeRect(panel.x + 12.0f, y, panel.w - 24.0f, 8.0f),
-                     dim);
+            ui->text("暂无任务 - 去找村长", fa::core::makeRect(panel.x + 12.0f, y, panel.w - 24.0f, 8.0f), dim);
         }
 
         if (ui->button(fa::ui::UiId::fromName("quest.close"),
-                       "CLOSE [J]",
+                       "关闭 [J]",
                        fa::core::makeRect(panel.x + 412.0f, panel.y + 244.0f, 96.0f, 18.0f))
                 .pressed) {
             ++uiPresses;
             closeQuestLog();
             return;
         }
-        ui->text("J / ESC CLOSE", fa::core::makeRect(panel.x + 12.0f, panel.y + 250.0f, 180.0f, 8.0f), dim);
+        ui->text("J / ESC 关闭", fa::core::makeRect(panel.x + 12.0f, panel.y + 250.0f, 180.0f, 8.0f), dim);
     }
 
     /// \brief Draws the merchant panel while it is open.
@@ -7681,7 +7822,7 @@ private:
         const fa::core::Rect panel = centeredRect(420.0f, 250.0f);
         ui->panel(panel, theme.panel);
         ui->border(panel, theme.panelBorder);
-        ui->text("GENERAL STORE", fa::core::makeRect(panel.x + 10.0f, panel.y + 8.0f, panel.w - 20.0f, 16.0f), title);
+        ui->text("杂货店", fa::core::makeRect(panel.x + 10.0f, panel.y + 8.0f, panel.w - 20.0f, 16.0f), title);
 
         const fa::content::ContentId seed = fa::content::ContentId::fromName("item.turnip_seed");
         const fa::content::ContentId turnip = fa::content::ContentId::fromName("item.turnip");
@@ -7689,11 +7830,11 @@ private:
         const fa::economy::ShopDef* shop = shops.shop(shopGeneralId());
 
         const std::string seasonName =
-            economy != nullptr ? std::string(fa::content::toString(economy->season())) : "spring";
+            economy != nullptr ? std::string(seasonLabel(fa::content::toString(economy->season()))) : "春";
         char goldText[96]{};
         std::snprintf(goldText,
                       sizeof(goldText),
-                      "GOLD %d    SEASON %s",
+                      "金币 %d    季节 %s",
                       economy != nullptr ? economy->gold() : 0,
                       seasonName.c_str());
         ui->text(goldText, fa::core::makeRect(panel.x + 12.0f, panel.y + 30.0f, panel.w - 24.0f, 8.0f), label);
@@ -7707,7 +7848,7 @@ private:
             return pressed;
         };
 
-        ui->text("BUY", fa::core::makeRect(panel.x + 12.0f, panel.y + 44.0f, 60.0f, 8.0f), label);
+        ui->text("购买", fa::core::makeRect(panel.x + 12.0f, panel.y + 44.0f, 60.0f, 8.0f), label);
         float stockY = panel.y + 56.0f;
         if (shop != nullptr) {
             for (std::size_t index = 0; index < shop->stock.size(); ++index) {
@@ -7720,12 +7861,12 @@ private:
                 if (!available) {
                     std::snprintf(line,
                                   sizeof(line),
-                                  "%s  OUT OF SEASON",
+                                  "%s  非当季",
                                   def != nullptr ? def->displayName.c_str() : entry.item.name().c_str());
                 } else if (remaining >= 0) {
                     std::snprintf(line,
                                   sizeof(line),
-                                  "%s  %dg  STOCK %d",
+                                  "%s  %d金  库存 %d",
                                   def != nullptr ? def->displayName.c_str() : entry.item.name().c_str(),
                                   price,
                                   remaining);
@@ -7744,9 +7885,9 @@ private:
                 if (available) {
                     char id[32]{};
                     std::snprintf(id, sizeof(id), "shop.buy.%zu", index);
-                    if (press(id, "BUY 1", panel.x + 320.0f, stockY - 4.0f, 88.0f)) {
+                    if (press(id, "买 1", panel.x + 320.0f, stockY - 4.0f, 88.0f)) {
                         const fa::core::Status status = buyFromShop(entry.item, 1);
-                        setShopMessage(status.isOk() ? "BOUGHT 1" : status.error().message);
+                        setShopMessage(status.isOk() ? "已买 1" : status.error().message);
                     }
                 }
                 stockY += 20.0f;
@@ -7757,11 +7898,11 @@ private:
                                                                  playerInventory->hotbar().inventory().countOf(turnip)
                                                            : 0;
         char turnipText[96]{};
-        std::snprintf(turnipText, sizeof(turnipText), "TURNIPS %d   SELL 1 = %dg", turnipCount, shopSellPrice(turnip));
+        std::snprintf(turnipText, sizeof(turnipText), "萝卜 %d   卖 1 = %d金", turnipCount, shopSellPrice(turnip));
         ui->text(turnipText, fa::core::makeRect(panel.x + 12.0f, stockY, 280.0f, 8.0f), label);
-        if (press("shop.sell", "SELL 1", panel.x + 320.0f, stockY - 4.0f, 88.0f)) {
+        if (press("shop.sell", "卖 1", panel.x + 320.0f, stockY - 4.0f, 88.0f)) {
             const fa::core::Status status = sellToShop(turnip, 1);
-            setShopMessage(status.isOk() ? "SOLD 1 TURNIP" : status.error().message);
+            setShopMessage(status.isOk() ? "已卖出 1 萝卜" : status.error().message);
         }
         stockY += 22.0f;
 
@@ -7770,18 +7911,18 @@ private:
                                                          : 0;
         const std::size_t readyJobs = economy != nullptr ? economy->readyJobCount() : 0;
         char soupText[96]{};
-        std::snprintf(soupText, sizeof(soupText), "KITCHEN  SOUP %d   READY %zu", soupCount, readyJobs);
+        std::snprintf(soupText, sizeof(soupText), "厨房  汤 %d   可取 %zu", soupCount, readyJobs);
         ui->text(soupText, fa::core::makeRect(panel.x + 12.0f, stockY, panel.w - 24.0f, 8.0f), label);
         stockY += 14.0f;
-        if (press("shop.cook", "COOK SOUP (2 TURNIP)", panel.x + 12.0f, stockY, 190.0f)) {
+        if (press("shop.cook", "煮汤（2 萝卜）", panel.x + 12.0f, stockY, 190.0f)) {
             const fa::core::Status status = craftTurnipSoup();
-            setShopMessage(status.isOk() ? "COOKING 30 MIN" : status.error().message);
+            setShopMessage(status.isOk() ? "烹饪中 30 分" : status.error().message);
         }
-        if (press("shop.collect", "COLLECT", panel.x + 210.0f, stockY, 90.0f)) {
+        if (press("shop.collect", "收取", panel.x + 210.0f, stockY, 90.0f)) {
             const fa::core::Status status = collectReadyCraft();
-            setShopMessage(status.isOk() ? "COLLECTED SOUP" : status.error().message);
+            setShopMessage(status.isOk() ? "已收取汤" : status.error().message);
         }
-        if (press("shop.close", "CLOSE", panel.x + 320.0f, stockY, 88.0f)) {
+        if (press("shop.close", "关闭", panel.x + 320.0f, stockY, 88.0f)) {
             shopOpen = false;
             static_cast<void>(flow->exitDialogue());
             return;
@@ -7790,8 +7931,8 @@ private:
         if (shopMessageTimer > 0.0f && !shopMessage.empty()) {
             fa::ui::TextStyle message = label;
             message.color = theme.accent;
-            ui->text(shopMessage.substr(0, 56),
-                     fa::core::makeRect(panel.x + 12.0f, panel.y + 220.0f, panel.w - 24.0f, 8.0f),
+            ui->text(fa::ui::fitToCodepoints(shopMessage, 30),
+                     fa::core::makeRect(panel.x + 12.0f, panel.y + 220.0f, panel.w - 24.0f, 10.0f),
                      message);
         }
     }
@@ -7841,103 +7982,97 @@ private:
             const fa::core::Rect panel = centeredRect(300.0f, 246.0f);
             ui->panel(panel, theme.panel);
             ui->border(panel, theme.panelBorder);
-            ui->text("FLORIAN'S ADVENTURE",
+            ui->text("Florian's Adventure",
                      fa::core::makeRect(panel.x + 8.0f, panel.y + 10.0f, panel.w - 16.0f, 16.0f),
                      title);
             char dayText[48]{};
-            std::snprintf(dayText, sizeof(dayText), "SPRING DAY %d", calendar != nullptr ? calendar->date().day : 1);
+            std::snprintf(dayText, sizeof(dayText), "春季 第 %d 天", calendar != nullptr ? calendar->date().day : 1);
             ui->text(
                 dayText, fa::core::makeRect(panel.x + 8.0f, panel.y + 38.0f, panel.w - 16.0f, 8.0f), centeredLabel);
 
             const float buttonWidth = 160.0f;
             const float buttonX = panel.x + (panel.w - buttonWidth) * 0.5f;
-            if (press("menu.new", "NEW GAME", buttonX, panel.y + 64.0f, buttonWidth, 20.0f)) {
+            if (press("menu.new", "开始新游戏", buttonX, panel.y + 64.0f, buttonWidth, 20.0f)) {
                 static_cast<void>(flow->startNewGame("play"));
             }
-            if (press("menu.continue", "CONTINUE", buttonX, panel.y + 90.0f, buttonWidth, 20.0f)) {
+            if (press("menu.continue", "继续", buttonX, panel.y + 90.0f, buttonWidth, 20.0f)) {
                 continueGame();
             }
-            if (press("menu.slots", "SAVE SLOTS", buttonX, panel.y + 116.0f, buttonWidth, 20.0f)) {
+            if (press("menu.slots", "存档槽", buttonX, panel.y + 116.0f, buttonWidth, 20.0f)) {
                 refreshSlots();
                 slotsOpen = true;
             }
 #if defined(FA_ENABLE_EDITOR)
-            if (press("menu.editor", "MAP EDITOR", buttonX, panel.y + 142.0f, buttonWidth, 20.0f)) {
+            if (press("menu.editor", "地图编辑器", buttonX, panel.y + 142.0f, buttonWidth, 20.0f)) {
                 openVisualEditor();
             }
 #endif
-            if (press("menu.quit", "QUIT", buttonX, panel.y + 168.0f, buttonWidth, 20.0f)) {
+            if (press("menu.quit", "退出", buttonX, panel.y + 168.0f, buttonWidth, 20.0f)) {
                 flow->requestQuit();
                 if (requestAppQuit) {
                     requestAppQuit();
                 }
             }
-            ui->text(
-                "E SLEEP AT THE BED", fa::core::makeRect(panel.x + 8.0f, panel.y + 208.0f, panel.w - 16.0f, 8.0f), dim);
+            ui->text("E 上床睡觉", fa::core::makeRect(panel.x + 8.0f, panel.y + 208.0f, panel.w - 16.0f, 8.0f), dim);
         }
 
         if (showPause && !slotsOpen) {
             const fa::core::Rect panel = centeredRect(240.0f, 160.0f);
             ui->panel(panel, theme.panel);
             ui->border(panel, theme.panelBorder);
-            ui->text("PAUSED", fa::core::makeRect(panel.x + 12.0f, panel.y + 8.0f, panel.w - 24.0f, 16.0f), title);
+            ui->text("已暂停", fa::core::makeRect(panel.x + 12.0f, panel.y + 8.0f, panel.w - 24.0f, 16.0f), title);
 
             const float buttonWidth = 150.0f;
             const float buttonX = panel.x + (panel.w - buttonWidth) * 0.5f;
-            if (press("pause.resume", "RESUME", buttonX, panel.y + 36.0f, buttonWidth, 20.0f)) {
+            if (press("pause.resume", "继续", buttonX, panel.y + 36.0f, buttonWidth, 20.0f)) {
                 flow->requestPause(false);
             }
-            if (press("pause.save", "SAVE", buttonX, panel.y + 60.0f, buttonWidth, 20.0f)) {
+            if (press("pause.save", "保存", buttonX, panel.y + 60.0f, buttonWidth, 20.0f)) {
                 static_cast<void>(flow->saveGame());
                 refreshSlots();
             }
-            if (press("pause.slots", "SAVE SLOTS", buttonX, panel.y + 84.0f, buttonWidth, 20.0f)) {
+            if (press("pause.slots", "存档槽", buttonX, panel.y + 84.0f, buttonWidth, 20.0f)) {
                 refreshSlots();
                 slotsOpen = true;
             }
-            if (press("pause.menu", "MAIN MENU", buttonX, panel.y + 108.0f, buttonWidth, 20.0f)) {
+            if (press("pause.menu", "主菜单", buttonX, panel.y + 108.0f, buttonWidth, 20.0f)) {
                 static_cast<void>(flow->enterMainMenu());
                 slotsOpen = false;
             }
-            ui->text("ESC RESUME", fa::core::makeRect(panel.x + 12.0f, panel.y + 138.0f, panel.w - 24.0f, 8.0f), dim);
+            ui->text("ESC 继续", fa::core::makeRect(panel.x + 12.0f, panel.y + 138.0f, panel.w - 24.0f, 8.0f), dim);
         }
 
         if (showGameOver && !slotsOpen) {
             const fa::core::Rect panel = centeredRect(300.0f, 200.0f);
             ui->panel(panel, theme.panel);
             ui->border(panel, theme.panelBorder);
-            ui->text(
-                "YOU PASSED OUT", fa::core::makeRect(panel.x + 8.0f, panel.y + 10.0f, panel.w - 16.0f, 16.0f), title);
+            ui->text("你晕倒了", fa::core::makeRect(panel.x + 8.0f, panel.y + 10.0f, panel.w - 16.0f, 16.0f), title);
 
             char reasonText[64]{};
-            std::snprintf(reasonText, sizeof(reasonText), "%s  -%d GOLD", lastDeathReason.c_str(), lastDeathPenalty);
+            std::snprintf(reasonText, sizeof(reasonText), "%s  -%d 金币", lastDeathReason.c_str(), lastDeathPenalty);
             ui->text(
                 reasonText, fa::core::makeRect(panel.x + 8.0f, panel.y + 36.0f, panel.w - 16.0f, 8.0f), centeredLabel);
-            ui->text("PENALTY ALREADY APPLIED",
-                     fa::core::makeRect(panel.x + 8.0f, panel.y + 48.0f, panel.w - 16.0f, 8.0f),
-                     dim);
+            ui->text("惩罚已扣除", fa::core::makeRect(panel.x + 8.0f, panel.y + 48.0f, panel.w - 16.0f, 8.0f), dim);
 
             const float buttonWidth = 180.0f;
             const float buttonX = panel.x + (panel.w - buttonWidth) * 0.5f;
-            if (press("death.respawn", "RESPAWN AT BED", buttonX, panel.y + 68.0f, buttonWidth, 20.0f)) {
+            if (press("death.respawn", "在床边复活", buttonX, panel.y + 68.0f, buttonWidth, 20.0f)) {
                 static_cast<void>(respawnFromDeath());
             }
-            if (press("death.load", "LOAD AUTOSAVE", buttonX, panel.y + 94.0f, buttonWidth, 20.0f)) {
+            if (press("death.load", "读取自动存档", buttonX, panel.y + 94.0f, buttonWidth, 20.0f)) {
                 static_cast<void>(loadFromDeath());
             }
-            if (press("death.menu", "MAIN MENU", buttonX, panel.y + 120.0f, buttonWidth, 20.0f)) {
+            if (press("death.menu", "主菜单", buttonX, panel.y + 120.0f, buttonWidth, 20.0f)) {
                 static_cast<void>(mainMenuFromDeath());
             }
-            ui->text("CHOOSE HOW TO CONTINUE",
-                     fa::core::makeRect(panel.x + 8.0f, panel.y + 154.0f, panel.w - 16.0f, 8.0f),
-                     dim);
+            ui->text("选择如何继续", fa::core::makeRect(panel.x + 8.0f, panel.y + 154.0f, panel.w - 16.0f, 8.0f), dim);
         }
 
         if (slotsOpen) {
             const fa::core::Rect panel = centeredRect(480.0f, 240.0f);
             ui->panel(panel, theme.panel);
             ui->border(panel, theme.panelBorder);
-            ui->text("SAVE SLOTS", fa::core::makeRect(panel.x + 10.0f, panel.y + 8.0f, 300.0f, 16.0f), title);
+            ui->text("存档槽", fa::core::makeRect(panel.x + 10.0f, panel.y + 8.0f, 300.0f, 16.0f), title);
 
             std::vector<std::string> names;
             names.emplace_back(fa::flow::kAutosaveSlot);
@@ -7952,29 +8087,29 @@ private:
                 const fa::save::SaveMetadata* meta = findSlot(name);
                 char line[64]{};
                 if (meta != nullptr) {
-                    std::snprintf(line, sizeof(line), "%s  DAY %d", name.c_str(), meta->inGameDay);
+                    std::snprintf(line, sizeof(line), "%s  第 %d 天", name.c_str(), meta->inGameDay);
                 } else {
-                    std::snprintf(line, sizeof(line), "%s  EMPTY", name.c_str());
+                    std::snprintf(line, sizeof(line), "%s  空", name.c_str());
                 }
                 ui->text(line, fa::core::makeRect(panel.x + 12.0f, y, 270.0f, 8.0f), meta != nullptr ? label : dim);
 
                 char loadId[32]{};
                 std::snprintf(loadId, sizeof(loadId), "slot.load.%zu", index);
-                if (press(loadId, "LOAD", panel.x + 300.0f, y - 4.0f, 58.0f, 18.0f)) {
+                if (press(loadId, "读取", panel.x + 300.0f, y - 4.0f, 58.0f, 18.0f)) {
                     loadSlot(name);
                     return;
                 }
                 if (canSave && index > 0) {
                     char saveId[32]{};
                     std::snprintf(saveId, sizeof(saveId), "slot.save.%zu", index);
-                    if (press(saveId, "SAVE", panel.x + 366.0f, y - 4.0f, 58.0f, 18.0f)) {
+                    if (press(saveId, "保存", panel.x + 366.0f, y - 4.0f, 58.0f, 18.0f)) {
                         saveSlot(name);
                     }
                 }
                 y += 30.0f;
             }
 
-            if (press("slots.back", "BACK", panel.x + 10.0f, panel.y + 206.0f, 70.0f, 20.0f)) {
+            if (press("slots.back", "返回", panel.x + 10.0f, panel.y + 206.0f, 70.0f, 20.0f)) {
                 slotsOpen = false;
             }
         }
@@ -8020,59 +8155,104 @@ private:
 #endif
         const bool inMenu = playMode && flow != nullptr && menuState != fa::flow::AppState::Playing;
         if (showHud && !inMenu) {
-            const fa::core::Rect panel = fa::core::makeRect(8.0f, 8.0f, 236.0f, 86.0f);
+            // Sized for the baked 10 px pixel font (line height 10, titles 20).
+            const fa::core::Rect panel = fa::core::makeRect(8.0f, 8.0f, 236.0f, 100.0f);
             ui->panel(panel, theme.panel);
             ui->border(panel, theme.panelBorder);
 
             fa::ui::TextStyle title;
             title.color = theme.text;
             title.scale = 2.0f * config.ui.scale;
-            ui->text("FLORIAN'S ADVENTURE", fa::core::makeRect(14.0f, 13.0f, 220.0f, 14.0f), title);
+            // The game's name is a proper noun and stays English, like the window title.
+            ui->text("Florian's Adventure", fa::core::makeRect(14.0f, 12.0f, 220.0f, 20.0f), title);
 
             fa::ui::TextStyle label;
             label.color = theme.text;
             label.scale = config.ui.scale;
-            ui->text("HEALTH", fa::core::makeRect(14.0f, 33.0f, 40.0f, 7.0f), label);
+            ui->text("生命", fa::core::makeRect(14.0f, 38.0f, 40.0f, 10.0f), label);
             const float health = demoScene != nullptr ? demoScene->playerHealth() : 0.0f;
             const float maxHealth = demoScene != nullptr ? demoScene->playerMaxHealth() : 100.0f;
-            ui->progressBar(fa::core::makeRect(62.0f, 34.0f, 108.0f, 5.0f),
+            ui->progressBar(fa::core::makeRect(48.0f, 40.0f, 108.0f, 6.0f),
                             health,
                             0.0f,
                             maxHealth,
                             fa::core::Color{0.85f, 0.30f, 0.30f, 1.0f});
 
-            ui->text("STAMINA", fa::core::makeRect(14.0f, 45.0f, 44.0f, 7.0f), label);
+            ui->text("体力", fa::core::makeRect(14.0f, 52.0f, 44.0f, 10.0f), label);
             const float stamina = demoScene != nullptr ? demoScene->playerStamina() : 0.0f;
             const float maxStamina = demoScene != nullptr ? demoScene->playerMaxStamina() : 100.0f;
-            ui->progressBar(fa::core::makeRect(62.0f, 46.0f, 108.0f, 5.0f), stamina, 0.0f, maxStamina, theme.accent);
+            ui->progressBar(fa::core::makeRect(48.0f, 54.0f, 108.0f, 6.0f), stamina, 0.0f, maxStamina, theme.accent);
 
-            if (playerInventory != nullptr) {
-                const fa::inventory::ItemStack& selected = playerInventory->hotbar().selectedStack();
-                const fa::content::ItemDef* selectedDef = selected.empty() ? nullptr : content.item(selected.id);
-                char hotbarText[64]{};
-                std::snprintf(hotbarText,
-                              sizeof(hotbarText),
-                              "SLOT %d/%d  %s x%d",
-                              playerInventory->hotbar().selected() + 1,
-                              playerInventory->hotbar().inventory().slotCount(),
-                              selectedDef != nullptr ? selectedDef->displayName.c_str() : "EMPTY",
-                              selected.count);
-                ui->text(hotbarText, fa::core::makeRect(14.0f, 60.0f, 220.0f, 7.0f), label);
+            // The selected slot lives in the bottom hotbar now; gold belongs with the rest
+            // of the player status, so it moved here from the middle of the screen.
+            if (economy != nullptr) {
+                char goldText[32]{};
+                std::snprintf(goldText, sizeof(goldText), "金币 %d", economy->gold());
+                ui->text(goldText, fa::core::makeRect(14.0f, 66.0f, 220.0f, 10.0f), label);
             }
 
             if (playMode && calendar != nullptr) {
-                const std::string seasonName(fa::world::toString(calendar->season()));
-                const char* region = demoScene != nullptr && demoScene->isForest() ? "FOREST" : "FARM";
+                const std::string seasonName(seasonLabel(fa::world::toString(calendar->season())));
+                const char* region = demoScene != nullptr && demoScene->isForest() ? "林地" : "农场";
                 char clockText[80]{};
                 std::snprintf(clockText,
                               sizeof(clockText),
-                              "DAY %d  %02d:%02d  %s  %s",
+                              "第 %d 天  %02d:%02d  %s  %s",
                               calendar->date().day,
                               calendar->hour(),
                               calendar->minute(),
                               seasonName.c_str(),
                               region);
-                ui->text(clockText, fa::core::makeRect(14.0f, 72.0f, 220.0f, 8.0f), label);
+                ui->text(clockText, fa::core::makeRect(14.0f, 80.0f, 220.0f, 10.0f), label);
+            }
+        }
+
+        // Bottom hotbar: every slot with its item icon, stack count, key digit and a
+        // highlight on the selected one. Replaces the "SLOT n/m NAME xN" text line.
+        if (playMode && showHud && !inMenu && playerInventory != nullptr) {
+            fa::inventory::Inventory& hotbar = playerInventory->hotbar().inventory();
+            const int slotCount = hotbar.slotCount();
+            const int selectedSlot = playerInventory->hotbar().selected();
+            static constexpr float kCell = 30.0f;
+            static constexpr float kGap = 3.0f;
+            const float totalWidth = static_cast<float>(slotCount) * (kCell + kGap) - kGap;
+            const float left = (visible.w - totalWidth) * 0.5f;
+            const float top = visible.h - kCell - 8.0f;
+
+            fa::ui::TextStyle slotStyle;
+            slotStyle.color = theme.text;
+            slotStyle.scale = config.ui.scale;
+
+            for (int slot = 0; slot < slotCount; ++slot) {
+                const float x = left + static_cast<float>(slot) * (kCell + kGap);
+                const fa::core::Rect cell = fa::core::makeRect(x, top, kCell, kCell);
+                ui->panel(cell, theme.panel);
+
+                const fa::inventory::ItemStack& itemStack = hotbar.at(slot);
+                if (!itemStack.empty()) {
+                    const fa::render::TextureHandle icon = itemIconTexture(itemStack.id.name());
+                    const fa::core::Rect iconRect = fa::core::makeRect(x + 7.0f, top + 3.0f, 16.0f, 16.0f);
+                    if (icon.isValid()) {
+                        ui->icon(iconRect, icon);
+                    } else {
+                        ui->panel(iconRect, fa::core::Color{1.0f, 0.0f, 1.0f, 1.0f});
+                    }
+
+                    // The 10 px font cannot fit inside the icon row, so the stack count sits
+                    // on its own line at the bottom of the cell.
+                    char count[12]{};
+                    std::snprintf(count, sizeof(count), "%d", itemStack.count);
+                    fa::ui::TextStyle countStyle = slotStyle;
+                    countStyle.align = fa::ui::TextAlign::Right;
+                    ui->text(count, fa::core::makeRect(x + 2.0f, top + 19.0f, kCell - 5.0f, 10.0f), countStyle);
+                }
+
+                const bool selected = slot == selectedSlot;
+                ui->border(cell, selected ? theme.accent : theme.panelBorder, selected ? 2.0f : 1.0f);
+
+                char key[4]{};
+                std::snprintf(key, sizeof(key), "%d", (slot + 1) % 10);
+                ui->text(key, fa::core::makeRect(x + 10.0f, top - 12.0f, kCell, 10.0f), slotStyle);
             }
         }
 
@@ -8097,26 +8277,26 @@ private:
             }
         }
 
+        // The M09 widget showcase (HUD toggle + UI scale slider). It is not part of the
+        // F3 debug overlay; it sat in the middle of the screen and covered the play field,
+        // so it now sits in the bottom-right corner and stays interactive there. Bottom-left
+        // is reserved for the M27 console/log panels.
         if (!inMenu) {
-            static_cast<void>(ui->checkbox(
-                fa::ui::UiId::fromName("hud"), "HUD", showHud, fa::core::makeRect(254.0f, 30.0f, 150.0f, 16.0f)));
+            static_cast<void>(ui->checkbox(fa::ui::UiId::fromName("hud"),
+                                           "界面",
+                                           showHud,
+                                           fa::core::makeRect(visible.w - 158.0f, visible.h - 46.0f, 150.0f, 16.0f)));
             static_cast<void>(ui->slider(fa::ui::UiId::fromName("scale"),
                                          sliderValue,
                                          1.0f,
                                          4.0f,
-                                         fa::core::makeRect(254.0f, 52.0f, 150.0f, 10.0f)));
-            if (economy != nullptr) {
-                fa::ui::TextStyle goldStyle;
-                goldStyle.color = theme.text;
-                goldStyle.scale = config.ui.scale;
-                char goldText[32]{};
-                std::snprintf(goldText, sizeof(goldText), "GOLD %d", economy->gold());
-                ui->text(goldText, fa::core::makeRect(254.0f, 74.0f, 150.0f, 7.0f), goldStyle);
-            }
+                                         fa::core::makeRect(visible.w - 158.0f, visible.h - 26.0f, 150.0f, 10.0f)));
         }
 
         if (playMode && !inMenu) {
-            const fa::core::Rect panel = fa::core::makeRect(254.0f, 96.0f, 214.0f, 90.0f);
+            // Stacked under the status panel on the left edge: this column used to sit at
+            // x=254, i.e. in the middle of the play field.
+            const fa::core::Rect panel = fa::core::makeRect(8.0f, 112.0f, 236.0f, 84.0f);
             ui->panel(panel, theme.panel);
             ui->border(panel, theme.panelBorder);
 
@@ -8130,12 +8310,11 @@ private:
             char toolText[64]{};
             std::snprintf(toolText,
                           sizeof(toolText),
-                          "TOOL %s",
-                          selectedDef != nullptr ? selectedDef->displayName.c_str() : "EMPTY");
-            ui->text(toolText, fa::core::makeRect(panel.x + 5.0f, panel.y + 5.0f, 204.0f, 8.0f), style);
-            ui->text("1-9 SLOT  LMB USE  J QUESTS",
-                     fa::core::makeRect(panel.x + 5.0f, panel.y + 16.0f, 204.0f, 8.0f),
-                     style);
+                          "工具 %s",
+                          selectedDef != nullptr ? selectedDef->displayName.c_str() : "空");
+            ui->text(toolText, fa::core::makeRect(panel.x + 5.0f, panel.y + 5.0f, 226.0f, 8.0f), style);
+            ui->text(
+                "1-9 选栏  左键使用  J 任务", fa::core::makeRect(panel.x + 5.0f, panel.y + 16.0f, 226.0f, 8.0f), style);
 
             std::string questText;
             if (demoScene != nullptr && demoScene->isFarm()) {
@@ -8144,27 +8323,28 @@ private:
                     const fa::narrative::QuestDef* definition =
                         dialogueState.database() != nullptr ? dialogueState.database()->quest(questState.id) : nullptr;
                     if (definition != nullptr) {
-                        questText = "QUEST " + definition->title;
+                        questText = "任务：" + definition->title;
                         break;
                     }
                 }
                 if (questText.empty() &&
                     dialogueState.isQuestCompleted(fa::content::ContentId::fromName("quest.turnip"))) {
-                    questText = "QUEST COMPLETE";
+                    questText = "任务已完成";
                 }
             }
             float messageY = panel.y + 29.0f;
             if (!questText.empty()) {
-                ui->text(
-                    questText.substr(0, 38), fa::core::makeRect(panel.x + 5.0f, panel.y + 29.0f, 204.0f, 8.0f), style);
-                messageY = panel.y + 41.0f;
+                ui->text(fa::ui::fitToCodepoints(questText, 20),
+                         fa::core::makeRect(panel.x + 5.0f, panel.y + 29.0f, 226.0f, 10.0f),
+                         style);
+                messageY = panel.y + 43.0f;
             }
 
             if (playMessageTimer > 0.0f && !playMessage.empty()) {
                 fa::ui::TextStyle messageStyle = style;
                 messageStyle.color = theme.accent;
-                ui->text(playMessage.substr(0, 38),
-                         fa::core::makeRect(panel.x + 5.0f, messageY, 204.0f, 8.0f),
+                ui->text(fa::ui::fitToCodepoints(playMessage, 20),
+                         fa::core::makeRect(panel.x + 5.0f, messageY, 226.0f, 10.0f),
                          messageStyle);
             }
 
@@ -8179,12 +8359,12 @@ private:
             char weaponText[64]{};
             std::snprintf(weaponText,
                           sizeof(weaponText),
-                          "WEAPON %s  DMG %d",
-                          weaponDef != nullptr ? weaponDef->displayName.c_str() : "UNARMED",
+                          "武器 %s  伤害 %d",
+                          weaponDef != nullptr ? weaponDef->displayName.c_str() : "徒手",
                           weaponDamage());
-            ui->text(weaponText, fa::core::makeRect(panel.x + 5.0f, panel.y + 53.0f, 204.0f, 8.0f), style);
+            ui->text(weaponText, fa::core::makeRect(panel.x + 5.0f, panel.y + 53.0f, 226.0f, 8.0f), style);
             ui->text(
-                "I BAG   F EAT   R ATTACK", fa::core::makeRect(panel.x + 5.0f, panel.y + 64.0f, 204.0f, 8.0f), style);
+                "I 背包  F 进食  R 攻击", fa::core::makeRect(panel.x + 5.0f, panel.y + 64.0f, 226.0f, 8.0f), style);
         }
 
 #if defined(FA_ENABLE_DEBUG_TOOLS)
@@ -8212,8 +8392,7 @@ private:
 
                 const std::vector<std::size_t> choices = dialogueState.availableChoices();
                 if (choices.empty()) {
-                    ui->text(
-                        "[ENTER] CONTINUE", fa::core::makeRect(panel.x + 8.0f, panel.y + 34.0f, 300.0f, 7.0f), style);
+                    ui->text("[回车] 继续", fa::core::makeRect(panel.x + 8.0f, panel.y + 34.0f, 300.0f, 7.0f), style);
                 } else {
                     float y = panel.y + 34.0f;
                     for (std::size_t index = 0; index < choices.size(); ++index) {
@@ -8508,6 +8687,36 @@ private:
     bool cameraReady = false;
 };
 
+/// \brief Moves the process into the repo root when the launcher left us somewhere else.
+///
+/// Visual Studio starts the debugger in `src/app` and a double-click starts beside the exe,
+/// while every content path (`config/`, `data/`, `assets/`, `saves/`) is relative to the
+/// repo root. A wrong directory never fails loudly: `data/catalog.json` is simply missing,
+/// the inline smoke catalog takes over, and the run shows colour blocks instead of the PNGs.
+/// The root is the nearest ancestor holding a `data` directory.
+void adoptProjectRoot(fa::platform::IFileSystem& fileSystem) {
+    static constexpr std::string_view kMarker = "data";
+    if (fileSystem.exists(kMarker)) {
+        return;  // already inside the repo root
+    }
+
+    const std::string started = fileSystem.currentPath();
+    std::string dir = started;
+    for (int depth = 0; depth < 8; ++depth) {
+        const std::size_t separator = dir.find_last_of("/\\");
+        if (separator == std::string::npos || separator == 0u) {
+            break;
+        }
+        dir = dir.substr(0, separator);
+        if (fileSystem.exists(dir + "/" + std::string(kMarker)) && fileSystem.setCurrentPath(dir)) {
+            std::printf(
+                "root: working directory %s is not the repo root, switched to %s\n", started.c_str(), dir.c_str());
+            return;
+        }
+    }
+    std::printf("root: no data/ above %s, falling back to built-in defaults\n", started.c_str());
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -8515,11 +8724,13 @@ int main(int argc, char** argv) {
     printBanner();
 
     std::unique_ptr<fa::platform::IPlatform> platform = fa::platform::createPlatform();
+    adoptProjectRoot(platform->files());
 
     EventsAndJobsDemo demo;
     SmokeSink sink;
     sink.demo = &demo;
     sink.playMode = options.playMode;
+    sink.debugMode = options.debugMode;
     sink.playTest = options.playTest;
     sink.initializeConfig(*platform);
     if (options.width > 0 && options.height > 0) {
@@ -8544,6 +8755,26 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    // Only the player modes write a run log: an automation run must not leave files behind
+    // on a CI runner, and its console output is already the artifact.
+    std::unique_ptr<fa::app::RunLogFileSink> runLog;
+    if (options.isPlayerMode()) {
+        const std::string path = fa::app::runLogFilePath(sink.config.paths.data + "/log");
+        const std::string header = std::string("Florian's Adventure run log - mode ") +
+                                   (options.debugMode ? "debug" : "play") +
+                                   (options.visibleWindow ? ", window" : ", hidden");
+        runLog = std::make_unique<fa::app::RunLogFileSink>(platform->files(), path, header);
+        sink.runLogFile = runLog.get();
+        if (runLog->ok()) {
+            std::printf("log file: %s\n", runLog->path().c_str());
+        } else {
+            std::printf("log file: cannot write %s, console only\n", runLog->path().c_str());
+        }
+    }
+    if (options.debugMode) {
+        fa::core::setLogLevel(fa::core::LogLevel::Debug);
+    }
+
     const fa::platform::IWindow& window = platform->window();
     std::printf(
         "window %dx%d px, dpi scale %.2f\n", window.width(), window.height(), static_cast<double>(window.dpiScale()));
@@ -8551,6 +8782,11 @@ int main(int argc, char** argv) {
     if (options.playMode) {
         std::printf("play mode: WASD move, 1-9 hotbar, wheel cycle, LMB use, E interact\n");
         std::printf("           console `, F3 stats, time.addDays N / time.set HH:MM\n");
+#if defined(FA_ENABLE_DEBUG_TOOLS)
+        if (options.debugMode) {
+            std::printf("debug mode: stats + physics/AI overlays on, log level Debug\n");
+        }
+#endif
     }
 
     const fa::core::Status contentStatus = sink.initializeContent();
@@ -8611,7 +8847,7 @@ int main(int argc, char** argv) {
         }
 
         // M09 needs only a renderer: it uploads a generated atlas, not an asset file.
-        const fa::core::Status uiStatus = sink.initializeUi();
+        const fa::core::Status uiStatus = sink.initializeUi(*platform);
         if (uiStatus.isError()) {
             std::printf("ui init failed (%d): %s\n", uiStatus.error().code, uiStatus.error().message.c_str());
             if (options.visibleWindow) {

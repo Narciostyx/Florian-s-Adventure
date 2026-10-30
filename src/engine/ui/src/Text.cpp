@@ -15,6 +15,45 @@ struct Line {
     float width = 0.0f;
 };
 
+/// \brief Decodes the UTF-8 sequence starting at \p index and advances past it.
+///
+/// ASCII bytes decode to themselves in one step, so pure-ASCII text behaves exactly as
+/// the old byte-wise walk did. A malformed or truncated sequence emits its lead byte and
+/// advances one byte, which keeps the walk total and lands on the '?' fallback.
+[[nodiscard]] char32_t nextCodepoint(std::string_view text, std::size_t& index) noexcept {
+    const auto lead = static_cast<unsigned char>(text[index]);
+    std::size_t extra = 0;
+    char32_t codepoint = lead;
+    if ((lead & 0xE0u) == 0xC0u) {
+        extra = 1;
+        codepoint = lead & 0x1Fu;
+    } else if ((lead & 0xF0u) == 0xE0u) {
+        extra = 2;
+        codepoint = lead & 0x0Fu;
+    } else if ((lead & 0xF8u) == 0xF0u) {
+        extra = 3;
+        codepoint = lead & 0x07u;
+    } else {
+        index += 1;
+        return lead;
+    }
+
+    if (index + extra >= text.size()) {
+        index += 1;
+        return lead;
+    }
+    for (std::size_t step = 1; step <= extra; ++step) {
+        const auto byte = static_cast<unsigned char>(text[index + step]);
+        if ((byte & 0xC0u) != 0x80u) {
+            index += 1;
+            return lead;
+        }
+        codepoint = (codepoint << 6) | (byte & 0x3Fu);
+    }
+    index += extra + 1;
+    return codepoint;
+}
+
 [[nodiscard]] float effectiveScale(const TextStyle& style) noexcept {
     if (!(style.scale > 0.0f)) {
         return 1.0f;
@@ -31,18 +70,20 @@ struct Line {
 
     std::size_t start = 0;
     float width = 0.0f;
-    for (std::size_t index = 0; index < text.size(); ++index) {
-        const auto codepoint = static_cast<char32_t>(static_cast<unsigned char>(text[index]));
+    std::size_t index = 0;
+    while (index < text.size()) {
+        const std::size_t glyphStart = index;
+        const char32_t codepoint = nextCodepoint(text, index);
         if (codepoint == U'\n') {
-            lines.push_back(Line{start, index, width});
-            start = index + 1;
+            lines.push_back(Line{start, glyphStart, width});
+            start = index;
             width = 0.0f;
             continue;
         }
         const float advance = glyphFor(font, codepoint).advance * scale;
         if (maxWidth > 0.0f && width > 0.0f && width + advance > maxWidth) {
-            lines.push_back(Line{start, index, width});
-            start = index;
+            lines.push_back(Line{start, glyphStart, width});
+            start = glyphStart;
             width = 0.0f;
         }
         width += advance;
@@ -52,6 +93,14 @@ struct Line {
 }
 
 }  // namespace
+
+std::string_view fitToCodepoints(std::string_view text, std::size_t maxChars) noexcept {
+    std::size_t index = 0;
+    for (std::size_t seen = 0; seen < maxChars && index < text.size(); ++seen) {
+        static_cast<void>(nextCodepoint(text, index));
+    }
+    return text.substr(0, index);
+}
 
 TextMetrics measureText(const FontAtlas& font, std::string_view text, float maxWidth, const TextStyle& style) {
     TextMetrics metrics;
@@ -76,8 +125,6 @@ void drawText(
 
     const float scale = effectiveScale(style);
     const std::vector<Line> lines = layoutLines(font, text, rect.w, scale);
-    const float glyphWidth = static_cast<float>(font.glyphWidth) * scale;
-    const float glyphHeight = static_cast<float>(font.glyphHeight) * scale;
     const core::Color shadowColor{0.0f, 0.0f, 0.0f, 1.0f};
 
     std::uint32_t nextEntityId = 1;
@@ -94,8 +141,11 @@ void drawText(
         const auto submit = [&](const Glyph& glyph, float px, float py, core::Color tint) {
             render::DrawItem item;
             item.texture = font.texture;
-            item.position = core::Vec2{px, py};
-            item.size = core::Vec2{glyphWidth, glyphHeight};
+            // Each glyph is drawn at its own box: a baked atlas mixes 5x7 Latin with 10x9
+            // Han, and `bearingY` puts them back on one baseline. The built-in font is
+            // uniform with bearingY 0, so this reproduces the old fixed-cell behaviour.
+            item.position = core::Vec2{px, py + glyph.bearingY * scale};
+            item.size = core::Vec2{glyph.source.w * scale, glyph.source.h * scale};
             item.source = glyph.source;
             item.tint = tint;
             item.layer = render::RenderLayer::UI;
@@ -104,8 +154,8 @@ void drawText(
             queue.submit(item);
         };
 
-        for (std::size_t index = line.start; index < line.end; ++index) {
-            const auto codepoint = static_cast<char32_t>(static_cast<unsigned char>(text[index]));
+        for (std::size_t index = line.start; index < line.end;) {
+            const char32_t codepoint = nextCodepoint(text, index);
             if (codepoint == U' ') {
                 x += glyphFor(font, codepoint).advance * scale;
                 continue;

@@ -44,14 +44,24 @@ struct TextMetrics {
     int lines = 0;
 };
 
+/// \brief Truncates a UTF-8 string on a codepoint boundary, keeping at most `maxChars`
+/// characters.
+///
+/// `std::string_view::substr(n)` counts bytes, so with 3-byte Han characters it can cut a
+/// codepoint in half and M09 then draws a `?`. Display strings that have to be shortened to
+/// fit a row go through here instead. Invalid bytes are treated as one character each, so
+/// the result is always a prefix of the input and never reads past it.
+[[nodiscard]] std::string_view fitToCodepoints(std::string_view text, std::size_t maxChars) noexcept;
+
 /// \brief Measures \p text, wrapping at \p maxWidth when it is positive.
 [[nodiscard]] TextMetrics
 measureText(const FontAtlas& font, std::string_view text, float maxWidth, const TextStyle& style = {});
 
 /// \brief Appends one `DrawItem` per visible glyph to \p queue.
 ///
-/// All items use `RenderLayer::UI`; `sortY` is the glyph's y so overlapping text
-/// keeps a stable top-to-bottom order. `font.texture` must be valid.
+/// All items use `RenderLayer::UI`; `sortY` is the glyph's y (kept for the world-space
+/// callers and for debug tooling), but the UI layer draws in submission order, so a label
+/// is never repainted by the widget behind it. `font.texture` must be valid.
 void drawText(
     const FontAtlas& font, std::string_view text, core::Rect rect, const TextStyle& style, render::RenderQueue& queue);
 

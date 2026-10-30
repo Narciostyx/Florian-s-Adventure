@@ -1,27 +1,27 @@
 {
   "schema_version": 1,
   "npcs": [
-    {"id": "npc.elder", "name": "Elder", "liked_items": ["item.turnip"]}
+    {"id": "npc.elder", "name": "村长", "liked_items": ["item.turnip"]}
   ],
   "dialogues": [
     {"id": "dialogue.elder", "npc": "npc.elder", "start": "greet", "nodes": [
-      {"id": "greet", "speaker": "Elder",
-       "text": "The soil remembers every season. Will you help?",
+      {"id": "greet", "speaker": "村长",
+       "text": "土地记得每一个季节。你愿意帮忙吗？",
        "choices": [
-         {"text": "I will bring a turnip.", "next": "quest"},
-         {"text": "Not now.", "next": "bye"}
+         {"text": "我去拔一个萝卜给你。", "next": "quest"},
+         {"text": "现在不行。", "next": "bye"}
        ]},
-      {"id": "quest", "speaker": "Elder",
-       "text": "Bring me one turnip and I will trade seeds.",
+      {"id": "quest", "speaker": "村长",
+       "text": "给我一个萝卜，我就跟你换种子。",
        "actions": [{"kind": "start_quest", "id": "quest.turnip"}],
        "next": "bye"},
-      {"id": "bye", "speaker": "Elder",
-       "text": "Come back when the sun is high.", "next": ""}
+      {"id": "bye", "speaker": "村长",
+       "text": "等太阳升高了再来吧。", "next": ""}
     ]}
   ],
   "quests": [
-    {"id": "quest.turnip", "title": "A Turnip for the Elder",
-     "description": "Bring one turnip.",
+    {"id": "quest.turnip", "title": "给村长的萝卜",
+     "description": "拔一个萝卜。",
      "objectives": [{"kind": "collect", "target": "item.turnip", "required": 1}],
      "rewards": [{"item": "item.turnip_seed", "amount": 2}], "gold": 10}
   ]

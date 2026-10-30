@@ -1,5 +1,6 @@
 #include "fa/ui/Font.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -287,6 +288,17 @@ const Glyph& glyphFor(const FontAtlas& font, char32_t codepoint) noexcept {
     if (font.glyphs.size() < static_cast<std::size_t>(kGlyphCount)) {
         static const Glyph kEmpty{};
         return kEmpty;
+    }
+    if (codepoint < kFirstCodepoint || codepoint > kLastCodepoint) {
+        // Outside the dense ASCII block. A baked atlas (see tools/build_font_atlas.py)
+        // carries Han/punctuation here; anything else still falls through to '?'.
+        const auto found = std::lower_bound(
+            font.extended.begin(), font.extended.end(), codepoint, [](const ExtendedGlyph& entry, char32_t key) {
+                return entry.codepoint < key;
+            });
+        if (found != font.extended.end() && found->codepoint == codepoint && found->glyph.defined) {
+            return found->glyph;
+        }
     }
     const char normalized = normalizeCodepoint(codepoint);
     const std::size_t index = static_cast<std::size_t>(normalized - static_cast<char>(kFirstCodepoint));

@@ -188,6 +188,30 @@ TEST_CASE("drawsBefore breaks depth ties with the entity id", "[render]") {
     REQUIRE_FALSE(drawsBefore(second, first));
 }
 
+TEST_CASE("drawsBefore leaves the UI layer in submission order", "[render]") {
+    const std::vector<TextureHandle> textures = makeTextures();
+    // A widget fill submitted before its label must stay before it, even though the
+    // label's line y can sit above the widget's own top when the text is taller.
+    const DrawItem fill = makeItem(textures[0], RenderLayer::UI, 100.0f, 4);
+    const DrawItem label = makeItem(textures[1], RenderLayer::UI, 90.0f, 1);
+
+    REQUIRE_FALSE(drawsBefore(fill, label));
+    REQUIRE_FALSE(drawsBefore(label, fill));
+
+    RenderQueue queue;
+    queue.submit(fill);
+    queue.submit(label);
+    queue.sort();
+    REQUIRE(queue.size() == 2);
+    CHECK(queue.items()[0].texture == fill.texture);
+    CHECK(queue.items()[1].texture == label.texture);
+
+    // Other layers still sort by depth.
+    const DrawItem ground = makeItem(textures[0], RenderLayer::Ground, 10.0f);
+    const DrawItem actor = makeItem(textures[0], RenderLayer::Actors, 5.0f);
+    REQUIRE(drawsBefore(ground, actor));
+}
+
 TEST_CASE("drawsBefore is not a strict order for identical keys", "[render]") {
     const std::vector<TextureHandle> textures = makeTextures();
     const DrawItem left = makeItem(textures[0], RenderLayer::Objects, 10.0f, 3);

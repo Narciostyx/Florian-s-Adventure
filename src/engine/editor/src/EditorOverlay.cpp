@@ -48,7 +48,7 @@ void EditorOverlay::draw(ui::UiContext& ui) const {
     char line[160]{};
     std::snprintf(line,
                   sizeof(line),
-                  "EDITOR %s  L%d  BRUSH %u",
+                  "编辑器 %s  图层 %d  笔刷 %u",
                   toString(info.tool).data(),
                   info.layer,
                   static_cast<unsigned>(info.brush.value));
@@ -67,10 +67,10 @@ void EditorOverlay::draw(ui::UiContext& ui) const {
                   info.undoDepth,
                   info.redoDepth,
                   static_cast<unsigned long long>(info.commands),
-                  info.dirty ? "YES" : "NO");
+                  info.dirty ? "是" : "否");
     ui.text(line, core::makeRect(panel.x + 6.0f, panel.y + 33.0f, panel.w - 12.0f, 7.0f), style);
 
-    std::snprintf(line, sizeof(line), "MAP %dx%d  PREVIEW %zu", info.mapWidth, info.mapHeight, info.previewCells);
+    std::snprintf(line, sizeof(line), "地图 %dx%d  预览 %zu", info.mapWidth, info.mapHeight, info.previewCells);
     ui.text(line, core::makeRect(panel.x + 6.0f, panel.y + 43.0f, panel.w - 12.0f, 7.0f), style);
 }
 

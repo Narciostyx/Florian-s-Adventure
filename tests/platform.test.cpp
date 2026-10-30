@@ -183,6 +183,32 @@ TEST_CASE("IFileSystem: createDirectories is idempotent and listings are sorted"
     REQUIRE(entries.value() == std::vector<std::string>{"one.txt", "two.txt"});
 }
 
+TEST_CASE("IFileSystem: setCurrentPath moves the process working directory", "[platform][filesystem]") {
+    const TempDir dir;
+    const std::unique_ptr<fa::platform::IPlatform> platform = fa::platform::createPlatform();
+    fa::platform::IFileSystem& files = platform->files();
+
+    const std::string before = files.currentPath();
+    REQUIRE_FALSE(before.empty());
+
+    const std::string marker = dir.child("cwd-probe.txt");
+    REQUIRE(files.writeText(marker, "x").isOk());
+    REQUIRE_FALSE(files.exists("cwd-probe.txt"));
+
+    // The app resolves config/, data/ and assets/ relatively, so this is the capability
+    // that lets it adopt the repo root when a launcher started it elsewhere.
+    REQUIRE(files.setCurrentPath(dir.str()));
+    REQUIRE(files.exists("cwd-probe.txt"));
+    REQUIRE_FALSE(files.exists(before + "/cwd-probe.txt"));
+
+    REQUIRE(files.setCurrentPath(before));
+    REQUIRE_FALSE(files.exists("cwd-probe.txt"));
+
+    // An unknown directory must fail instead of silently staying put.
+    REQUIRE_FALSE(files.setCurrentPath(dir.child("no-such-dir")));
+    REQUIRE(files.setCurrentPath(before));
+}
+
 TEST_CASE("PlatformEvent: defaults are inert and types stringify", "[platform][event]") {
     const fa::platform::PlatformEvent event;
     REQUIRE(event.type == fa::platform::PlatformEventType::Quit);

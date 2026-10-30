@@ -24,8 +24,20 @@ struct Glyph {
     core::Rect source{};
     /// \brief Horizontal advance in pixels at scale 1.
     float advance = 0.0f;
+    /// \brief Offset from the top of the line box to the top of this glyph, at scale 1.
+    ///
+    /// The built-in 3x5 font is uniform so this is always 0. A real font needs it: a 7px
+    /// Latin glyph and a 9px Han glyph share a baseline, so they start at different rows.
+    float bearingY = 0.0f;
     /// \brief False when the codepoint has no glyph; `glyphFor()` falls back to '?'.
     bool defined = false;
+};
+
+/// \brief A glyph stored outside the dense ASCII block, e.g. a Han character from a
+/// baked atlas. Kept in a codepoint-sorted vector so a lookup is a binary search.
+struct ExtendedGlyph {
+    char32_t codepoint = 0;
+    Glyph glyph;
 };
 
 /// \brief CPU atlas plus the runtime texture handle.
@@ -40,6 +52,8 @@ struct FontAtlas {
     float lineHeight = 7.0f;
     /// \brief Indexed by `codepoint - 32` for ASCII 32..126.
     std::vector<Glyph> glyphs;
+    /// \brief Codepoints above the ASCII block, sorted ascending. Empty for the built-in font.
+    std::vector<ExtendedGlyph> extended;
     /// \brief Tightly packed RGBA8 pixels for the upload.
     std::vector<std::uint8_t> pixels;
 };

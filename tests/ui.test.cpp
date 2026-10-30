@@ -457,3 +457,145 @@ TEST_CASE("submit appends every queued item to the caller's queue", "[ui]") {
     CHECK(queue.items()[1].layer == RenderLayer::UI);
     CHECK(queue.items()[2].layer == RenderLayer::UI);
 }
+
+namespace {
+
+/// \brief The built-in font plus two Han glyphs, i.e. what a baked atlas hands to M09.
+///
+/// The mixed sizes (5x7 Latin next to 10x9 Han) and the per-glyph `bearingY` are the whole
+/// point of the extended table, so the fixtures use different bearings on purpose.
+FontAtlas mixedFont() {
+    FontAtlas font = testFont();
+    font.lineHeight = 10.0f;
+    const auto add = [&font](char32_t codepoint, float bearingY, float sourceX) {
+        Glyph glyph;
+        glyph.source = Rect{sourceX, 0.0f, 10.0f, 9.0f};
+        glyph.advance = 10.0f;
+        glyph.bearingY = bearingY;
+        glyph.defined = true;
+        font.extended.push_back(fa::ui::ExtendedGlyph{codepoint, glyph});
+    };
+    add(U'\u00e9', 1.0f, 130.0f);  // é: the first codepoint above the dense ASCII block
+    add(U'\u751f', 1.0f, 140.0f);  // 生
+    add(U'\u9762', 3.0f, 150.0f);  // 面
+    return font;
+}
+
+}  // namespace
+
+TEST_CASE("extended glyphs are found by codepoint", "[ui]") {
+    const FontAtlas font = mixedFont();
+
+    const Glyph& first = glyphFor(font, U'\u00e9');
+    CHECK(first.defined);
+    CHECK(first.advance == Approx(10.0f));
+    CHECK(first.bearingY == Approx(1.0f));
+    CHECK(first.source.x == Approx(130.0f));
+
+    const Glyph& last = glyphFor(font, U'\u9762');
+    CHECK(last.defined);
+    CHECK(last.bearingY == Approx(3.0f));
+
+    // The dense ASCII block keeps its own indexing next to the extended table.
+    CHECK(glyphFor(font, U'A').advance == Approx(static_cast<float>(fa::ui::kGlyphAdvance)));
+    CHECK(glyphFor(font, U'A').bearingY == Approx(0.0f));
+
+    // Anything else still falls back to '?'.
+    CHECK(glyphFor(font, U'\uff21').source.x == Approx(glyphFor(font, U'?').source.x));
+}
+
+TEST_CASE("measureText decodes UTF-8 and adds up per-glyph advances", "[ui]") {
+    const FontAtlas font = mixedFont();
+    TextStyle style;
+    style.scale = 1.0f;
+
+    // Three bytes per Han character, but one codepoint each.
+    const TextMetrics han = measureText(font, "\xe7\x94\x9f\xe9\x9d\xa2", 0.0f, style);
+    CHECK(han.lines == 1);
+    CHECK(han.width == Approx(20.0f));
+    CHECK(han.height == Approx(10.0f));
+
+    const TextMetrics mixed = measureText(font, "A\xe7\x94\x9f", 0.0f, style);
+    CHECK(mixed.width == Approx(static_cast<float>(fa::ui::kGlyphAdvance) + 10.0f));
+
+    // Wrapping counts too: one 10 px glyph per line inside a 10 px box.
+    CHECK(measureText(font, "\xe7\x94\x9f\xe9\x9d\xa2", 10.0f, style).lines == 2);
+}
+
+TEST_CASE("drawText tolerates truncated and invalid UTF-8", "[ui]") {
+    const FontAtlas font = mixedFont();
+
+    // A lead byte whose continuation bytes are missing must not read past the end; the two
+    // stray codepoints still resolve (one is a real extended glyph, one falls back to '?').
+    RenderQueue truncated;
+    drawText(font, std::string_view("\xe7\x94", 2), Rect{0.0f, 0.0f, 100.0f, 20.0f}, {}, truncated);
+    CHECK(truncated.size() == 2);
+
+    RenderQueue stray;
+    drawText(font, std::string_view("\xff", 1), Rect{0.0f, 0.0f, 100.0f, 20.0f}, {}, stray);
+    CHECK(stray.size() == 1);
+}
+
+TEST_CASE("drawText offsets each glyph by its own bearingY", "[ui]") {
+    const FontAtlas font = mixedFont();
+    RenderQueue queue;
+
+    drawText(font, "\xe7\x94\x9f\xe9\x9d\xa2", Rect{8.0f, 40.0f, 100.0f, 20.0f}, {}, queue);
+    const std::span<const DrawItem> items = itemsOf(queue);
+    REQUIRE(items.size() == 2);
+    CHECK(items[0].position.x == Approx(8.0f));
+    CHECK(items[0].position.y == Approx(41.0f));
+    CHECK(items[0].size.x == Approx(10.0f));
+    CHECK(items[0].size.y == Approx(9.0f));
+    CHECK(items[1].position.x == Approx(18.0f));
+    CHECK(items[1].position.y == Approx(43.0f));
+}
+
+TEST_CASE("a button label is not repainted by its own fill", "[ui]") {
+    // Regression: the 10 px atlas at the theme's 2x widget scale is as tall as a 20 px
+    // button, so centring put the label on the fill's sortY; the tie then went to the
+    // entity id, where a glyph's per-call counter (1) always lost against the context's
+    // frame counter (hundreds by the time a menu is drawn), so the opaque button painted
+    // its own label out. UI now draws in submission order.
+    const FontAtlas font = mixedFont();
+    UiContext ui(font, TextureHandle{kWhiteTexture});
+
+    ui.beginFrame(mouseAt(Vec2{500.0f, 500.0f}));
+    // Whatever a real frame draws before a menu panel, so the context's id counter is
+    // well past the glyph ids drawText() assigns per call.
+    ui.panel(Rect{0.0f, 0.0f, 300.0f, 246.0f}, Color{0.1f, 0.1f, 0.1f, 1.0f});
+    ui.panel(Rect{0.0f, 0.0f, 300.0f, 246.0f}, Color{0.1f, 0.1f, 0.1f, 1.0f});
+    static_cast<void>(
+        ui.button(UiId::fromName("menu.new"), "\xe7\x94\x9f\xe9\x9d\xa2", Rect{0.0f, 100.0f, 160.0f, 20.0f}));
+
+    RenderQueue queue;
+    ui.submit(queue);
+    queue.sort();
+    const std::span<const DrawItem> items = itemsOf(queue);
+
+    int fill = -1;
+    int label = -1;
+    for (std::size_t i = 0; i < items.size(); ++i) {
+        if (items[i].size.x == Approx(160.0f) && items[i].size.y == Approx(20.0f)) {
+            fill = static_cast<int>(i);
+        } else if (items[i].size.x == Approx(20.0f) && items[i].size.y == Approx(18.0f) && label < 0) {
+            label = static_cast<int>(i);
+        }
+    }
+    REQUIRE(fill >= 0);
+    REQUIRE(label >= 0);
+    CHECK(label > fill);
+}
+
+TEST_CASE("fitToCodepoints cuts on codepoint boundaries", "[ui]") {
+    constexpr std::string_view han{"\xe7\x94\x9f\xe9\x9d\xa2", 6};  // 2 characters, 6 bytes
+    CHECK(fa::ui::fitToCodepoints(han, 1) == std::string_view{"\xe7\x94\x9f", 3});
+    CHECK(fa::ui::fitToCodepoints(han, 2) == han);
+    CHECK(fa::ui::fitToCodepoints(han, 9) == han);
+    CHECK(fa::ui::fitToCodepoints({}, 4).empty());
+
+    // A truncated sequence is still one "character", so the helper never runs off the end.
+    constexpr std::string_view cut{"\xe7\x94", 2};
+    CHECK(fa::ui::fitToCodepoints(cut, 1).size() == 1);
+    CHECK(fa::ui::fitToCodepoints(cut, 2).size() == 2);
+}

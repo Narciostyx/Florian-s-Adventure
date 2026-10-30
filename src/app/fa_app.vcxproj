@@ -35,13 +35,22 @@
       <ExceptionHandling>Sync</ExceptionHandling>
     </ClCompile>
   </ItemDefinitionGroup>
+  <!-- VS would otherwise start the debugger in $(ProjectDir) (src/app), where config/,
+       data/, assets/ and saves/ are not reachable; the game resolves them from the repo root. -->
+  <PropertyGroup>
+    <LocalDebuggerWorkingDirectory>$([MSBuild]::NormalizePath('$(ProjectDir)..\..\'))</LocalDebuggerWorkingDirectory>
+  </PropertyGroup>
   <ItemGroup>
+    <ClCompile Include="LogToFile.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="StbImageDecoder.cpp" />
+    <ClCompile Include="UiFontAtlas.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="LogToFile.hpp" />
     <ClInclude Include="GameConfig.hpp" />
     <ClInclude Include="StbImageDecoder.hpp" />
+    <ClInclude Include="UiFontAtlas.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="$(SolutionDir)src\engine\core\fa_core.vcxproj" />
