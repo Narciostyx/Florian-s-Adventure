@@ -15,7 +15,7 @@ SpriteExtractStats extractSprites(const World& world, render::RenderQueue& queue
 
         render::DrawItem item;
         item.texture = sprite.texture;
-        item.position = transform.position;
+        item.position = transform.position + sprite.offset;
         item.size = sprite.size;
         if (options.applyTransform) {
             item.size.x *= transform.scale.x;
@@ -27,7 +27,7 @@ SpriteExtractStats extractSprites(const World& world, render::RenderQueue& queue
         item.flipX = sprite.flipX;
         item.flipY = sprite.flipY;
         item.layer = sprite.layer;
-        item.sortY = transform.position.y + item.size.y + sprite.sortYBias + options.sortYBias;
+        item.sortY = item.position.y + item.size.y + sprite.sortYBias + options.sortYBias;
         item.entityId = sprite.entityOverride != 0 ? sprite.entityOverride : id.index;
         queue.submit(item);
         ++stats.submitted;

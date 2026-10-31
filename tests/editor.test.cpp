@@ -7,6 +7,7 @@
 #include "fa/editor/EditorHistory.hpp"
 #include "fa/editor/EditorOverlay.hpp"
 #include "fa/editor/MapEditor.hpp"
+#include "fa/editor/VisualEditor.hpp"
 #include "fa/tilemap/Tilemap.hpp"
 #include "fa/tilemap/TilemapLoader.hpp"
 #include "fa/tilemap/TilemapWriter.hpp"
@@ -302,4 +303,93 @@ TEST_CASE("Secondary click erases or cancels a rectangle", "[editor]") {
     CHECK(editor.rectActive());
     REQUIRE(editor.applySecondary().isOk());
     CHECK_FALSE(editor.rectActive());
+}
+
+TEST_CASE("the object scope places and erases spawn rows without painting tiles", "[editor]") {
+    using fa::editor::EditorScope;
+    using fa::editor::MapPlacement;
+    using fa::editor::PlacementKind;
+    using fa::editor::VisualEditor;
+    using fa::editor::VisualEditorInput;
+
+    Tilemap map = makeMap();
+    const TileId before = tileAt(map, 5, 4);
+
+    VisualEditor editor(map);
+    std::vector<MapPlacement> rows;
+    editor.setPlacements(&rows, {PlacementKind{"npc", "NPC", {"dialogue.elder"}}, PlacementKind{"bed", "床", {}}});
+    editor.setActive(true);
+    // An 8x8 map at 16 px tiles fills the viewport exactly, so one tile is one pixel unit.
+    const fa::core::Rect viewport{0.0f, 0.0f, 128.0f, 128.0f};
+
+    VisualEditorInput idle;
+    idle.cursorScreen = fa::core::Vec2{-100.0f, -100.0f};
+    editor.update(idle, viewport);
+    editor.setScope(EditorScope::Placements);
+    CHECK(editor.scope() == EditorScope::Placements);
+
+    VisualEditorInput click;
+    click.cursorScreen = fa::core::Vec2{88.0f, 72.0f};
+    click.primaryPressed = true;
+    editor.update(click, viewport);
+
+    REQUIRE(editor.placements().size() == 1);
+    CHECK(editor.placements()[0].kind == "npc");
+    CHECK(editor.placements()[0].cell == TileCoord{5, 4});
+    // The first allowed target is preselected, so an NPC is talkable straight away.
+    CHECK(editor.placements()[0].target == "dialogue.elder");
+    CHECK(editor.dirty());
+    CHECK(tileAt(map, 5, 4) == before);
+
+    // A second click on the same cell selects instead of stacking another row.
+    editor.update(click, viewport);
+    CHECK(editor.placements().size() == 1);
+
+    VisualEditorInput erase;
+    erase.cursorScreen = click.cursorScreen;
+    erase.secondaryPressed = true;
+    editor.update(erase, viewport);
+    CHECK(editor.placements().empty());
+}
+
+TEST_CASE("two clicks in the portal scope create a trigger region that survives JSON", "[editor]") {
+    using fa::editor::EditorScope;
+    using fa::editor::VisualEditor;
+    using fa::editor::VisualEditorInput;
+
+    Tilemap map = makeMap();
+    VisualEditor editor(map);
+    editor.setPortalTargets({"farm", "forest"});
+    editor.setActive(true);
+    const fa::core::Rect viewport{0.0f, 0.0f, 128.0f, 128.0f};
+
+    VisualEditorInput idle;
+    idle.cursorScreen = fa::core::Vec2{-100.0f, -100.0f};
+    editor.update(idle, viewport);
+    editor.setScope(EditorScope::Portals);
+
+    VisualEditorInput first;
+    first.cursorScreen = fa::core::Vec2{40.0f, 40.0f};
+    first.primaryPressed = true;
+    editor.update(first, viewport);
+    CHECK(map.portals().empty());
+
+    VisualEditorInput second;
+    second.cursorScreen = fa::core::Vec2{104.0f, 56.0f};
+    second.primaryPressed = true;
+    editor.update(second, viewport);
+
+    REQUIRE(map.portals().size() == 1);
+    const fa::tilemap::MapPortal& portal = map.portals()[0];
+    CHECK(portal.bounds == fa::tilemap::TileBounds{2, 2, 5, 2});
+    CHECK(portal.targetMap == "farm");
+    CHECK(map.portalAt(TileCoord{3, 3}) != nullptr);
+    CHECK(editor.dirty());
+
+    // The authored portal has to survive the save round trip the editor performs.
+    const fa::core::Result<Tilemap> reloaded = fa::tilemap::loadTilemapFromJson(editor.mapText());
+    REQUIRE(reloaded.isOk());
+    REQUIRE(reloaded.value().portals().size() == 1);
+    CHECK(reloaded.value().portals()[0].bounds == fa::tilemap::TileBounds{2, 2, 5, 2});
+    CHECK(reloaded.value().portals()[0].targetMap == "farm");
 }

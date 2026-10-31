@@ -1,119 +1,151 @@
 {
-  "schema_version": 1,
   "entities": [
     {
       "id": "bed",
       "kind": "bed",
-      "position": {
-        "x": 336,
-        "y": 200
-      },
-      "texture": "tex.ground.soil",
-      "tint": "#5aa6ff",
+      "map": "farm",
       "payload": 99,
-      "radius": 28
+      "position": {
+        "x": 336.0,
+        "y": 200.0
+      },
+      "radius": 28.0,
+      "texture": "tex.ground.soil",
+      "tint": "#5aa6ff"
     },
     {
       "id": "shipping",
       "kind": "shipping",
-      "position": {
-        "x": 352,
-        "y": 216
-      },
-      "texture": "tex.ground.soil",
-      "tint": "#e68c33",
+      "map": "farm",
       "payload": 100,
-      "radius": 28
+      "position": {
+        "x": 352.0,
+        "y": 216.0
+      },
+      "radius": 28.0,
+      "texture": "tex.ground.soil",
+      "tint": "#e68c33"
     },
     {
       "id": "merchant",
       "kind": "merchant",
-      "position": {
-        "x": 288,
-        "y": 232
-      },
-      "texture": "tex.ground.soil",
-      "tint": "#cc66e6",
+      "map": "farm",
       "payload": 101,
-      "radius": 32
+      "position": {
+        "x": 288.0,
+        "y": 232.0
+      },
+      "radius": 32.0,
+      "texture": "tex.ground.soil",
+      "tint": "#cc66e6"
     },
     {
+      "dialogue": "dialogue.elder",
+      "id": "elder",
+      "kind": "npc",
+      "map": "farm",
+      "payload": 23,
+      "position": {
+        "x": 280.0,
+        "y": 176.0
+      },
+      "radius": 32.0,
+      "texture": "tex.ground.soil",
+      "tint": "#ffc74d"
+    },
+    {
+      "attack_cooldown": 1.2000000476837158,
+      "attack_damage": 6,
+      "attack_range": 22.0,
+      "health": 25,
       "id": "forest_slime_a",
       "kind": "enemy",
+      "loot": "loot.slime",
+      "map": "forest",
+      "move_speed": 42.0,
+      "payload": 0,
       "position": {
-        "x": 320,
-        "y": 128
+        "x": 320.0,
+        "y": 128.0
       },
-      "health": 25,
-          "loot": "loot.slime",
-          "texture": "tex.enemy.slime",
-          "tint": "#ffffff",
-          "sight_radius": 150,
-          "attack_range": 22,
-          "move_speed": 42,
-          "attack_damage": 6,
-          "attack_cooldown": 1.2
-        },
-        {
-          "id": "forest_slime_b",
-          "kind": "enemy",
-          "position": {
-            "x": 400,
-            "y": 224
-          },
-          "health": 20,
-          "loot": "loot.test",
-          "texture": "tex.enemy.slime",
-          "tint": "#ffffff",
-          "sight_radius": 150,
-          "attack_range": 22,
-          "move_speed": 42,
-          "attack_damage": 6,
-          "attack_cooldown": 1.2
-        },
-        {
-          "id": "forest_bat",
-          "kind": "enemy",
-          "position": {
-            "x": 360,
-            "y": 168
-          },
-          "health": 18,
-          "loot": "loot.bat",
-          "texture": "tex.enemy.bat",
-          "tint": "#c8b4ff",
-          "sight_radius": 190,
-          "attack_range": 24,
-          "move_speed": 90,
-          "attack_damage": 7,
-          "attack_cooldown": 0.8
-        },
+      "sight_radius": 150.0,
+      "texture": "tex.enemy.slime",
+      "tint": "#ffffff"
+    },
     {
+      "attack_cooldown": 1.2000000476837158,
+      "attack_damage": 6,
+      "attack_range": 22.0,
+      "health": 20,
+      "id": "forest_slime_b",
+      "kind": "enemy",
+      "loot": "loot.test",
+      "map": "forest",
+      "move_speed": 42.0,
+      "payload": 0,
+      "position": {
+        "x": 400.0,
+        "y": 224.0
+      },
+      "sight_radius": 150.0,
+      "texture": "tex.enemy.slime",
+      "tint": "#ffffff"
+    },
+    {
+      "attack_cooldown": 0.800000011920929,
+      "attack_damage": 7,
+      "attack_range": 24.0,
+      "health": 18,
+      "id": "forest_bat",
+      "kind": "enemy",
+      "loot": "loot.bat",
+      "map": "forest",
+      "move_speed": 90.0,
+      "payload": 0,
+      "position": {
+        "x": 360.0,
+        "y": 168.0
+      },
+      "sight_radius": 190.0,
+      "texture": "tex.enemy.bat",
+      "tint": "#c8b4ff"
+    },
+    {
+      "cell": {
+        "x": 8.0,
+        "y": 14.0
+      },
+      "damage": 5,
       "id": "bramble_a",
       "kind": "hazard",
-      "cell": {
-        "x": 8,
-        "y": 14
-      },
-      "damage": 5
+      "map": "forest",
+      "payload": 0,
+      "tint": "#ffffff"
     },
     {
+      "cell": {
+        "x": 9.0,
+        "y": 14.0
+      },
+      "damage": 5,
       "id": "bramble_b",
       "kind": "hazard",
-      "cell": {
-        "x": 9,
-        "y": 14
-      },
-      "damage": 5
+      "map": "forest",
+      "payload": 0,
+      "tint": "#ffffff"
     },
     {
+      "cell": {
+        "x": 10.0,
+        "y": 14.0
+      },
+      "damage": 5,
       "id": "bramble_c",
       "kind": "hazard",
-      "cell": {
-        "x": 10,
-        "y": 14
-      },
-      "damage": 5
+      "map": "forest",
+      "payload": 0,
+      "tint": "#ffffff"
     }
-  ]
+  ],
+  "schema_version": 1
 }

@@ -42,6 +42,9 @@ struct Sprite {
     core::Vec2 size{16.0f, 16.0f};
     /// \brief Sub-rectangle of the texture. Defaults to the whole thing.
     core::Rect source{0.0f, 0.0f, 0.0f, 0.0f};
+    /// \brief Draw offset from the entity's transform position. Lets oversized art
+    /// (e.g. a 24x24 player over an 8x8 collider) keep its feet aligned.
+    core::Vec2 offset{0.0f, 0.0f};
     /// \brief Multiplicative colour, straight alpha. Placeholder art uses this as its colour.
     core::Color tint{1.0f, 1.0f, 1.0f, 1.0f};
     /// \brief Which render pass this belongs to.

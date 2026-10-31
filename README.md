@@ -178,6 +178,23 @@ $msbuild='C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\
 `data/audio.json` 配置 8 个 SFX 与 1 首循环音乐（程序化音色），`data/catalog.json`
 注册纹理；完整字段见 [内容 JSON 格式](docs/content-format.md)。
 
+### 地图编辑器（Debug / Development）
+
+主菜单「地图编辑器」进入（**需要先有场景**：先「开始新游戏」→ `Esc` → 「主菜单」→
+「地图编辑器」）。工具栏最左是三种编辑 scope：
+
+| scope | 能做什么 | 写到哪里 |
+|---|---|---|
+| 瓦片 | 笔刷 / 橡皮 / 填充、地图大小、界外阻挡、室内、瓦片属性（贴图/可通行/阻挡/可耕/水）、撤销重做 | 地图 JSON |
+| 对象 | 放置 NPC、床、出货箱、商人、敌人、荆棘；点已放置对象可挪格、给 NPC 选对话图、删除 | `data/entities.json` |
+| 传送门 | 在地图上点两格生成触发区；可切目标地图、调落点格、删除 | 地图 JSON |
+
+「保存」在三种 scope 下都可见，会**同时**写回当前打开的地图文件与 `data/entities.json`；
+`entities.json` 里每行带 `map` 字段（`farm` / `forest` / `play/farm`），保存只重写当前地图的行，
+所以编辑农场不会动到林地的敌人。NPC 完全由数据决定：某张地图没有 `kind: "npc"` 的行，
+在那里按 `E` 就是「这张地图没有可对话对象」。详见
+[可视化编辑器设计 §10](docs/modules/26-visual-editor.md)。
+
 存档包含日期/时间/天气、位置/朝向/生命/耐力、背包/快捷栏/装备、农田/作物、
 金币/出货/加工/商店余量、地面掉落、敌人存活与生命、杂物/放置物、AI 状态/目标，
 以及叙事好感/flags/每日上限/任务进度；读档会重建当前地图后逐段应用。

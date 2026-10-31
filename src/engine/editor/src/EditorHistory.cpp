@@ -23,6 +23,19 @@ std::string_view toString(EditorTool tool) noexcept {
     }
 }
 
+std::string_view toString(EditorScope scope) noexcept {
+    switch (scope) {
+        case EditorScope::Tiles:
+            return "tiles";
+        case EditorScope::Placements:
+            return "placements";
+        case EditorScope::Portals:
+            return "portals";
+        default:
+            return "?";
+    }
+}
+
 EditorHistory::EditorHistory(std::size_t capacity) : m_capacity(capacity == 0 ? 1 : capacity) {}
 
 void EditorHistory::setCapacity(std::size_t capacity) {

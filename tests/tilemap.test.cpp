@@ -285,6 +285,45 @@ TEST_CASE("Map portals resolve by their trigger bounds", "[tilemap][regions]") {
     REQUIRE(map.portalAt(TileCoord{1, 0}) == nullptr);
 }
 
+TEST_CASE("regions can be edited and removed after loading", "[tilemap][regions]") {
+    Tilemap map(10, 10);
+    fa::tilemap::MapPortal portal;
+    portal.id = "a";
+    portal.bounds = TileBounds{0, 0, 2, 2};
+    portal.targetMap = "town";
+    map.addPortal(portal);
+    map.addPortal([] {
+        fa::tilemap::MapPortal second;
+        second.id = "b";
+        second.bounds = TileBounds{5, 5, 1, 1};
+        return second;
+    }());
+    map.addArea(fa::tilemap::MapArea{1, AreaKind::Greenhouse, TileBounds{1, 1, 3, 3}});
+    map.addArea(fa::tilemap::MapArea{2, AreaKind::Outdoor, TileBounds{6, 6, 2, 2}});
+    REQUIRE(map.portals().size() == 2);
+    REQUIRE(map.areas().size() == 2);
+
+    // The editor retargets a portal in place through the writable view.
+    REQUIRE(map.mutablePortals().size() == 2);
+    map.mutablePortals()[0].targetMap = "forest";
+    map.mutablePortals()[0].targetTile = TileCoord{3, 4};
+    REQUIRE(map.portalAt(TileCoord{0, 0}) != nullptr);
+    CHECK(map.portalAt(TileCoord{0, 0})->targetMap == "forest");
+    CHECK(map.portalAt(TileCoord{0, 0})->targetTile == TileCoord{3, 4});
+
+    CHECK_FALSE(map.removePortal(9));
+    CHECK_FALSE(map.removeArea(9));
+    REQUIRE(map.removePortal(0));
+    REQUIRE(map.removeArea(0));
+    REQUIRE(map.portals().size() == 1);
+    REQUIRE(map.areas().size() == 1);
+    CHECK(map.portalAt(TileCoord{0, 0}) == nullptr);
+    CHECK(map.areaAt(TileCoord{1, 1}) == nullptr);
+    CHECK(map.areas()[0].areaId == 2);
+    // Removing shifts the rest, so a stale index is refused rather than wrapping around.
+    CHECK_FALSE(map.removePortal(1));
+}
+
 TEST_CASE("JSON loader reads a complete map document", "[tilemap][loader]") {
     constexpr std::string_view kDocument = R"({
       "schema_version": 1,

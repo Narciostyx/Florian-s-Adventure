@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <cstdlib>
 #include <utility>
 
 #include "fa/tilemap/Tilemap.hpp"
@@ -56,6 +57,12 @@ Rect VisualEditor::panelRect(Rect screen) noexcept {
     return makeRect(x, map.y, std::max(120.0f, screen.x + screen.w - 4.0f - x), screen.h - 58.0f);
 }
 
+Rect VisualEditor::propsRect(Rect screen) noexcept {
+    const Rect panel = panelRect(screen);
+    const float paletteHeight = panel.h * 0.43f;
+    return makeRect(panel.x, panel.y + paletteHeight + 4.0f, panel.w, panel.h - paletteHeight - 4.0f);
+}
+
 void VisualEditor::updateHover(const Vec2& cursor) {
     if (m_mapViewport.w <= 0.0f || m_mapViewport.h <= 0.0f) {
         return;
@@ -87,6 +94,24 @@ void VisualEditor::update(const VisualEditorInput& input, Rect mapViewport) {
     const tilemap::Tilemap& map = m_editor.map();
     const tilemap::TileCoord cell = m_editor.hover();
     if (cell.x < 0 || cell.y < 0 || cell.x >= map.width() || cell.y >= map.height()) {
+        return;
+    }
+    // The object scopes edit their own data and must not paint tiles underneath.
+    if (m_scope == EditorScope::Placements) {
+        if (input.primaryPressed) {
+            applyPlacementClick(cell);
+        } else if (input.secondaryPressed) {
+            applyPlacementErase(cell);
+        }
+        return;
+    }
+    if (m_scope == EditorScope::Portals) {
+        if (input.primaryPressed) {
+            applyPortalClick(cell);
+        } else if (input.secondaryPressed) {
+            m_portalStart.reset();
+            m_status = "已取消";
+        }
         return;
     }
     if (input.primaryPressed) {
@@ -161,9 +186,35 @@ void VisualEditor::draw(ui::UiContext& ui,
     const Rect map = mapRect(screen);
     m_mapViewport = map;
     ui.panel(map, fa::core::Color{0.05f, 0.06f, 0.09f, 0.55f});
+
+    // Portal triggers and placed objects sit on top of the map so the editor shows what the
+    // map will actually ask the game to spawn. They are UI quads, so the tile sprites (an
+    // earlier render layer) stay underneath them.
+    if (!m_editor.map().empty()) {
+        const float step = kTileSize * m_tileScale;
+        for (const tilemap::MapPortal& portal : m_editor.map().portals()) {
+            const Rect box = makeRect(map.x + static_cast<float>(portal.bounds.x) * step,
+                                      map.y + static_cast<float>(portal.bounds.y) * step,
+                                      static_cast<float>(portal.bounds.width) * step,
+                                      static_cast<float>(portal.bounds.height) * step);
+            ui.panel(box, fa::core::Color{0.20f, 0.55f, 0.30f, 0.35f});
+            ui.border(box, theme.accent, 1.0f);
+        }
+        if (m_placements != nullptr) {
+            for (const MapPlacement& row : *m_placements) {
+                ui.panel(makeRect(map.x + static_cast<float>(row.cell.x) * step + 3.0f,
+                                  map.y + static_cast<float>(row.cell.y) * step + 3.0f,
+                                  step - 6.0f,
+                                  step - 6.0f),
+                         fa::core::Color{0.92f, 0.60f, 0.16f, 0.90f});
+            }
+        }
+    }
+
     drawToolbar(ui, screen);
     drawPalette(ui, screen, textureIds);
     drawProperties(ui, screen, textureIds, save);
+    drawFooter(ui, screen, save);
     const tilemap::TileCoord cell = m_editor.hover();
     if (!m_editor.map().empty() && cell.x >= 0 && cell.y >= 0) {
         const float step = kTileSize * m_tileScale;
@@ -190,34 +241,74 @@ void VisualEditor::drawToolbar(ui::UiContext& ui, Rect screen) {
         return pressed;
     };
 
-    if (button("ve.brush", "笔刷", 44.0f)) {
-        m_editor.setTool(EditorTool::Brush);
+    // Scope first: what the canvas edits decides which tools are even meaningful.
+    const bool tileScope = m_scope == EditorScope::Tiles;
+    if (button("ve.scope.tiles", "瓦片", 36.0f)) {
+        setScope(EditorScope::Tiles);
     }
-    if (button("ve.erase", "橡皮", 42.0f)) {
-        m_editor.setTool(EditorTool::Erase);
+    if (button("ve.scope.objects", "对象", 36.0f)) {
+        setScope(EditorScope::Placements);
     }
-    if (button("ve.fill", "填充", 34.0f)) {
-        m_editor.setTool(EditorTool::Fill);
+    if (button("ve.scope.portals", "传送门", 40.0f)) {
+        setScope(EditorScope::Portals);
     }
-    if (button("ve.undo", "撤销", 40.0f)) {
-        static_cast<void>(m_history.undo(m_editor.map()));
-        m_status = "已撤销";
-    }
-    if (button("ve.redo", "重做", 40.0f)) {
-        static_cast<void>(m_history.redo(m_editor.map()));
-        m_status = "已重做";
+    x += 8.0f;
+
+    if (tileScope) {
+        if (button("ve.brush", "笔刷", 44.0f)) {
+            m_editor.setTool(EditorTool::Brush);
+        }
+        if (button("ve.erase", "橡皮", 42.0f)) {
+            m_editor.setTool(EditorTool::Erase);
+        }
+        if (button("ve.fill", "填充", 34.0f)) {
+            m_editor.setTool(EditorTool::Fill);
+        }
+        x += 8.0f;
+        if (button("ve.undo", "撤销", 40.0f)) {
+            static_cast<void>(m_history.undo(m_editor.map()));
+            m_status = "已撤销";
+        }
+        if (button("ve.redo", "重做", 40.0f)) {
+            static_cast<void>(m_history.redo(m_editor.map()));
+            m_status = "已重做";
+        }
+    } else if (m_scope == EditorScope::Portals) {
+        const std::size_t count = m_editor.map().portals().size();
+        char portalText[32]{};
+        std::snprintf(portalText, sizeof(portalText), "共 %zu 个", count);
+        ui.text(portalText, makeRect(x, bar.y + 4.0f, 60.0f, 8.0f), dimStyle(theme));
+        x += 64.0f;
     }
     if (button("ve.back", "返回", 40.0f)) {
         m_closeRequested = true;
     }
 
     char info[96]{};
-    std::snprintf(info,
-                  sizeof(info),
-                  "图层 %d  笔刷 %u  %s",
-                  m_editor.layer(),
-                  m_editor.brush().value,
-                  m_history.dirty() ? "未保存" : "已保存");
+    switch (m_scope) {
+        case EditorScope::Placements:
+            std::snprintf(info,
+                          sizeof(info),
+                          "对象 %d 个  %s",
+                          m_placements != nullptr ? static_cast<int>(m_placements->size()) : 0,
+                          m_history.dirty() ? "未保存" : "已保存");
+            break;
+        case EditorScope::Portals:
+            std::snprintf(info,
+                          sizeof(info),
+                          "传送门 %d 个  %s",
+                          static_cast<int>(m_editor.map().portals().size()),
+                          m_history.dirty() ? "未保存" : "已保存");
+            break;
+        default:
+            std::snprintf(info,
+                          sizeof(info),
+                          "图层 %d  笔刷 %u  %s",
+                          m_editor.layer(),
+                          m_editor.brush().value,
+                          m_history.dirty() ? "未保存" : "已保存");
+            break;
+    }
     ui.text(info, makeRect(x + 4.0f, bar.y + 4.0f, screen.x + screen.w - x - 8.0f, 8.0f), dimStyle(theme));
 }
 
@@ -226,6 +317,10 @@ void VisualEditor::drawPalette(ui::UiContext& ui, Rect screen, std::span<const s
     const ui::UiTheme& theme = ui.theme();
     const Rect panel = panelRect(screen);
     const Rect palette = makeRect(panel.x, panel.y, panel.w, panel.h * 0.43f);
+    if (m_scope != EditorScope::Tiles) {
+        drawObjectPalette(ui, palette);
+        return;
+    }
     ui.panel(palette, theme.panel);
     ui.text("组件", makeRect(palette.x + 6.0f, palette.y + 4.0f, 180.0f, 8.0f), labelStyle(theme));
     ui.text("瓦片", makeRect(palette.x + 6.0f, palette.y + 16.0f, 60.0f, 8.0f), dimStyle(theme));
@@ -258,12 +353,13 @@ void VisualEditor::drawProperties(ui::UiContext& ui,
                                   std::span<const std::string> textureIds,
                                   const SaveHandler& save) {
     const ui::UiTheme& theme = ui.theme();
-    const Rect panel = panelRect(screen);
-    const Rect paletteHeight = makeRect(panel.x, panel.y, panel.w, panel.h * 0.43f);
-    const Rect props =
-        makeRect(panel.x, paletteHeight.y + paletteHeight.h + 4.0f, panel.w, panel.h - paletteHeight.h - 4.0f);
+    const Rect props = propsRect(screen);
     ui.panel(props, theme.panel);
     ui.text("属性", makeRect(props.x + 6.0f, props.y + 4.0f, 180.0f, 8.0f), labelStyle(theme));
+    if (m_scope != EditorScope::Tiles) {
+        drawObjectProperties(ui, props);
+        return;
+    }
 
     tilemap::Tilemap& map = m_editor.map();
     float y = props.y + 16.0f;
@@ -361,6 +457,391 @@ void VisualEditor::drawProperties(ui::UiContext& ui,
     applyFlag(flag("ve.till", "可耕", tillable), tillable, def->tillable);
     bool water = def->water;
     applyFlag(flag("ve.water", "水", water), water, def->water);
+}
+
+void VisualEditor::setPlacements(std::vector<MapPlacement>* placements, std::vector<PlacementKind> kinds) {
+    m_placements = placements;
+    m_kinds = std::move(kinds);
+    m_activeKind = 0;
+    m_selectedPlacement = -1;
+}
+
+void VisualEditor::setPlacementSave(PlacementSaveHandler handler) {
+    m_placementSave = std::move(handler);
+}
+
+void VisualEditor::setPortalTargets(std::vector<std::string> targets) {
+    m_portalTargets = std::move(targets);
+}
+
+void VisualEditor::setScope(EditorScope scope) noexcept {
+    if (m_scope == scope) {
+        return;
+    }
+    m_scope = scope;
+    m_portalStart.reset();
+    m_selectedPlacement = -1;
+    m_selectedPortal = -1;
+}
+
+std::span<const MapPlacement> VisualEditor::placements() const noexcept {
+    if (m_placements == nullptr) {
+        return {};
+    }
+    return std::span<const MapPlacement>{*m_placements};
+}
+
+int VisualEditor::placementIndexAt(const tilemap::TileCoord cell) const noexcept {
+    if (m_placements == nullptr) {
+        return -1;
+    }
+    for (std::size_t index = 0; index < m_placements->size(); ++index) {
+        if ((*m_placements)[index].cell == cell) {
+            return static_cast<int>(index);
+        }
+    }
+    return -1;
+}
+
+int VisualEditor::portalIndexAt(const tilemap::TileCoord cell) const noexcept {
+    const tilemap::Tilemap& map = m_editor.map();
+    const std::span<const tilemap::MapPortal> portals = map.portals();
+    for (std::size_t index = 0; index < portals.size(); ++index) {
+        if (portals[index].bounds.contains(cell)) {
+            return static_cast<int>(index);
+        }
+    }
+    return -1;
+}
+
+void VisualEditor::applyPlacementClick(const tilemap::TileCoord cell) {
+    if (m_placements == nullptr || m_kinds.empty()) {
+        m_status = "没有可放置的对象";
+        return;
+    }
+    const int existing = placementIndexAt(cell);
+    if (existing >= 0) {
+        m_selectedPlacement = existing;
+        m_status = "已选中对象";
+        return;
+    }
+    const PlacementKind& kind =
+        m_kinds[static_cast<std::size_t>(std::clamp(m_activeKind, 0, static_cast<int>(m_kinds.size()) - 1))];
+    MapPlacement placement;
+    placement.kind = kind.kind;
+    placement.cell = cell;
+    // Ids are generated, not typed: M09 has no text field, and the id is only a stable key
+    // inside entities.json.
+    std::string candidate;
+    for (int serial = 1;; ++serial) {
+        candidate = kind.kind + "_" + std::to_string(serial);
+        const bool taken = std::any_of(m_placements->begin(),
+                                       m_placements->end(),
+                                       [&candidate](const MapPlacement& row) { return row.id == candidate; });
+        if (!taken) {
+            break;
+        }
+    }
+    placement.id = std::move(candidate);
+    if (!kind.targets.empty()) {
+        placement.target = kind.targets.front();
+    }
+    m_placements->push_back(std::move(placement));
+    m_selectedPlacement = static_cast<int>(m_placements->size()) - 1;
+    m_history.markDirty();
+    m_status = "已放置 " + kind.label;
+}
+
+void VisualEditor::applyPlacementErase(const tilemap::TileCoord cell) {
+    const int index = placementIndexAt(cell);
+    if (index < 0 || m_placements == nullptr) {
+        m_status = "这里没有对象";
+        return;
+    }
+    m_status = "已删除 " + (*m_placements)[static_cast<std::size_t>(index)].id;
+    m_placements->erase(m_placements->begin() + index);
+    m_selectedPlacement = -1;
+    m_history.markDirty();
+}
+
+void VisualEditor::applyPortalClick(const tilemap::TileCoord cell) {
+    if (m_portalStart.has_value()) {
+        const tilemap::TileCoord from = *m_portalStart;
+        const tilemap::TileCoord to = cell;
+        tilemap::MapPortal portal;
+        portal.bounds = tilemap::TileBounds{
+            std::min(from.x, to.x), std::min(from.y, to.y), std::abs(from.x - to.x) + 1, std::abs(from.y - to.y) + 1};
+        portal.id = "portal_" + std::to_string(m_editor.map().portals().size() + 1);
+        if (!m_portalTargets.empty()) {
+            portal.targetMap = m_portalTargets.front();
+        }
+        const int portalWidth = portal.bounds.width;
+        const int portalHeight = portal.bounds.height;
+        m_editor.map().addPortal(std::move(portal));
+        m_portalStart.reset();
+        m_selectedPortal = static_cast<int>(m_editor.map().portals().size()) - 1;
+        m_history.markDirty();
+        char line[64]{};
+        std::snprintf(line, sizeof(line), "已创建传送门 %dx%d", portalWidth, portalHeight);
+        m_status = line;
+        return;
+    }
+    const int existing = portalIndexAt(cell);
+    if (existing >= 0) {
+        m_selectedPortal = existing;
+        m_status = "已选中传送门";
+        return;
+    }
+    m_portalStart = cell;
+    m_status = "再点一次确定对角";
+}
+
+void VisualEditor::saveObjects() {
+    if (m_placementSave == nullptr || m_placements == nullptr) {
+        return;
+    }
+    const core::Status saved = m_placementSave(*m_placements);
+    if (saved.isError()) {
+        m_status = "对象保存失败：" + saved.error().message;
+    }
+}
+
+void VisualEditor::drawObjectPalette(ui::UiContext& ui, Rect palette) {
+    const ui::UiTheme& theme = ui.theme();
+    ui.panel(palette, theme.panel);
+    ui.text("组件", makeRect(palette.x + 6.0f, palette.y + 4.0f, 180.0f, 8.0f), labelStyle(theme));
+
+    float y = palette.y + 16.0f;
+    if (m_scope == EditorScope::Portals) {
+        ui.text("传送门", makeRect(palette.x + 6.0f, y, 120.0f, 8.0f), dimStyle(theme));
+        y += 12.0f;
+        const std::span<const tilemap::MapPortal> portals = m_editor.map().portals();
+        if (portals.empty()) {
+            ui.text("无 - 在地图上点两格", makeRect(palette.x + 6.0f, y, palette.w - 12.0f, 8.0f), dimStyle(theme));
+            return;
+        }
+        for (std::size_t index = 0; index < portals.size(); ++index) {
+            if (y + 13.0f > palette.y + palette.h) {
+                break;
+            }
+            char id[32]{};
+            std::snprintf(id, sizeof(id), "ve.portal.%zu", index);
+            char line[64]{};
+            std::snprintf(line,
+                          sizeof(line),
+                          "%s  %dx%d",
+                          portals[index].id.c_str(),
+                          portals[index].bounds.width,
+                          portals[index].bounds.height);
+            const Rect rect = makeRect(palette.x + 6.0f, y, palette.w - 12.0f, 13.0f);
+            if (ui.button(ui::UiId::fromName(id), line, rect).pressed) {
+                m_selectedPortal = static_cast<int>(index);
+                m_portalStart.reset();
+            }
+            if (m_selectedPortal == static_cast<int>(index)) {
+                ui.border(rect, theme.accent, 1.0f);
+            }
+            y += 15.0f;
+        }
+        return;
+    }
+
+    ui.text("可放置", makeRect(palette.x + 6.0f, y, 120.0f, 8.0f), dimStyle(theme));
+    y += 12.0f;
+    if (m_placements == nullptr || m_kinds.empty()) {
+        ui.text("无可用对象", makeRect(palette.x + 6.0f, y, palette.w - 12.0f, 8.0f), dimStyle(theme));
+        return;
+    }
+    for (std::size_t index = 0; index < m_kinds.size(); ++index) {
+        if (y + 13.0f > palette.y + palette.h) {
+            break;
+        }
+        char id[32]{};
+        std::snprintf(id, sizeof(id), "ve.kind.%zu", index);
+        const Rect rect = makeRect(palette.x + 6.0f, y, palette.w - 12.0f, 13.0f);
+        if (ui.button(ui::UiId::fromName(id), m_kinds[index].label, rect).pressed) {
+            m_activeKind = static_cast<int>(index);
+            m_status = "选择：" + m_kinds[index].label;
+        }
+        if (m_activeKind == static_cast<int>(index)) {
+            ui.border(rect, theme.accent, 1.0f);
+        }
+        y += 15.0f;
+    }
+}
+
+void VisualEditor::drawObjectProperties(ui::UiContext& ui, Rect props) {
+    const ui::UiTheme& theme = ui.theme();
+    constexpr float small = 20.0f;
+    constexpr float rowPitch = 13.0f;
+    float y = props.y + 16.0f;
+    char id[32]{};
+    char line[96]{};
+
+    const auto stepButton = [&](const char* name, std::string_view text, float x) {
+        return ui.button(ui::UiId::fromName(name), text, makeRect(x, y, small, 11.0f)).pressed;
+    };
+
+    if (m_scope == EditorScope::Portals) {
+        const std::span<tilemap::MapPortal> portals = m_editor.map().mutablePortals();
+        if (m_selectedPortal < 0 || m_selectedPortal >= static_cast<int>(portals.size())) {
+            ui.text("选择或点两格新建", makeRect(props.x + 6.0f, y, props.w - 12.0f, 8.0f), dimStyle(theme));
+            return;
+        }
+        tilemap::MapPortal& portal = portals[static_cast<std::size_t>(m_selectedPortal)];
+        std::snprintf(
+            line, sizeof(line), "%s  触发 %dx%d", portal.id.c_str(), portal.bounds.width, portal.bounds.height);
+        ui.text(line, makeRect(props.x + 6.0f, y, props.w - 12.0f, 8.0f), labelStyle(theme));
+        y += rowPitch;
+
+        ui.text("通往", makeRect(props.x + 6.0f, y, 34.0f, 8.0f), dimStyle(theme));
+        if (!m_portalTargets.empty() && portal.targetMap.size() < sizeof(line)) {
+            std::snprintf(line, sizeof(line), "< %s >", portal.targetMap.c_str());
+            if (ui.button(
+                      ui::UiId::fromName("ve.portal.map"), line, makeRect(props.x + 44.0f, y, props.w - 50.0f, 11.0f))
+                    .pressed) {
+                // Cycle rather than type: the map registry belongs to the composition root.
+                const auto found = std::find(m_portalTargets.begin(), m_portalTargets.end(), portal.targetMap);
+                const std::size_t next =
+                    found == m_portalTargets.end()
+                        ? 0
+                        : (static_cast<std::size_t>(found - m_portalTargets.begin()) + 1) % m_portalTargets.size();
+                portal.targetMap = m_portalTargets[next];
+                m_history.markDirty();
+            }
+            y += rowPitch;
+        } else {
+            std::snprintf(line, sizeof(line), "通往 %s", portal.targetMap.empty() ? "-" : portal.targetMap.c_str());
+            ui.text(line, makeRect(props.x + 44.0f, y, props.w - 50.0f, 8.0f), dimStyle(theme));
+            y += rowPitch;
+        }
+
+        std::snprintf(line, sizeof(line), "落点 %d,%d", portal.targetTile.x, portal.targetTile.y);
+        ui.text(line, makeRect(props.x + 6.0f, y, 90.0f, 8.0f), dimStyle(theme));
+        if (stepButton("ve.portal.y-", "高-", props.x + 96.0f)) {
+            --portal.targetTile.y;
+            m_history.markDirty();
+        }
+        if (stepButton("ve.portal.y+", "高+", props.x + 118.0f)) {
+            ++portal.targetTile.y;
+            m_history.markDirty();
+        }
+        if (stepButton("ve.portal.x-", "宽-", props.x + 140.0f)) {
+            --portal.targetTile.x;
+            m_history.markDirty();
+        }
+        if (stepButton("ve.portal.x+", "宽+", props.x + 162.0f)) {
+            ++portal.targetTile.x;
+            m_history.markDirty();
+        }
+        y += rowPitch;
+
+        std::snprintf(id, sizeof(id), "ve.portal.delete.%d", m_selectedPortal);
+        if (ui.button(ui::UiId::fromName(id), "删除", makeRect(props.x + 6.0f, y, props.w - 12.0f, 11.0f)).pressed) {
+            m_editor.map().removePortal(static_cast<std::size_t>(m_selectedPortal));
+            m_selectedPortal = -1;
+            m_history.markDirty();
+            m_status = "已删除传送门";
+        }
+        return;
+    }
+
+    if (m_placements == nullptr) {
+        ui.text("没有对象表", makeRect(props.x + 6.0f, y, props.w - 12.0f, 8.0f), dimStyle(theme));
+        return;
+    }
+    std::snprintf(line, sizeof(line), "对象 %d 个", static_cast<int>(m_placements->size()));
+    ui.text(line, makeRect(props.x + 6.0f, y, props.w - 12.0f, 8.0f), dimStyle(theme));
+    y += rowPitch;
+    if (m_placements->empty()) {
+        ui.text("左键放置，右键删除", makeRect(props.x + 6.0f, y, props.w - 12.0f, 8.0f), dimStyle(theme));
+        return;
+    }
+    if (m_selectedPlacement >= static_cast<int>(m_placements->size())) {
+        m_selectedPlacement = static_cast<int>(m_placements->size()) - 1;
+    }
+
+    for (std::size_t index = 0; index < m_placements->size(); ++index) {
+        if (y + rowPitch > props.y + props.h - 14.0f) {
+            break;
+        }
+        const MapPlacement& row = (*m_placements)[index];
+        std::snprintf(id, sizeof(id), "ve.pick.%zu", index);
+        std::snprintf(line, sizeof(line), "%s %d,%d", row.id.c_str(), row.cell.x, row.cell.y);
+        const Rect rect = makeRect(props.x + 6.0f, y, props.w - 12.0f, 11.0f);
+        if (ui.button(ui::UiId::fromName(id), line, rect).pressed) {
+            m_selectedPlacement = static_cast<int>(index);
+        }
+        if (m_selectedPlacement == static_cast<int>(index)) {
+            ui.border(rect, theme.accent, 1.0f);
+        }
+        y += rowPitch;
+    }
+
+    if (m_selectedPlacement < 0) {
+        return;
+    }
+    MapPlacement& selected = (*m_placements)[static_cast<std::size_t>(m_selectedPlacement)];
+    const PlacementKind* kind = nullptr;
+    for (const PlacementKind& option : m_kinds) {
+        if (option.kind == selected.kind) {
+            kind = &option;
+            break;
+        }
+    }
+    std::snprintf(line,
+                  sizeof(line),
+                  "%s  %d,%d",
+                  kind != nullptr ? kind->label.c_str() : selected.kind.c_str(),
+                  selected.cell.x,
+                  selected.cell.y);
+    ui.text(line, makeRect(props.x + 6.0f, y, props.w - 12.0f, 8.0f), labelStyle(theme));
+    y += rowPitch;
+
+    if (stepButton("ve.place.y-", "高-", props.x + 6.0f)) {
+        --selected.cell.y;
+        m_history.markDirty();
+    }
+    if (stepButton("ve.place.y+", "高+", props.x + 28.0f)) {
+        ++selected.cell.y;
+        m_history.markDirty();
+    }
+    if (stepButton("ve.place.x-", "宽-", props.x + 50.0f)) {
+        --selected.cell.x;
+        m_history.markDirty();
+    }
+    if (stepButton("ve.place.x+", "宽+", props.x + 72.0f)) {
+        ++selected.cell.x;
+        m_history.markDirty();
+    }
+    if (kind != nullptr && !kind->targets.empty()) {
+        const auto found = std::find(kind->targets.begin(), kind->targets.end(), selected.target);
+        const std::size_t next =
+            found == kind->targets.end()
+                ? 0
+                : (static_cast<std::size_t>(found - kind->targets.begin()) + 1) % kind->targets.size();
+        std::snprintf(line, sizeof(line), "目标 < %s >", selected.target.empty() ? "-" : selected.target.c_str());
+        if (ui.button(
+                  ui::UiId::fromName("ve.place.target"), line, makeRect(props.x + 96.0f, y, props.w - 102.0f, 11.0f))
+                .pressed) {
+            selected.target = kind->targets[next];
+            m_history.markDirty();
+        }
+    }
+    y += rowPitch;
+
+    std::snprintf(id, sizeof(id), "ve.place.delete.%d", m_selectedPlacement);
+    if (ui.button(ui::UiId::fromName(id), "删除", makeRect(props.x + 6.0f, y, props.w - 12.0f, 11.0f)).pressed) {
+        m_status = "已删除 " + selected.id;
+        m_placements->erase(m_placements->begin() + m_selectedPlacement);
+        m_selectedPlacement = -1;
+        m_history.markDirty();
+    }
+}
+
+void VisualEditor::drawFooter(ui::UiContext& ui, Rect screen, const SaveHandler& save) {
+    const ui::UiTheme& theme = ui.theme();
+    const Rect props = propsRect(screen);
 
     if (ui.button(ui::UiId::fromName("ve.save"),
                   "保存",
@@ -370,6 +851,9 @@ void VisualEditor::drawProperties(ui::UiContext& ui,
         if (saved.isOk()) {
             m_history.markSaved();
             m_status = "已保存";
+            // The map and the placement table are one editing session, so 保存 writes both.
+            // Runs last: its failure message must not be overwritten.
+            saveObjects();
         } else {
             m_status = "保存失败：" + saved.error().message;
         }

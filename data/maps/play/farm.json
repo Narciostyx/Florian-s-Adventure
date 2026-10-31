@@ -9,6 +9,7 @@
     ],
     "music": ""
   },
+  "areas": [],
   "height": 23,
   "layers": [
     {
@@ -935,7 +936,9 @@
         1,
         1,
         1
-      ]
+      ],
+      "visible": true,
+      "z_order": 0
     }
   ],
   "origin": [

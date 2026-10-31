@@ -30,6 +30,41 @@ enum class EditorTool : std::uint8_t {
 /// \brief Stable name for the panel, logs and tests.
 [[nodiscard]] std::string_view toString(EditorTool tool) noexcept;
 
+/// \brief What the canvas edits: tiles, or the objects the map asks the game to place.
+enum class EditorScope : std::uint8_t {
+    Tiles = 0,
+    Placements,
+    Portals,
+    Count,
+};
+
+/// \brief Stable name for the panel, logs and tests.
+[[nodiscard]] std::string_view toString(EditorScope scope) noexcept;
+
+/// \brief One object the map asks the game to place, in tile coordinates.
+///
+/// The editor deliberately does not know what an NPC or a bed *does*: the composition root
+/// supplies the kind list, owns persistence and maps these rows onto real entities. That is
+/// what keeps M26 free of gameplay content and of `data/entities.json`.
+struct MapPlacement {
+    /// \brief Stable id, unique within the map; also the save-file key.
+    std::string id;
+    /// \brief One of the app-supplied kind names.
+    std::string kind;
+    tilemap::TileCoord cell{};
+    /// \brief Kind-specific reference, e.g. the dialogue graph an NPC runs. Empty if unused.
+    std::string target;
+};
+
+/// \brief One placeable option offered by the palette, supplied by the app.
+struct PlacementKind {
+    std::string kind;
+    /// \brief Palette text: the app owns the display language, the editor does not.
+    std::string label;
+    /// \brief Values `MapPlacement::target` may take. Empty means "no target field".
+    std::vector<std::string> targets;
+};
+
 /// \brief One cell changed by a command.
 struct TileChange {
     tilemap::TileCoord cell{};

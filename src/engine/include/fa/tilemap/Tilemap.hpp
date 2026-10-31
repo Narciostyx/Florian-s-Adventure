@@ -204,6 +204,12 @@ public:
     void addArea(MapArea area);
     [[nodiscard]] std::span<const MapArea> areas() const noexcept { return m_areas; }
 
+    /// \brief Writable view so a tool can move, resize or relabel an existing area.
+    [[nodiscard]] std::span<MapArea> mutableAreas() noexcept { return m_areas; }
+
+    /// \brief Drops the area at `index`; false when the index is out of range.
+    bool removeArea(std::size_t index) noexcept;
+
     /// \brief Kind of the first area containing `coord`, or nullopt.
     [[nodiscard]] std::optional<AreaKind> queryArea(TileCoord coord) const noexcept;
 
@@ -212,6 +218,12 @@ public:
 
     void addPortal(MapPortal portal);
     [[nodiscard]] std::span<const MapPortal> portals() const noexcept { return m_portals; }
+
+    /// \brief Writable view so a tool can retarget or resize an existing portal.
+    [[nodiscard]] std::span<MapPortal> mutablePortals() noexcept { return m_portals; }
+
+    /// \brief Drops the portal at `index`; false when the index is out of range.
+    bool removePortal(std::size_t index) noexcept;
 
     /// \brief The first portal whose trigger area contains `coord`, or null.
     [[nodiscard]] const MapPortal* portalAt(TileCoord coord) const noexcept;

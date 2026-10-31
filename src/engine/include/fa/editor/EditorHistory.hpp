@@ -36,6 +36,8 @@ public:
     [[nodiscard]] std::size_t capacity() const noexcept { return m_capacity; }
 
     [[nodiscard]] bool dirty() const noexcept { return m_dirty; }
+    /// \brief Flags unsaved work that is not a tile change (placements, portals).
+    void markDirty() noexcept { m_dirty = true; }
     void markSaved() noexcept { m_dirty = false; }
     void clear() noexcept;
 

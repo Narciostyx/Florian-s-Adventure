@@ -1,0 +1,31 @@
+{
+  "player_walk": {
+    "texture": "tex.actor.player_walk",
+    "frame_size": [24, 24],
+    "sprite_size": [24, 24],
+    "columns": 4,
+    "rows": { "down": 0, "up": 1, "left": 2, "right": 3 },
+    "walk_durations": [0.16, 0.10, 0.16, 0.10],
+    "run_durations": [0.10, 0.06, 0.10, 0.06],
+    "idle_frame": 0,
+    "run_speed_threshold": 120.0,
+    "enemies": [
+      {
+        "matches": "tex.enemy.slime",
+        "texture": "tex.enemy.slime_walk",
+        "frame_size": [16, 16],
+        "columns": 4,
+        "durations": [0.16, 0.10, 0.16, 0.10],
+        "idle_frame": 0
+      },
+      {
+        "matches": "tex.enemy.bat",
+        "texture": "tex.enemy.bat_walk",
+        "frame_size": [16, 16],
+        "columns": 4,
+        "durations": [0.09, 0.09, 0.09, 0.09],
+        "idle_frame": 1
+      }
+    ]
+  }
+}

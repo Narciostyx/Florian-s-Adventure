@@ -26,6 +26,8 @@
 #include <utility>
 #include <vector>
 
+#include <nlohmann/json.hpp>
+
 #include <fa/anim/AnimationClip.hpp>
 #include <fa/anim/AnimationService.hpp>
 #include <fa/anim/AnimationStateMachine.hpp>
@@ -229,6 +231,12 @@ constexpr std::string_view kCatalogText = R"({
      "color": "#3d465e", "altColor": "#55627e"},
     {"id": "tex.actor.player", "kind": "texture", "size": [16, 24],
      "color": "#e8c39e", "altColor": "#c79a74"},
+    {"id": "tex.actor.player_walk", "kind": "texture", "path": "textures/characters/player_walk.png",
+     "size": [96, 96], "color": "#e8c39e", "altColor": "#c79a74"},
+    {"id": "tex.enemy.slime_walk", "kind": "texture", "path": "textures/characters/slime_walk.png",
+     "size": [64, 16], "color": "#4fa84a", "altColor": "#2f7a36"},
+    {"id": "tex.enemy.bat_walk", "kind": "texture", "path": "textures/characters/bat_walk.png",
+     "size": [64, 16], "color": "#4e3e6e", "altColor": "#947cbe"},
     {"id": "tex.marker", "kind": "texture", "size": [8, 8], "color": "#ffffff"},
     {"id": "tex.ground.soil_wet", "kind": "texture", "path": "textures/tiles/soil_wet.png", "size": [16, 16],
      "tile": 4, "color": "#4a3322", "altColor": "#372418"},
@@ -252,6 +260,162 @@ constexpr std::string_view kCatalogText = R"({
 /// It is inline on purpose: M15 takes text, not a path, so the smoke run proves
 /// loading and reference validation without adding asset files. The ids are stable
 /// and namespaced exactly as a real `data/` pack would be.
+/// \brief Built-in fallback for `data/animations.json`: the four-way player walk clip.
+constexpr std::string_view kAnimationsText = R"({
+  "player_walk": {
+    "texture": "tex.actor.player_walk",
+    "frame_size": [24, 24],
+    "sprite_size": [24, 24],
+    "columns": 4,
+    "rows": { "down": 0, "up": 1, "left": 2, "right": 3 },
+    "walk_durations": [0.16, 0.10, 0.16, 0.10],
+    "run_durations": [0.10, 0.06, 0.10, 0.06],
+    "idle_frame": 0,
+    "run_speed_threshold": 120.0,
+    "enemies": [
+      { "matches": "tex.enemy.slime", "texture": "tex.enemy.slime_walk", "frame_size": [16, 16],
+        "columns": 4, "durations": [0.16, 0.10, 0.16, 0.10], "idle_frame": 0 },
+      { "matches": "tex.enemy.bat", "texture": "tex.enemy.bat_walk", "frame_size": [16, 16],
+        "columns": 4, "durations": [0.09, 0.09, 0.09, 0.09], "idle_frame": 1 }
+    ]
+  }
+})";
+
+/// \brief One enemy type's walk clip: `matchTexture` is the texture id the spawn row
+/// uses (`tex.enemy.slime`), the sheet is a single frame row applied in every state.
+struct EnemyWalkAnimConfig {
+    std::string matchTexture;
+    std::string textureName;
+    float frameWidth = 16.0f;
+    float frameHeight = 16.0f;
+    int columns = 4;
+    int idleFrame = 0;
+    std::vector<float> durations{0.14f, 0.10f, 0.14f, 0.10f};
+};
+
+/// \brief Data-driven player walk animation (M10 clips fed by M16 state), see
+/// `data/animations.json`. Rows index the `player_walk` sprite sheet top-down.
+struct PlayerWalkAnimConfig {
+    bool valid = false;
+    std::string textureName;
+    float frameWidth = 16.0f;
+    float frameHeight = 16.0f;
+    float spriteWidth = 16.0f;
+    float spriteHeight = 16.0f;
+    int columns = 4;
+    int rowDown = 0;
+    int rowUp = 1;
+    int rowLeft = 2;
+    int rowRight = 3;
+    int idleFrame = 0;
+    float runSpeedThreshold = 120.0f;
+    std::vector<float> walkDurations{0.16f, 0.10f, 0.16f, 0.10f};
+    std::vector<float> runDurations{0.10f, 0.06f, 0.10f, 0.06f};
+    std::vector<EnemyWalkAnimConfig> enemies;
+};
+
+[[nodiscard]] inline float jsonFloat(const nlohmann::json& value, float fallback) {
+    return value.is_number() ? value.get<float>() : fallback;
+}
+
+[[nodiscard]] inline int jsonInt(const nlohmann::json& value, int fallback) {
+    return value.is_number() ? value.get<int>() : fallback;
+}
+
+[[nodiscard]] inline std::vector<float> jsonFloats(const nlohmann::json& value,
+                                                    const std::vector<float>& fallback) {
+    if (!value.is_array() || value.empty()) {
+        return fallback;
+    }
+    std::vector<float> out;
+    out.reserve(value.size());
+    for (const nlohmann::json& item : value) {
+        out.push_back(jsonFloat(item, fallback.front()));
+    }
+    return out;
+}
+
+/// \brief Lenient parse: anything missing or malformed keeps its default, the config
+/// only flips `valid` when the essentials (texture name, columns, durations) are present.
+[[nodiscard]] PlayerWalkAnimConfig parsePlayerWalkConfig(std::string_view text) {
+    PlayerWalkAnimConfig cfg;
+    const nlohmann::json doc = nlohmann::json::parse(std::string(text), nullptr, false);
+    if (doc.is_discarded() || !doc.is_object()) {
+        return cfg;
+    }
+    const auto walk = doc.find("player_walk");
+    if (walk == doc.end() || !walk->is_object()) {
+        return cfg;
+    }
+    const nlohmann::json& j = *walk;
+    if (const auto it = j.find("texture"); it != j.end() && it->is_string()) {
+        cfg.textureName = it->get<std::string>();
+    }
+    if (const auto it = j.find("frame_size"); it != j.end() && it->is_array() && it->size() == 2) {
+        cfg.frameWidth = jsonFloat((*it)[0], cfg.frameWidth);
+        cfg.frameHeight = jsonFloat((*it)[1], cfg.frameHeight);
+    }
+    if (const auto it = j.find("sprite_size"); it != j.end() && it->is_array() && it->size() == 2) {
+        cfg.spriteWidth = jsonFloat((*it)[0], cfg.spriteWidth);
+        cfg.spriteHeight = jsonFloat((*it)[1], cfg.spriteHeight);
+    }
+    if (const auto it = j.find("columns"); it != j.end()) {
+        cfg.columns = jsonInt(*it, cfg.columns);
+    }
+    if (const auto it = j.find("rows"); it != j.end() && it->is_object()) {
+        cfg.rowDown = jsonInt(it->value("down", nlohmann::json(cfg.rowDown)), cfg.rowDown);
+        cfg.rowUp = jsonInt(it->value("up", nlohmann::json(cfg.rowUp)), cfg.rowUp);
+        cfg.rowLeft = jsonInt(it->value("left", nlohmann::json(cfg.rowLeft)), cfg.rowLeft);
+        cfg.rowRight = jsonInt(it->value("right", nlohmann::json(cfg.rowRight)), cfg.rowRight);
+    }
+    if (const auto it = j.find("walk_durations"); it != j.end()) {
+        cfg.walkDurations = jsonFloats(*it, cfg.walkDurations);
+    }
+    if (const auto it = j.find("run_durations"); it != j.end()) {
+        cfg.runDurations = jsonFloats(*it, cfg.runDurations);
+    }
+    if (const auto it = j.find("idle_frame"); it != j.end()) {
+        cfg.idleFrame = jsonInt(*it, cfg.idleFrame);
+    }
+    if (const auto it = j.find("run_speed_threshold"); it != j.end()) {
+        cfg.runSpeedThreshold = jsonFloat(*it, cfg.runSpeedThreshold);
+    }
+    if (const auto it = j.find("enemies"); it != j.end() && it->is_array()) {
+        for (const nlohmann::json& e : *it) {
+            if (!e.is_object()) {
+                continue;
+            }
+            EnemyWalkAnimConfig ec;
+            if (const auto f = e.find("matches"); f != e.end() && f->is_string()) {
+                ec.matchTexture = f->get<std::string>();
+            }
+            if (const auto f = e.find("texture"); f != e.end() && f->is_string()) {
+                ec.textureName = f->get<std::string>();
+            }
+            if (const auto f = e.find("frame_size"); f != e.end() && f->is_array() && f->size() == 2) {
+                ec.frameWidth = jsonFloat((*f)[0], ec.frameWidth);
+                ec.frameHeight = jsonFloat((*f)[1], ec.frameHeight);
+            }
+            if (const auto f = e.find("columns"); f != e.end()) {
+                ec.columns = jsonInt(*f, ec.columns);
+            }
+            if (const auto f = e.find("idle_frame"); f != e.end()) {
+                ec.idleFrame = jsonInt(*f, ec.idleFrame);
+            }
+            if (const auto f = e.find("durations"); f != e.end()) {
+                ec.durations = jsonFloats(*f, ec.durations);
+            }
+            if (!ec.matchTexture.empty() && !ec.textureName.empty() && ec.columns > 0 &&
+                !ec.durations.empty() && ec.frameWidth > 0.0f && ec.frameHeight > 0.0f) {
+                cfg.enemies.push_back(std::move(ec));
+            }
+        }
+    }
+    cfg.valid = !cfg.textureName.empty() && cfg.columns > 0 && !cfg.walkDurations.empty() &&
+                cfg.frameWidth > 0.0f && cfg.frameHeight > 0.0f;
+    return cfg;
+}
+
 constexpr std::string_view kContentText = R"({
   "schema_version": 1,
   "items": [
@@ -571,6 +735,9 @@ struct AudioClipDef {
 struct EntitySpawn {
     std::string id;
     std::string kind;
+    /// \brief Map file this row belongs to (`"farm"`, `"forest"`, `"play/farm"`). Empty means
+    /// "every map", which is how the pre-scoping demo rows are stored.
+    std::string map;
     fa::core::Vec2 position{};
     bool hasPosition = false;
     fa::tilemap::TileCoord cell{};
@@ -582,6 +749,8 @@ struct EntitySpawn {
     int health = 20;
     std::string loot;
     int damage = 5;
+    /// \brief Dialogue graph an `npc` runs; unused by every other kind.
+    std::string dialogue;
     /// \brief Optional AI tuning; omitted fields keep the slime defaults.
     float sightRadius = 150.0f;
     float attackRange = 22.0f;
@@ -598,7 +767,8 @@ struct EntitySpawn {
         return spawns;
     }
     const auto knownKind = [](std::string_view kind) {
-        return kind == "bed" || kind == "shipping" || kind == "merchant" || kind == "enemy" || kind == "hazard";
+        return kind == "bed" || kind == "shipping" || kind == "merchant" || kind == "enemy" || kind == "hazard" ||
+               kind == "npc";
     };
     for (std::size_t index = 0; index < list.size(); ++index) {
         const fa::save::SaveArchive entry = list.at(index);
@@ -608,6 +778,7 @@ struct EntitySpawn {
         EntitySpawn spawn;
         static_cast<void>(entry.getString("id", spawn.id));
         static_cast<void>(entry.getString("kind", spawn.kind));
+        static_cast<void>(entry.getString("map", spawn.map));
         if (spawn.id.empty() || !knownKind(spawn.kind)) {
             continue;
         }
@@ -633,6 +804,7 @@ struct EntitySpawn {
         static_cast<void>(entry.getInt("health", spawn.health));
         static_cast<void>(entry.getString("loot", spawn.loot));
         static_cast<void>(entry.getInt("damage", spawn.damage));
+        static_cast<void>(entry.getString("dialogue", spawn.dialogue));
         static_cast<void>(entry.getFloat("sight_radius", spawn.sightRadius));
         static_cast<void>(entry.getFloat("attack_range", spawn.attackRange));
         static_cast<void>(entry.getFloat("move_speed", spawn.moveSpeed));
@@ -885,11 +1057,12 @@ public:
               bool scripted = true,
               const std::vector<EntitySpawn>* spawns = nullptr,
               std::optional<fa::core::Vec2> spawn = std::nullopt,
-              std::string_view mapText = {})
+              std::string_view mapText = {},
+              std::string mapId = {})
         : BasicScene(map == DemoMap::Forest ? "forest" : "farm"), m_input(input), m_state(state),
           m_farming(state.farming), m_farmInventory(state.demoInventory), m_farmDebris(state.debris),
           m_farmingTools(state.farmingTools), m_narrative(state.narrative), m_interaction(m_map, &m_placement),
-          m_scripted(scripted), m_spawns(spawns), m_mapKind(map), m_spawn(spawn) {
+          m_scripted(scripted), m_spawns(spawns), m_mapKind(map), m_spawn(spawn), m_mapId(std::move(mapId)) {
         m_farming.setContentDatabase(&content);
         m_farmInventory.setContentDatabase(&content);
         m_farmingTools.setDebrisLayer(&m_farmDebris);
@@ -1114,15 +1287,18 @@ public:
     [[nodiscard]] fa::narrative::NarrativeService& narrative() noexcept { return m_narrative; }
     [[nodiscard]] const fa::narrative::NarrativeService& narrative() const noexcept { return m_narrative; }
 
+    /// \brief Map file id this scene was built from; scopes `entities.json` rows.
+    [[nodiscard]] std::string_view mapId() const noexcept { return m_mapId; }
+
     /// \brief Binds quest rewards and gift checks to the player's container.
     void setNarrativeInventory(fa::inventory::Inventory& inventory) noexcept { m_narrative.setInventory(&inventory); }
 
-    /// \brief Starts the elder's dialogue; the caller should be near the NPC.
+    /// \brief Starts the map's NPC dialogue; the caller should be near the NPC.
     [[nodiscard]] fa::core::Status startNpcDialogue() {
         if (!m_npcEntity.isValid()) {
-            return fa::core::errorStatus(fa::narrative::narrative_error::kUnknownNpc, "this map has no NPC");
+            return fa::core::errorStatus(fa::narrative::narrative_error::kUnknownNpc, "这张地图没有可对话对象");
         }
-        return m_narrative.startDialogue(fa::content::ContentId::fromName("dialogue.elder"), m_npcEntity);
+        return m_narrative.startDialogue(fa::content::ContentId::fromName(m_npcDialogue), m_npcEntity);
     }
 
     [[nodiscard]] NarrativeDemoStats narrativeDemoStats() const {
@@ -1453,16 +1629,22 @@ public:
         return bed != nullptr ? bed->position : fa::core::Vec2{};
     }
 
-    /// \brief Spawn rows of \p kind; empty when the table is absent.
+    /// \brief Spawn rows of \p kind that belong to this map; empty when the table is absent.
     [[nodiscard]] std::vector<const EntitySpawn*> findSpawns(std::string_view kind) const {
         std::vector<const EntitySpawn*> result;
         if (m_spawns == nullptr) {
             return result;
         }
         for (const EntitySpawn& spawn : *m_spawns) {
-            if (spawn.kind == kind) {
-                result.push_back(&spawn);
+            if (spawn.kind != kind) {
+                continue;
             }
+            // A row with no `map` predates per-map scoping and stays on every map; anything
+            // tagged belongs only to the map file that named it.
+            if (!spawn.map.empty() && spawn.map != m_mapId) {
+                continue;
+            }
+            result.push_back(&spawn);
         }
         return result;
     }
@@ -1480,6 +1662,9 @@ public:
     void setNamedTextures(const std::unordered_map<std::string, fa::render::TextureHandle>* textures) {
         m_namedTextures = textures;
     }
+
+    /// \brief JSON-driven four-way walk config; null or invalid keeps the marker dot.
+    void setWalkConfig(const PlayerWalkAnimConfig* config) { m_walkConfig = config; }
 
     /// \brief Maps a catalog texture name to one of the handles the scene owns.
     [[nodiscard]] fa::render::TextureHandle textureForName(std::string_view name) const {
@@ -1896,6 +2081,21 @@ private:
         sprite.size = fa::core::Vec2{kMarkerSize, kMarkerSize};
         sprite.tint = fa::core::Color{1.0f, 0.35f, 0.35f, 1.0f};
         sprite.layer = fa::render::RenderLayer::Actors;
+        // Four-way walk art from `data/animations.json` + the sprite sheet; the tinted
+        // marker dot stays as the fallback when either is unavailable.
+        if (m_walkConfig != nullptr && m_walkConfig->valid) {
+            const fa::render::TextureHandle walk = textureForName(m_walkConfig->textureName);
+            if (walk.isValid()) {
+                m_walkTexture = walk;
+                sprite.texture = walk;
+                sprite.size = fa::core::Vec2{m_walkConfig->spriteWidth, m_walkConfig->spriteHeight};
+                // Keep the character's feet on the collider's bottom edge.
+                sprite.offset = fa::core::Vec2{(kMarkerSize - m_walkConfig->spriteWidth) * 0.5f,
+                                               kMarkerSize - m_walkConfig->spriteHeight};
+                sprite.tint = fa::core::Color{1.0f, 1.0f, 1.0f, 1.0f};
+                sprite.source = walkRect(walkRowFor(m_state.playerFacing), m_walkConfig->idleFrame);
+            }
+        }
         static_cast<void>(world().add<fa::scene::Sprite>(m_markerEntity, sprite));
 
         fa::physics::Collider body;
@@ -2111,7 +2311,58 @@ private:
             }
             sprite.size = fa::core::Vec2{16.0f, 16.0f};
             sprite.layer = fa::render::RenderLayer::Objects;
+            // Enemy walk sheets from `data/animations.json`: swap the static texture
+            // for the clip and register per-entity playback state.
+            const EnemyWalkAnimConfig* enemyCfg = nullptr;
+            if (m_walkConfig != nullptr) {
+                const std::string_view match =
+                    textureName.empty() ? std::string_view("tex.enemy.slime") : textureName;
+                for (const EnemyWalkAnimConfig& e : m_walkConfig->enemies) {
+                    if (e.matchTexture == match) {
+                        enemyCfg = &e;
+                        break;
+                    }
+                }
+            }
+            if (enemyCfg != nullptr) {
+                const fa::render::TextureHandle sheet = textureForName(enemyCfg->textureName);
+                if (sheet.isValid()) {
+                    sprite.texture = sheet;
+                    sprite.size = fa::core::Vec2{enemyCfg->frameWidth, enemyCfg->frameHeight};
+                    sprite.tint = fa::core::Color{1.0f, 1.0f, 1.0f, 1.0f};
+                    sprite.source = fa::core::makeRect(static_cast<float>(enemyCfg->idleFrame) * enemyCfg->frameWidth,
+                                                       0.0f,
+                                                       enemyCfg->frameWidth,
+                                                       enemyCfg->frameHeight);
+                } else {
+                    enemyCfg = nullptr;
+                }
+            }
             static_cast<void>(world().add<fa::scene::Sprite>(id, sprite));
+            if (enemyCfg != nullptr) {
+                auto clip = std::make_shared<fa::anim::AnimationClip>();
+                clip->texture = sprite.texture;
+                clip->loop = true;
+                for (int column = 0; column < enemyCfg->columns; ++column) {
+                    const float duration = column < static_cast<int>(enemyCfg->durations.size())
+                                               ? enemyCfg->durations[static_cast<std::size_t>(column)]
+                                               : enemyCfg->durations.back();
+                    clip->frames.push_back(fa::anim::AnimationFrame{
+                        fa::core::makeRect(static_cast<float>(column) * enemyCfg->frameWidth,
+                                           0.0f,
+                                           enemyCfg->frameWidth,
+                                           enemyCfg->frameHeight),
+                        duration,
+                        {}});
+                }
+                EnemyWalkState state;
+                state.id = id;
+                state.clip = std::move(clip);
+                state.lastPos = position;
+                state.cfg = enemyCfg;
+                m_animService.play(state.animator, state.clip, true);
+                m_enemyWalks.push_back(std::move(state));
+            }
 
             fa::physics::Collider collider;
             collider.size = fa::core::Vec2{16.0f, 16.0f};
@@ -2355,8 +2606,160 @@ private:
         }
     }
 
+    /// \brief Sprite-sheet row index for the player's cardinal facing.
+    [[nodiscard]] int walkRowFor(fa::player::Facing facing) const noexcept {
+        if (m_walkConfig == nullptr) {
+            return 0;
+        }
+        switch (fa::player::cardinalFacing(facing)) {
+        case fa::player::Facing::North:
+            return m_walkConfig->rowUp;
+        case fa::player::Facing::West:
+            return m_walkConfig->rowLeft;
+        case fa::player::Facing::East:
+            return m_walkConfig->rowRight;
+        default:
+            return m_walkConfig->rowDown;
+        }
+    }
+
+    /// \brief Source rect of one walk-sheet cell.
+    [[nodiscard]] fa::core::Rect walkRect(int row, int column) const noexcept {
+        if (m_walkConfig == nullptr) {
+            return fa::core::makeRect(0.0f, 0.0f, 0.0f, 0.0f);
+        }
+        return fa::core::makeRect(static_cast<float>(column) * m_walkConfig->frameWidth,
+                                  static_cast<float>(row) * m_walkConfig->frameHeight,
+                                  m_walkConfig->frameWidth,
+                                  m_walkConfig->frameHeight);
+    }
+
+    /// \brief Lazily built walk/run clip for one sheet row; index = row * 2 + run.
+    [[nodiscard]] const std::shared_ptr<const fa::anim::AnimationClip>& walkClip(int row, bool running) {
+        const int index = row * 2 + (running ? 1 : 0);
+        if (index < 0 || static_cast<std::size_t>(index) >= m_walkClips.size()) {
+            static const std::shared_ptr<const fa::anim::AnimationClip> kNone;
+            return kNone;
+        }
+        if (m_walkClips[static_cast<std::size_t>(index)] == nullptr && m_walkConfig != nullptr &&
+            m_walkTexture.isValid()) {
+            const std::vector<float>& durations =
+                running ? m_walkConfig->runDurations : m_walkConfig->walkDurations;
+            auto clip = std::make_shared<fa::anim::AnimationClip>();
+            clip->texture = m_walkTexture;
+            clip->loop = true;
+            for (int column = 0; column < m_walkConfig->columns; ++column) {
+                const float duration = column < static_cast<int>(durations.size())
+                                           ? durations[static_cast<std::size_t>(column)]
+                                           : (durations.empty() ? 0.12f : durations.back());
+                clip->frames.push_back(fa::anim::AnimationFrame{walkRect(row, column), duration, {}});
+            }
+            m_walkClips[static_cast<std::size_t>(index)] = std::move(clip);
+        }
+        return m_walkClips[static_cast<std::size_t>(index)];
+    }
+
+    /// \brief Plays the four-way player walk clip and copies frames onto the sprite.
+    ///
+    /// Idle stands on the configured idle frame of the facing row; running switches to
+    /// the fast durations once the M16 speed crosses the JSON threshold.
+    void updatePlayerAnimation(float deltaSeconds) {
+        if (m_walkConfig == nullptr || !m_walkConfig->valid || !m_walkTexture.isValid()) {
+            return;
+        }
+        fa::scene::Sprite* sprite = world().tryGet<fa::scene::Sprite>(m_markerEntity);
+        if (sprite == nullptr) {
+            return;
+        }
+        const fa::player::PlayerAnimationParams params = playerAnimation();
+        if (!params.moving) {
+            m_walkActive = false;
+            m_walkSelection = -1;
+            m_walkRunLatch = false;
+            m_walkConfirmedRow = walkRowFor(params.facing);
+            m_walkPendingRow = m_walkConfirmedRow;
+            m_walkPendingFrames = 0;
+            m_animService.stop(m_playerAnimator);
+            sprite->source = walkRect(m_walkConfirmedRow, m_walkConfig->idleFrame);
+            return;
+        }
+        // Facing can wobble for a frame or two (input sampling, collision nudges);
+        // require a few consecutive frames before switching rows so the sprite never
+        // flashes the wrong direction mid-step.
+        const int rawRow = walkRowFor(params.facing);
+        if (rawRow != m_walkConfirmedRow) {
+            if (rawRow == m_walkPendingRow) {
+                ++m_walkPendingFrames;
+                if (m_walkPendingFrames >= 3) {
+                    m_walkConfirmedRow = rawRow;
+                    m_walkPendingFrames = 0;
+                }
+            } else {
+                m_walkPendingRow = rawRow;
+                m_walkPendingFrames = 1;
+            }
+        } else {
+            m_walkPendingFrames = 0;
+        }
+        if (m_walkConfirmedRow < 0) {
+            m_walkConfirmedRow = rawRow;
+        }
+        const int row = m_walkConfirmedRow;
+        // Hysteresis: leave "running" only below 85% of the threshold so speed noise
+        // around the boundary cannot restart the clip every other frame.
+        const float threshold = m_walkConfig->runSpeedThreshold;
+        const bool running = m_walkRunLatch ? params.speed > threshold * 0.85f : params.speed > threshold;
+        m_walkRunLatch = running;
+        const int selection = row * 2 + (running ? 1 : 0);
+        const auto& clip = walkClip(row, running);
+        if (clip == nullptr) {
+            return;
+        }
+        if (!m_walkActive || selection != m_walkSelection) {
+            m_animService.play(m_playerAnimator, clip, true);
+            m_walkActive = true;
+            m_walkSelection = selection;
+        }
+        static_cast<void>(m_animService.update(m_playerAnimator, deltaSeconds));
+        if (const fa::anim::AnimationFrame* frame = m_animService.currentFrame(m_playerAnimator);
+            frame != nullptr) {
+            sprite->source = frame->source;
+        }
+    }
+
+    /// \brief Advances enemy walk clips; actual movement (position delta) gates play,
+    /// so farm dummies stay on their idle frame and forest enemies bounce while chasing.
+    void updateEnemyAnimations(float deltaSeconds) {
+        for (EnemyWalkState& state : m_enemyWalks) {
+            const fa::scene::Transform* transform = world().tryGet<fa::scene::Transform>(state.id);
+            fa::scene::Sprite* sprite = world().tryGet<fa::scene::Sprite>(state.id);
+            if (transform == nullptr || sprite == nullptr || state.clip == nullptr || state.cfg == nullptr) {
+                continue;
+            }
+            const float dx = transform->position.x - state.lastPos.x;
+            const float dy = transform->position.y - state.lastPos.y;
+            const bool moving = dx * dx + dy * dy > 0.02f;
+            state.lastPos = transform->position;
+            if (moving) {
+                m_animService.update(state.animator, deltaSeconds);
+                if (const fa::anim::AnimationFrame* frame = m_animService.currentFrame(state.animator);
+                    frame != nullptr) {
+                    sprite->source = frame->source;
+                }
+            } else {
+                sprite->source =
+                    fa::core::makeRect(static_cast<float>(state.cfg->idleFrame) * state.cfg->frameWidth,
+                                       0.0f,
+                                       state.cfg->frameWidth,
+                                       state.cfg->frameHeight);
+            }
+        }
+    }
+
     /// \brief Advances M10 on the fixed step and copies the current source rect.
     void updateAnimation(float deltaSeconds) {
+        updatePlayerAnimation(deltaSeconds);
+        updateEnemyAnimations(deltaSeconds);
         updateAttackEffect(deltaSeconds);
         updateEnemyAttackEffects(deltaSeconds);
         if (m_animEntity.index == 0 || m_animator.clip == nullptr) {
@@ -2492,18 +2895,29 @@ private:
         m_farmingDemo.stats = m_farming.stats();
     }
 
-    /// \brief Creates the one NPC the narrative demo talks to.
+    /// \brief Creates the NPC the player talks to, from an `npc` spawn row.
+    ///
+    /// A map with no `npc` row simply has nobody to talk to: that is how the placeholder world
+    /// stays free of scripted content while the demo farm keeps its elder. The row also picks
+    /// the dialogue graph, so a new town can hand out a different quest without code changes.
     void buildNarrative() {
+        const EntitySpawn* row = findSpawn("npc");
+        if (row == nullptr) {
+            return;
+        }
+        if (!row->dialogue.empty()) {
+            m_npcDialogue = row->dialogue;
+        }
+
         m_npcEntity = world().create();
         fa::scene::Transform transform;
-        // Keep the elder clear of the bed so `E` is unambiguous.
-        transform.position = fa::core::Vec2{280.0f, 176.0f};
+        transform.position = spawnPosition(*row);
         static_cast<void>(world().add<fa::scene::Transform>(m_npcEntity, transform));
 
         fa::scene::Sprite sprite;
         sprite.texture = m_marker;
         sprite.size = fa::core::Vec2{16.0f, 16.0f};
-        sprite.tint = fa::core::Color{1.0f, 0.78f, 0.30f, 1.0f};
+        sprite.tint = row->tint;
         sprite.layer = fa::render::RenderLayer::Actors;
         static_cast<void>(world().add<fa::scene::Sprite>(m_npcEntity, sprite));
 
@@ -2572,6 +2986,8 @@ private:
     /// \brief M23 dialogue/quest state and the NPC entity it talks to.
     fa::narrative::NarrativeService& m_narrative;
     fa::scene::EntityId m_npcEntity;
+    /// \brief Dialogue graph the map's NPC runs; an `npc` spawn row can override it.
+    std::string m_npcDialogue = "dialogue.elder";
     /// Declared after its map, grid and handlers so those outlive it.
     fa::interaction::InteractionService m_interaction;
     /// \brief False in `--play` so startup does not run the scripted demos.
@@ -2580,6 +2996,8 @@ private:
     const std::vector<EntitySpawn>* m_spawns = nullptr;
     /// \brief Which map this scene builds.
     DemoMap m_mapKind = DemoMap::Farm;
+    /// \brief Map file id (`"farm"`, `"forest"`, `"play/farm"`); scopes the spawn table.
+    std::string m_mapId;
     /// \brief Optional player spawn, set when entering through a portal or loading.
     std::optional<fa::core::Vec2> m_spawn;
     /// \brief True when the map came from JSON; false uses the built-in fallback.
@@ -2594,6 +3012,26 @@ private:
     fa::anim::AnimationService m_animService;
     fa::anim::Animator m_animator;
     AnimationDemoStats m_animStats;
+    /// \brief JSON-driven four-way player walk (M10 clips + M16 state).
+    const PlayerWalkAnimConfig* m_walkConfig = nullptr;
+    fa::render::TextureHandle m_walkTexture;
+    fa::anim::Animator m_playerAnimator;
+    std::array<std::shared_ptr<const fa::anim::AnimationClip>, 8> m_walkClips{};
+    int m_walkSelection = -1;
+    bool m_walkActive = false;
+    bool m_walkRunLatch = false;
+    int m_walkConfirmedRow = -1;
+    int m_walkPendingRow = -1;
+    int m_walkPendingFrames = 0;
+    /// \brief One animated enemy (walk sheet + playback state, driven by movement).
+    struct EnemyWalkState {
+        fa::scene::EntityId id;
+        fa::anim::Animator animator;
+        std::shared_ptr<const fa::anim::AnimationClip> clip;
+        fa::core::Vec2 lastPos{};
+        const EnemyWalkAnimConfig* cfg = nullptr;
+    };
+    std::vector<EnemyWalkState> m_enemyWalks;
     /// \brief Player swing effect; its `hit` frame starts the M20 hitbox.
     fa::scene::EntityId m_slashEntity;
     fa::anim::Animator m_slashAnimator;
@@ -2895,6 +3333,11 @@ public:
         if (shopStatus.isError()) {
             std::printf("shop init failed (%d): %s\n", shopStatus.error().code, shopStatus.error().message.c_str());
         }
+        // Player walk animation is optional polish: a broken file just keeps the marker dot.
+        playerWalkConfig = parsePlayerWalkConfig(readDataText("animations.json", kAnimationsText));
+        if (!playerWalkConfig.valid) {
+            std::printf("data: animations.json has no usable player_walk section\n");
+        }
         return shopStatus;
     }
 
@@ -2904,8 +3347,7 @@ public:
         return fa::render::TextureHandle{asset != nullptr ? asset->gpuTexture : 0};
     }
 
-    /// \brief Builds one map scene over the shared session state.
-    /// \brief Map file and spawn table for the current mode.
+    /// \brief Map file and spawn scope for the current mode.
     ///
     /// The three demo worlds (`maps/farm.json`, `maps/farm-scripted.json`,
     /// `maps/forest.json`) carry the scripted content the automation modes assert on:
@@ -2923,16 +3365,14 @@ public:
                                                             : (playMode ? "maps/farm.json" : "maps/farm-scripted.json"))
                                   : (map == DemoMap::Forest ? "maps/play/forest.json" : "maps/play/farm.json");
         const std::string mapText = readDataText(mapFile, std::string_view{});
-        static const std::vector<EntitySpawn> kNoSpawns;
-        auto scene = std::make_unique<DemoScene>(input,
-                                                 content,
-                                                 narrative,
-                                                 gameState,
-                                                 map,
-                                                 !playMode,
-                                                 demoContent ? &entitySpawns : &kNoSpawns,
-                                                 spawn,
-                                                 mapText);
+        currentMapFile = mapFile;
+        // One shared spawn table, scoped per map: the player world's id matches nothing that
+        // is tagged for the demo worlds, so `--play` stays free of scripted content while the
+        // editor can still author rows for it.
+        const std::string mapId = demoContent ? (map == DemoMap::Forest ? "forest" : "farm")
+                                              : (map == DemoMap::Forest ? "play/forest" : "play/farm");
+        auto scene = std::make_unique<DemoScene>(
+            input, content, narrative, gameState, map, !playMode, &entitySpawns, spawn, mapText, mapId);
         scene->setTextures(gpuTextureOf(grassTexture),
                            gpuTextureOf(wallTexture),
                            gpuTextureOf(soilTexture),
@@ -2945,6 +3385,7 @@ public:
                                  gpuTextureOf(chestTexture),
                                  gpuTextureOf(slimeTexture));
         scene->setNamedTextures(&namedTextureHandles);
+        scene->setWalkConfig(&playerWalkConfig);
         return scene;
     }
 
@@ -3145,6 +3586,149 @@ public:
         editorDemo.loadOk = loaded.isOk();
     }
 
+    /// \brief Cell containing a world position, for rows that only store a position.
+    [[nodiscard]] static fa::tilemap::TileCoord tilemapCell(const fa::core::Vec2& position, int tileSize) {
+        const int size = tileSize > 0 ? tileSize : static_cast<int>(fa::render::kTileSize);
+        return fa::tilemap::TileCoord{static_cast<int>(std::floor(position.x / static_cast<float>(size))),
+                                      static_cast<int>(std::floor(position.y / static_cast<float>(size)))};
+    }
+
+    /// \brief Loads the rows the editor authors from the spawn table, for this map only.
+    ///
+    /// The editor works in cells; a shipped row may carry a sub-tile world position, which is
+    /// converted for display and written back as a cell. That is deliberate: map authoring is
+    /// cell-granular, and only rows the editor touched lose the fractional offset.
+    void buildEditorPlacements() {
+        editorPlacements.clear();
+        editorMapId.clear();
+        if (demoScene == nullptr) {
+            return;
+        }
+        editorMapId = std::string{demoScene->mapId()};
+        const int tileSize = demoScene->editableMap().tileSize();
+        for (const EntitySpawn& row : entitySpawns) {
+            if (!row.map.empty() && row.map != editorMapId) {
+                continue;
+            }
+            fa::editor::MapPlacement placement;
+            placement.id = row.id;
+            placement.kind = row.kind;
+            placement.cell = row.hasCell ? row.cell : tilemapCell(row.position, tileSize);
+            placement.target = row.dialogue;
+            editorPlacements.push_back(std::move(placement));
+        }
+    }
+
+    /// \brief Palette options. The editor stays content-free: kinds, their Chinese labels and
+    /// the dialogue ids an NPC may run are all supplied from here.
+    [[nodiscard]] std::vector<fa::editor::PlacementKind> editorPlacementKinds() const {
+        std::vector<std::string> dialogues;
+        for (const fa::narrative::DialogueDef& def : narrative.dialogues()) {
+            dialogues.emplace_back(def.id.name());
+        }
+        return {
+            fa::editor::PlacementKind{"npc", "NPC 可对话", dialogues},
+            fa::editor::PlacementKind{"bed", "床", {}},
+            fa::editor::PlacementKind{"shipping", "出货箱", {}},
+            fa::editor::PlacementKind{"merchant", "商人", {}},
+            fa::editor::PlacementKind{"enemy", "敌人", {}},
+            fa::editor::PlacementKind{"hazard", "荆棘", {}},
+        };
+    }
+
+    /// \brief Maps a portal may lead to. `play/*` ids exist so a portal authored in the
+    /// player world can point at it once the map files are wired up.
+    [[nodiscard]] static std::vector<std::string> editorPortalTargets() {
+        return {"farm", "forest", "play/farm", "play/forest"};
+    }
+
+    /// \brief Merges the editor's rows back into the spawn table and writes entities.json.
+    ///
+    /// Rows belonging to other maps are preserved untouched, so editing the farm cannot
+    /// destroy the forest's enemies. A row that already existed keeps its tuning fields
+    /// (health, loot, AI ranges, tint...); only id/kind/map/cell/dialogue come from the edit.
+    [[nodiscard]] fa::core::Status saveEntitySpawns(const std::vector<fa::editor::MapPlacement>& rows) {
+        if (fileSystem == nullptr) {
+            return fa::core::Status::err(
+                fa::core::makeError(fa::core::error_code::kInvalidArgument, std::string{"no file system"}));
+        }
+
+        std::vector<EntitySpawn> merged;
+        merged.reserve(entitySpawns.size() + rows.size());
+        for (const EntitySpawn& row : entitySpawns) {
+            if (row.map != editorMapId) {
+                merged.push_back(row);
+            }
+        }
+        for (const fa::editor::MapPlacement& placement : rows) {
+            EntitySpawn row;
+            for (const EntitySpawn& existing : entitySpawns) {
+                if (existing.id == placement.id) {
+                    row = existing;
+                    break;
+                }
+            }
+            row.id = placement.id;
+            row.kind = placement.kind;
+            row.map = editorMapId;
+            row.cell = placement.cell;
+            row.hasCell = true;
+            row.hasPosition = false;
+            row.dialogue = placement.target;
+            merged.push_back(std::move(row));
+        }
+        entitySpawns = std::move(merged);
+
+        fa::save::SaveArchive document = fa::save::SaveArchive::object();
+        document.setInt("schema_version", 1);
+        fa::save::SaveArchive list = fa::save::SaveArchive::array();
+        for (const EntitySpawn& row : entitySpawns) {
+            fa::save::SaveArchive entry = fa::save::SaveArchive::object();
+            entry.setString("id", row.id);
+            entry.setString("kind", row.kind);
+            entry.setString("map", row.map);
+            if (row.hasPosition) {
+                entry.setVec2("position", row.position);
+            }
+            if (row.hasCell) {
+                entry.setVec2("cell", fa::core::Vec2{static_cast<float>(row.cell.x), static_cast<float>(row.cell.y)});
+            }
+            if (!row.texture.empty()) {
+                entry.setString("texture", row.texture);
+            }
+            char tint[16]{};
+            const auto byte = [](float channel) {
+                return static_cast<int>(std::clamp(channel, 0.0f, 1.0f) * 255.0f + 0.5f);
+            };
+            std::snprintf(tint, sizeof(tint), "#%02x%02x%02x", byte(row.tint.r), byte(row.tint.g), byte(row.tint.b));
+            entry.setString("tint", tint);
+            entry.setInt("payload", row.payload);
+            if (!row.dialogue.empty()) {
+                entry.setString("dialogue", row.dialogue);
+            }
+            // Only write the fields a kind actually reads, so an authored file stays readable
+            // instead of carrying slime AI values on a bed.
+            if (row.kind == "bed" || row.kind == "shipping" || row.kind == "merchant" || row.kind == "npc") {
+                entry.setFloat("radius", row.radius);
+            } else if (row.kind == "enemy") {
+                entry.setInt("health", row.health);
+                if (!row.loot.empty()) {
+                    entry.setString("loot", row.loot);
+                }
+                entry.setFloat("sight_radius", row.sightRadius);
+                entry.setFloat("attack_range", row.attackRange);
+                entry.setFloat("move_speed", row.moveSpeed);
+                entry.setInt("attack_damage", row.attackDamage);
+                entry.setFloat("attack_cooldown", row.attackCooldown);
+            } else if (row.kind == "hazard") {
+                entry.setInt("damage", row.damage);
+            }
+            list.push(std::move(entry));
+        }
+        document.setChild("entities", std::move(list));
+        return fileSystem->writeTextAtomic(config.paths.data + "/entities.json", document.dump());
+    }
+
     /// \brief Opens the visual editor on the map the running demo scene owns.
     void openVisualEditor() {
         if (demoScene == nullptr) {
@@ -3153,11 +3737,19 @@ public:
         if (visualEditor == nullptr) {
             visualEditor = std::make_unique<fa::editor::VisualEditor>(demoScene->editableMap());
         }
+        buildEditorPlacements();
+        visualEditor->setPlacements(&editorPlacements, editorPlacementKinds());
+        visualEditor->setPortalTargets(editorPortalTargets());
+        visualEditor->setPlacementSave(
+            [this](const std::vector<fa::editor::MapPlacement>& rows) { return saveEntitySpawns(rows); });
         visualEditor->setActive(true);
         visualEditor->clearCloseRequest();
         editorWindowOpen = true;
         slotsOpen = false;
-        std::printf("editor: visual open (%dx%d)\n", visualEditor->map().width(), visualEditor->map().height());
+        std::printf("editor: visual open (%dx%d, map %s)\n",
+                    visualEditor->map().width(),
+                    visualEditor->map().height(),
+                    editorMapId.c_str());
         std::fflush(stdout);
     }
 
@@ -3177,7 +3769,9 @@ public:
             return fa::core::Status::err(
                 fa::core::makeError(fa::core::error_code::kInvalidArgument, std::string{"editor unavailable"}));
         }
-        const std::string path = config.paths.data + "/maps/farm.json";
+        // Saving must land on the map that is actually open: the editor can be launched on
+        // the forest or the player world, and hard-coding the farm path silently destroyed it.
+        const std::string path = config.paths.data + "/" + currentMapFile;
         const fa::core::Status saved = fileSystem->writeTextAtomic(path, visualEditor->mapText());
         if (saved.isOk()) {
             // Repaint with the freshly chosen texture names so the live map keeps
@@ -7268,6 +7862,8 @@ public:
     /// \brief Catalog-driven handles; scenes only keep the raw GPU handles.
     std::unordered_map<std::string, fa::assets::AssetHandle<fa::assets::TextureAsset>> namedTextureAssets;
     std::unordered_map<std::string, fa::render::TextureHandle> namedTextureHandles;
+    /// \brief `data/animations.json`: four-way player walk clip settings.
+    PlayerWalkAnimConfig playerWalkConfig;
     /// \brief Session state shared by every map scene; declared before the stack so
     /// it outlives the scenes that borrow it.
     GameState gameState;
@@ -7280,8 +7876,15 @@ public:
     std::unique_ptr<fa::editor::EditorOverlay> editor;
     /// \brief Visual editor opened from the main menu; owns only UI state.
     std::unique_ptr<fa::editor::VisualEditor> visualEditor;
+    /// \brief Placement rows the editor is authoring for `editorMapId`.
+    std::vector<fa::editor::MapPlacement> editorPlacements;
+    /// \brief Map file id the editor session belongs to; scopes the rows it may rewrite.
+    std::string editorMapId;
     EditorDemoStats editorDemo;
 #endif
+    /// \brief Map file the live scene was loaded from, so the editor saves back to it.
+    /// Declared outside the editor guard because `makeDemoScene` records it in every build.
+    std::string currentMapFile = "maps/farm.json";
     /// \brief True while the M26 visual editor owns the frame; always false without it.
     bool editorWindowOpen = false;
     fa::render::RenderQueue renderQueue;
@@ -8155,40 +8758,41 @@ private:
 #endif
         const bool inMenu = playMode && flow != nullptr && menuState != fa::flow::AppState::Playing;
         if (showHud && !inMenu) {
-            // Sized for the baked 10 px pixel font (line height 10, titles 20).
-            const fa::core::Rect panel = fa::core::makeRect(8.0f, 8.0f, 236.0f, 100.0f);
+            // Halved footprint (118x50): one-scale text on a 9 px line grid. The baked
+            // font floors text to scale 1, so the title drops from 2x to 1x instead.
+            const fa::core::Rect panel = fa::core::makeRect(8.0f, 8.0f, 118.0f, 50.0f);
             ui->panel(panel, theme.panel);
             ui->border(panel, theme.panelBorder);
 
             fa::ui::TextStyle title;
             title.color = theme.text;
-            title.scale = 2.0f * config.ui.scale;
+            title.scale = config.ui.scale;
             // The game's name is a proper noun and stays English, like the window title.
-            ui->text("Florian's Adventure", fa::core::makeRect(14.0f, 12.0f, 220.0f, 20.0f), title);
+            ui->text("Florian's Adventure", fa::core::makeRect(11.0f, 10.0f, 100.0f, 10.0f), title);
 
             fa::ui::TextStyle label;
             label.color = theme.text;
             label.scale = config.ui.scale;
-            ui->text("生命", fa::core::makeRect(14.0f, 38.0f, 40.0f, 10.0f), label);
+            ui->text("生命", fa::core::makeRect(11.0f, 21.0f, 20.0f, 10.0f), label);
             const float health = demoScene != nullptr ? demoScene->playerHealth() : 0.0f;
             const float maxHealth = demoScene != nullptr ? demoScene->playerMaxHealth() : 100.0f;
-            ui->progressBar(fa::core::makeRect(48.0f, 40.0f, 108.0f, 6.0f),
+            ui->progressBar(fa::core::makeRect(34.0f, 23.0f, 72.0f, 4.0f),
                             health,
                             0.0f,
                             maxHealth,
                             fa::core::Color{0.85f, 0.30f, 0.30f, 1.0f});
 
-            ui->text("体力", fa::core::makeRect(14.0f, 52.0f, 44.0f, 10.0f), label);
+            ui->text("体力", fa::core::makeRect(11.0f, 30.0f, 20.0f, 10.0f), label);
             const float stamina = demoScene != nullptr ? demoScene->playerStamina() : 0.0f;
             const float maxStamina = demoScene != nullptr ? demoScene->playerMaxStamina() : 100.0f;
-            ui->progressBar(fa::core::makeRect(48.0f, 54.0f, 108.0f, 6.0f), stamina, 0.0f, maxStamina, theme.accent);
+            ui->progressBar(fa::core::makeRect(34.0f, 32.0f, 72.0f, 4.0f), stamina, 0.0f, maxStamina, theme.accent);
 
             // The selected slot lives in the bottom hotbar now; gold belongs with the rest
             // of the player status, so it moved here from the middle of the screen.
             if (economy != nullptr) {
                 char goldText[32]{};
                 std::snprintf(goldText, sizeof(goldText), "金币 %d", economy->gold());
-                ui->text(goldText, fa::core::makeRect(14.0f, 66.0f, 220.0f, 10.0f), label);
+                ui->text(goldText, fa::core::makeRect(11.0f, 39.0f, 100.0f, 10.0f), label);
             }
 
             if (playMode && calendar != nullptr) {
@@ -8197,13 +8801,13 @@ private:
                 char clockText[80]{};
                 std::snprintf(clockText,
                               sizeof(clockText),
-                              "第 %d 天  %02d:%02d  %s  %s",
+                              "第%d天 %02d:%02d %s %s",
                               calendar->date().day,
                               calendar->hour(),
                               calendar->minute(),
                               seasonName.c_str(),
                               region);
-                ui->text(clockText, fa::core::makeRect(14.0f, 80.0f, 220.0f, 10.0f), label);
+                ui->text(clockText, fa::core::makeRect(11.0f, 48.0f, 104.0f, 10.0f), label);
             }
         }
 
@@ -8294,9 +8898,9 @@ private:
         }
 
         if (playMode && !inMenu) {
-            // Stacked under the status panel on the left edge: this column used to sit at
-            // x=254, i.e. in the middle of the play field.
-            const fa::core::Rect panel = fa::core::makeRect(8.0f, 112.0f, 236.0f, 84.0f);
+            // Stacked under the status panel on the left edge, halved to match it:
+            // 118x58, 9 px line grid, compact key hints.
+            const fa::core::Rect panel = fa::core::makeRect(8.0f, 62.0f, 118.0f, 58.0f);
             ui->panel(panel, theme.panel);
             ui->border(panel, theme.panelBorder);
 
@@ -8312,9 +8916,10 @@ private:
                           sizeof(toolText),
                           "工具 %s",
                           selectedDef != nullptr ? selectedDef->displayName.c_str() : "空");
-            ui->text(toolText, fa::core::makeRect(panel.x + 5.0f, panel.y + 5.0f, 226.0f, 8.0f), style);
-            ui->text(
-                "1-9 选栏  左键使用  J 任务", fa::core::makeRect(panel.x + 5.0f, panel.y + 16.0f, 226.0f, 8.0f), style);
+            ui->text(toolText, fa::core::makeRect(panel.x + 4.0f, panel.y + 2.0f, 110.0f, 10.0f), style);
+            ui->text("1-9选栏 J任务 左键使用",
+                     fa::core::makeRect(panel.x + 4.0f, panel.y + 11.0f, 110.0f, 10.0f),
+                     style);
 
             std::string questText;
             if (demoScene != nullptr && demoScene->isFarm()) {
@@ -8332,19 +8937,19 @@ private:
                     questText = "任务已完成";
                 }
             }
-            float messageY = panel.y + 29.0f;
+            float messageY = panel.y + 20.0f;
             if (!questText.empty()) {
-                ui->text(fa::ui::fitToCodepoints(questText, 20),
-                         fa::core::makeRect(panel.x + 5.0f, panel.y + 29.0f, 226.0f, 10.0f),
+                ui->text(fa::ui::fitToCodepoints(questText, 10),
+                         fa::core::makeRect(panel.x + 4.0f, panel.y + 20.0f, 110.0f, 10.0f),
                          style);
-                messageY = panel.y + 43.0f;
+                messageY = panel.y + 29.0f;
             }
 
             if (playMessageTimer > 0.0f && !playMessage.empty()) {
                 fa::ui::TextStyle messageStyle = style;
                 messageStyle.color = theme.accent;
-                ui->text(fa::ui::fitToCodepoints(playMessage, 20),
-                         fa::core::makeRect(panel.x + 5.0f, messageY, 226.0f, 10.0f),
+                ui->text(fa::ui::fitToCodepoints(playMessage, 10),
+                         fa::core::makeRect(panel.x + 4.0f, messageY, 110.0f, 10.0f),
                          messageStyle);
             }
 
@@ -8359,12 +8964,13 @@ private:
             char weaponText[64]{};
             std::snprintf(weaponText,
                           sizeof(weaponText),
-                          "武器 %s  伤害 %d",
+                          "武器 %s 伤害 %d",
                           weaponDef != nullptr ? weaponDef->displayName.c_str() : "徒手",
                           weaponDamage());
-            ui->text(weaponText, fa::core::makeRect(panel.x + 5.0f, panel.y + 53.0f, 226.0f, 8.0f), style);
-            ui->text(
-                "I 背包  F 进食  R 攻击", fa::core::makeRect(panel.x + 5.0f, panel.y + 64.0f, 226.0f, 8.0f), style);
+            ui->text(weaponText, fa::core::makeRect(panel.x + 4.0f, panel.y + 38.0f, 110.0f, 8.0f), style);
+            ui->text("I背包 F进食 R攻击",
+                     fa::core::makeRect(panel.x + 4.0f, panel.y + 47.0f, 110.0f, 8.0f),
+                     style);
         }
 
 #if defined(FA_ENABLE_DEBUG_TOOLS)

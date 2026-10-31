@@ -91,8 +91,9 @@ core::Result<ui::FontAtlas> loadBakedUiFont(platform::IFileSystem& fileSystem, c
     if (image.width != font.width || image.height != font.height) {
         return fail(assets::asset_error::kInvalidImage, "ui_atlas.png size does not match ui_atlas.json");
     }
-    if (image.format != assets::ImageFormat::Rgba8 ||
-        image.pixels.size() != static_cast<std::size_t>(font.width) * static_cast<std::size_t>(font.height) * kBytesPerPixel) {
+    if (image.format != assets::ImageFormat::Rgba8 || image.pixels.size() != static_cast<std::size_t>(font.width) *
+                                                                                 static_cast<std::size_t>(font.height) *
+                                                                                 kBytesPerPixel) {
         return fail(assets::asset_error::kInvalidImage, "ui_atlas.png is not tightly packed RGBA8");
     }
     font.pixels = std::move(image.pixels);

@@ -295,6 +295,14 @@ void Tilemap::addArea(MapArea area) {
     m_areas.push_back(std::move(area));
 }
 
+bool Tilemap::removeArea(const std::size_t index) noexcept {
+    if (index >= m_areas.size()) {
+        return false;
+    }
+    m_areas.erase(m_areas.begin() + static_cast<std::ptrdiff_t>(index));
+    return true;
+}
+
 std::optional<AreaKind> Tilemap::queryArea(TileCoord coord) const noexcept {
     const MapArea* area = areaAt(coord);
     if (area == nullptr) {
@@ -314,6 +322,14 @@ const MapArea* Tilemap::areaAt(TileCoord coord) const noexcept {
 
 void Tilemap::addPortal(MapPortal portal) {
     m_portals.push_back(std::move(portal));
+}
+
+bool Tilemap::removePortal(const std::size_t index) noexcept {
+    if (index >= m_portals.size()) {
+        return false;
+    }
+    m_portals.erase(m_portals.begin() + static_cast<std::ptrdiff_t>(index));
+    return true;
 }
 
 const MapPortal* Tilemap::portalAt(TileCoord coord) const noexcept {
