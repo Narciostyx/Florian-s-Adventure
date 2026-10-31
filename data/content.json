@@ -68,6 +68,17 @@
       ]
         },
         {
+          "id": "item.boat",
+          "display_name": "小船",
+          "category": "tool",
+          "max_stack": 1,
+          "sell_price": 30,
+          "tags": [
+            "tool",
+            "boat"
+          ]
+        },
+        {
           "id": "item.potato_seed",
           "display_name": "土豆种子",
           "category": "seed",

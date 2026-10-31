@@ -1,0 +1,14 @@
+{
+  "teleport": {
+    "range": 64.0,
+    "stamina_cost": 12.0,
+    "cooldown": 0.8
+  },
+  "sword_qi": {
+    "damage_multiplier": 1.5,
+    "speed": 240.0,
+    "lifetime": 0.5,
+    "stamina_cost": 8.0,
+    "cooldown": 0.6
+  }
+}

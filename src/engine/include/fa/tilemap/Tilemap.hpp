@@ -132,6 +132,11 @@ public:
     [[nodiscard]] bool outsideIsSolid() const noexcept { return m_outsideIsSolid; }
     void setOutsideIsSolid(bool solid) noexcept { m_outsideIsSolid = solid; }
 
+    /// \brief Whether water tiles stop counting as solid (e.g. the player holds a boat).
+    /// Walls and other solid tiles are unaffected. Default false.
+    [[nodiscard]] bool waterPassable() const noexcept { return m_waterPassable; }
+    void setWaterPassable(bool passable) noexcept { m_waterPassable = passable; }
+
     /// \brief Adds a tile definition. \return false when the id is zero or already used.
     bool addTileDef(TileDef def);
 
@@ -242,6 +247,7 @@ private:
     int m_tileSize = render::kTileSize;
     core::Vec2 m_origin{0.0f, 0.0f};
     bool m_outsideIsSolid = true;
+    bool m_waterPassable = false;
     std::vector<TileDef> m_tileDefs;
     std::vector<TileLayer> m_layers;
     std::vector<MapArea> m_areas;

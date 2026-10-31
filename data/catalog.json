@@ -58,6 +58,23 @@
       "path": "textures/ui/marker.png"
     },
     {
+      "id": "tex.ground.water",
+      "kind": "texture",
+      "path": "textures/tiles/water.png",
+      "size": [16, 16],
+      "color": "#3d6fa5",
+      "altColor": "#5c8ec4",
+      "tile": 4
+    },
+    {
+      "id": "tex.item.boat",
+      "kind": "texture",
+      "path": "textures/items/boat.png",
+      "size": [16, 16],
+      "color": "#8a5a2b",
+      "altColor": "#c6a070"
+    },
+    {
       "id": "tex.ground.soil_wet",
       "kind": "texture",
       "path": "textures/tiles/soil_wet.png",

@@ -238,6 +238,10 @@ constexpr std::string_view kCatalogText = R"({
     {"id": "tex.enemy.bat_walk", "kind": "texture", "path": "textures/characters/bat_walk.png",
      "size": [64, 16], "color": "#4e3e6e", "altColor": "#947cbe"},
     {"id": "tex.marker", "kind": "texture", "size": [8, 8], "color": "#ffffff"},
+    {"id": "tex.ground.water", "kind": "texture", "path": "textures/tiles/water.png", "size": [16, 16],
+     "tile": 4, "color": "#3d6fa5", "altColor": "#5c8ec4"},
+    {"id": "tex.item.boat", "kind": "texture", "path": "textures/items/boat.png", "size": [16, 16],
+     "color": "#8a5a2b", "altColor": "#c6a070"},
     {"id": "tex.ground.soil_wet", "kind": "texture", "path": "textures/tiles/soil_wet.png", "size": [16, 16],
      "tile": 4, "color": "#4a3322", "altColor": "#372418"},
     {"id": "tex.crop.turnip_seed", "kind": "texture", "path": "textures/crops/turnip_seed.png", "size": [16, 16],
@@ -416,6 +420,52 @@ struct PlayerWalkAnimConfig {
     return cfg;
 }
 
+/// \brief Built-in fallback for `data/skills.json`: teleport + sword qi tuning.
+constexpr std::string_view kSkillsText = R"({
+  "teleport": { "range": 64.0, "stamina_cost": 12.0, "cooldown": 0.8 },
+  "sword_qi": { "damage_multiplier": 1.5, "speed": 240.0, "lifetime": 0.5,
+                "stamina_cost": 8.0, "cooldown": 0.6 }
+})";
+
+/// \brief Skill tuning from `data/skills.json` (E = character skill, Q = weapon skill).
+struct SkillConfig {
+    // Character skill: short-range teleport along the facing direction.
+    float teleportRange = 64.0f;
+    float teleportStaminaCost = 12.0f;
+    float teleportCooldown = 0.8f;
+    // Weapon skill: projectile sword qi, scaled from the equipped weapon's damage.
+    float qiDamageMultiplier = 1.5f;
+    float qiSpeed = 240.0f;
+    float qiLifetime = 0.5f;
+    float qiStaminaCost = 8.0f;
+    float qiCooldown = 0.6f;
+};
+
+[[nodiscard]] inline SkillConfig parseSkillConfig(std::string_view text) {
+    SkillConfig cfg;
+    const nlohmann::json doc = nlohmann::json::parse(std::string(text), nullptr, false);
+    if (doc.is_discarded() || !doc.is_object()) {
+        return cfg;
+    }
+    if (const auto tp = doc.find("teleport"); tp != doc.end() && tp->is_object()) {
+        cfg.teleportRange = jsonFloat(tp->value("range", nlohmann::json(cfg.teleportRange)), cfg.teleportRange);
+        cfg.teleportStaminaCost = jsonFloat(tp->value("stamina_cost", nlohmann::json(cfg.teleportStaminaCost)),
+                                            cfg.teleportStaminaCost);
+        cfg.teleportCooldown =
+            jsonFloat(tp->value("cooldown", nlohmann::json(cfg.teleportCooldown)), cfg.teleportCooldown);
+    }
+    if (const auto qi = doc.find("sword_qi"); qi != doc.end() && qi->is_object()) {
+        cfg.qiDamageMultiplier = jsonFloat(qi->value("damage_multiplier", nlohmann::json(cfg.qiDamageMultiplier)),
+                                           cfg.qiDamageMultiplier);
+        cfg.qiSpeed = jsonFloat(qi->value("speed", nlohmann::json(cfg.qiSpeed)), cfg.qiSpeed);
+        cfg.qiLifetime = jsonFloat(qi->value("lifetime", nlohmann::json(cfg.qiLifetime)), cfg.qiLifetime);
+        cfg.qiStaminaCost = jsonFloat(qi->value("stamina_cost", nlohmann::json(cfg.qiStaminaCost)),
+                                      cfg.qiStaminaCost);
+        cfg.qiCooldown = jsonFloat(qi->value("cooldown", nlohmann::json(cfg.qiCooldown)), cfg.qiCooldown);
+    }
+    return cfg;
+}
+
 constexpr std::string_view kContentText = R"({
   "schema_version": 1,
   "items": [
@@ -431,7 +481,9 @@ constexpr std::string_view kContentText = R"({
      "tool_kind": "watering_can", "max_stack": 1, "sell_price": 0, "tags": ["tool"]},
     {"id": "item.sword", "display_name": "木剑", "category": "weapon",
      "tool_kind": "sword", "max_stack": 1, "sell_price": 0, "damage": 12,
-     "tags": ["weapon"]}
+     "tags": ["weapon"]},
+    {"id": "item.boat", "display_name": "小船", "category": "tool",
+     "max_stack": 1, "sell_price": 30, "tags": ["tool", "boat"]}
   ],
   "crops": [
     {"id": "crop.turnip", "seed_item": "item.turnip_seed", "harvest_item": "item.turnip",
@@ -1330,6 +1382,11 @@ public:
     /// \brief Public entry point for the composition root's fixed step.
     void advanceAnimation(float deltaSeconds) { updateAnimation(deltaSeconds); }
 
+    /// \brief Composition-root entry for the E character skill (teleport).
+    std::string requestTeleport() { return tryTeleport(); }
+    /// \brief Composition-root entry for the Q weapon skill (sword qi).
+    std::string requestWeaponSkill(int weaponDamage) { return tryWeaponSkill(weaponDamage); }
+
     /// \brief M20 counters for the smoke summary.
     [[nodiscard]] CombatDemoStats combatDemoStats() const { return m_combatStats; }
     void advanceCombat(float deltaSeconds) { updateCombat(deltaSeconds); }
@@ -1665,6 +1722,12 @@ public:
 
     /// \brief JSON-driven four-way walk config; null or invalid keeps the marker dot.
     void setWalkConfig(const PlayerWalkAnimConfig* config) { m_walkConfig = config; }
+
+    /// \brief `data/skills.json` tuning for E (teleport) and Q (sword qi).
+    void setSkillConfig(const SkillConfig* config) { m_skillConfig = config; }
+
+    /// \brief Boat mode: water tiles stop blocking the player and pathfinding.
+    void setWaterPassable(bool passable) noexcept { m_map.setWaterPassable(passable); }
 
     /// \brief Maps a catalog texture name to one of the handles the scene owns.
     [[nodiscard]] fa::render::TextureHandle textureForName(std::string_view name) const {
@@ -2756,8 +2819,153 @@ private:
         }
     }
 
+    /// \brief Whether an 8x8 body placed at `topLeft` overlaps any solid cell.
+    [[nodiscard]] bool bodyBlockedAt(fa::core::Vec2 topLeft) const {
+        const fa::core::Vec2 probes[4] = {
+            {topLeft.x + 0.5f, topLeft.y + 0.5f},
+            {topLeft.x + kMarkerSize - 0.5f, topLeft.y + 0.5f},
+            {topLeft.x + 0.5f, topLeft.y + kMarkerSize - 0.5f},
+            {topLeft.x + kMarkerSize - 0.5f, topLeft.y + kMarkerSize - 0.5f},
+        };
+        for (const fa::core::Vec2& probe : probes) {
+            const fa::tilemap::TileCoord cell = m_map.worldToGrid(probe);
+            if (m_map.isSolidCell(cell.x, cell.y)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /// \brief E skill: teleport along the facing direction onto the farthest clear spot.
+    /// \return Empty on success, otherwise the localized failure reason.
+    std::string tryTeleport() {
+        if (m_skillConfig == nullptr) {
+            return {};
+        }
+        if (m_teleportCooldown > 0.0f) {
+            return "瞬移冷却中";
+        }
+        fa::player::Stamina* stamina = world().tryGet<fa::player::Stamina>(m_markerEntity);
+        if (stamina != nullptr && stamina->current < m_skillConfig->teleportStaminaCost) {
+            return "体力不足";
+        }
+        const fa::core::Vec2 dir = fa::player::directionVector(playerFacing());
+        const fa::core::Vec2 from = markerPosition();
+        for (float dist = m_skillConfig->teleportRange; dist >= 4.0f; dist -= 4.0f) {
+            const fa::core::Vec2 to{from.x + dir.x * dist, from.y + dir.y * dist};
+            if (bodyBlockedAt(to)) {
+                continue;
+            }
+            spawnTeleportFx(from, to);
+            fa::scene::Transform* transform = world().tryGet<fa::scene::Transform>(m_markerEntity);
+            if (transform != nullptr) {
+                transform->position = to;
+            }
+            if (stamina != nullptr) {
+                stamina->current -= m_skillConfig->teleportStaminaCost;
+            }
+            m_teleportCooldown = m_skillConfig->teleportCooldown;
+            return {};
+        }
+        return "前方无处瞬移";
+    }
+
+    /// \brief Q skill: fire a sword-qi projectile along the facing direction.
+    /// \return Empty on success, otherwise the localized failure reason.
+    std::string tryWeaponSkill(int weaponDamage) {
+        if (m_skillConfig == nullptr) {
+            return {};
+        }
+        if (m_qiCooldown > 0.0f) {
+            return "剑气冷却中";
+        }
+        if (m_combat == nullptr) {
+            return {};
+        }
+        fa::player::Stamina* stamina = world().tryGet<fa::player::Stamina>(m_markerEntity);
+        if (stamina != nullptr && stamina->current < m_skillConfig->qiStaminaCost) {
+            return "体力不足";
+        }
+        const fa::core::Vec2 dir = fa::player::directionVector(fa::player::cardinalFacing(playerFacing()));
+        fa::combat::ProjectileDesc desc;
+        desc.position = markerCenter() + dir * 10.0f;
+        desc.velocity = dir * m_skillConfig->qiSpeed;
+        desc.lifetime = m_skillConfig->qiLifetime;
+        desc.damage = std::max(1, static_cast<int>(static_cast<float>(weaponDamage) *
+                                                      m_skillConfig->qiDamageMultiplier));
+        desc.targetMask = fa::physics::maskOf(fa::physics::CollisionLayer::Enemy);
+        desc.owner = m_markerEntity;
+        const fa::scene::EntityId entity = m_combat->spawnProjectile(world(), desc);
+        if (!entity.isValid()) {
+            return {};
+        }
+        // Visual: the mid-swing slash frame, rotated along the flight direction.
+        const fa::render::TextureHandle slash = textureForName("tex.effect.slash");
+        if (slash.isValid()) {
+            if (fa::scene::Transform* transform = world().tryGet<fa::scene::Transform>(entity);
+                transform != nullptr) {
+                transform->position = desc.position - fa::core::Vec2{8.0f, 8.0f};
+                transform->rotation = std::atan2(dir.y, dir.x);
+            }
+            fa::scene::Sprite sprite;
+            sprite.texture = slash;
+            sprite.size = fa::core::Vec2{16.0f, 16.0f};
+            sprite.source = fa::core::makeRect(16.0f, 0.0f, 16.0f, 16.0f);
+            sprite.layer = fa::render::RenderLayer::Actors;
+            sprite.tint = fa::core::Color{0.70f, 0.90f, 1.0f, 1.0f};
+            static_cast<void>(world().add<fa::scene::Sprite>(entity, sprite));
+        }
+        if (stamina != nullptr) {
+            stamina->current -= m_skillConfig->qiStaminaCost;
+        }
+        m_qiCooldown = m_skillConfig->qiCooldown;
+        return {};
+    }
+
+    /// \brief Reusable cyan ring pair marking the teleport origin and destination.
+    void spawnTeleportFx(fa::core::Vec2 from, fa::core::Vec2 to) {
+        for (int index = 0; index < 2; ++index) {
+            const fa::core::Vec2 pos = (index == 0 ? from : to) - fa::core::Vec2{2.0f, 2.0f};
+            if (!m_tpFx[index].isValid()) {
+                m_tpFx[index] = world().create();
+                fa::scene::Transform transform;
+                static_cast<void>(world().add<fa::scene::Transform>(m_tpFx[index], transform));
+                fa::scene::Sprite sprite;
+                sprite.texture = m_marker;
+                sprite.size = fa::core::Vec2{12.0f, 12.0f};
+                sprite.layer = fa::render::RenderLayer::Actors;
+                static_cast<void>(world().add<fa::scene::Sprite>(m_tpFx[index], sprite));
+            }
+            if (fa::scene::Transform* transform = world().tryGet<fa::scene::Transform>(m_tpFx[index]);
+                transform != nullptr) {
+                transform->position = pos;
+            }
+            if (fa::scene::Sprite* sprite = world().tryGet<fa::scene::Sprite>(m_tpFx[index]); sprite != nullptr) {
+                sprite->tint = fa::core::Color{0.55f, 0.85f, 1.0f, 1.0f};
+            }
+        }
+        m_tpFxTimer = 0.25f;
+    }
+
+    /// \brief Fades the teleport rings and ticks the skill cooldowns on the fixed step.
+    void updateSkillFx(float deltaSeconds) {
+        m_teleportCooldown = std::max(0.0f, m_teleportCooldown - deltaSeconds);
+        m_qiCooldown = std::max(0.0f, m_qiCooldown - deltaSeconds);
+        if (m_tpFxTimer <= 0.0f) {
+            return;
+        }
+        m_tpFxTimer = std::max(0.0f, m_tpFxTimer - deltaSeconds);
+        const float alpha = m_tpFxTimer / 0.25f;
+        for (const fa::scene::EntityId fx : m_tpFx) {
+            if (fa::scene::Sprite* sprite = world().tryGet<fa::scene::Sprite>(fx); sprite != nullptr) {
+                sprite->tint.a = alpha;
+            }
+        }
+    }
+
     /// \brief Advances M10 on the fixed step and copies the current source rect.
     void updateAnimation(float deltaSeconds) {
+        updateSkillFx(deltaSeconds);
         updatePlayerAnimation(deltaSeconds);
         updateEnemyAnimations(deltaSeconds);
         updateAttackEffect(deltaSeconds);
@@ -3023,6 +3231,12 @@ private:
     int m_walkConfirmedRow = -1;
     int m_walkPendingRow = -1;
     int m_walkPendingFrames = 0;
+    /// \brief E/Q skill state (`data/skills.json` tuning).
+    const SkillConfig* m_skillConfig = nullptr;
+    float m_teleportCooldown = 0.0f;
+    float m_qiCooldown = 0.0f;
+    float m_tpFxTimer = 0.0f;
+    std::array<fa::scene::EntityId, 2> m_tpFx{};
     /// \brief One animated enemy (walk sheet + playback state, driven by movement).
     struct EnemyWalkState {
         fa::scene::EntityId id;
@@ -3142,7 +3356,7 @@ public:
         };
         bindKey(fa::player::kActionNameRun, fa::platform::Scancode::LeftShift);
         bindKey(fa::player::kActionNameDodge, fa::platform::Scancode::Space);
-        bindKey(fa::player::kActionNameInteract, fa::platform::Scancode::E);
+        bindKey(fa::player::kActionNameInteract, fa::platform::Scancode::G);
         bindKey(fa::player::kActionNameInventory, fa::platform::Scancode::Tab);
         bindMouse(fa::player::kActionNameUseTool, fa::platform::MouseButton::Left);
         bindMouse(fa::player::kActionNameAttack, fa::platform::MouseButton::Right);
@@ -3338,6 +3552,7 @@ public:
         if (!playerWalkConfig.valid) {
             std::printf("data: animations.json has no usable player_walk section\n");
         }
+        skillConfig = parseSkillConfig(readDataText("skills.json", kSkillsText));
         return shopStatus;
     }
 
@@ -3386,6 +3601,7 @@ public:
                                  gpuTextureOf(slimeTexture));
         scene->setNamedTextures(&namedTextureHandles);
         scene->setWalkConfig(&playerWalkConfig);
+        scene->setSkillConfig(&skillConfig);
         return scene;
     }
 
@@ -3903,6 +4119,10 @@ public:
                 return status;
             }
             if (const fa::core::Status status = add(hotbar, "item.turnip_soup", 3); status.isError()) {
+                return status;
+            }
+            // The boat lets the farmer cross the pond while it is the selected slot.
+            if (const fa::core::Status status = add(hotbar, "item.boat", 1); status.isError()) {
                 return status;
             }
             if (const fa::core::Status status = add(playerInventory->backpack(), "item.turnip", 3); status.isError()) {
@@ -5623,6 +5843,23 @@ public:
         }
         const fa::content::ItemDef* def = content.item(weapon.id);
         return def != nullptr && def->damage > 0 ? def->damage : kUnarmedDamage;
+    }
+
+    /// \brief Q: the selected hotbar slot must hold a weapon; its `damage` scales the qi.
+    void handleWeaponSkill() {
+        if (demoScene == nullptr || playerInventory == nullptr) {
+            return;
+        }
+        const fa::inventory::ItemStack& selected = playerInventory->hotbar().selectedStack();
+        const fa::content::ItemDef* def = selected.empty() ? nullptr : content.item(selected.id);
+        if (def == nullptr || (def->category != "weapon" && def->damage <= 0)) {
+            setPlayMessage("当前栏位不是武器");
+            return;
+        }
+        const std::string error = demoScene->requestWeaponSkill(std::max(1, def->damage));
+        if (!error.empty()) {
+            setPlayMessage(error);
+        }
     }
 
     /// \brief Spawns one melee attack in front of the player.
@@ -7642,6 +7879,33 @@ public:
             }
         }
 
+        // E fires the character skill (teleport); G is the interact key now.
+        if (playMode && flow != nullptr && !editorActive && !dialogueOpen && !shopOpen && !inventoryOpen &&
+            !questLogOpen && flow->state() == fa::flow::AppState::Playing) {
+            for (const fa::platform::PlatformEvent& event : events) {
+                if (event.type == fa::platform::PlatformEventType::KeyDown &&
+                    event.scancode == fa::platform::Scancode::E) {
+                    if (demoScene != nullptr) {
+                        const std::string error = demoScene->requestTeleport();
+                        setPlayMessage(error.empty() ? "瞬移！" : error);
+                    }
+                    break;
+                }
+            }
+        }
+
+        // Q fires the weapon skill (sword qi); only a weapon in the selected slot works.
+        if (playMode && flow != nullptr && !editorActive && !dialogueOpen && !shopOpen && !inventoryOpen &&
+            !questLogOpen && flow->state() == fa::flow::AppState::Playing) {
+            for (const fa::platform::PlatformEvent& event : events) {
+                if (event.type == fa::platform::PlatformEventType::KeyDown &&
+                    event.scancode == fa::platform::Scancode::Q) {
+                    handleWeaponSkill();
+                    break;
+                }
+            }
+        }
+
         // F consumes the selected food item (soup restores health and stamina).
         if (playMode && flow != nullptr && !editorActive && !dialogueOpen && !shopOpen && !inventoryOpen &&
             !questLogOpen && flow->state() == fa::flow::AppState::Playing) {
@@ -7714,6 +7978,12 @@ public:
             // A lethal hazard changes the flow state to GameOver inside tickHazard;
             // do not run one last player/physics step after that.
             if (gameplayActive()) {
+                // Holding the boat in the selected slot makes water tiles passable.
+                if (demoScene != nullptr && playerInventory != nullptr) {
+                    const fa::content::ContentId& selectedId =
+                        playerInventory->hotbar().selectedStack().id;
+                    demoScene->setWaterPassable(selectedId.name() == "item.boat");
+                }
                 stack.fixedUpdate(context);
                 if (demoScene != nullptr) {
                     demoScene->advanceAnimation(static_cast<float>(context.fixedDeltaSeconds));
@@ -7864,6 +8134,8 @@ public:
     std::unordered_map<std::string, fa::render::TextureHandle> namedTextureHandles;
     /// \brief `data/animations.json`: four-way player walk clip settings.
     PlayerWalkAnimConfig playerWalkConfig;
+    /// \brief `data/skills.json`: E teleport and Q sword-qi tuning.
+    SkillConfig skillConfig;
     /// \brief Session state shared by every map scene; declared before the stack so
     /// it outlives the scenes that borrow it.
     GameState gameState;
@@ -8616,7 +8888,7 @@ private:
                     requestAppQuit();
                 }
             }
-            ui->text("E 上床睡觉", fa::core::makeRect(panel.x + 8.0f, panel.y + 208.0f, panel.w - 16.0f, 8.0f), dim);
+            ui->text("G 上床睡觉", fa::core::makeRect(panel.x + 8.0f, panel.y + 208.0f, panel.w - 16.0f, 8.0f), dim);
         }
 
         if (showPause && !slotsOpen) {
@@ -8899,8 +9171,8 @@ private:
 
         if (playMode && !inMenu) {
             // Stacked under the status panel on the left edge, halved to match it:
-            // 118x58, 9 px line grid, compact key hints.
-            const fa::core::Rect panel = fa::core::makeRect(8.0f, 62.0f, 118.0f, 58.0f);
+            // 118x66, 9 px line grid, compact key hints.
+            const fa::core::Rect panel = fa::core::makeRect(8.0f, 62.0f, 118.0f, 66.0f);
             ui->panel(panel, theme.panel);
             ui->border(panel, theme.panelBorder);
 
@@ -8917,7 +9189,7 @@ private:
                           "工具 %s",
                           selectedDef != nullptr ? selectedDef->displayName.c_str() : "空");
             ui->text(toolText, fa::core::makeRect(panel.x + 4.0f, panel.y + 2.0f, 110.0f, 10.0f), style);
-            ui->text("1-9选栏 J任务 左键使用",
+            ui->text("1-9选栏 J任务 G交互",
                      fa::core::makeRect(panel.x + 4.0f, panel.y + 11.0f, 110.0f, 10.0f),
                      style);
 
@@ -8970,6 +9242,9 @@ private:
             ui->text(weaponText, fa::core::makeRect(panel.x + 4.0f, panel.y + 38.0f, 110.0f, 8.0f), style);
             ui->text("I背包 F进食 R攻击",
                      fa::core::makeRect(panel.x + 4.0f, panel.y + 47.0f, 110.0f, 8.0f),
+                     style);
+            ui->text("E瞬移 Q剑气",
+                     fa::core::makeRect(panel.x + 4.0f, panel.y + 56.0f, 110.0f, 8.0f),
                      style);
         }
 
@@ -9386,7 +9661,7 @@ int main(int argc, char** argv) {
         "window %dx%d px, dpi scale %.2f\n", window.width(), window.height(), static_cast<double>(window.dpiScale()));
 
     if (options.playMode) {
-        std::printf("play mode: WASD move, 1-9 hotbar, wheel cycle, LMB use, E interact\n");
+        std::printf("play mode: WASD move, 1-9 hotbar, wheel cycle, LMB use, G interact, E/Q skills\n");
         std::printf("           console `, F3 stats, time.addDays N / time.set HH:MM\n");
 #if defined(FA_ENABLE_DEBUG_TOOLS)
         if (options.debugMode) {

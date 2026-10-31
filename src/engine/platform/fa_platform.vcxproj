@@ -42,6 +42,11 @@
     <ClCompile Include="src\SdlPlatform.cpp" />
     <ClCompile Include="src\SdlWindow.cpp" />
     <ClCompile Include="src\StdFileSystem.cpp" />
+    <ClInclude Include="src\SdlAudioDevice.hpp" />
+    <ClInclude Include="src\SdlGlContext.hpp" />
+    <ClInclude Include="src\SdlPlatform.hpp" />
+    <ClInclude Include="src\SdlWindow.hpp" />
+    <ClInclude Include="src\StdFileSystem.hpp" />
     <ClInclude Include="..\include\fa\platform\AudioDevice.hpp" />
     <ClInclude Include="..\include\fa\platform\FileSystem.hpp" />
     <ClInclude Include="..\include\fa\platform\GlContext.hpp" />

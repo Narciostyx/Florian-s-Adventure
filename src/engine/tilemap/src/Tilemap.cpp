@@ -263,7 +263,19 @@ bool Tilemap::isSolidCell(int column, int row) const noexcept {
     if (!contains(column, row)) {
         return m_outsideIsSolid;
     }
-    return anyDefHas(column, row, &TileDef::solid);
+    if (!m_waterPassable) {
+        return anyDefHas(column, row, &TileDef::solid);
+    }
+    // Boat mode: only non-water solid defs keep blocking movement.
+    const std::size_t cell =
+        static_cast<std::size_t>(row) * static_cast<std::size_t>(m_width) + static_cast<std::size_t>(column);
+    for (const TileLayer& layer : m_layers) {
+        const TileDef* def = defFor(layer.tiles[cell]);
+        if (def != nullptr && def->solid && !def->water) {
+            return true;
+        }
+    }
+    return false;
 }
 
 TileCoord Tilemap::worldToGrid(core::Vec2 world) const noexcept {

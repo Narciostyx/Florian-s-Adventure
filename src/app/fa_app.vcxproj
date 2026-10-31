@@ -39,6 +39,9 @@
        data/, assets/ and saves/ are not reachable; the game resolves them from the repo root. -->
   <PropertyGroup>
     <LocalDebuggerWorkingDirectory>$([MSBuild]::NormalizePath('$(ProjectDir)..\..\'))</LocalDebuggerWorkingDirectory>
+    <!-- F5 from VS launches a playable session; pick fa_app as startup project once. -->
+    <LocalDebuggerCommandArguments>--play --window</LocalDebuggerCommandArguments>
+    <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
   </PropertyGroup>
   <ItemGroup>
     <ClCompile Include="LogToFile.cpp" />

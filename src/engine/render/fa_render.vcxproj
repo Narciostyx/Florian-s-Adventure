@@ -36,6 +36,7 @@
     <ClCompile Include="src\RenderQueue.cpp" />
     <ClCompile Include="src\RenderTypes.cpp" />
     <ClCompile Include="src\Viewport.cpp" />
+    <ClInclude Include="src\GlApi.hpp" />
     <ClInclude Include="..\include\fa\render\Camera2D.hpp" />
     <ClInclude Include="..\include\fa\render\IRenderer.hpp" />
     <ClInclude Include="..\include\fa\render\RenderConstants.hpp" />
