@@ -132,8 +132,8 @@ public:
     [[nodiscard]] bool outsideIsSolid() const noexcept { return m_outsideIsSolid; }
     void setOutsideIsSolid(bool solid) noexcept { m_outsideIsSolid = solid; }
 
-    /// \brief Whether water tiles stop counting as solid (e.g. the player holds a boat).
-    /// Walls and other solid tiles are unaffected. Default false.
+    /// \brief While riding: the boat floats on water only, so every non-water cell
+    /// (shore included) blocks movement; water cells become passable.
     [[nodiscard]] bool waterPassable() const noexcept { return m_waterPassable; }
     void setWaterPassable(bool passable) noexcept { m_waterPassable = passable; }
 

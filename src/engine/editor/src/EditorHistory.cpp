@@ -31,6 +31,8 @@ std::string_view toString(EditorScope scope) noexcept {
             return "placements";
         case EditorScope::Portals:
             return "portals";
+        case EditorScope::Entities:
+            return "entities";
         default:
             return "?";
     }

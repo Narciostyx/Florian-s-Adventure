@@ -55,7 +55,8 @@ public:
     [[nodiscard]] bool physicsVisible() const noexcept { return m_physicsVisible; }
     void togglePhysics() noexcept { m_physicsVisible = !m_physicsVisible; }
 
-    void setConsoleOpen(bool open) noexcept { m_console.setOpen(open); }
+    /// \brief Opens/closes the console; opening prints the registered command list.
+    void setConsoleOpen(bool open);
     [[nodiscard]] bool consoleOpen() const noexcept { return m_console.open(); }
 
     /// \brief Routes one platform event.
@@ -74,6 +75,12 @@ private:
     DebugConsole m_console;
     CVarRegistry m_cvars;
     DebugLogSink m_logSink;
+    /// \brief Bytes the KeyDown ASCII fallback appended last; undone when the real
+    /// TextInput for the same key arrives (Chinese IME swallows TextInput, so the
+    /// fallback keeps the console typable, while normal layouts dedupe to one char).
+    std::size_t m_pendingFallback = 0;
+    /// \brief True right after the grave toggle: swallows the backtick TextInput.
+    bool m_awaitingOpenText = false;
     DebugOverlay m_overlay;
     DebugStats m_stats;
     DebugOverlayState m_overlayState;

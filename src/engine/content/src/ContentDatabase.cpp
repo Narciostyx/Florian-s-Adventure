@@ -298,12 +298,13 @@ core::Status ContentDatabase::loadDocument(std::string_view json) {
                     const bool known = def.toolKind == "none" || def.toolKind == "hoe" ||
                                        def.toolKind == "watering_can" || def.toolKind == "axe" ||
                                        def.toolKind == "pickaxe" || def.toolKind == "sword" || def.toolKind == "seed" ||
-                                       def.toolKind == "harvest" || def.toolKind == "placeable";
+                                       def.toolKind == "harvest" || def.toolKind == "placeable" ||
+                                       def.toolKind == "boat";
                     if (!known) {
                         addError(content_error::kInvalidField,
                                  context,
                                  "\"tool_kind\" must be one of none/hoe/watering_can/axe/pickaxe/"
-                                 "sword/seed/harvest/placeable");
+                                 "sword/seed/harvest/placeable/boat");
                         continue;
                     }
                 }

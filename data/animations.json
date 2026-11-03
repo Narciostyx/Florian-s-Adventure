@@ -27,5 +27,14 @@
         "idle_frame": 1
       }
     ]
+  },
+  "player_boat": {
+    "texture": "tex.actor.player_boat",
+    "frame_size": [32, 24],
+    "sprite_size": [32, 24],
+    "columns": 4,
+    "rows": { "down": 0, "up": 1, "left": 2, "right": 3 },
+    "walk_durations": [0.20, 0.14, 0.20, 0.14],
+    "idle_frame": 0
   }
 }

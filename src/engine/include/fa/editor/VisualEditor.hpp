@@ -65,6 +65,11 @@ public:
     /// \brief Map ids a portal may lead to. The app owns the map registry.
     void setPortalTargets(std::vector<std::string> targets);
 
+    /// \brief Read-only entity list (spawn table) for the Entities scope; the app
+    /// refreshes this when the editor opens.
+    void setEntityInfos(std::vector<EntityInfoRow> rows);
+    [[nodiscard]] std::span<const EntityInfoRow> entityInfos() const noexcept { return m_entityInfos; }
+
     [[nodiscard]] EditorScope scope() const noexcept { return m_scope; }
     void setScope(EditorScope scope) noexcept;
     [[nodiscard]] std::span<const MapPlacement> placements() const noexcept;
@@ -105,6 +110,10 @@ private:
     void drawObjectPalette(ui::UiContext& ui, core::Rect palette);
     /// \brief Inspector for the placement/portal scopes.
     void drawObjectProperties(ui::UiContext& ui, core::Rect props);
+    /// \brief Entity list panel (read-only scope): one button per spawn row.
+    void drawEntityPalette(ui::UiContext& ui, core::Rect palette);
+    /// \brief Inspector for the selected entity row: JSON field name and value.
+    void drawEntityProperties(ui::UiContext& ui, core::Rect props);
     /// \brief 保存 button plus the status line, drawn in every scope: switching to the object
     /// or portal scope must not strand the session without a way to write its work out.
     void drawFooter(ui::UiContext& ui, core::Rect screen, const SaveHandler& save);
@@ -118,6 +127,7 @@ private:
     void applyPortalClick(tilemap::TileCoord cell);
     [[nodiscard]] int placementIndexAt(tilemap::TileCoord cell) const noexcept;
     [[nodiscard]] int portalIndexAt(tilemap::TileCoord cell) const noexcept;
+    [[nodiscard]] int entityIndexAt(tilemap::TileCoord cell) const noexcept;
     void saveObjects();
 
     EditorHistory m_history;
@@ -135,9 +145,12 @@ private:
     std::vector<PlacementKind> m_kinds;
     PlacementSaveHandler m_placementSave;
     std::vector<std::string> m_portalTargets;
+    /// \brief Read-only spawn rows for the Entities scope; owned by the editor between opens.
+    std::vector<EntityInfoRow> m_entityInfos;
     /// \brief Selected row in `m_placements` / `map().portals()`; -1 when nothing is picked.
     int m_selectedPlacement = -1;
     int m_selectedPortal = -1;
+    int m_selectedEntity = -1;
     int m_activeKind = 0;
     /// \brief First corner of a portal that is mid-creation (click-click, like the rect tool).
     std::optional<tilemap::TileCoord> m_portalStart;

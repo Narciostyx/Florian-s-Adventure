@@ -71,6 +71,7 @@
           "id": "item.boat",
           "display_name": "小船",
           "category": "tool",
+          "tool_kind": "boat",
           "max_stack": 1,
           "sell_price": 30,
           "tags": [

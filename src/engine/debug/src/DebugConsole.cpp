@@ -142,6 +142,10 @@ void DebugConsole::appendInput(std::string_view text) {
     }
 }
 
+void DebugConsole::dropTrailingBytes(std::size_t count) {
+    m_input.resize(m_input.size() > count ? m_input.size() - count : 0);
+}
+
 void DebugConsole::backspace() {
     if (!m_input.empty()) {
         m_input.pop_back();

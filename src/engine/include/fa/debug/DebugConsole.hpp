@@ -48,6 +48,10 @@ public:
     [[nodiscard]] const std::string& input() const noexcept { return m_input; }
     void setInput(std::string text);
     void appendInput(std::string_view text);
+    /// \brief Removes up to `count` bytes from the end of the input line. Used by
+    /// DebugTools to undo a KeyDown-derived fallback character when the real
+    /// TextInput event arrives in the same batch (IME-safe typing).
+    void dropTrailingBytes(std::size_t count);
     void backspace();
     /// \brief Executes the current input, clears it and records history.
     [[nodiscard]] bool submitInput();

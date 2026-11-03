@@ -304,6 +304,14 @@
           "altColor": "#c79a74"
         },
         {
+          "id": "tex.actor.player_boat",
+          "kind": "texture",
+          "path": "textures/characters/player_boat.png",
+          "size": [128, 96],
+          "color": "#8a5a2b",
+          "altColor": "#3d6fa5"
+        },
+        {
           "id": "tex.enemy.slime_walk",
           "kind": "texture",
           "path": "textures/characters/slime_walk.png",

@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "fa/core/Math.hpp"
@@ -35,6 +36,8 @@ enum class EditorScope : std::uint8_t {
     Tiles = 0,
     Placements,
     Portals,
+    /// \brief Read-only view of the app's spawn table (npcs, enemies, props).
+    Entities,
     Count,
 };
 
@@ -63,6 +66,20 @@ struct PlacementKind {
     std::string label;
     /// \brief Values `MapPlacement::target` may take. Empty means "no target field".
     std::vector<std::string> targets;
+};
+
+/// \brief One read-only spawn-table row supplied by the app (M26 entity list scope).
+///
+/// The editor never parses `data/entities.json`; the composition root converts each
+/// `EntitySpawn` into this view model, so the property keys shown in the inspector
+/// are exactly the JSON field names while M26 stays free of gameplay content.
+struct EntityInfoRow {
+    std::string id;
+    std::string kind;
+    tilemap::TileCoord cell{};
+    bool hasCell = false;
+    /// \brief JSON field name -> formatted value, in display order.
+    std::vector<std::pair<std::string, std::string>> properties;
 };
 
 /// \brief One cell changed by a command.

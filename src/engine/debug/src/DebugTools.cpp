@@ -48,19 +48,34 @@ bool DebugTools::handleEvent(const platform::PlatformEvent& event) {
                 return true;
             case platform::Scancode::Enter:
             case platform::Scancode::KeypadEnter:
+                m_pendingFallback = 0;
                 static_cast<void>(m_console.submitInput());
                 return true;
             case platform::Scancode::Backspace:
+                m_pendingFallback = 0;
                 m_console.backspace();
                 return true;
             case platform::Scancode::Up:
+                m_pendingFallback = 0;
                 m_console.historyPrevious();
                 return true;
             case platform::Scancode::Down:
+                m_pendingFallback = 0;
                 m_console.historyNext();
                 return true;
-            default:
+            default: {
+                // IME fallback: an active Chinese input method eats TextInput events,
+                // so a printable key sym is appended directly. If the matching
+                // TextInput still arrives in this batch, it drops this byte first.
+                const int sym = event.keycode;
+                if (sym >= 32 && sym < 127) {
+                    m_console.appendInput(std::string(1, static_cast<char>(sym)));
+                    m_pendingFallback = 1;
+                } else {
+                    m_pendingFallback = 0;
+                }
                 return true;
+            }
         }
     }
 
@@ -72,11 +87,38 @@ bool DebugTools::handleEvent(const platform::PlatformEvent& event) {
         if (!consoleOpen()) {
             return false;
         }
+        if (m_awaitingOpenText) {
+            m_awaitingOpenText = false;
+            if (event.text == "`" || event.text == "~") {
+                return true;  // the grave that opened the console, not user text
+            }
+        }
+        if (m_pendingFallback != 0) {
+            m_console.dropTrailingBytes(m_pendingFallback);
+            m_pendingFallback = 0;
+        }
         m_console.appendInput(event.text);
         return true;
     }
 
     return false;
+}
+
+void DebugTools::setConsoleOpen(bool open) {
+    m_console.setOpen(open);
+    m_pendingFallback = 0;
+    m_awaitingOpenText = false;
+    if (!open) {
+        return;
+    }
+    m_awaitingOpenText = true;
+    std::string names = "commands:";
+    for (const ConsoleCommand& command : m_console.commands()) {
+        names += " ";
+        names += command.name;
+    }
+    m_console.print(names);
+    m_console.print("type help <command> for usage; Enter runs; Esc closes");
 }
 
 void DebugTools::draw(ui::UiContext& ui, core::Rect viewport) const {

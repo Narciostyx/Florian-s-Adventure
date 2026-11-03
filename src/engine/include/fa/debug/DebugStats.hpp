@@ -90,6 +90,11 @@ struct DebugStats {
 
     DebugCameraInfo camera;
     std::vector<DebugAiTargetInfo> aiTargets;
+
+    /// \brief App-composed lines for the facing-tile panel drawn under the stats
+    /// block: the tile in front of the player and any object standing on it.
+    /// The overlay renders them verbatim and stays free of gameplay knowledge.
+    std::vector<std::string> facingTileInfo;
 };
 
 /// \brief Formats the snapshot as short overlay lines.

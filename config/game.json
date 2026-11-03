@@ -28,7 +28,7 @@
   },
   "stamina": {
     "max": 100.0,
-    "regen_per_second": 20.0,
+    "regen_per_second": 6.0,
     "run_drain_per_second": 10.0,
     "dodge_cost": 25.0,
     "attack_cost": 4.0,

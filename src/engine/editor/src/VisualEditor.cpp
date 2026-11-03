@@ -114,6 +114,18 @@ void VisualEditor::update(const VisualEditorInput& input, Rect mapViewport) {
         }
         return;
     }
+    if (m_scope == EditorScope::Entities) {
+        // Read-only scope: a click only moves the selection, nothing is authored here.
+        if (input.primaryPressed) {
+            m_selectedEntity = entityIndexAt(cell);
+            if (m_selectedEntity >= 0) {
+                m_status = "实体 " + m_entityInfos[static_cast<std::size_t>(m_selectedEntity)].id;
+            }
+        } else if (input.secondaryPressed) {
+            m_selectedEntity = -1;
+        }
+        return;
+    }
     if (input.primaryPressed) {
         const core::Status status = m_editor.applyPrimary();
         m_status = status.isOk() ? "编辑完成" : status.error().message;
@@ -209,6 +221,22 @@ void VisualEditor::draw(ui::UiContext& ui,
                          fa::core::Color{0.92f, 0.60f, 0.16f, 0.90f});
             }
         }
+        if (m_scope == EditorScope::Entities) {
+            for (std::size_t index = 0; index < m_entityInfos.size(); ++index) {
+                const EntityInfoRow& row = m_entityInfos[index];
+                if (!row.hasCell) {
+                    continue;
+                }
+                const Rect box = makeRect(map.x + static_cast<float>(row.cell.x) * step + 2.0f,
+                                          map.y + static_cast<float>(row.cell.y) * step + 2.0f,
+                                          step - 4.0f,
+                                          step - 4.0f);
+                ui.panel(box, fa::core::Color{0.20f, 0.70f, 0.90f, 0.55f});
+                if (m_selectedEntity == static_cast<int>(index)) {
+                    ui.border(box, fa::core::Color{1.0f, 1.0f, 1.0f, 1.0f}, 1.0f);
+                }
+            }
+        }
     }
 
     drawToolbar(ui, screen);
@@ -251,6 +279,9 @@ void VisualEditor::drawToolbar(ui::UiContext& ui, Rect screen) {
     }
     if (button("ve.scope.portals", "传送门", 40.0f)) {
         setScope(EditorScope::Portals);
+    }
+    if (button("ve.scope.entities", "实体", 36.0f)) {
+        setScope(EditorScope::Entities);
     }
     x += 8.0f;
 
@@ -300,6 +331,12 @@ void VisualEditor::drawToolbar(ui::UiContext& ui, Rect screen) {
                           static_cast<int>(m_editor.map().portals().size()),
                           m_history.dirty() ? "未保存" : "已保存");
             break;
+        case EditorScope::Entities:
+            std::snprintf(info,
+                          sizeof(info),
+                          "实体 %d 个  只读",
+                          static_cast<int>(m_entityInfos.size()));
+            break;
         default:
             std::snprintf(info,
                           sizeof(info),
@@ -317,6 +354,10 @@ void VisualEditor::drawPalette(ui::UiContext& ui, Rect screen, std::span<const s
     const ui::UiTheme& theme = ui.theme();
     const Rect panel = panelRect(screen);
     const Rect palette = makeRect(panel.x, panel.y, panel.w, panel.h * 0.43f);
+    if (m_scope == EditorScope::Entities) {
+        drawEntityPalette(ui, palette);
+        return;
+    }
     if (m_scope != EditorScope::Tiles) {
         drawObjectPalette(ui, palette);
         return;
@@ -356,6 +397,10 @@ void VisualEditor::drawProperties(ui::UiContext& ui,
     const Rect props = propsRect(screen);
     ui.panel(props, theme.panel);
     ui.text("属性", makeRect(props.x + 6.0f, props.y + 4.0f, 180.0f, 8.0f), labelStyle(theme));
+    if (m_scope == EditorScope::Entities) {
+        drawEntityProperties(ui, props);
+        return;
+    }
     if (m_scope != EditorScope::Tiles) {
         drawObjectProperties(ui, props);
         return;
@@ -474,6 +519,20 @@ void VisualEditor::setPortalTargets(std::vector<std::string> targets) {
     m_portalTargets = std::move(targets);
 }
 
+void VisualEditor::setEntityInfos(std::vector<EntityInfoRow> rows) {
+    m_entityInfos = std::move(rows);
+    m_selectedEntity = m_entityInfos.empty() ? -1 : 0;
+}
+
+int VisualEditor::entityIndexAt(const tilemap::TileCoord cell) const noexcept {
+    for (std::size_t index = 0; index < m_entityInfos.size(); ++index) {
+        if (m_entityInfos[index].hasCell && m_entityInfos[index].cell == cell) {
+            return static_cast<int>(index);
+        }
+    }
+    return -1;
+}
+
 void VisualEditor::setScope(EditorScope scope) noexcept {
     if (m_scope == scope) {
         return;
@@ -482,6 +541,7 @@ void VisualEditor::setScope(EditorScope scope) noexcept {
     m_portalStart.reset();
     m_selectedPlacement = -1;
     m_selectedPortal = -1;
+    m_selectedEntity = m_entityInfos.empty() ? -1 : 0;
 }
 
 std::span<const MapPlacement> VisualEditor::placements() const noexcept {
@@ -863,6 +923,65 @@ void VisualEditor::drawFooter(ui::UiContext& ui, Rect screen, const SaveHandler&
         ui.text(fa::ui::fitToCodepoints(m_status, 40),
                 makeRect(props.x + 6.0f, props.y + props.h - 12.0f, props.w - 12.0f, 8.0f),
                 dimStyle(theme));
+    }
+}
+
+void VisualEditor::drawEntityPalette(ui::UiContext& ui, Rect palette) {
+    const ui::UiTheme& theme = ui.theme();
+    ui.panel(palette, theme.panel);
+    ui.text("组件", makeRect(palette.x + 6.0f, palette.y + 4.0f, 180.0f, 8.0f), labelStyle(theme));
+
+    float y = palette.y + 16.0f;
+    ui.text("实体（只读）", makeRect(palette.x + 6.0f, y, 120.0f, 8.0f), dimStyle(theme));
+    y += 12.0f;
+    if (m_entityInfos.empty()) {
+        ui.text("无实体数据", makeRect(palette.x + 6.0f, y, palette.w - 12.0f, 8.0f), dimStyle(theme));
+        return;
+    }
+    for (std::size_t index = 0; index < m_entityInfos.size(); ++index) {
+        if (y + 13.0f > palette.y + palette.h) {
+            break;
+        }
+        const EntityInfoRow& row = m_entityInfos[index];
+        char id[40]{};
+        std::snprintf(id, sizeof(id), "ve.entity.%zu", index);
+        char line[80]{};
+        std::snprintf(line, sizeof(line), "%s  %s", row.id.c_str(), row.kind.c_str());
+        const Rect rect = makeRect(palette.x + 6.0f, y, palette.w - 12.0f, 13.0f);
+        if (ui.button(ui::UiId::fromName(id), line, rect).pressed) {
+            m_selectedEntity = static_cast<int>(index);
+        }
+        if (m_selectedEntity == static_cast<int>(index)) {
+            ui.border(rect, theme.accent, 1.0f);
+        }
+        y += 15.0f;
+    }
+}
+
+void VisualEditor::drawEntityProperties(ui::UiContext& ui, Rect props) {
+    const ui::UiTheme& theme = ui.theme();
+    float y = props.y + 16.0f;
+    if (m_selectedEntity < 0 || m_selectedEntity >= static_cast<int>(m_entityInfos.size())) {
+        ui.text("点击地图青色块或列表选择实体",
+                makeRect(props.x + 6.0f, y, props.w - 12.0f, 8.0f),
+                dimStyle(theme));
+        return;
+    }
+    const EntityInfoRow& row = m_entityInfos[static_cast<std::size_t>(m_selectedEntity)];
+    char line[128]{};
+    std::snprintf(line, sizeof(line), "%s  [%s]", row.id.c_str(), row.kind.c_str());
+    ui.text(line, makeRect(props.x + 6.0f, y, props.w - 12.0f, 8.0f), labelStyle(theme));
+    y += 12.0f;
+    for (const auto& [key, value] : row.properties) {
+        if (y + 9.0f > props.y + props.h - 14.0f) {
+            ui.text("...", makeRect(props.x + 6.0f, y, props.w - 12.0f, 8.0f), dimStyle(theme));
+            break;
+        }
+        std::snprintf(line, sizeof(line), "%s: %s", key.c_str(), value.c_str());
+        ui.text(fa::ui::fitToCodepoints(line, 34),
+                makeRect(props.x + 6.0f, y, props.w - 12.0f, 8.0f),
+                dimStyle(theme));
+        y += 11.0f;
     }
 }
 
