@@ -278,6 +278,12 @@ constexpr std::string_view kCatalogText = R"({
      "color": "#8a5a2b", "altColor": "#e6c47a"},
     {"id": "tex.ground.water", "kind": "texture", "path": "textures/tiles/water.png", "size": [16, 16],
      "tile": 4, "color": "#3d6fa5", "altColor": "#5c8ec4"},
+    {"id": "tex.ground.flower", "kind": "texture", "path": "textures/tiles/flower.png", "size": [16, 16],
+     "tile": 4, "color": "#69a86a", "altColor": "#e06fa0"},
+    {"id": "tex.ground.tree", "kind": "texture", "path": "textures/tiles/tree.png", "size": [16, 16],
+     "tile": 4, "color": "#2f6a35", "altColor": "#4a8250"},
+    {"id": "tex.ground.stone", "kind": "texture", "path": "textures/tiles/stone.png", "size": [16, 16],
+     "tile": 4, "color": "#7d7f85", "altColor": "#5a5c63"},
     {"id": "tex.item.boat", "kind": "texture", "path": "textures/items/boat.png", "size": [16, 16],
      "color": "#8a5a2b", "altColor": "#c6a070"},
     {"id": "tex.ground.soil_wet", "kind": "texture", "path": "textures/tiles/soil_wet.png", "size": [16, 16],
@@ -1905,8 +1911,18 @@ public:
             lines.push_back("outside map (solid)");
             return lines;
         }
-        const fa::tilemap::TileId id = m_map.tileAt(cell.x, cell.y, 0);
-        const fa::tilemap::TileDef* def = m_map.tileDef(id);
+        // Topmost non-empty tile wins the headline; deeper non-empty layers (decor over
+        // ground) get one extra line so overlays stay visible in the panel.
+        const fa::tilemap::Tilemap& mapRef = m_map;
+        std::vector<fa::tilemap::TileId> stacked;
+        for (int layer = mapRef.layerCount() - 1; layer >= 0; --layer) {
+            const fa::tilemap::TileId id = mapRef.tileAt(cell.x, cell.y, layer);
+            if (id.isValid()) {
+                stacked.push_back(id);
+            }
+        }
+        const fa::tilemap::TileId id = stacked.empty() ? fa::tilemap::TileId{} : stacked.front();
+        const fa::tilemap::TileDef* def = stacked.empty() ? nullptr : m_map.tileDef(id);
         if (def == nullptr) {
             std::snprintf(buf, sizeof(buf), "tile #%u undefined", static_cast<unsigned>(id.value));
             lines.push_back(buf);
@@ -1926,6 +1942,11 @@ public:
             }
             lines.push_back(std::move(flags));
             std::snprintf(buf, sizeof(buf), "tex %s", def->textureName.empty() ? "-" : def->textureName.c_str());
+            lines.push_back(buf);
+        }
+        if (stacked.size() > 1) {
+            const fa::tilemap::TileDef* under = m_map.tileDef(stacked[1]);
+            std::snprintf(buf, sizeof(buf), "under %s", under != nullptr ? under->name.c_str() : "?");
             lines.push_back(buf);
         }
 

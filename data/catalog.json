@@ -68,6 +68,33 @@
       "tile": 4
     },
     {
+      "id": "tex.ground.flower",
+      "kind": "texture",
+      "path": "textures/tiles/flower.png",
+      "size": [16, 16],
+      "color": "#69a86a",
+      "altColor": "#e06fa0",
+      "tile": 4
+    },
+    {
+      "id": "tex.ground.tree",
+      "kind": "texture",
+      "path": "textures/tiles/tree.png",
+      "size": [16, 16],
+      "color": "#2f6a35",
+      "altColor": "#4a8250",
+      "tile": 4
+    },
+    {
+      "id": "tex.ground.stone",
+      "kind": "texture",
+      "path": "textures/tiles/stone.png",
+      "size": [16, 16],
+      "color": "#7d7f85",
+      "altColor": "#5a5c63",
+      "tile": 4
+    },
+    {
       "id": "tex.item.boat",
       "kind": "texture",
       "path": "textures/items/boat.png",
