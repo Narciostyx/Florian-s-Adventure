@@ -18,6 +18,7 @@ namespace fa::audio {
 /// invokes it from the device callback; tests invoke it directly.
 class AudioMixer {
 public:
+    /// \brief Creates a mixer at the given output format (default 48 kHz stereo).
     explicit AudioMixer(int sampleRate = 48000, int channels = 2);
 
     /// \brief Sets the output format. Only meaningful before voices are added.
@@ -35,6 +36,7 @@ public:
     /// \brief Stops a voice immediately or starts a linear fade.
     [[nodiscard]] bool stop(SoundHandle handle, float fadeSeconds = 0.0f);
 
+    /// \brief Sets a bus master volume; clamped to [0, 1].
     void setBusVolume(AudioBus bus, float volume) noexcept;
     [[nodiscard]] float busVolume(AudioBus bus) const noexcept;
 
@@ -67,6 +69,7 @@ private:
 
     [[nodiscard]] int findVoice(SoundHandle handle) const noexcept;
     [[nodiscard]] int allocateVoice(int priority, float volume) noexcept;
+    /// \brief Frees one voice slot, counting it as finished.
     void deactivate(int index) noexcept;
     [[nodiscard]] float effectiveGain(const Voice& voice) const noexcept;
     [[nodiscard]] float currentFadeIn(const Voice& voice) const noexcept;

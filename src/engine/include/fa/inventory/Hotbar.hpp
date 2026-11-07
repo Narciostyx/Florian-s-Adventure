@@ -21,6 +21,7 @@ struct HotbarEvent {
 /// \brief Selected-slot container used by the player HUD.
 class Hotbar {
 public:
+    /// \brief Wraps a hotbar-sized inventory with a selection cursor.
     explicit Hotbar(int slotCount = 10, int defaultMaxStack = 99, const content::ContentDatabase* content = nullptr);
 
     [[nodiscard]] Inventory& inventory() noexcept { return m_inventory; }

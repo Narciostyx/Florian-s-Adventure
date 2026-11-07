@@ -63,12 +63,15 @@ public:
     ~TilemapExtractSystem() override = default;
 
     [[nodiscard]] std::string_view name() const noexcept override;
+    /// \brief Extracts visible tiles into the queue; runs even while the scene is paused.
     void onRenderExtract(const scene::World& world, render::RenderQueue& queue) override;
 
     /// \brief Sets the camera's world-space rectangle and enables culling.
     ///
-    /// An empty rect disables culling, so a scene without a camera still draws.
+    /// \brief Restricts extraction to cells overlapping \p bounds. An empty rect
+    /// disables culling, so a scene without a camera still draws.
     void setViewBounds(core::Rect bounds) noexcept;
+    /// \brief Disables view culling (draw the whole map).
     void clearViewBounds() noexcept;
 
     [[nodiscard]] const TileExtractOptions& options() const noexcept { return m_options; }

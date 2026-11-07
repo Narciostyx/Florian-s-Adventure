@@ -85,9 +85,11 @@ public:
     /// \brief Drops cached paths after a load; agent components keep their state.
     void clearPaths() noexcept { m_paths.clear(); }
 
+    /// \brief Resets agents, paths, stats and the step counter to a fresh service.
     void clear() noexcept;
 
 private:
+    /// \brief One agent's A* result: waypoint list, cursor and the goal it leads to.
     struct PathState {
         scene::EntityId agent{};
         std::vector<tilemap::TileCoord> nodes;
@@ -96,15 +98,24 @@ private:
         bool hasGoal = false;
     };
 
+    /// \brief The PathState owned by \p agent, appended on first use.
     [[nodiscard]] PathState& pathFor(scene::EntityId agent);
+    /// \brief Empties one cached path and clears its goal.
     void resetPath(PathState& path) noexcept;
+    /// \brief Centre of the agent's collider, or its transform plus half a tile.
     [[nodiscard]] core::Vec2 agentCenter(const scene::World& world, scene::EntityId agent) const;
+    /// \brief The map cell under the agent's centre.
     [[nodiscard]] tilemap::TileCoord cellAt(const scene::World& world, scene::EntityId agent) const;
+    /// \brief Computes and caches a path to \p goal when the agent has none. \return
+    /// false when the map rejects the goal or no path exists.
     [[nodiscard]] bool ensurePath(const scene::World& world, AiAgent& agent, PathState& path, tilemap::TileCoord goal);
+    /// \brief Steps the agent toward the next waypoint at its profile speed.
     void moveAlongPath(scene::World& world, scene::EntityId id, AiAgent& agent, PathState& path, float deltaSeconds);
+    /// \brief Acquires, keeps or drops the target according to sight and memory.
     void perceive(scene::World& world, scene::EntityId id, AiAgent& agent, core::Vec2 center);
     void performAttack(
         scene::World& world, scene::EntityId id, const AiAgent& agent, core::Vec2 center, core::Vec2 targetCenter);
+    /// \brief Applies a state change, timestamping the transition and counting it.
     void changeState(AiAgent& agent, AiState state);
 
     const tilemap::Tilemap& m_map;

@@ -92,10 +92,13 @@ public:
     [[nodiscard]] std::span<const EconomyEvent> events() const noexcept { return m_events; }
     void clearEvents() noexcept { m_events.clear(); }
     [[nodiscard]] EconomyStats stats() const noexcept;
+    /// \brief Clears shipping, jobs, stock, events and counters.
     void clear() noexcept;
 
 private:
+    /// \brief Seeds the daily stock table for \p shop when missing.
     void ensureRemaining(const ShopDef& shop);
+    /// \brief Refills the daily stock limits after a day change.
     void resetRemaining(const ShopDef& shop);
     void record(EconomyEventKind kind,
                 const content::ContentId& shop = {},

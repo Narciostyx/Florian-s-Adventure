@@ -52,10 +52,12 @@ extractSprites(const World& world, render::RenderQueue& queue, const SpriteExtra
 /// \brief A system that does nothing but `extractSprites`.
 class SpriteExtractSystem final : public ISystem {
 public:
+    /// \brief Wraps the extractor with default options.
     explicit SpriteExtractSystem(SpriteExtractOptions options = {});
     ~SpriteExtractSystem() override = default;
 
     [[nodiscard]] std::string_view name() const noexcept override;
+    /// \brief Runs `extractSprites` and caches the stats.
     void onRenderExtract(const World& world, render::RenderQueue& queue) override;
 
     [[nodiscard]] const SpriteExtractStats& lastStats() const noexcept { return m_lastStats; }

@@ -87,6 +87,7 @@ public:
     /// \brief Marks the frame complete. Kept explicit for the M09 begin/end contract.
     void endFrame() noexcept {}
 
+    /// \brief Filled rectangle on the UI layer; the panel background.
     void panel(core::Rect rect, core::Color color);
     /// \brief Draws \p texture over \p rect on the UI layer.
     ///
@@ -94,26 +95,36 @@ public:
     /// integer multiple of the source size, so callers pass 16 -> 16 or 32 px.
     /// An invalid texture or an empty rect is a no-op.
     void icon(core::Rect rect, render::TextureHandle texture, core::Color tint = {1.0f, 1.0f, 1.0f, 1.0f});
+    /// \brief Four thin quads outlining \p rect.
     void border(core::Rect rect, core::Color color, float thickness = 1.0f);
+    /// \brief Track + fill bar; the value is clamped to `[minimum, maximum]`.
     void progressBar(core::Rect rect, float value, float minimum, float maximum, core::Color fill);
+    /// \brief One text run, wrapped to \p rect's width; colour/scale/align from \p style.
     void text(std::string_view text, core::Rect rect, const TextStyle& style = {});
 
     /// \brief Push button. With a valid `background` texture it replaces the flat
     /// theme quad (hover brightens, press darkens the tint); the label still uses
     /// the theme text colour. Invalid texture keeps the classic look.
     UiResult button(UiId id, std::string_view label, core::Rect rect, render::TextureHandle background = {});
+    /// \brief Toggle: flips \p value on click.
     UiResult checkbox(UiId id, std::string_view label, bool& value, core::Rect rect);
+    /// \brief Drag handle writing \p value within `[minimum, maximum]`.
     UiResult slider(UiId id, float& value, float minimum, float maximum, core::Rect rect);
 
     /// \brief Appends every queued item to \p out.
     void submit(render::RenderQueue& out) const;
 
+    /// \brief Queued draw items this frame.
     [[nodiscard]] std::size_t itemCount() const noexcept { return m_queue.size(); }
+    /// \brief The font this context draws text with.
     [[nodiscard]] const FontAtlas& font() const noexcept { return m_font; }
 
 private:
+    /// \brief Whether the cursor is inside \p rect (virtual pixels).
     [[nodiscard]] bool hovered(core::Rect rect) const noexcept;
+    /// \brief Moves \p rect from UI space into world space via the origin.
     [[nodiscard]] core::Rect offset(core::Rect rect) const noexcept;
+    /// \brief Queues one solid white-texture quad.
     void quad(core::Rect rect, core::Color color);
 
     const FontAtlas& m_font;

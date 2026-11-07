@@ -30,7 +30,7 @@ inline constexpr int kAssertionFailed = 1008;
 
 }  // namespace error_code
 
-/// Recoverable failure description. Exactly one `Error` is carried by a failed
+/// \brief Recoverable failure description. Exactly one `Error` is carried by a failed
 /// Result; successful values never allocate an Error.
 struct Error {
     int code = error_code::kUnknown;

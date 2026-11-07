@@ -51,8 +51,10 @@ public:
 /// \brief Default implementation used by the frame loop.
 class TimeService final : public ITimeService {
 public:
+    /// \brief All domains start unpaused at scale 1.
     TimeService() noexcept;
 
+    /// Interface methods; semantics documented on \ref ITimeService. @{
     void setPaused(TimeDomain domain, bool paused) override;
     bool isPaused(TimeDomain domain) const override;
     void setScale(TimeDomain domain, float scale) override;
@@ -60,6 +62,7 @@ public:
     float effectiveScale(TimeDomain domain) const override;
     double deltaFor(TimeDomain domain) const override;
     const FrameContext& context() const override;
+    /// @}
 
     /// \brief Publishes the next frame's snapshot. Called by the frame loop only.
     ///
@@ -78,11 +81,13 @@ public:
     void endFrame() noexcept;
 
 private:
+    /// \brief Per-domain pause switch and speed multiplier.
     struct DomainState {
         float scale = 1.0f;
         bool paused = false;
     };
 
+    /// \brief The domain's state; asserts the domain is inside the array.
     const DomainState& state(TimeDomain domain) const noexcept;
 
     DomainState m_domains[kTimeDomainCount]{};

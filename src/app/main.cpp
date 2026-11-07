@@ -150,16 +150,42 @@ struct Options {
     int soakSeconds = 0;
     /// \brief Sprite-only stress scene size; 0 disables `--stress`.
     int stressSprites = 0;
+    /// \brief `--help` / `-h`: print the option reference and exit before any init.
+    bool showHelp = false;
 
     /// \brief Modes a human plays: windowed by default and the only ones that write a log file.
     [[nodiscard]] bool isPlayerMode() const noexcept { return playMode && !playTest; }
 };
 
+/// \brief Prints the command-line reference (also used by `--help`).
+void printUsage() {
+    std::printf(
+        "usage: fa_app [options]\n"
+        "  (no options)        headless scripted smoke: runs a few frames, prints the\n"
+        "                      m02..m27 module report, exits\n"
+        "  --help, -h          show this help and exit\n"
+        "  --play              playable session: window opens, WASD move, 1-9 hotbar,\n"
+        "                      wheel cycle, LMB/G use, RMB sword qi, E teleport\n"
+        "  --debug             --play plus debug overlays on at startup (F3 stats panel,\n"
+        "                      F5 collision boxes) and Debug-level logging\n"
+        "  --play-test         headless play-loop self check: drives the real play mode\n"
+        "                      through new game, farming, combat, portals, death, saves\n"
+        "  --window            force a visible window even in automation modes\n"
+        "  --frames N          stop after N frames (smoke/soak/stress run length)\n"
+        "  --resolution WxH    override the window size from config/game.json (e.g. 1920x1080)\n"
+        "  --soak SECONDS      soak test: run SECONDS*60 fixed steps with periodic\n"
+        "                      save/load cycles and check for entity/texture leaks\n"
+        "  --stress N          stress test: headless scene with N sprites for 600 frames\n"
+        "                      (p50/p99 frame-time report)\n");
+}
+
 Options parseOptions(int argc, char** argv) {
     Options options;
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
-        if (arg == "--window") {
+        if (arg == "--help" || arg == "-h") {
+            options.showHelp = true;
+        } else if (arg == "--window") {
             options.visibleWindow = true;
         } else if (arg == "--play") {
             options.playMode = true;
@@ -10231,6 +10257,10 @@ void adoptProjectRoot(fa::platform::IFileSystem& fileSystem) {
 
 int main(int argc, char** argv) {
     const Options options = parseOptions(argc, argv);
+    if (options.showHelp) {
+        printUsage();
+        return 0;
+    }
     printBanner();
 
     std::unique_ptr<fa::platform::IPlatform> platform = fa::platform::createPlatform();

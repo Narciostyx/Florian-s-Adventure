@@ -37,13 +37,21 @@ public:
     /// \brief Stable name for logs, the debug overlay and `SceneStack::find`.
     [[nodiscard]] virtual std::string_view name() const noexcept = 0;
 
+    /// \brief Called once when the stack pushes this scene; build entities here.
     virtual void onEnter() {}
+    /// \brief Called once when the stack pops this scene; release scene-local handles.
     virtual void onExit() {}
+    /// \brief Called when another scene is pushed on top; the scene stops updating
+    /// but keeps being extracted.
     virtual void onPause() {}
+    /// \brief Called when the scene above is popped and this one resumes updating.
     virtual void onResume() {}
 
+    /// \brief Fixed-step logic entry (60 Hz).
     virtual void onFixedUpdate(const time::FrameContext& context) { static_cast<void>(context); }
+    /// \brief Variable-rate entry (render cadence).
     virtual void onVariableUpdate(const time::FrameContext& context) { static_cast<void>(context); }
+    /// \brief Appends this scene's draw items; runs even while paused.
     virtual void onRenderExtract(render::RenderQueue& queue) { static_cast<void>(queue); }
 };
 
@@ -55,6 +63,7 @@ public:
 /// at entities directly.
 class BasicScene : public IScene {
 public:
+    /// \brief Creates the scene with its stable name.
     explicit BasicScene(std::string name);
 
     [[nodiscard]] std::string_view name() const noexcept override;
@@ -64,9 +73,11 @@ public:
     [[nodiscard]] SystemPipeline& systems() noexcept { return m_pipeline; }
     [[nodiscard]] const SystemPipeline& systems() const noexcept { return m_pipeline; }
 
+    /// \brief Forwards the hooks to the wired system pipeline. @{
     void onFixedUpdate(const time::FrameContext& context) override;
     void onVariableUpdate(const time::FrameContext& context) override;
     void onRenderExtract(render::RenderQueue& queue) override;
+    /// @}
 
 private:
     std::string m_name;

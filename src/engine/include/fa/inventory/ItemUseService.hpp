@@ -62,6 +62,7 @@ public:
     [[nodiscard]] ItemUseStats stats() const noexcept;
 
 private:
+    /// \brief Appends one use event to the bounded ring.
     void record(ItemUseEventKind kind, int slot, const content::ContentId& id, int errorCode);
 
     const content::ContentDatabase& m_content;

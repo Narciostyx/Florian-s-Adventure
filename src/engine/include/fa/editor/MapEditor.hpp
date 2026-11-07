@@ -28,6 +28,7 @@ public:
     MapEditor(MapEditor&&) = delete;
     MapEditor& operator=(MapEditor&&) = delete;
 
+    /// \brief Paints into the given layer; clamped to the map's layer count.
     void setLayer(int layer) noexcept;
     [[nodiscard]] int layer() const noexcept { return m_layer; }
 
@@ -50,6 +51,7 @@ public:
     [[nodiscard]] core::Status fillRect(tilemap::TileCoord from, tilemap::TileCoord to, tilemap::TileId tile);
     [[nodiscard]] core::Status floodFill(tilemap::TileCoord start, tilemap::TileId tile);
 
+    /// \brief Aborts a rect drag in progress without painting.
     void cancelRect() noexcept;
     [[nodiscard]] bool rectActive() const noexcept { return m_rectActive; }
     [[nodiscard]] std::vector<tilemap::TileCoord> previewCells() const;

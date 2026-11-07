@@ -8,7 +8,7 @@
 
 namespace fa::input {
 
-/// What a binding listens to. Only `Key` and `MouseButton` are produced in v1; the
+/// \brief What a binding listens to. Only `Key` and `MouseButton` are produced in v1; the
 /// gamepad members exist so bindings authored today stay parseable once a gamepad
 /// device lands (ADR-0002 decision 4). A device answers `false` for kinds it does
 /// not handle, so an unsupported binding is inert rather than an error.
@@ -21,7 +21,7 @@ enum class BindingKind : unsigned char {
     GamepadAxis,
 };
 
-/// One physical input feeding an action. `scale` lets a binding push an axis in the
+/// \brief One physical input feeding an action. `scale` lets a binding push an axis in the
 /// opposite direction (`-1.0f`) without a second action.
 struct Binding {
     BindingKind kind = BindingKind::None;
@@ -38,22 +38,26 @@ struct Binding {
     /// Multiplier applied to the raw 0/1 (or -1/1) reading. -1 inverts, 0 disables.
     float scale = 1.0f;
 
+    /// \brief Equality over every field; the basis for unbind and duplicate checks.
     friend bool operator==(const Binding& lhs, const Binding& rhs) noexcept;
+    /// \brief Inequality; defined as the negation of `operator==`.
     friend bool operator!=(const Binding& lhs, const Binding& rhs) noexcept { return !(lhs == rhs); }
 
+    /// \brief Key binding for \p scancode.
     static Binding fromKey(fa::platform::Scancode scancode, float scale = 1.0f) noexcept;
+    /// \brief Mouse button binding.
     static Binding fromMouseButton(fa::platform::MouseButton button, float scale = 1.0f) noexcept;
 
-    /// Round-trips through JSON as `Key:A`, `MouseButton:Left`, `GamepadAxis:2:-1`.
+    /// \brief Round-trips through JSON as `Key:A`, `MouseButton:Left`, `GamepadAxis:2:-1`.
     /// Parsing only recognizes the spellings `toString(Scancode)` and
     /// `toString(MouseButton)` produce; anything else yields BindingKind::None.
     std::string toString() const;
 
-    /// Returns a binding with BindingKind::None on unknown syntax.
+    /// \brief Returns a binding with BindingKind::None on unknown syntax.
     static Binding fromString(std::string_view text) noexcept;
 };
 
-/// True when this binding can never fire, i.e. any v1 query may skip it.
+/// \brief True when this binding can never fire, i.e. any v1 query may skip it.
 bool isUsable(const Binding& binding) noexcept;
 
 }  // namespace fa::input

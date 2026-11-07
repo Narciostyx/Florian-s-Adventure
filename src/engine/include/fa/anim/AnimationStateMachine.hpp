@@ -56,6 +56,8 @@ public:
     [[nodiscard]] bool setState(std::string_view name);
     [[nodiscard]] std::string_view state() const noexcept { return m_state; }
 
+    /// \brief Advances the animator: applies transitions, then plays the state's clip
+    /// for the facing/direction the params describe.
     void update(Animator& animator, const AnimationParams& params, float deltaSeconds);
 
     [[nodiscard]] AnimationService& service() noexcept { return m_service; }

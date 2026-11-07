@@ -27,6 +27,7 @@ public:
 
     [[nodiscard]] std::span<const WorldObject> objects() const noexcept { return m_objects; }
     [[nodiscard]] std::size_t size() const noexcept { return m_objects.size(); }
+    /// \brief Empties the object list.
     void clear() noexcept { m_objects.clear(); }
 
 private:
@@ -45,6 +46,7 @@ public:
 
     [[nodiscard]] std::span<const Debris> debris() const noexcept { return m_debris; }
     [[nodiscard]] std::size_t size() const noexcept { return m_debris.size(); }
+    /// \brief Empties the debris layer.
     void clear() noexcept { m_debris.clear(); }
 
 private:

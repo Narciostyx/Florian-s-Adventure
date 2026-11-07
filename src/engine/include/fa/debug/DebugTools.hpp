@@ -57,19 +57,25 @@ public:
 
     /// \brief Opens/closes the console; opening prints the registered command list.
     void setConsoleOpen(bool open);
+    /// \brief Whether the console currently owns input.
     [[nodiscard]] bool consoleOpen() const noexcept { return m_console.open(); }
 
     /// \brief Routes one platform event.
     /// \return true when the event was consumed and must not reach gameplay input.
     [[nodiscard]] bool handleEvent(const platform::PlatformEvent& event);
 
+    /// \brief Draws the stats, console and log panels through M09.
     void draw(ui::UiContext& ui, core::Rect viewport) const;
 
+    /// \brief Adds a console command to the embedded console.
     [[nodiscard]] bool registerCommand(ConsoleCommand command);
+    /// \brief Hooks the sink into `core::addLogSink` / `removeLogSink`. @{
     void attachLogSink();
     void detachLogSink();
+    /// @}
 
 private:
+    /// \brief Registers `stats`, `stats.*`, `log.*` and `cvar.*` commands.
     void registerBuiltins();
 
     DebugConsole m_console;

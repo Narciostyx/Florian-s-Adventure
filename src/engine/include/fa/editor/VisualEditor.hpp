@@ -48,6 +48,7 @@ public:
     /// \brief Callback that writes the placement table; the app owns `data/entities.json`.
     using PlacementSaveHandler = std::function<core::Status(const std::vector<MapPlacement>&)>;
 
+    /// \brief Borrows the live tilemap; the editor paints into it immediately.
     explicit VisualEditor(tilemap::Tilemap& map);
 
     VisualEditor(const VisualEditor&) = delete;
@@ -61,6 +62,7 @@ public:
     /// callback runs, so a discarded session leaves `entities.json` untouched. Passing a
     /// null pointer returns the editor to tile-only mode.
     void setPlacements(std::vector<MapPlacement>* placements, std::vector<PlacementKind> kinds);
+    /// \brief Callback that writes the placement table back to `data/entities.json`.
     void setPlacementSave(PlacementSaveHandler handler);
     /// \brief Map ids a portal may lead to. The app owns the map registry.
     void setPortalTargets(std::vector<std::string> targets);
@@ -70,12 +72,17 @@ public:
     void setEntityInfos(std::vector<EntityInfoRow> rows);
     [[nodiscard]] std::span<const EntityInfoRow> entityInfos() const noexcept { return m_entityInfos; }
 
+    /// \brief Current editing scope.
     [[nodiscard]] EditorScope scope() const noexcept { return m_scope; }
+    /// \brief Switches scope; clears selections and any half-built portal.
     void setScope(EditorScope scope) noexcept;
+    /// \brief The borrowed placement table (empty when tile-only mode).
     [[nodiscard]] std::span<const MapPlacement> placements() const noexcept;
 
+    /// \brief Show or hide the editor; hiding keeps undo history and selections.
     void setActive(bool active) noexcept;
     [[nodiscard]] bool active() const noexcept { return m_active; }
+    /// \brief Toggle between shown and hidden.
     void toggle() noexcept { setActive(!m_active); }
 
     /// \brief Routes pointer input; `mapViewport` is in screen-space virtual pixels.
@@ -84,6 +91,8 @@ public:
     /// \brief Draws the toolbar, palette and property inspector.
     void draw(ui::UiContext& ui, core::Rect screen, std::span<const std::string> textureIds, const SaveHandler& save);
 
+    /// \brief Live accessors: the borrowed map, inner editor, history, last layout,
+    /// hover cell, dirty flag, serialized map text and the current status line. @{
     [[nodiscard]] tilemap::Tilemap& map() noexcept { return m_editor.map(); }
     [[nodiscard]] const tilemap::Tilemap& map() const noexcept { return m_editor.map(); }
     [[nodiscard]] MapEditor& editor() noexcept { return m_editor; }
@@ -94,17 +103,25 @@ public:
     [[nodiscard]] bool dirty() const noexcept { return m_history.dirty(); }
     [[nodiscard]] std::string mapText() const { return m_editor.mapText(); }
     [[nodiscard]] std::string_view status() const noexcept { return m_status; }
+    /// @}
+
+    /// \brief Whether the footer's 返回 was clicked; the app closes the window.
     [[nodiscard]] bool closeRequested() const noexcept { return m_closeRequested; }
     void clearCloseRequest() noexcept { m_closeRequested = false; }
 
+    /// \brief Right-hand panel rectangle for a screen rect.
     [[nodiscard]] static core::Rect panelRect(core::Rect screen) noexcept;
+    /// \brief Left-hand map viewport rectangle for a screen rect.
     [[nodiscard]] static core::Rect mapRect(core::Rect screen) noexcept;
     /// \brief The lower-right inspector rectangle, shared by the panels and the footer.
     [[nodiscard]] static core::Rect propsRect(core::Rect screen) noexcept;
 
 private:
+    /// \brief Rebuilds the map at the new size, copying overlapping cells and defs.
     void resizeMap(int width, int height);
+    /// \brief Scope/tool buttons row across the top.
     void drawToolbar(ui::UiContext& ui, core::Rect screen);
+    /// \brief Tile or object palette (upper right), per scope.
     void drawPalette(ui::UiContext& ui, core::Rect screen, std::span<const std::string> textureIds);
     /// \brief Palette for the placement/portal scopes: kinds on the left, list on the right.
     void drawObjectPalette(ui::UiContext& ui, core::Rect palette);
@@ -117,17 +134,25 @@ private:
     /// \brief 保存 button plus the status line, drawn in every scope: switching to the object
     /// or portal scope must not strand the session without a way to write its work out.
     void drawFooter(ui::UiContext& ui, core::Rect screen, const SaveHandler& save);
+    /// \brief Tile-scope inspector: map settings and the selected tile definition.
     void drawProperties(ui::UiContext& ui,
                         core::Rect screen,
                         std::span<const std::string> textureIds,
                         const SaveHandler& save);
+    /// \brief Maps a screen cursor onto a grid cell (and the tile scale).
     void updateHover(const core::Vec2& cursor);
+    /// \brief Places or selects at \p cell (placement scope).
     void applyPlacementClick(tilemap::TileCoord cell);
+    /// \brief Removes the placement at \p cell.
     void applyPlacementErase(tilemap::TileCoord cell);
+    /// \brief First click sets the corner, second builds the region (portal scope).
     void applyPortalClick(tilemap::TileCoord cell);
+    /// \brief Row indices at \p cell; -1 when nothing is there. @{
     [[nodiscard]] int placementIndexAt(tilemap::TileCoord cell) const noexcept;
     [[nodiscard]] int portalIndexAt(tilemap::TileCoord cell) const noexcept;
     [[nodiscard]] int entityIndexAt(tilemap::TileCoord cell) const noexcept;
+    /// @}
+    /// \brief Runs the placement save callback when the app supplied one.
     void saveObjects();
 
     EditorHistory m_history;

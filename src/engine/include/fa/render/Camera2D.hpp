@@ -101,6 +101,7 @@ public:
     void projection(float outColumnMajor[16]) const noexcept;
 
 private:
+    /// \brief Clamps the position to the world bounds when one is set.
     void applyBounds() noexcept;
 
     core::Vec2 m_position{};

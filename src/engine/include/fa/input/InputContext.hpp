@@ -7,7 +7,7 @@
 
 namespace fa::input {
 
-/// Why a frame's input is being read. Each context owns its own ActionMap, so
+/// \brief Why a frame's input is being read. Each context owns its own ActionMap, so
 /// opening a menu makes gameplay actions stop firing even though the physical keys
 /// are still held - that is the "menu open => character stops" acceptance test
 /// in docs/modules/07-input.md, achieved without any per-action gating.
@@ -22,14 +22,14 @@ enum class InputContext : std::uint8_t {
 
 inline constexpr std::size_t kInputContextCount = static_cast<std::size_t>(InputContext::Count);
 
-/// Stable on-disk spelling used as the JSON key and in logs.
+/// \brief Stable on-disk spelling used as the JSON key and in logs.
 std::string_view toString(InputContext context) noexcept;
 
-/// Inverse of \ref toString. Case sensitive; returns InputContext::Gameplay when the
+/// \brief Inverse of \ref toString. Case sensitive; returns InputContext::Gameplay when the
 /// text is not a context name.
 InputContext inputContextFromName(std::string_view name) noexcept;
 
-/// Last-in-first-out stack of active contexts. Only the top entry is queried, so a
+/// \brief Last-in-first-out stack of active contexts. Only the top entry is queried, so a
 /// pushed UI context fully masks the Gameplay map beneath it.
 ///
 /// The stack is never empty: popping the base entry re-pushes Gameplay rather than
@@ -39,24 +39,27 @@ class InputContextStack {
 public:
     InputContextStack();
 
+    /// \brief Pushes \p context on top; it becomes the only queried map.
     void push(InputContext context) noexcept;
 
-    /// Pops the top entry. Returns the context that is now active (or Gameplay when
+    /// \brief Pops the top entry. Returns the context that is now active (or Gameplay when
     /// the stack had a single entry and was reset).
     InputContext pop() noexcept;
 
-    /// Pops only when the top entry is `context`; returns false otherwise. This is
+    /// \brief Pops only when the top entry is `context`; returns false otherwise. This is
     /// the safe form for "the panel I pushed is closing, nobody else's entry".
     bool tryPop(InputContext context) noexcept;
 
+    /// \brief The active context (the top entry).
     InputContext top() const noexcept;
 
-    /// True when `context` is anywhere in the stack, top or buried.
+    /// \brief True when `context` is anywhere in the stack, top or buried.
     bool contains(InputContext context) const noexcept;
 
+    /// \brief Entries currently on the stack (always at least one).
     std::size_t size() const noexcept { return m_stack.size(); }
 
-    /// Collapses to a single Gameplay entry.
+    /// \brief Collapses to a single Gameplay entry.
     void clear() noexcept;
 
 private:

@@ -53,6 +53,7 @@ public:
     [[nodiscard]] virtual std::size_t size() const noexcept = 0;
     [[nodiscard]] virtual bool has(EntityId id) const noexcept = 0;
     [[nodiscard]] virtual bool remove(EntityId id) noexcept = 0;
+    /// \brief Removes every component of this type from the world.
     virtual void clear() noexcept = 0;
 };
 

@@ -125,8 +125,10 @@ private:
     distanceToTarget(const scene::World& world, scene::EntityId actor, const GridTarget& target) const noexcept;
     [[nodiscard]] IToolHandler* findHandler(ToolKind tool) noexcept;
 
+    /// \brief Appends one interaction/placement event to the bounded ring. @{
     void recordInteraction(InteractionEventKind kind, const InteractionRequest& request, int errorCode);
     void recordPlacement(InteractionEventKind kind, const PlacementRequest& request, int errorCode);
+    /// @}
 
     const tilemap::Tilemap& m_map;
     PlacementGrid* m_placement = nullptr;

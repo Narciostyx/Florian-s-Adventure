@@ -41,7 +41,7 @@ inline constexpr ActionId kActionMoveRight = actionIdFromName(kNameMoveRight);
 inline constexpr ActionId kActionMoveUp = actionIdFromName(kNameMoveUp);
 inline constexpr ActionId kActionMoveDown = actionIdFromName(kNameMoveDown);
 
-/// Snapshot of one action for the current frame. Edge flags come from the events
+/// \brief Snapshot of one action for the current frame. Edge flags come from the events
 /// polled this frame, so a press-and-release inside a single frame reports both
 /// edges while `isDown` stays false.
 struct ActionState {
@@ -54,21 +54,23 @@ struct ActionState {
     float value = 0.0f;
 };
 
-/// Keeps authored names around for debug overlays and the rebinding screen.
+/// \brief Keeps authored names around for debug overlays and the rebinding screen.
 /// Lookups are the only supported access; iteration order is unspecified.
 class ActionRegistry {
 public:
-    /// Returns the id for `name`, remembering the spelling. An empty name yields
+    /// \brief Returns the id for `name`, remembering the spelling. An empty name yields
     /// kInvalidActionId and is not stored.
     ActionId intern(std::string_view name);
 
-    /// Returns nullptr when `id` was never interned.
+    /// \brief Returns nullptr when `id` was never interned.
     const std::string* name(ActionId id) const noexcept;
 
-    /// Empty view when `id` was never interned.
+    /// \brief Empty view when `id` was never interned.
     std::string_view nameView(ActionId id) const noexcept;
 
+    /// \brief Number of interned names.
     std::size_t size() const noexcept { return m_names.size(); }
+    /// \brief Forgets every name; previously returned ids become unknown.
     void clear() noexcept { m_names.clear(); }
 
 private:

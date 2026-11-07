@@ -56,7 +56,7 @@ struct InventoryStats {
 /// \brief Fixed-capacity item container.
 class Inventory {
 public:
-    /// \param slotCount Clamped to at least 0.
+    /// \brief \param slotCount Clamped to at least 0.
     /// \param defaultMaxStack Clamped to at least 1; used when content has no item.
     /// \param content Borrowed and may be null; setContentDatabase() can bind it later.
     explicit Inventory(int slotCount, int defaultMaxStack = 99, const content::ContentDatabase* content = nullptr);
@@ -124,6 +124,7 @@ public:
     /// \brief Replaces every slot from a save snapshot.
     [[nodiscard]] core::Status restore(std::span<const ItemStack> slots);
 
+    /// \brief Empties every slot and the event ring; counters are cumulative.
     void clear() noexcept;
 
     [[nodiscard]] std::span<const InventoryEvent> events() const noexcept { return m_events; }
@@ -133,6 +134,7 @@ public:
 private:
     [[nodiscard]] bool sameKind(const ItemStack& lhs, const ItemStack& rhs) const noexcept;
     [[nodiscard]] int spaceForKind(const ItemStack& stack) const noexcept;
+    /// \brief Appends one event to the bounded ring.
     void pushEvent(InventoryEvent event);
 
     std::vector<ItemStack> m_slots;

@@ -26,6 +26,7 @@ public:
     /// \brief Parses one document and merges it by id.
     [[nodiscard]] core::Status loadDocument(std::string_view json);
 
+    /// \brief Drops every loaded definition (npcs, dialogues, quests).
     void clear() noexcept;
 
     [[nodiscard]] const NpcDef* npc(const content::ContentId& id) const noexcept;

@@ -16,11 +16,11 @@ namespace fa::input {
 class KeyboardDevice;
 class MouseDevice;
 
-/// Which backend a device speaks for. Used to pick the concrete accessors that
+/// \brief Which backend a device speaks for. Used to pick the concrete accessors that
 /// expose pointer or text state; deliberately not RTTI (`/GR-`).
 enum class InputDeviceKind : std::uint8_t { Keyboard, Mouse, Gamepad };
 
-/// One physical input source. Adding a device means implementing this and calling
+/// \brief One physical input source. Adding a device means implementing this and calling
 /// InputSystem::addDevice(); no gameplay code changes (docs/modules/07-input.md).
 ///
 /// The frame contract is: `poll()` with this frame's events, consumers query,
@@ -33,39 +33,45 @@ public:
     IInputDevice(const IInputDevice&) = delete;
     IInputDevice& operator=(const IInputDevice&) = delete;
 
+    /// \brief Which backend this device speaks for.
     virtual InputDeviceKind kind() const noexcept = 0;
 
-    /// Typed accessors for the two v1 devices. Default `nullptr` means "not me", so a
+    /// \brief Typed accessors for the two v1 devices. Default `nullptr` means "not me", so a
     /// third-party device never needs a downcast and the engine never needs RTTI.
     virtual KeyboardDevice* asKeyboard() noexcept { return nullptr; }
     virtual MouseDevice* asMouse() noexcept { return nullptr; }
 
-    /// False for binding kinds this device cannot produce, which keeps an
+    /// \brief False for binding kinds this device cannot produce, which keeps an
     /// unsupported binding inert instead of silently always-firing.
     virtual bool handles(BindingKind bindingKind) const noexcept = 0;
 
-    /// Consumes one frame of events. Events belonging to other devices are ignored.
+    /// \brief Consumes one frame of events. Events belonging to other devices are ignored.
     virtual void poll(std::span<const fa::platform::PlatformEvent> events) = 0;
 
-    /// Clears press/release edges and any per-frame accumulation.
+    /// \brief Clears press/release edges and any per-frame accumulation.
     virtual void endFrame() noexcept = 0;
 
-    /// Drops all state, including "held". Called when the window loses focus,
+    /// \brief Drops all state, including "held". Called when the window loses focus,
     /// because the matching release events are frequently never delivered.
     virtual void reset() noexcept = 0;
 
+    /// \brief Steady state: the binding's input is currently down.
     virtual bool held(const Binding& binding) const noexcept = 0;
+    /// \brief Edge: the binding went down during the frame just polled.
     virtual bool pressed(const Binding& binding) const noexcept = 0;
+    /// \brief Edge: the binding came up during the frame just polled.
     virtual bool released(const Binding& binding) const noexcept = 0;
 
-    /// Signed strength in `[-scale, scale]`; 0 when the binding is not held.
+    /// \brief Signed strength in `[-scale, scale]`; 0 when the binding is not held.
     virtual float value(const Binding& binding) const noexcept = 0;
 };
 
-/// Keyboard state. `PlatformEvent::scancode` arrives already translated by the
-/// platform layer, so nothing here knows the backend's numbering.
+/// \brief Keyboard state. `PlatformEvent::scancode` arrives already translated by the
+/// platform layer, so nothing here knows the backend's numbering. Overrides inherit
+/// the \ref IInputDevice documentation.
 class KeyboardDevice final : public IInputDevice {
 public:
+    /// \cond
     InputDeviceKind kind() const noexcept override { return InputDeviceKind::Keyboard; }
     KeyboardDevice* asKeyboard() noexcept override { return this; }
     bool handles(BindingKind bindingKind) const noexcept override;
@@ -78,12 +84,16 @@ public:
     bool pressed(const Binding& binding) const noexcept override;
     bool released(const Binding& binding) const noexcept override;
     float value(const Binding& binding) const noexcept override;
+    /// \endcond
 
+    /// \brief Direct scancode queries, bypassing bindings (debug overlays and the
+    /// console hotkey only). @{
     bool held(fa::platform::Scancode scancode) const noexcept;
     bool pressed(fa::platform::Scancode scancode) const noexcept;
     bool released(fa::platform::Scancode scancode) const noexcept;
+    /// @}
 
-    /// UTF-8 text typed this frame. Cleared by endFrame(); aimed at the TextInput
+    /// \brief UTF-8 text typed this frame. Cleared by endFrame(); aimed at the TextInput
     /// context, never at gameplay keys.
     std::string_view text() const noexcept { return m_text; }
 
@@ -94,10 +104,12 @@ private:
     std::string m_text;
 };
 
-/// Mouse state. Position is in raw window pixels; InputSystem applies the virtual
-/// resolution transform before gameplay sees it.
+/// \brief Mouse state. Position is in raw window pixels; InputSystem applies the virtual
+/// resolution transform before gameplay sees it. Overrides inherit the \ref
+/// IInputDevice documentation.
 class MouseDevice final : public IInputDevice {
 public:
+    /// \cond
     InputDeviceKind kind() const noexcept override { return InputDeviceKind::Mouse; }
     MouseDevice* asMouse() noexcept override { return this; }
     bool handles(BindingKind bindingKind) const noexcept override;
@@ -110,18 +122,21 @@ public:
     bool pressed(const Binding& binding) const noexcept override;
     bool released(const Binding& binding) const noexcept override;
     float value(const Binding& binding) const noexcept override;
+    /// \endcond
 
+    /// \brief Direct button queries, bypassing bindings. @{
     bool held(fa::platform::MouseButton button) const noexcept;
     bool pressed(fa::platform::MouseButton button) const noexcept;
     bool released(fa::platform::MouseButton button) const noexcept;
+    /// @}
 
-    /// Last known cursor position in window pixels, top-left origin, y down.
+    /// \brief Last known cursor position in window pixels, top-left origin, y down.
     fa::core::Vec2 position() const noexcept { return m_position; }
 
-    /// Movement accumulated this frame; cleared by endFrame().
+    /// \brief Movement accumulated this frame; cleared by endFrame().
     fa::core::Vec2 delta() const noexcept { return m_delta; }
 
-    /// Wheel movement accumulated this frame as (horizontal, vertical) notches.
+    /// \brief Wheel movement accumulated this frame as (horizontal, vertical) notches.
     fa::core::Vec2 scroll() const noexcept { return m_scroll; }
 
 private:

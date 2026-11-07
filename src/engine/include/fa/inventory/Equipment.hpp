@@ -28,6 +28,7 @@ struct EquipmentStats {
 /// \brief Two fixed equipment slots, independent of the backpack.
 class Equipment {
 public:
+    /// \brief Empty equipment; \p content supplies max-stack rules for inserted items.
     explicit Equipment(const content::ContentDatabase* content = nullptr) noexcept;
 
     /// \brief Contents of \p slot, or an empty stack for an invalid slot.

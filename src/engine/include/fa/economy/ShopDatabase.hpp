@@ -21,6 +21,7 @@ public:
     ShopDatabase() = default;
 
     [[nodiscard]] core::Status loadDocument(std::string_view json);
+    /// \brief Drops every loaded shop.
     void clear() noexcept;
 
     [[nodiscard]] const ShopDef* shop(const content::ContentId& id) const noexcept;

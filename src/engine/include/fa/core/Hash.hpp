@@ -25,7 +25,7 @@ constexpr std::uint64_t hashCombine(std::uint64_t seed, std::uint64_t value) noe
     return seed;
 }
 
-/// Fallback for arbitrary binary blobs (content file bytes, component payloads).
+/// \brief Fallback for arbitrary binary blobs (content file bytes, component payloads).
 std::uint64_t hashBytes(const void* data, std::size_t size) noexcept;
 
 }  // namespace fa::core

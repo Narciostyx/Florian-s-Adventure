@@ -27,6 +27,7 @@ namespace fa::player {
 /// \brief Applies intent to a player entity.
 class PlayerController {
 public:
+    /// \brief Builds a controller with the given tuning.
     explicit PlayerController(PlayerTuning tuning = {});
 
     void setTuning(const PlayerTuning& tuning) noexcept { m_tuning = tuning; }
@@ -65,8 +66,11 @@ public:
     [[nodiscard]] const PlayerAnimationParams& animationParams() const noexcept { return m_animation; }
 
 private:
+    /// \brief Transitions the state component, timestamping the change.
     void setState(PlayerStateComp& state, PlayerState next);
+    /// \brief Appends one action request to the event buffer.
     void record(PlayerActionKind kind, scene::EntityId player, Facing facing, std::uint32_t payload, int errorCode);
+    /// \brief Records a rejected action; `dodgeRejection` bumps its own counter.
     void reject(scene::EntityId player, Facing facing, std::uint32_t payload, int errorCode, bool dodgeRejection);
     void updateAnimation(const FacingDir& facing,
                          const PlayerStateComp& state,

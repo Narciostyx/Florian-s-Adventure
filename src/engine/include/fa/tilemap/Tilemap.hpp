@@ -206,6 +206,7 @@ public:
     /// \brief World-space rectangle covering the whole map.
     [[nodiscard]] core::Rect boundsRect() const noexcept;
 
+    /// \brief Appends a named gameplay area (greenhouse, portal zone, ...).
     void addArea(MapArea area);
     [[nodiscard]] std::span<const MapArea> areas() const noexcept { return m_areas; }
 
@@ -221,6 +222,8 @@ public:
     /// \brief The first area containing `coord`, or null.
     [[nodiscard]] const MapArea* areaAt(TileCoord coord) const noexcept;
 
+    /// \brief Appends a portal region; overlapping portals are allowed but the first
+    /// hit wins.
     void addPortal(MapPortal portal);
     [[nodiscard]] std::span<const MapPortal> portals() const noexcept { return m_portals; }
 

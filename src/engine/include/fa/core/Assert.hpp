@@ -4,9 +4,10 @@
 
 namespace fa::core {
 
+/// \brief Signature of the process-abort hook: receives the fatal message.
 using FatalHandler = void (*)(std::string_view message);
 
-/// Installs the process-abort hook. The platform layer uses this to show a
+/// \brief Installs the process-abort hook. The platform layer uses this to show a
 /// message box before dying; tests use it to convert a fatal into a failure.
 /// Passing nullptr restores the default (message on stderr).
 void setFatalHandler(FatalHandler handler) noexcept;
@@ -14,7 +15,7 @@ void setFatalHandler(FatalHandler handler) noexcept;
 /// Logs at LogLevel::Fatal, flushes the sinks, invokes the fatal handler, aborts.
 [[noreturn]] void fatal(std::string_view message);
 
-/// Logs a recoverable programming error at LogLevel::Error and always returns
+/// \brief Logs a recoverable programming error at LogLevel::Error and always returns
 /// false, so it can be used as `if (!FA_CHECK(...)) { ... }`.
 bool reportCheckFailure(std::string_view expression, std::string_view file, int line, std::string_view message);
 

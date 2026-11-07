@@ -58,6 +58,7 @@ public:
     explicit CreateCommand(EntityId placeholder) noexcept : m_placeholder(placeholder) {}
 
     [[nodiscard]] CommandKind kind() const noexcept override { return CommandKind::Create; }
+    /// \brief Creates a real entity for the placeholder and records the mapping.
     bool run(World& world, std::unordered_map<std::uint32_t, EntityId>& resolved) override;
 
 private:
@@ -69,6 +70,7 @@ public:
     explicit DestroyCommand(EntityId target) noexcept : m_target(target) {}
 
     [[nodiscard]] CommandKind kind() const noexcept override { return CommandKind::Destroy; }
+    /// \brief Destroys \p target when it is still alive.
     bool run(World& world, std::unordered_map<std::uint32_t, EntityId>& resolved) override;
 
 private:
@@ -137,8 +139,10 @@ public:
     /// The placeholder is not a real entity: `isAlive` is false for it and it must not
     /// be handed to `World`. Use `resolve()` (or read the id out of `apply()`'s world)
     /// to learn the real handle once the buffer has been drained.
+    /// \brief Queues creation of a placeholder entity; `run` maps it to a real id.
     EntityId create();
 
+    /// \brief Queues destruction of \p target at flush time.
     void destroy(EntityId target) noexcept;
 
     template <typename T>

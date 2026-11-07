@@ -30,8 +30,11 @@ struct PointLight {
 /// sprites, and the app draws a translucent quad per light.
 class LightSet {
 public:
+    /// \brief Adds one point light; \return its handle.
     [[nodiscard]] std::uint32_t add(PointLight light);
+    /// \brief Removes a light by handle. \return false when unknown.
     [[nodiscard]] bool remove(std::uint32_t handle);
+    /// \brief Drops every light.
     void clear() noexcept;
 
     [[nodiscard]] std::span<const PointLight> lights() const noexcept { return m_lights; }

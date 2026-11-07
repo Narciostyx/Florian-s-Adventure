@@ -28,6 +28,7 @@ namespace fa::editor {
 /// \brief Editor controller and status panel.
 class EditorOverlay {
 public:
+    /// \brief Overlays the map's grid and hover cell; borrows the live tilemap.
     explicit EditorOverlay(tilemap::Tilemap& map);
 
     EditorOverlay(const EditorOverlay&) = delete;
@@ -49,7 +50,9 @@ public:
     void setLayer(int layer) noexcept { m_editor.setLayer(layer); }
     void setBrush(tilemap::TileId tile) noexcept { m_editor.setBrush(tile); }
 
+    /// \brief Undoes the newest command through the shared history.
     void undo();
+    /// \brief Redoes the newest undone command.
     void redo();
 
     [[nodiscard]] tilemap::TileCoord hover() const noexcept { return m_editor.hover(); }

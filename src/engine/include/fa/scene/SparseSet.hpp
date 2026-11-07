@@ -82,6 +82,7 @@ public:
     /// \brief Number of entity slots the sparse row can address, including dead ones.
     std::size_t sparseCapacity() const noexcept { return m_sparse.size(); }
 
+    /// \brief Empties the set; indices are reused by the next `add`.
     void clear() noexcept {
         m_dense.clear();
         m_sparse.clear();

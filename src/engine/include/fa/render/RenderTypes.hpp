@@ -143,6 +143,7 @@ struct RenderStats {
     /// Items the queue refused because the frame budget was exhausted.
     std::uint32_t droppedItems = 0;
 
+    /// \brief Resets all counters to zero.
     void reset() noexcept { *this = RenderStats{}; }
 };
 

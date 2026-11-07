@@ -47,6 +47,7 @@ public:
     /// \brief Queues a stop; a positive fade starts a linear ramp instead.
     void stop(SoundHandle handle, float fadeSeconds = 0.0f);
 
+    /// \brief Queues a bus-volume change; clamped to [0, 1] when applied.
     void setBusVolume(AudioBus bus, float volume);
 
     /// \brief Enables or disables distance attenuation.
@@ -79,10 +80,15 @@ private:
         std::shared_ptr<const AudioClip> clip;
     };
 
+    /// \brief Device-thread trampoline into `render`.
     static void audioCallback(void* user, std::int16_t* output, int frames);
+    /// \brief Drains commands and mixes one block of samples into \p output.
     void render(std::int16_t* output, int frames);
+    /// \brief Moves every queued command out of the SPSC queue.
     void drainCommands();
+    /// \brief Applies one command to the mixer, listener or voice table.
     void apply(Command& command);
+    /// \brief Copies the live counters into the atomics read by `stats()`.
     void publishStats();
 
     platform::IAudioDevice* m_device = nullptr;

@@ -99,9 +99,12 @@ public:
     /// \param sink must outlive the loop; it receives the callbacks.
     FrameLoop(platform::IPlatform& platform, IFrameSink& sink, FrameLoopConfig config = {});
 
+    /// \brief Runs the frame loop until quit or `maxFrames`; \return platform quit code.
     int run() override;
+    /// \brief Ends the loop after the current frame.
     void requestQuit() override;
 
+    /// \brief The time service the sink reads deltas from.
     const ITimeService& time() const override;
 
     /// \brief Mutable access for setup code (pausing a domain before the first frame).

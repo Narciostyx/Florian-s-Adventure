@@ -27,6 +27,7 @@ namespace fa::narrative {
 /// \brief NPC affinity, dialogue graph execution and quest progress.
 class NarrativeService {
 public:
+    /// \brief Borrows the dialogue/quest database; null until setDatabase.
     explicit NarrativeService(const NarrativeDatabase* database = nullptr);
 
     void setDatabase(const NarrativeDatabase* database) noexcept { m_database = database; }
@@ -58,6 +59,7 @@ public:
 
     [[nodiscard]] core::Status startQuest(const content::ContentId& quest);
     [[nodiscard]] core::Status completeQuest(const content::ContentId& quest);
+    /// \brief Feeds one gameplay event (harvest, gift, ...) to active quests.
     void reportEvent(const QuestEvent& event);
 
     [[nodiscard]] const QuestState* questState(const content::ContentId& quest) const noexcept;
@@ -81,12 +83,17 @@ public:
     /// current process history; only the save-facing runtime state is replaced.
     void restore(const NarrativeSnapshot& snapshot);
 
+    /// \brief Drops dialogue, quest, affinity and gift state; keeps the database.
     void clear() noexcept;
 
 private:
+    /// \brief Tests one condition against the current world state.
     [[nodiscard]] bool evaluate(const DialogueCondition& condition) const noexcept;
+    /// \brief Executes one node action (quest, gift, dialogue line, ...).
     void apply(const DialogueAction& action);
+    /// \brief Moves to a node, resetting its choice cursor and firing entry actions.
     void enterNode(std::string_view nodeId);
+    /// \brief Appends one event to the bounded ring.
     void record(NarrativeEventKind kind, const content::ContentId& item = {}, int amount = 0, std::string text = {});
 
     const NarrativeDatabase* m_database = nullptr;

@@ -34,6 +34,7 @@ namespace fa::farming {
 /// \brief Hoed cells, crops and daily growth.
 class FarmingService {
 public:
+    /// \brief Borrows the content database for crop lookups; null is legal until use.
     explicit FarmingService(const content::ContentDatabase* content = nullptr);
 
     void setContentDatabase(const content::ContentDatabase* content) noexcept { m_content = content; }
@@ -79,6 +80,7 @@ public:
     [[nodiscard]] std::span<const FarmingEvent> events() const noexcept { return m_events; }
     void clearEvents() noexcept { m_events.clear(); }
 
+    /// \brief Drops every farmland tile, crops and events; the season resets too.
     void clear() noexcept;
 
 private:
@@ -86,7 +88,9 @@ private:
     [[nodiscard]] FarmTileEntry* findEntry(tilemap::TileCoord cell) noexcept;
     [[nodiscard]] FarmTileEntry& ensureEntry(tilemap::TileCoord cell);
 
+    /// \brief Recomputes `stage`/`harvestable` from `growthDays` and the stage table.
     void updateStage(CropState& crop) const;
+    /// \brief Appends one event to the bounded ring.
     void emit(FarmingEventKind kind, tilemap::TileCoord cell, const content::ContentId& item = {}, int amount = 0);
 
     const content::ContentDatabase* m_content = nullptr;

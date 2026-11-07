@@ -14,7 +14,7 @@ using Vec2 = glm::vec2;
 /// Normalized rgba in `[0, 1]`; not premultiplied.
 using Color = glm::vec4;
 
-/// Axis-aligned rectangle stored as top-left corner + size. Deliberately not a
+/// \brief Axis-aligned rectangle stored as top-left corner + size. Deliberately not a
 /// glm::vec4: `rect.w` / `rect.h` carries meaning that `rect.z` / `rect.w` does not,
 /// and collision code reads it constantly. See docs/adr/0004-core-math-and-result-shape.md.
 struct Rect {

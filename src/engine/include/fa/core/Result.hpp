@@ -8,7 +8,7 @@
 
 namespace fa::core {
 
-/// Marker for "succeeded with no value". C++20 has no Result<void>, exceptions are
+/// \brief Marker for "succeeded with no value". C++20 has no Result<void>, exceptions are
 /// disabled, so an explicit empty type keeps every call site uniform:
 ///     Status status = doThing();
 ///     if (!status) { return status.error(); }

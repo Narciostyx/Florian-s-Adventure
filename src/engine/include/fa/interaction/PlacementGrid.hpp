@@ -34,6 +34,7 @@ public:
     static constexpr int kMaxDimension = 4096;
 
     PlacementGrid() = default;
+    /// \brief Allocates a `columns x rows` occupancy grid.
     explicit PlacementGrid(int columns, int rows);
 
     /// \brief Rebuilds an empty grid. Invalid sizes leave the old grid untouched.

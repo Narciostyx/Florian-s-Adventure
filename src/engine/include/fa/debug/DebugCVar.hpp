@@ -49,6 +49,7 @@ struct CVarInfo {
 /// avoiding `std::unordered_map` keeps this module free of extra exception paths.
 class CVarRegistry {
 public:
+    /// \brief Called after a cvar's value changes.
     using ChangeCallback = std::function<void()>;
 
     [[nodiscard]] bool

@@ -25,6 +25,7 @@ public:
 
     [[nodiscard]] std::string_view name() const noexcept override;
 
+    /// \brief Steps the physics world once and syncs collider transforms.
     void onFixedUpdate(scene::World& world, const time::FrameContext& context, scene::CommandBuffer& commands) override;
 
     [[nodiscard]] PhysicsWorld& physics() noexcept { return m_physics; }

@@ -21,8 +21,11 @@ class IComponentSerializer {
 public:
     virtual ~IComponentSerializer() = default;
 
+    /// \brief JSON key of the world section this serializer owns.
     [[nodiscard]] virtual std::string_view name() const noexcept = 0;
+    /// \brief Writes the component's data into \p out.
     virtual void save(const scene::World& world, SaveArchive& out) const = 0;
+    /// \brief Restores it from \p in; absent keys leave current state untouched.
     virtual void load(scene::World& world, const SaveArchive& in) const = 0;
 };
 

@@ -18,7 +18,7 @@
 
 namespace fa::input {
 
-/// What gameplay is allowed to know about input (docs/modules/07-input.md §5). One
+/// \brief What gameplay is allowed to know about input (docs/modules/07-input.md §5). One
 /// narrow interface, no devices, no SDL, no JSON - M09/M16 depend on this and on
 /// nothing else, which keeps rebinding and device work free of gameplay changes.
 class IInput {
@@ -28,29 +28,34 @@ public:
     IInput(const IInput&) = delete;
     IInput& operator=(const IInput&) = delete;
 
+    /// \brief True while the action's input is down.
     virtual bool isDown(ActionId action) const = 0;
+    /// \brief True for the frame in which the action went down.
     virtual bool wasPressed(ActionId action) const = 0;
+    /// \brief True for the frame in which the action came up.
     virtual bool wasReleased(ActionId action) const = 0;
 
-    /// Signed strength of the strongest binding, 0 when nothing is held.
+    /// \brief Signed strength of the strongest binding, 0 when nothing is held.
     virtual float axis(ActionId action) const = 0;
 
-    /// Reserved four-direction movement, (x, y) with y pointing down, normalized so
+    /// \brief Reserved four-direction movement, (x, y) with y pointing down, normalized so
     /// diagonals are not faster. Independent of which keys the project binds.
     virtual fa::core::Vec2 moveAxis() const = 0;
 
-    /// Cursor position in virtual resolution, top-left origin, y down.
+    /// \brief Cursor position in virtual resolution, top-left origin, y down.
     virtual fa::core::Vec2 mousePosition() const = 0;
 
+    /// \brief Pushes \p context on the stack; its map masks the one below.
     virtual void pushContext(InputContext context) = 0;
+    /// \brief Pops the top context; the one below becomes active.
     virtual void popContext() = 0;
 
-    /// Clears per-frame edges and accumulations. Call once per tick, after every
+    /// \brief Clears per-frame edges and accumulations. Call once per tick, after every
     /// consumer has read the frame.
     virtual void endFrame() = 0;
 };
 
-/// Owns the devices, the per-context ActionMaps and the context stack.
+/// \brief Owns the devices, the per-context ActionMaps and the context stack.
 ///
 /// Frame order is fixed and matters:
 ///   1. `poll(events)` - devices consume focus/keys/buttons/pointer and text.
@@ -66,23 +71,24 @@ public:
     InputSystem(const InputSystem&) = delete;
     InputSystem& operator=(const InputSystem&) = delete;
 
-    /// Takes ownership. Order does not matter; one device per kind is expected but
+    /// \brief Takes ownership. Order does not matter; one device per kind is expected but
     /// not enforced.
     void addDevice(std::unique_ptr<IInputDevice> device);
     std::size_t deviceCount() const noexcept { return m_devices.size(); }
+    /// \brief Whether a device of this kind was added.
     bool hasDevice(InputDeviceKind kind) const noexcept;
 
     /// Null when no keyboard / mouse device was added.
     KeyboardDevice* keyboard() const noexcept { return m_keyboard; }
     MouseDevice* mouse() const noexcept { return m_mouse; }
 
-    /// Feeds one frame of platform events to every device. Focus loss clears all
+    /// \brief Feeds one frame of platform events to every device. Focus loss clears all
     /// held state first, because the matching key-up events are often never
     /// delivered (docs/modules/07-input.md §8) and a stuck key is worse than a
     /// missed press.
     void poll(std::span<const fa::platform::PlatformEvent> events);
 
-    /// Queries.
+    /// \brief Queries.
     bool isDown(ActionId action) const override;
     bool wasPressed(ActionId action) const override;
     bool wasReleased(ActionId action) const override;
@@ -91,25 +97,25 @@ public:
     fa::core::Vec2 mousePosition() const override;
     void endFrame() override;
 
-    /// Full evaluation of one action, avoiding four separate lookups.
+    /// \brief Full evaluation of one action, avoiding four separate lookups.
     ActionState actionState(ActionId action) const;
 
-    /// Raw window-pixel cursor position, before the mouse transform.
+    /// \brief Raw window-pixel cursor position, before the mouse transform.
     fa::core::Vec2 mousePositionRaw() const;
 
-    /// Wheel notches this frame, (horizontal, vertical).
+    /// \brief Wheel notches this frame, (horizontal, vertical).
     fa::core::Vec2 scroll() const;
 
-    /// UTF-8 text typed this frame; intended for the TextInput context.
+    /// \brief UTF-8 text typed this frame; intended for the TextInput context.
     std::string_view textInput() const;
 
-    /// Maps window pixels to virtual resolution: `virtual = raw * scale + offset`.
+    /// \brief Maps window pixels to virtual resolution: `virtual = raw * scale + offset`.
     /// Identity until set, which is what tests and UI-only builds want.
     void setMouseTransform(fa::core::Vec2 scale, fa::core::Vec2 offset = fa::core::Vec2{0.0f, 0.0f});
     fa::core::Vec2 mouseScale() const noexcept { return m_mouseScale; }
     fa::core::Vec2 mouseOffset() const noexcept { return m_mouseOffset; }
 
-    /// Context stack.
+    /// \brief Context stack.
     void pushContext(InputContext context) override;
     void popContext() override;
     InputContext activeContext() const noexcept { return m_contexts.top(); }
@@ -123,32 +129,35 @@ public:
     ActionMap& mapFor(InputContext context) noexcept { return m_maps[static_cast<std::size_t>(context)]; }
     const ActionMap& mapFor(InputContext context) const noexcept { return m_maps[static_cast<std::size_t>(context)]; }
 
-    /// Names for debug output and persistence. Interning is idempotent.
+    /// \brief Names for debug output and persistence. Interning is idempotent.
     ActionId registerAction(std::string_view name);
     const ActionRegistry& actions() const noexcept { return m_names; }
 
-    /// Adds a binding to `context`'s map. Returns false when the binding is unusable
+    /// \brief Adds a binding to `context`'s map. Returns false when the binding is unusable
     /// (unknown key, no button) so a rebinding UI cannot install a dead key.
     bool bind(InputContext context, ActionId action, Binding binding);
+    /// \brief Removes one binding from `context`'s map. \return false when it was absent.
     bool unbind(InputContext context, ActionId action, const Binding& binding);
 
-    /// WASD + arrows + mouse, for Gameplay, plus Escape-to-UI style cursor keys in
+    /// \brief WASD + arrows + mouse, for Gameplay, plus Escape-to-UI style cursor keys in
     /// UI. Fills only actions that have no binding yet, so player edits win.
     void applyDefaultBindings();
 
-    /// Drops every held key, button and accumulation, keeping bindings and contexts.
+    /// \brief Drops every held key, button and accumulation, keeping bindings and contexts.
     void reset();
 
-    /// Whole-layout JSON: `{ "version": 1, "contexts": { "Gameplay": { ... } } }`.
+    /// \brief Whole-layout JSON: `{ "version": 1, "contexts": { "Gameplay": { ... } } }`.
     std::string saveBindings() const;
 
-    /// Replaces the bindings of every context named in the document. Contexts absent
+    /// \brief Replaces the bindings of every context named in the document. Contexts absent
     /// from the document keep their current bindings.
     fa::core::Status loadBindings(std::string_view json);
 
-    /// Per-context variants used by save/load and by tests.
+    /// \brief Per-context variants used by save/load and by tests. @{
     std::string saveContextToJson(InputContext context) const;
+    /// \brief Replaces one context's bindings from its document section.
     fa::core::Status loadContextFromJson(InputContext context, std::string_view json);
+    /// @}
 
 private:
     std::vector<std::unique_ptr<IInputDevice>> m_devices;

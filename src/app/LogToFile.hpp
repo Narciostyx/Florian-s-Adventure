@@ -27,7 +27,9 @@ public:
     RunLogFileSink(const RunLogFileSink&) = delete;
     RunLogFileSink& operator=(const RunLogFileSink&) = delete;
 
+    /// \brief Buffers one line; flushes when the buffer passes the write threshold.
     void write(fa::core::LogLevel level, fa::core::LogCategory category, std::string_view message) override;
+    /// \brief Rewrites the file from the buffer; no-ops when clean or already failed.
     void flush() override;
 
     /// \brief Path the sink writes to, whether or not the first write succeeded.
@@ -39,6 +41,7 @@ public:
 private:
     static constexpr std::size_t kFlushBytes = 4096;
 
+    /// \brief Rewrites the whole file from the buffered lines.
     void writeOut();
 
     fa::platform::IFileSystem* m_files = nullptr;

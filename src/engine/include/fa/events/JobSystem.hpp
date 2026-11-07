@@ -67,6 +67,7 @@ struct JobDesc {
 ///     not deadlock.
 class JobSystem final {
 public:
+    /// \brief Spawns \p workerCount workers (0 = hardware concurrency, capped).
     explicit JobSystem(std::uint32_t workerCount = kAutoWorkerCount);
     ~JobSystem();
 

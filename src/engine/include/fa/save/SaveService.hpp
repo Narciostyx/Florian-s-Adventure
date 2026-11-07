@@ -22,10 +22,15 @@ class ISaveService {
 public:
     virtual ~ISaveService() = default;
 
+    /// \brief Writes \p context to \p slot (validated name, atomic, `.bak` first).
     [[nodiscard]] virtual core::Status save(std::string_view slot, const SaveContext& context) = 0;
+    /// \brief Reads \p slot, falling back to its `.bak` when the primary is corrupt.
     [[nodiscard]] virtual core::Result<SaveFile> load(std::string_view slot) = 0;
+    /// \brief Copies a loaded file into a live save context.
     virtual void apply(const SaveFile& file, SaveContext& context) = 0;
+    /// \brief Metadata for every `*.json` in the directory; unreadable slots are flagged.
     [[nodiscard]] virtual std::vector<SaveMetadata> listSlots() = 0;
+    /// \brief Removes a slot and its backup.
     [[nodiscard]] virtual core::Status deleteSlot(std::string_view slot) = 0;
 };
 
@@ -37,6 +42,8 @@ public:
 /// is missing or unreadable.
 class SaveService final : public ISaveService {
 public:
+    /// \brief One-step schema upgrade: rewrites an archive from `fromVersion` to the
+    /// next version.
     using Migration = std::function<core::Status(SaveArchive&)>;
 
     /// \param directory Root directory for slots; created on first use.
@@ -45,11 +52,13 @@ public:
                          std::string directory = "saves",
                          int currentVersion = kSaveVersion);
 
+    /// \brief Overrides inherit the \ref ISaveService documentation. @{
     [[nodiscard]] core::Status save(std::string_view slot, const SaveContext& context) override;
     [[nodiscard]] core::Result<SaveFile> load(std::string_view slot) override;
     void apply(const SaveFile& file, SaveContext& context) override;
     [[nodiscard]] std::vector<SaveMetadata> listSlots() override;
     [[nodiscard]] core::Status deleteSlot(std::string_view slot) override;
+    /// @}
 
     /// \brief Registers a migration from `fromVersion` to `fromVersion + 1`.
     void registerMigration(int fromVersion, Migration migration);

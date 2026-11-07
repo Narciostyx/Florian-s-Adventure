@@ -73,8 +73,11 @@ public:
     EventBucketBase(const EventBucketBase&) = delete;
     EventBucketBase& operator=(const EventBucketBase&) = delete;
 
+    /// \brief Removes one subscription (slot stays until `compact()`).
     virtual void remove(SubscriptionId id) = 0;
+    /// \brief Drops removed slots from the backing storage.
     virtual void compact() = 0;
+    /// \brief Live subscriber count.
     virtual std::size_t subscriberCount() const noexcept = 0;
 };
 
@@ -86,6 +89,7 @@ public:
 template <typename E>
 class EventBucket final : public EventBucketBase {
 public:
+    /// \brief Invokes every handler subscribed for one event type.
     using Handler = std::function<void(const E&)>;
 
     void add(SubscriptionId id, Handler handler) { m_slots.push_back(Slot{id, true, std::move(handler)}); }
@@ -272,6 +276,7 @@ private:
 
     SubscriptionId allocateSubscriptionId() noexcept { return ++m_nextSubscriptionId; }
 
+    /// \brief Aborts with a diagnostic when called off the owner thread.
     void assertOwnerThread(const char* operation) const noexcept;
 
     std::unordered_map<EventTypeId, std::unique_ptr<detail::EventBucketBase>> m_buckets;

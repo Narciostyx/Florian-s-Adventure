@@ -39,10 +39,15 @@ public:
     AssetSlotBase(const AssetSlotBase&) = delete;
     AssetSlotBase& operator=(const AssetSlotBase&) = delete;
 
+    /// \brief Increments the reference count (called by handle copy construction).
     virtual void addRef() noexcept = 0;
+    /// \brief Decrements the reference count; the manager evicts the slot at zero.
     virtual void release() noexcept = 0;
+    /// \brief Live handles currently referencing this slot.
     virtual int refCount() const noexcept = 0;
+    /// \brief Load state of the cached asset.
     virtual AssetState state() const noexcept = 0;
+    /// \brief Catalog id this slot was requested under.
     virtual const AssetId& id() const noexcept = 0;
 
     /// \brief Pointer to the stored object, reinterpreted by the handle's `T`.

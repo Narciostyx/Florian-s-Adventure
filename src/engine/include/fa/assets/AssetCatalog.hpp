@@ -53,6 +53,7 @@ public:
     /// \brief Reads \p path through \p fileSystem, then calls loadFromText().
     core::Status loadFromFile(platform::IFileSystem& fileSystem, std::string_view path);
 
+    /// \brief Clears every catalog entry and the id index.
     void clear();
 
     /// \brief The entry for \p id, or null when the catalog does not declare it.

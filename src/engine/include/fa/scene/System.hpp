@@ -114,6 +114,7 @@ public:
     void clear() noexcept;
 
 private:
+    /// \brief Executes queued commands before the next system update.
     void drain(World& world);
 
     std::vector<std::unique_ptr<ISystem>> m_systems;

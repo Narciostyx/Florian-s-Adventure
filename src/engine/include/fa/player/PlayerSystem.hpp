@@ -20,10 +20,12 @@ namespace fa::player {
 /// so the velocity it writes is integrated in the same fixed step.
 class PlayerSystem final : public scene::ISystem {
 public:
+    /// \brief Reads intents from \p input and drives one controller.
     explicit PlayerSystem(input::IInput& input, PlayerTuning tuning = {});
     ~PlayerSystem() override = default;
 
     [[nodiscard]] std::string_view name() const noexcept override;
+    /// \brief Builds intent from the input frame and updates the controlled entity.
     void onFixedUpdate(scene::World& world, const time::FrameContext& context, scene::CommandBuffer& commands) override;
 
     /// \brief Overrides the input axis, for the headless smoke run.

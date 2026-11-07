@@ -236,6 +236,7 @@ private:
                         const core::Rect& area,
                         std::vector<detail::Candidate>& out) const;
 
+    /// \brief Evaluates trigger volumes against moved bodies, emitting begin/end events.
     void updateTriggers(const scene::World& world);
     [[nodiscard]] std::optional<RayHit> raycastTiles(core::Vec2 origin, core::Vec2 direction, float maxDistance) const;
 
@@ -243,7 +244,7 @@ private:
     const ISolidTiles* m_tiles = nullptr;
     std::vector<TriggerEvent> m_triggerEvents;
     std::vector<detail::TriggerPair> m_activeTriggers;
-    /// Counters are bumped from `const` queries, hence mutable. Everything else in the
+    /// \brief Counters are bumped from `const` queries, hence mutable. Everything else in the
     /// struct is informational.
     mutable PhysicsStats m_stats;
 };
