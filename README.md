@@ -1,25 +1,6 @@
 # Florian's Adventure
 
-一款俯视角 2D 像素风的**种植养成 + 实时动作战斗**游戏。
-
-> 当前状态：**28 个模块已实现并通过三配置实测**。`--play` 可进入可操作会话：
-> 主菜单/暂停/存档槽、种植、近战/掉落、睡眠日终、棋盘与商店、
-> 农场↔林地独立地图切换（`SceneStack::replace`）、Elder 对话/任务/奖励、
-> 体力消耗（奔跑/闪避/攻击/工具，JSON 可配）、武器伤害、食物使用、
-> 商店做汤/收取、F3 角色坐标、背包面板、荆棘死亡/床边复活、
-> 死亡菜单（复活/读自动存档/主菜单）、叙事/AI/世界对象/生命存档、
-> 林地敌人反击与受击闪烁/伤害数字，数据/配置/地图 JSON/PNG 纹理均已接通；
-> 3 作物 / 2 敌人 / 12 物品 / 8 SFX + 1 音乐已由 JSON 提供，玩家与敌人都用
-> 3 帧挥砍 + `hit` 帧判定；剩余正式美术/音频素材与敌人专属招式。
-> 详见 [计划完成情况](docs/status/plan-status.md) 与 [垂直切片](docs/roadmap/vertical-slice.md)。
-
-## 目标
-
-- **星露谷式农场循环**：耕地、播种、浇水、生长、收获、季节与天气。
-- **实时动作战斗**：近战/远程、敌人 AI、受击、死亡、掉落与装备成长。
-- **自研轻量引擎**：SDL3 + OpenGL 4.1 Core，C++20，MSBuild + vcpkg。
-- **数据驱动内容**：JSON 定义物品、作物、敌人、对话与配方；C++ 实现系统逻辑。
-- **模块化解耦**：严格分层依赖、接口 + 事件通信、可独立测试与替换。
+俯视角 2D 像素风的**种植养成 + 实时动作战斗**游戏，自研轻量引擎。
 
 ## 技术基线
 
@@ -27,35 +8,17 @@
 |---|---|
 | 语言 | C++20 |
 | IDE / 构建 | Visual Studio 2026 + 原生 MSBuild `.sln` / `.vcxproj` |
-| 包管理 | vcpkg manifest 模式 |
-| 平台 | Windows 10/11 x64（后续再考虑其他平台） |
+| 包管理 | vcpkg manifest 模式（`x64-windows-static-md`） |
+| 平台 | Windows 10/11 x64 |
 | 窗口 / 输入 / 音频 | SDL3 |
 | 图形 | OpenGL 4.1 Core（自研 42 项 GL 函数表，不引 glad） |
 | 数学 | glm |
-| 图像解码 | stb_image（app 注册为 `IImageDecoder`）；纹理优先读 `assets/textures/**/*.png`，缺图回落 catalog 色块 |
+| 图像解码 | stb_image（app 注册为 `IImageDecoder`）；纹理读 `assets/textures/**/*.png`，缺图回落 catalog 色块 |
 | 数据格式 | nlohmann/json |
 | 调试 UI | M09 即时模式 UI（不引 ImGui） |
 | 测试 | Catch2 |
 | 逻辑帧率 | 固定 60 Hz，渲染可变帧率 |
 | 世界单位 | 1 世界单位 = 1 逻辑像素；默认瓦片 16×16 |
-
-详细说明见[技术栈](docs/architecture/tech-stack.md)。
-
-## 文档入口
-
-- [文档索引](docs/index.md) —— 全部文档的导航与阅读顺序。
-- [代码速查](docs/reference/code-reference.md) —— 28 个模块的命名空间、依赖、类型、方法与常量。
-- [内容 JSON 格式](docs/reference/content-format.md) —— content/entities/shops/audio/catalog 的字段与校验规则。
-- [新增地图组件指南](docs/guide/adding-map-components.md) —— 贴图、瓦片 id、图层架构与协作规则。
-- [架构总览](docs/architecture/overview-design.md) —— 分层、主循环、时间、坐标、ECS、线程与存档边界。
-- [愿景与设计支柱](docs/architecture/vision-and-pillars.md) —— 产品定位、核心循环与 v1 范围。
-- [模块地图](docs/architecture/module-map.md) —— 28 个模块的职责、层级与依赖图。
-- [依赖规则](docs/architecture/dependency-rules.md) —— 允许/禁止的引用方式与编译期隔离。
-- [技术栈](docs/architecture/tech-stack.md) —— 工具链、第三方库、构建与 CI。
-- [编码与内容规范](docs/architecture/conventions.md) —— 命名、目录、错误处理、日志与 JSON 约定。
-- [美术资源策略](docs/architecture/art-policy.md) —— 色块占位与真实美术接入。
-- [垂直切片](docs/roadmap/vertical-slice.md) —— 第一个可玩版本的具体范围与验收。
-- [架构决策记录](docs/adr/README.md) —— 已确认的关键决策与背景。
 
 ## 模块分层
 
@@ -67,40 +30,28 @@
 | L3 玩法系统 | 内容库、玩家、交互、物品、种植、战斗、AI、时间天气、NPC、经济、流程 | M15–M25 |
 | L4 工具 | 编辑器与调试工具 | M26 Editor、M27 Debug |
 
-完整的模块职责与依赖见[模块地图](docs/architecture/module-map.md)。
-
-## 建议实现顺序
-
-1. **Phase A 能跑能画**：M00 → M01 → M02 → M04 → M05 → M06 → M07。
-2. **Phase B 能走能撞**：M11 → M13 → M10 → M12。
-3. **Phase C 能种能存**：M15 → M17 → M18 → M19 → M14 → M22（基础）。
-4. **Phase D 能打**：M20 → M21 → M09。
-5. **Phase E 完整循环**：M25 → M08 → M22（完整）→ M23 → M24。
-6. **Phase F 工具化**：M26 → M27。
-
-每个阶段的验收标准见[垂直切片](docs/roadmap/vertical-slice.md)。
-
-## 目标仓库结构
+## 仓库结构
 
 ```text
 Florian-s-Adventure/
 ├─ src/
-│  ├─ engine/        # 引擎层：core / platform / render / input / audio / ecs ...
-│  ├─ game/          # 玩法层：player / farming / combat / ai / npc ...
-│  └─ app/           # 唯一 composition root 与 main
-├─ assets/           # 纹理 PNG（assets/textures/<类别>/，命名见 docs/architecture/conventions.md §11）
-├─ data/             # 内容/商店/叙事/音频/资源目录/实体生成表 JSON（格式见 docs/reference/content-format.md）
-├─ config/           # game.json（窗口/UI 缩放/路径/玩法参数）
-├─ tools/            # 资源导入、校验、打包工具
-├─ tests/            # 单元测试与集成测试
-├─ docs/             # 文档（guide/ reference/ status/ architecture/ adr/ roadmap/，导航见 docs/index.md）
+│  ├─ engine/        # 27 个引擎/玩法静态库：core / platform / render / input /
+│  │                 # audio / ecs / tilemap / physics / save / player / farming /
+│  │                 # combat / ai / narrative / economy / flow / editor / debug ...
+│  └─ app/           # 唯一 composition root 与 main（fa_app.exe）
+├─ tests/            # Catch2 单元测试与集成测试（fa_tests.exe）
+├─ assets/           # 纹理 PNG（textures/<类别>/）与字体图集（fonts/）
+├─ data/             # content/entities/shops/audio/catalog/animations/skills/maps JSON
+├─ config/           # game.json（窗口/UI 缩放/路径/玩法/体力参数）
+├─ tools/            # 资源工具（字体图集烘焙等）
+├─ docs/             # 文档：guide/ reference/ status/ architecture/ adr/ roadmap/
+├─ saves/            # 运行期存档（git 忽略）
+├─ build/            # MSBuild 输出与共享 .props（bin/obj 忽略）
 ├─ vcpkg.json
 └─ FloriansAdventure.sln
 ```
 
 ## 构建
-
-需要 Visual Studio 2026（Desktop development with C++）与 vcpkg（`x64-windows-static-md`）。
 
 ```powershell
 $env:VCPKG_ROOT='D:\CPPLibraries\vcpkg'
@@ -108,49 +59,29 @@ $msbuild='C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\
 & $msbuild FloriansAdventure.sln /p:Configuration=Debug /p:Platform=x64 /m /nologo /v:m
 ```
 
-三配置：`Debug` / `Development` / `Release` × `x64`；测试在 `build\bin\x64\<Config>\`。
-运行时从 `data/`、`config/`、`assets/` 读取数据/配置/图片；删除任意文件都会回落到内置默认值。
+三配置：`Debug` / `Development` / `Release` × `x64`；产物在 `build\bin\x64\<Config>\`。
+VS 中把 `fa_app` 设为启动项目后 **F5** 即以 `--play --window` 编译并调试。
+运行时从 `data/`、`config/`、`assets/` 读取数据/配置/图片；任意文件缺失都会回落到内置默认值。
 
-## 运行与验证
+## 命令行选项
 
-```powershell
-# 冒烟（60 帧、隐藏窗口）
-& ".\build\bin\x64\Debug\fa_app.exe" --frames 60
+| 选项 | 用途 | 窗口 |
+|---|---|---|
+| （无参数） | 无头脚本烟测：跑几帧，打印 m02–m27 模块报告后退出 | 隐藏 |
+| `--help` / `-h` | 打印选项说明并退出 | — |
+| `--play` | 正式游戏（写 `data/log/Log_<时间戳>.txt`） | 默认有 |
+| `--debug` | 正式游戏 + 调试叠加默认开启（F3/F5）+ Debug 级日志 | 默认有 |
+| `--play-test` | 无头玩法自检：新游戏、种植、战斗、传送、死亡、存档闭环 | 隐藏 |
+| `--window` | 强制开窗口（任意自动化模式） | 有 |
+| `--frames N` | 跑 N 帧后退出 | 隐藏 |
+| `--resolution WxH` | 覆盖 `config/game.json` 的窗口尺寸 | — |
+| `--soak SECONDS` | 浸泡测试：周期性存/读档并检查实体/纹理泄漏 | 隐藏 |
+| `--stress N` | 压力基线：N 精灵场景跑 600 帧，输出 p50/p99 帧时间 | 隐藏 |
 
-# 正式游戏（默认带窗口，运行到关闭为止；写 data/log/Log_<时间戳>.txt）
-& ".\build\bin\x64\Debug\fa_app.exe" --play
+演示地图（`data/maps/farm.json`、`farm-scripted.json`、`forest.json`）与其中的脚本化实体
+只服务自动化模式；`--play` 使用 `data/maps/play/`。
 
-# 调试会话：正式游戏 + 统计/物理/AI 连线叠加 + Debug 级日志文件
-& ".\build\bin\x64\Debug\fa_app.exe" --debug
-
-# 无头自检：种植闭环 + 击杀 dummy + 拾取掉落；失败返回 1
-& ".\build\bin\x64\Debug\fa_app.exe" --play-test
-
-# soak：模拟 20 秒（每 10 秒存读档一次），比对实体/纹理计数
-& ".\build\bin\x64\Debug\fa_app.exe" --soak 20
-
-# 分辨率覆盖：1920x1080 启动 smoke
-& ".\build\bin\x64\Debug\fa_app.exe" --resolution 1920x1080 --frames 5
-
-# 压力基线：1000 精灵 + 20 idle agent，输出 p50/p99 帧时间
-& ".\build\bin\x64\Release\fa_app.exe" --stress 1000
-```
-
-**运行模式**（2026-10-30 起）：
-
-| 选项 | 用途 | 窗口 | 内容 | 日志文件 |
-|---|---|---|---|---|
-| `--play` | 正式游戏 | 默认有 | `data/maps/play/`（当前是占位农场：草地 + 可耕土，无脚本 NPC/任务/传送门） | `data/log/Log_<时间戳>.txt` |
-| `--debug` | 正式游戏 + 调试 | 默认有 | 同 `--play`，并默认打开统计面板、物理调试与 AI 目标连线 | 同 `--play`，级别 `Debug` |
-| `--play-test` | 无头自检（CI） | 默认隐藏 | 演示地图与脚本化内容（Elder/任务/商人/出货箱/床/荆棘/林地敌人） | 不写 |
-| `--frames N` / `--soak N` / `--stress N` | 冒烟与基线 | 默认隐藏 | scripted smoke 地图 | 不写 |
-| `--window` | 强制开窗口 | 有 | 与自动化模式组合用于本机复现 | 仅与 `--play`/`--debug` 组合时写 |
-
-`--resolution WxH` 覆盖窗口尺寸。演示地图（`data/maps/farm.json`、`farm-scripted.json`、
-`forest.json`）与 `data/entities.json` 的脚本化实体只服务自动化模式；正式玩法的起始内容
-是下一步的设计项，见 [计划完成情况](docs/status/plan-status.md)。
-
-`--play` 操作：
+## 键位映射
 
 | 输入 | 动作 |
 |---|---|
@@ -161,45 +92,12 @@ $msbuild='C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\
 | 左键 / `G` | 使用与交互（等效）：手持武器→近战挥砍；否则按优先级：村长/床/出货箱/商人交互 → 船（面向水域上船、靠岸下船）→ 食物进食 → 农具耕作 |
 | 右键 | 武器技能·剑气（仅手持武器；弹体沿朝向飞行，伤害=武器×1.5） |
 | `E` | 角色技能·瞬移（朝向前方 64px 内最远空位，带光环特效） |
-| 水面 | 选中船后面向水域按 `G`/左键上船；乘船时只能待在水域，靠岸按 `G` 跳岸下船 |
-| `I` | 打开背包：分类筛选 + 翻页，点击「移动」在背包与快捷栏间转移 |
-| `J` | 打开任务日志（进行中/已完成与目标进度） |
-| `Esc` | 关闭面板 / 暂停（继续/保存/存档槽/主菜单） |
-| 死亡 | GameOver 面板：`在床上复活` / `读取自动存档` / `主菜单`（鼠标） |
-| 反引号 | 调试控制台（`help`、`time.addDays N`、`time.set HH:MM`、`give`、`teleport`；中文输入法下可直接输入） |
+| `I` | 打开背包：分类筛选 + 翻页，背包与快捷栏互相转移 |
+| `J` | 打开任务日志 |
 | `F2` | 地图编辑器（瓦片/对象/传送门/实体 四种 scope；瓦片单击查看、双击替换） |
+| `Esc` | 关闭面板 / 暂停（继续/保存/存档槽/主菜单） |
 | `F3` / `F4` / `F5` | 统计+面向瓦片面板 / 日志 / 物理调试（默认关闭，`--debug` 启动即开） |
+| `` ` `` | 调试控制台（`help`、`time.addDays`、`time.set`、`give`、`teleport`；中文输入法兼容） |
 
-体力数值在 `config/game.json` 的 `stamina` 段配置：`max`、`regen_per_second`、
-`run_drain_per_second`、`dodge_cost`、`attack_cost`、`tool_cost`。
-武器伤害与食物效果在 `data/content.json` 的 `damage`、`heal_amount`、
-`stamina_restore` 字段配置。商店面板提供 `COOK SOUP`（消耗 2 个萝卜，30 游戏分钟）与 `COLLECT`；
-`data/shops.json` 的 `seasons` 控制季节库存，`price_swing` 控制按日价格波动幅度。
-`data/audio.json` 配置 8 个 SFX 与 1 首循环音乐（程序化音色），`data/catalog.json`
-注册纹理；完整字段见 [内容 JSON 格式](docs/reference/content-format.md)。
-
-### 地图编辑器（Debug / Development）
-
-主菜单「地图编辑器」进入（**需要先有场景**：先「开始新游戏」→ `Esc` → 「主菜单」→
-「地图编辑器」）。工具栏最左是三种编辑 scope：
-
-| scope | 能做什么 | 写到哪里 |
-|---|---|---|
-| 瓦片 | 笔刷 / 橡皮 / 填充、地图大小、界外阻挡、室内、瓦片属性（贴图/可通行/阻挡/可耕/水）、撤销重做 | 地图 JSON |
-| 对象 | 放置 NPC、床、出货箱、商人、敌人、荆棘；点已放置对象可挪格、给 NPC 选对话图、删除 | `data/entities.json` |
-| 传送门 | 在地图上点两格生成触发区；可切目标地图、调落点格、删除 | 地图 JSON |
-
-「保存」在三种 scope 下都可见，会**同时**写回当前打开的地图文件与 `data/entities.json`；
-`entities.json` 里每行带 `map` 字段（`farm` / `forest` / `play/farm`），保存只重写当前地图的行，
-所以编辑农场不会动到林地的敌人。NPC 完全由数据决定：某张地图没有 `kind: "npc"` 的行，
-在那里按 `G` 就是「这张地图没有可对话对象」。接口与实现细节见
-[代码速查](docs/reference/code-reference.md) 的 M26 一节。
-
-存档包含日期/时间/天气、位置/朝向/生命/耐力、背包/快捷栏/装备、农田/作物、
-金币/出货/加工/商店余量、地面掉落、敌人存活与生命、杂物/放置物、AI 状态/目标，
-以及叙事好感/flags/每日上限/任务进度；读档会重建当前地图后逐段应用。
-存档当前为 v2；打开 v1 存档时由 `registerDefaultMigrations()` 自动补齐空段。
-
-## 许可证
-
-TBD。
+数值配置：体力在 `config/game.json` 的 `stamina` 段；武器伤害/食物效果在 `data/content.json`；
+技能参数在 `data/skills.json`；动画参数在 `data/animations.json`。
