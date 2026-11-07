@@ -26,6 +26,15 @@ struct TileDef {
     render::TextureHandle texture{};
     /// \brief Sub-rectangle of `texture`; empty means the whole texture.
     core::Rect source{};
+    /// \brief How many tiles tall this def renders, anchored at its bottom cell.
+    ///
+    /// 1 (default) draws the usual single-tile quad. Larger values draw one quad of
+    /// `tileSize x (renderHeight * tileSize)` upward from the cell, so a full tree
+    /// visually spans several cells while collision, farming and pathfinding still
+    /// only see the single anchor cell at its base. The texture is expected to be
+    /// `tileSize x renderHeight*tileSize` with a transparent background above the
+    /// base tile, and such defs belong on an overlay layer (e.g. `decor`).
+    int renderHeight = 1;
     /// \brief Whether a body may stand on this tile at all.
     bool walkable = true;
     /// \brief Whether this tile blocks movement for bodies that collide with the world.

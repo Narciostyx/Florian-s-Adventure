@@ -1980,7 +1980,8 @@
         0.0,
         0.0
       ],
-      "tag": "obstacle"
+      "tag": "obstacle",
+      "render_height": 3
     },
     {
       "id": 8,

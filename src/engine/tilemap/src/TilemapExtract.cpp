@@ -65,6 +65,13 @@ TileExtractStats extractTiles(const Tilemap& map, render::RenderQueue& queue, co
     int minRow = 0;
     int maxRow = map.height() - 1;
 
+    // Tall defs (e.g. a 3-tile tree) anchored below the view still paint their crown
+    // inside it, so the row loop reaches `tallExtra` rows past the visible bottom.
+    int tallExtra = 0;
+    for (const TileDef& def : map.tileDefs()) {
+        tallExtra = std::max(tallExtra, def.renderHeight - 1);
+    }
+
     core::Rect visible = map.boundsRect();
     if (options.cullToViewBounds && !core::isEmpty(options.viewBounds)) {
         visible = core::intersect(visible, options.viewBounds);
@@ -79,9 +86,10 @@ TileExtractStats extractTiles(const Tilemap& map, render::RenderQueue& queue, co
         minRow = firstCell(core::top(visible), origin.y, tile, map.height());
         maxRow = lastCell(core::bottom(visible), origin.y, tile, map.height());
     }
+    const int lastDrawnRow = std::min(maxRow + tallExtra, map.height() - 1);
 
     const int columns = maxColumn - minColumn + 1;
-    const int rows = maxRow - minRow + 1;
+    const int rows = lastDrawnRow - minRow + 1;
     const std::size_t visitedPerLayer = static_cast<std::size_t>(columns) * static_cast<std::size_t>(rows);
     const std::size_t totalCells = order.size() * map.cellCount();
     stats.culled = totalCells - visitedPerLayer * order.size();
@@ -93,7 +101,7 @@ TileExtractStats extractTiles(const Tilemap& map, render::RenderQueue& queue, co
 
     for (const int layerIndex : order) {
         const TileLayer& layer = *map.layerAt(layerIndex);
-        for (int row = minRow; row <= maxRow; ++row) {
+        for (int row = minRow; row <= lastDrawnRow; ++row) {
             for (int column = minColumn; column <= maxColumn; ++column) {
                 ++stats.candidates;
                 const std::size_t cell = static_cast<std::size_t>(row) * static_cast<std::size_t>(mapWidth) +
@@ -112,12 +120,14 @@ TileExtractStats extractTiles(const Tilemap& map, render::RenderQueue& queue, co
 
                 render::DrawItem item;
                 item.texture = def->texture;
+                const int height = def->renderHeight > 1 ? def->renderHeight : 1;
                 item.position = core::Vec2{mapOrigin.x + static_cast<float>(column) * tile,
-                                           mapOrigin.y + static_cast<float>(row) * tile};
-                item.size = core::Vec2{tile, tile};
+                                           mapOrigin.y + (static_cast<float>(row) - static_cast<float>(height - 1)) * tile};
+                item.size = core::Vec2{tile, static_cast<float>(height) * tile};
                 item.source = def->source;
                 item.layer = layer.renderLayer;
-                item.sortY = item.position.y + tile;
+                // Depth key stays the base cell's bottom edge, not the crown's.
+                item.sortY = mapOrigin.y + static_cast<float>(row + 1) * tile;
                 item.entityId = ++nextEntityId;
                 queue.submit(item);
                 ++stats.submitted;

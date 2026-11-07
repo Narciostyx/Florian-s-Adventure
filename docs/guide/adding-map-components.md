@@ -14,6 +14,8 @@ M12 瓦片地图、M26 可视化编辑器。
 | **瓦片 Tile** | `data/maps/<地图>.json` 的 `tiles` 定义 + 图层格 | 作用域「瓦片」→ 组件面板笔刷、单击查看/双击替换 | 铺满一格的地面/障碍，参与物理与寻路 | grass、wall、soil、water、**flower、tree、stone** |
 | **放置对象 Placement** | `data/entities.json`（`EntitySpawn` 表） | 作用域「对象」→ 选种类后点格放置 | 有行为的实体：对话、床、商人、敌人 | npc、bed、merchant、enemy、hazard |
 
+3. **树是"高瓦片"（见下方 tall tile）**：完整树形跨 3 格高，但碰撞只算树根 1 格。
+
 判断口诀：**"站得上去吗 / 挡不挡路吗"→ 瓦片；"有没有交互逻辑"→ 放置对象**。
 花、树、石头是纯环境格，选瓦片。新增放置对象见第 9 节。
 
@@ -39,6 +41,14 @@ M12 瓦片地图、M26 可视化编辑器。
 物理与交互：`isSolidCell` 检查**所有**图层——`decor` 层上的石头照样挡路；编辑器
 `[`/`]` 切换绘制图层（0=ground，1=decor），F3 面向瓦片面板会显示叠放关系（`under ...`）。
 
+**高瓦片（tall tile）**：`TileDef` 有可选 `render_height`（1..16，默认 1）。>1 时提取器
+把该格渲染成 `16 × 16*N` 的整幅 quad、**向上**延伸、底边锚定本格；深度排序仍按本格底边。
+树就是 `render_height: 3` 的例子：贴图 16×48（树冠透明背景），视觉上占 3 格高，
+但碰撞/寻路/农事只看到树根那 1 格。规则：
+- tall def 必须放 **decor 层**（透明树冠叠在草地之上；放 ground 层会因自身格透明露底）；
+- 贴图尺寸必须 `16 × 16*render_height`，catalog `size` 与之同步；
+- 树冠会盖住上方格的行走角色（渲染层顺序使然，v1 接受）。
+
 ## 3. 瓦片 id 分配表（重要：存档按数字引用！）
 
 | id | name | 图层 | 属性 | 引入批次 |
@@ -49,7 +59,7 @@ M12 瓦片地图、M26 可视化编辑器。
 | 4 | bramble | ground | hazard（tint 红） | forest 地图 |
 | 5 | water | ground | solid+water（持船时水面可走、陆地反向阻挡） | 水域批次 |
 | 6 | flower | **decor** | 可走装饰、透明精灵 | 装饰批次 |
-| 7 | tree | ground | solid 障碍、满幅 | 装饰批次 |
+| 7 | tree | **decor** | solid 障碍、**tall：render_height=3，贴图 16×48 透明树冠** | 装饰批次（树形重制） |
 | 8 | stone | **decor** | solid 障碍、透明精灵 | 装饰批次 |
 
 规则：
@@ -78,7 +88,8 @@ M12 瓦片地图、M26 可视化编辑器。
 - **ground 层瓦片：满幅不透明**（full-bleed）——底层只有一层地表，透明会露出清屏色；
   走 ground 层的装饰（如 tree）= 本体 + 草地底一体绘制。
 - **decor 层瓦片：透明背景精灵**——只画物件本体、四周留透明，落在任何地表之上；
-  生成时用洋红底 + 泛洪抠图（见第 8 节 sprite 模式）。
+  生成时用洋红底 + 泛洪抠图（见第 8 节 sprite 模式）。高瓦片（tall）贴图
+  `16 × 16*render_height`，树干/底座贴住画布底边。
 
 ## 6. catalog 登记（双源！两处都要改）
 
@@ -109,8 +120,9 @@ M12 瓦片地图、M26 可视化编辑器。
 - **绘制图层要选对**（第 2 节）：decor 瓦片（flower/stone）只应出现在 `decor` 图层
   （编辑器 `[`/`]` 切层，0=ground 1=decor）；把它们画到 ground 层会因透明背景露出清屏色。
 - 当前批次四张地图（`play/farm`、`farm`、`farm-scripted`、`forest`）都登记了 6/7/8，
-  并且都带 `decor` 图层（`ground_detail`）；示例只绘在 `play/farm`：花丛 7 格与石头 4 块
-  在 decor 层、树 6 棵在 ground 层，其余地图保持空 decor 以免影响脚本烟测断言的格子。
+  并且都带 `decor` 图层（`ground_detail`）；示例只绘在 `play/farm`：花丛 7 格、树 6 棵与
+  石头 4 块都在 decor 层（树下方的 ground 层仍是草地），其余地图保持空 decor 以免影响脚本
+  烟测断言的格子。
 - **不要在 demo 地图（farm-scripted/forest）上随意绘制**：play-test 对出生点、门、荆棘、
   池塘、可耕区有坐标断言。
 - 地图校验规则（M12 loader）：id 1..65535 且不重复；每个图层数组长度必须等于

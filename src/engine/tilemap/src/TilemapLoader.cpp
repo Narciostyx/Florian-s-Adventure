@@ -244,6 +244,14 @@ core::Result<Tilemap> loadTilemapFromJson(std::string_view json) {
                 return core::Result<Tilemap>::err(
                     jsonError(tilemap_error::kInvalidDocument, "tile \"tag\" must be a string"));
             }
+            if (entry.contains("render_height")) {
+                int renderHeight = 1;
+                if (!readIntField(entry, "render_height", renderHeight) || renderHeight < 1 || renderHeight > 16) {
+                    return core::Result<Tilemap>::err(
+                        jsonError(tilemap_error::kInvalidDocument, "\"render_height\" must be an integer in 1..16"));
+                }
+                def.renderHeight = renderHeight;
+            }
             if (entry.contains("source")) {
                 if (!readSourceValue(*entry.find("source"), def.source)) {
                     return core::Result<Tilemap>::err(

@@ -59,6 +59,9 @@ std::string saveTilemapToJson(const Tilemap& map) {
         entry["water"] = def.water;
         entry["tillable"] = def.tillable;
         entry["tag"] = def.tag;
+        if (def.renderHeight > 1) {
+            entry["render_height"] = def.renderHeight;
+        }
         tiles.push_back(std::move(entry));
     }
     document["tiles"] = std::move(tiles);

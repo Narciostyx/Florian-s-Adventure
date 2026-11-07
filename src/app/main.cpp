@@ -280,7 +280,7 @@ constexpr std::string_view kCatalogText = R"({
      "tile": 4, "color": "#3d6fa5", "altColor": "#5c8ec4"},
     {"id": "tex.ground.flower", "kind": "texture", "path": "textures/tiles/flower.png", "size": [16, 16],
      "tile": 4, "color": "#69a86a", "altColor": "#e06fa0"},
-    {"id": "tex.ground.tree", "kind": "texture", "path": "textures/tiles/tree.png", "size": [16, 16],
+    {"id": "tex.ground.tree", "kind": "texture", "path": "textures/tiles/tree.png", "size": [16, 48],
      "tile": 4, "color": "#2f6a35", "altColor": "#4a8250"},
     {"id": "tex.ground.stone", "kind": "texture", "path": "textures/tiles/stone.png", "size": [16, 16],
      "tile": 4, "color": "#7d7f85", "altColor": "#5a5c63"},
