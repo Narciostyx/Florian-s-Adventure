@@ -79,17 +79,9 @@ void GameFlow::setAutosaveIntervalDays(int days) noexcept {
 }
 
 bool GameFlow::isValidSlotName(std::string_view slot) noexcept {
-    if (slot.empty() || slot.size() > 64u) {
-        return false;
-    }
-    for (const char value : slot) {
-        const bool valid = (value >= 'a' && value <= 'z') || (value >= 'A' && value <= 'Z') ||
-                           (value >= '0' && value <= '9') || value == '_' || value == '-';
-        if (!valid) {
-            return false;
-        }
-    }
-    return true;
+    // One rule for the whole engine: the save service owns the slot-name grammar
+    // because it is the code that turns a slot into a file path.
+    return save::SaveService::isValidSlotName(slot);
 }
 
 core::Status GameFlow::startNewGame(std::string_view slot) {

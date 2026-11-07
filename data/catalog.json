@@ -76,6 +76,22 @@
       "altColor": "#c6a070"
     },
     {
+      "id": "tex.ui.menu_bg",
+      "kind": "texture",
+      "path": "textures/ui/menu_bg.png",
+      "size": [640, 360],
+      "color": "#3d5c3a",
+      "altColor": "#e8a33d"
+    },
+    {
+      "id": "tex.ui.menu_button",
+      "kind": "texture",
+      "path": "textures/ui/menu_button.png",
+      "size": [112, 24],
+      "color": "#8a5a2b",
+      "altColor": "#e6c47a"
+    },
+    {
       "id": "tex.ground.soil_wet",
       "kind": "texture",
       "path": "textures/tiles/soil_wet.png",

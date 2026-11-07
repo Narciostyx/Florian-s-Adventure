@@ -152,6 +152,15 @@ private:
     int m_selectedPortal = -1;
     int m_selectedEntity = -1;
     int m_activeKind = 0;
+    /// \brief 单击查看 / 双击替换（笔刷工具）：距首次点击的帧数，-1=无待确认点击。
+    static constexpr int kDoubleClickFrames = 15;
+    int m_framesSinceClick = -1;
+    tilemap::TileCoord m_lastClickCell{-1, -1};
+    /// \brief Tile definition the inspector shows after a single click; falls back to
+    /// the brush when nothing has been inspected yet.
+    tilemap::TileId m_inspectedTile{};
+    tilemap::TileCoord m_inspectedCell{-1, -1};
+    bool m_hasInspected = false;
     /// \brief First corner of a portal that is mid-creation (click-click, like the rect tool).
     std::optional<tilemap::TileCoord> m_portalStart;
 };

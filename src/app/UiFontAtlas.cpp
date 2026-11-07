@@ -40,8 +40,32 @@ constexpr int kSupportedVersion = 1;
         return false;
     }
     const auto& box = entry.at(key);
+    for (const auto& component : box) {
+        if (!component.is_number()) {
+            return false;
+        }
+    }
     out = core::makeRect(box[0].get<float>(), box[1].get<float>(), box[2].get<float>(), box[3].get<float>());
     return true;
+}
+
+/// \brief Type-checked `doc.value()` equivalents: a hostile atlas with wrong field
+/// types would otherwise throw an uncaught nlohmann::type_error (crash, not a
+/// graceful fallback). Returns \p fallback when the key is absent or mis-typed.
+[[nodiscard]] int jsonInt(const nlohmann::json& object, const char* key, int fallback) {
+    const auto found = object.find(key);
+    if (found == object.end() || !found->is_number_integer()) {
+        return fallback;
+    }
+    return found->get<int>();
+}
+
+[[nodiscard]] float jsonFloat(const nlohmann::json& object, const char* key, float fallback) {
+    const auto found = object.find(key);
+    if (found == object.end() || !found->is_number()) {
+        return fallback;
+    }
+    return found->get<float>();
 }
 
 }  // namespace
@@ -68,7 +92,7 @@ core::Result<ui::FontAtlas> loadBakedUiFont(platform::IFileSystem& fileSystem, c
     if (!doc.is_object() || !doc.contains("glyphs") || !doc.at("glyphs").is_array()) {
         return fail(assets::asset_error::kCatalogParseFailed, "ui_atlas.json has no glyph array");
     }
-    if (doc.value("version", 0) != kSupportedVersion) {
+    if (jsonInt(doc, "version", 0) != kSupportedVersion) {
         return fail(assets::asset_error::kCatalogParseFailed, "ui_atlas.json: unsupported version");
     }
 
@@ -82,9 +106,9 @@ core::Result<ui::FontAtlas> loadBakedUiFont(platform::IFileSystem& fileSystem, c
     assets::ImageData image = std::move(decoded).take();
 
     ui::FontAtlas font;
-    font.width = doc.value("width", 0);
-    font.height = doc.value("height", 0);
-    font.lineHeight = doc.value("line_height", 0.0f);
+    font.width = jsonInt(doc, "width", 0);
+    font.height = jsonInt(doc, "height", 0);
+    font.lineHeight = jsonFloat(doc, "line_height", 0.0f);
     if (font.width <= 0 || font.height <= 0 || font.lineHeight <= 0.0f) {
         return fail(assets::asset_error::kCatalogParseFailed, "ui_atlas.json: bad atlas dimensions");
     }
@@ -105,7 +129,8 @@ core::Result<ui::FontAtlas> loadBakedUiFont(platform::IFileSystem& fileSystem, c
     int widestAdvance = 0;
     int tallest = 0;
     for (const auto& entry : doc.at("glyphs")) {
-        if (!entry.is_object() || !entry.contains("cp")) {
+        if (!entry.is_object() || !entry.contains("cp") || !entry.at("cp").is_number_integer() ||
+            entry.at("cp").get<long long>() < 0) {
             return fail(assets::asset_error::kCatalogParseFailed, "ui_atlas.json: glyph entry is malformed");
         }
         core::Rect source{};
@@ -115,8 +140,8 @@ core::Result<ui::FontAtlas> loadBakedUiFont(platform::IFileSystem& fileSystem, c
 
         ui::Glyph glyph;
         glyph.source = source;
-        glyph.advance = entry.value("advance", 0.0f);
-        glyph.bearingY = entry.value("bearing_y", 0.0f);
+        glyph.advance = jsonFloat(entry, "advance", 0.0f);
+        glyph.bearingY = jsonFloat(entry, "bearing_y", 0.0f);
         // Every listed codepoint is "defined": a space carries no ink but still carries
         // an advance, and must not fall through to the '?' bitmap.
         glyph.defined = true;

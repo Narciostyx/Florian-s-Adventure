@@ -98,7 +98,10 @@ public:
     void progressBar(core::Rect rect, float value, float minimum, float maximum, core::Color fill);
     void text(std::string_view text, core::Rect rect, const TextStyle& style = {});
 
-    UiResult button(UiId id, std::string_view label, core::Rect rect);
+    /// \brief Push button. With a valid `background` texture it replaces the flat
+    /// theme quad (hover brightens, press darkens the tint); the label still uses
+    /// the theme text colour. Invalid texture keeps the classic look.
+    UiResult button(UiId id, std::string_view label, core::Rect rect, render::TextureHandle background = {});
     UiResult checkbox(UiId id, std::string_view label, bool& value, core::Rect rect);
     UiResult slider(UiId id, float& value, float minimum, float maximum, core::Rect rect);
 

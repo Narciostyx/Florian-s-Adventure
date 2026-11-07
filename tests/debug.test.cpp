@@ -366,9 +366,9 @@ TEST_CASE("DebugTools routes keys and text without leaking to gameplay", "[debug
     event.type = fa::platform::PlatformEventType::KeyDown;
     event.scancode = fa::platform::Scancode::F3;
     CHECK(tools.handleEvent(event));
-    CHECK_FALSE(tools.statsVisible());
-    CHECK(tools.handleEvent(event));
     CHECK(tools.statsVisible());
+    CHECK(tools.handleEvent(event));
+    CHECK_FALSE(tools.statsVisible());
 
     event.scancode = fa::platform::Scancode::F4;
     CHECK(tools.handleEvent(event));

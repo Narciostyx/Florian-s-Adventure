@@ -13,8 +13,11 @@ class DebugConsole;
 class DebugLogSink;
 
 /// \brief Which optional panels the overlay draws.
+///
+/// `statsVisible` defaults to false: `--play` starts clean and F3 toggles the panel;
+/// `--debug` explicitly turns it on at startup (see the composition root).
 struct DebugOverlayState {
-    bool statsVisible = true;
+    bool statsVisible = false;
     bool logVisible = false;
 };
 

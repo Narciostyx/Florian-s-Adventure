@@ -126,9 +126,36 @@ void VisualEditor::update(const VisualEditorInput& input, Rect mapViewport) {
         }
         return;
     }
+    // Age the pending first click once per update; the double-click window is
+    // measured in frames because `update` runs on the render tick.
+    if (m_framesSinceClick >= 0) {
+        ++m_framesSinceClick;
+    }
     if (input.primaryPressed) {
-        const core::Status status = m_editor.applyPrimary();
-        m_status = status.isOk() ? "编辑完成" : status.error().message;
+        if (m_editor.tool() == EditorTool::Brush) {
+            // Single click inspects the tile under the cursor; a second click on the
+            // same cell within the double-click window replaces it with the brush.
+            const bool secondClick = m_framesSinceClick >= 0 && m_framesSinceClick <= kDoubleClickFrames &&
+                                     cell == m_lastClickCell;
+            if (secondClick) {
+                m_framesSinceClick = -1;
+                const core::Status status = m_editor.applyPrimary();
+                m_status = status.isOk() ? "已替换瓦片" : status.error().message;
+                m_inspectedTile = m_editor.brush();
+                m_inspectedCell = cell;
+                m_hasInspected = true;
+            } else {
+                m_framesSinceClick = 0;
+                m_lastClickCell = cell;
+                m_inspectedTile = map.tileAt(cell.x, cell.y, m_editor.layer());
+                m_inspectedCell = cell;
+                m_hasInspected = true;
+                m_status = "查看瓦片属性";
+            }
+        } else {
+            const core::Status status = m_editor.applyPrimary();
+            m_status = status.isOk() ? "编辑完成" : status.error().message;
+        }
     } else if (input.secondaryPressed) {
         const core::Status status = m_editor.applySecondary();
         m_status = status.isOk() ? "已擦除" : status.error().message;
@@ -250,6 +277,16 @@ void VisualEditor::draw(ui::UiContext& ui,
             makeRect(map.x + static_cast<float>(cell.x) * step, map.y + static_cast<float>(cell.y) * step, step, step),
             theme.accent,
             1.0f);
+    }
+    // White box marks the inspected (single-clicked) tile.
+    if (m_scope == EditorScope::Tiles && m_hasInspected && !m_editor.map().empty() && m_inspectedCell.x >= 0) {
+        const float step = kTileSize * m_tileScale;
+        ui.border(makeRect(map.x + static_cast<float>(m_inspectedCell.x) * step,
+                           map.y + static_cast<float>(m_inspectedCell.y) * step,
+                           step,
+                           step),
+                  fa::core::Color{1.0f, 1.0f, 1.0f, 0.9f},
+                  1.0f);
     }
     if (m_editor.map().empty()) {
         ui.text("空地图", makeRect(map.x + 8.0f, map.y + 8.0f, 200.0f, 8.0f), dimStyle(theme));
@@ -380,6 +417,8 @@ void VisualEditor::drawPalette(ui::UiContext& ui, Rect screen, std::span<const s
         if (ui.button(ui::UiId::fromName(id), line, rect).pressed) {
             m_selectedTile = def.id;
             m_editor.setBrush(def.id);
+            m_hasInspected = false;
+            m_framesSinceClick = -1;
             m_status = "瓦片 " + def.name;
         }
         if (selected) {
@@ -413,54 +452,68 @@ void VisualEditor::drawProperties(ui::UiContext& ui,
     ui.text(line, makeRect(props.x + 6.0f, y, props.w - 12.0f, 8.0f), dimStyle(theme));
     y += 11.0f;
 
-    const float small = 20.0f;
-    if (ui.button(ui::UiId::fromName("ve.w-"), "宽-", makeRect(props.x + 6.0f, y, small, 11.0f)).pressed) {
+    // Comfort grid: quarter-width resize buttons, half-width checkbox rows.
+    const float inner = props.w - 12.0f;
+    const float gap = 3.0f;
+    const float quarter = (inner - 3.0f * gap) / 4.0f;
+    const float half = (inner - 6.0f) / 2.0f;
+    const float rowH = 13.0f;
+    const auto quarterButton = [&](const char* name, std::string_view text, int index) {
+        return ui.button(ui::UiId::fromName(name),
+                         text,
+                         makeRect(props.x + 6.0f + static_cast<float>(index) * (quarter + gap), y, quarter, rowH))
+            .pressed;
+    };
+
+    if (quarterButton("ve.w-", "宽-", 0)) {
         resizeMap(map.width() - 1, map.height());
     }
-    if (ui.button(ui::UiId::fromName("ve.w+"), "宽+", makeRect(props.x + 28.0f, y, small, 11.0f)).pressed) {
+    if (quarterButton("ve.w+", "宽+", 1)) {
         resizeMap(map.width() + 1, map.height());
     }
-    if (ui.button(ui::UiId::fromName("ve.h-"), "高-", makeRect(props.x + 50.0f, y, small, 11.0f)).pressed) {
+    if (quarterButton("ve.h-", "高-", 2)) {
         resizeMap(map.width(), map.height() - 1);
     }
-    if (ui.button(ui::UiId::fromName("ve.h+"), "高+", makeRect(props.x + 72.0f, y, small, 11.0f)).pressed) {
+    if (quarterButton("ve.h+", "高+", 3)) {
         resizeMap(map.width(), map.height() + 1);
     }
-    y += 14.0f;
+    y += rowH + 4.0f;
 
+    // Outside-solid and indoor share one row, half width each.
     bool outsideSolid = map.outsideIsSolid();
     if (ui.checkbox(ui::UiId::fromName("ve.outside"),
                     "界外阻挡",
                     outsideSolid,
-                    makeRect(props.x + 6.0f, y, props.w - 12.0f, 10.0f))
+                    makeRect(props.x + 6.0f, y, half, rowH))
             .pressed) {
         map.setOutsideIsSolid(outsideSolid);
     }
-    y += 12.0f;
     tilemap::MapAmbient ambient = map.ambient();
     if (ui.checkbox(ui::UiId::fromName("ve.indoor"),
                     "室内",
                     ambient.indoor,
-                    makeRect(props.x + 6.0f, y, props.w - 12.0f, 10.0f))
+                    makeRect(props.x + 6.0f + half + 6.0f, y, half, rowH))
             .pressed) {
         map.setAmbient(ambient);
     }
-    y += 14.0f;
+    y += rowH + 5.0f;
 
-    tilemap::TileDef* def = map.mutableTileDef(m_editor.brush());
+    // The inspector shows the single-clicked tile; the palette brush is the fallback.
+    const tilemap::TileId shownTile = m_hasInspected ? m_inspectedTile : m_editor.brush();
+    tilemap::TileDef* def = map.mutableTileDef(shownTile);
     if (def == nullptr) {
         ui.text("未选中瓦片", makeRect(props.x + 6.0f, y, props.w - 12.0f, 8.0f), dimStyle(theme));
         return;
     }
     std::snprintf(line, sizeof(line), "瓦片 #%u  %s", def->id.value, def->name.c_str());
     ui.text(line, makeRect(props.x + 6.0f, y, props.w - 12.0f, 8.0f), labelStyle(theme));
-    y += 11.0f;
+    y += 12.0f;
 
     std::snprintf(line, sizeof(line), "贴图 %s", def->textureName.empty() ? "-" : def->textureName.c_str());
     ui.text(line, makeRect(props.x + 6.0f, y, props.w - 12.0f, 8.0f), dimStyle(theme));
-    y += 11.0f;
+    y += 12.0f;
     if (!textureIds.empty()) {
-        if (ui.button(ui::UiId::fromName("ve.tex.prev"), "<", makeRect(props.x + 6.0f, y, 14.0f, 11.0f)).pressed) {
+        if (ui.button(ui::UiId::fromName("ve.tex.prev"), "<", makeRect(props.x + 6.0f, y, quarter, rowH)).pressed) {
             int index = 0;
             for (std::size_t i = 0; i < textureIds.size(); ++i) {
                 if (textureIds[i] == def->textureName) {
@@ -471,7 +524,10 @@ void VisualEditor::drawProperties(ui::UiContext& ui,
             def->textureName = textureIds[static_cast<std::size_t>(index)];
             m_selectedTexture = index;
         }
-        if (ui.button(ui::UiId::fromName("ve.tex.next"), ">", makeRect(props.x + 22.0f, y, 14.0f, 11.0f)).pressed) {
+        if (ui.button(ui::UiId::fromName("ve.tex.next"),
+                      ">",
+                      makeRect(props.x + 6.0f + quarter + gap, y, quarter, rowH))
+                .pressed) {
             int index = 0;
             for (std::size_t i = 0; i < textureIds.size(); ++i) {
                 if (textureIds[i] == def->textureName) {
@@ -482,26 +538,49 @@ void VisualEditor::drawProperties(ui::UiContext& ui,
             def->textureName = textureIds[static_cast<std::size_t>(index)];
             m_selectedTexture = index;
         }
-        y += 13.0f;
+        y += rowH + 4.0f;
     }
 
-    const auto flag = [&](const char* id, const char* label, bool& value) {
-        return ui.checkbox(ui::UiId::fromName(id), label, value, makeRect(props.x + 6.0f, y, props.w - 12.0f, 10.0f));
-    };
-    const auto applyFlag = [&](const fa::ui::UiResult& result, bool& value, bool& target) {
-        if (result.pressed) {
-            target = value;
-        }
-        y += 11.0f;
+    // Flag grid, 2 x 2. Walkable and solid are mutually exclusive: a tile that
+    // bodies may stand on cannot block them, and vice versa. Conditional passage
+    // (a boat crossing water) is handled by gameplay code exempting `water` from
+    // the solid test, not by a walkable+solid combination.
+    const auto halfFlag = [&](const char* id, const char* label, bool& value, int column) {
+        return ui.checkbox(ui::UiId::fromName(id),
+                           label,
+                           value,
+                           makeRect(props.x + 6.0f + static_cast<float>(column) * (half + 6.0f), y, half, rowH))
+            .pressed;
     };
     bool walkable = def->walkable;
-    applyFlag(flag("ve.walk", "可通行", walkable), walkable, def->walkable);
     bool solid = def->solid;
-    applyFlag(flag("ve.solid", "阻挡", solid), solid, def->solid);
+    const bool walkPressed = halfFlag("ve.walk", "可通行", walkable, 0);
+    const bool solidPressed = halfFlag("ve.solid", "阻挡", solid, 1);
+    if (walkPressed) {
+        def->walkable = walkable;
+        if (walkable) {
+            def->solid = false;
+        }
+    }
+    if (solidPressed) {
+        def->solid = solid;
+        if (solid) {
+            def->walkable = false;
+        }
+    }
+    y += rowH + 3.0f;
     bool tillable = def->tillable;
-    applyFlag(flag("ve.till", "可耕", tillable), tillable, def->tillable);
+    if (halfFlag("ve.till", "可耕", tillable, 0)) {
+        def->tillable = tillable;
+    }
     bool water = def->water;
-    applyFlag(flag("ve.water", "水", water), water, def->water);
+    if (halfFlag("ve.water", "水", water, 1)) {
+        def->water = water;
+    }
+    y += rowH + 3.0f;
+    ui.text("可通行与阻挡互斥；水+船可过",
+            makeRect(props.x + 6.0f, y, props.w - 12.0f, 8.0f),
+            dimStyle(theme));
 }
 
 void VisualEditor::setPlacements(std::vector<MapPlacement>* placements, std::vector<PlacementKind> kinds) {
@@ -542,6 +621,8 @@ void VisualEditor::setScope(EditorScope scope) noexcept {
     m_selectedPlacement = -1;
     m_selectedPortal = -1;
     m_selectedEntity = m_entityInfos.empty() ? -1 : 0;
+    m_hasInspected = false;
+    m_framesSinceClick = -1;
 }
 
 std::span<const MapPlacement> VisualEditor::placements() const noexcept {

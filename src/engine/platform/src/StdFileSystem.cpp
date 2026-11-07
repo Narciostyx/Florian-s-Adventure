@@ -37,6 +37,10 @@ std::filesystem::path temporaryPath(const std::filesystem::path& target) {
     return temporary;
 }
 
+/// \brief Hard cap for readBinary: 256 MiB. A hostile or accidentally huge file must
+/// not be slurped into memory wholesale (DoS guard; game files are far below this).
+constexpr std::streamoff kMaxReadBytes = 256LL * 1024 * 1024;
+
 }  // namespace
 
 bool StdFileSystem::exists(std::string_view path) const {
@@ -73,6 +77,10 @@ fa::core::Result<std::string> StdFileSystem::readBinary(std::string_view path) {
     std::string bytes;
     stream.seekg(0, std::ios::end);
     const std::streamoff size = stream.tellg();
+    if (size > kMaxReadBytes) {
+        return fa::core::Result<std::string>::err(platform_error::kFileReadFailed,
+                                                  "file too large to read: " + std::string(path));
+    }
     if (size > 0) {
         stream.seekg(0, std::ios::beg);
         bytes.resize(static_cast<std::size_t>(size));
@@ -127,8 +135,8 @@ fa::core::Status StdFileSystem::writeTextAtomic(std::string_view path, std::stri
         return fa::core::okStatus();
     }
 
-    std::error_code ignored;
-    std::filesystem::remove(temporary, ignored);
+    // Both renames failed after the target was removed: keep the staged temp file
+    // (deleting it here would destroy the only surviving copy of the content).
     return fa::core::errorStatus(platform_error::kFileWriteFailed,
                                  "cannot replace file atomically: " + std::string(path));
 }

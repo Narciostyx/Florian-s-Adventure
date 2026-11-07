@@ -5,40 +5,16 @@
 
 #include <nlohmann/json.hpp>
 
+#include <fa/core/JsonReader.hpp>
+
 namespace fa::economy {
 namespace {
 
 using Json = nlohmann::json;
+using namespace fa::core::jsonread;  // NOLINT: shared type-checked readers (fa/core/JsonReader.hpp)
 
 [[nodiscard]] bool hasPrefix(const content::ContentId& id, std::string_view prefix) {
     return id.name().rfind(prefix, 0) == 0;
-}
-
-[[nodiscard]] bool readStringField(const Json& object, const char* key, std::string& out) {
-    const auto found = object.find(key);
-    if (found == object.end() || !found->is_string()) {
-        return false;
-    }
-    out = found->get<std::string>();
-    return true;
-}
-
-[[nodiscard]] bool readIntField(const Json& object, const char* key, int& out) {
-    const auto found = object.find(key);
-    if (found == object.end() || !found->is_number_integer()) {
-        return false;
-    }
-    out = found->get<int>();
-    return true;
-}
-
-[[nodiscard]] bool readFloatField(const Json& object, const char* key, float& out) {
-    const auto found = object.find(key);
-    if (found == object.end() || !found->is_number()) {
-        return false;
-    }
-    out = found->get<float>();
-    return true;
 }
 
 [[nodiscard]] bool readIdField(const Json& object, const char* key, std::string_view prefix, content::ContentId& out) {

@@ -4,10 +4,11 @@
 
 #include <nlohmann/json.hpp>
 
+#include <fa/core/JsonReader.hpp>
+
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
-#include <limits>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -18,74 +19,10 @@ namespace fa::tilemap {
 namespace {
 
 using Json = nlohmann::json;
+using namespace fa::core::jsonread;  // NOLINT: shared type-checked readers (fa/core/JsonReader.hpp)
 
 [[nodiscard]] core::Error jsonError(int code, std::string message) {
     return core::makeError(code, std::move(message));
-}
-
-[[nodiscard]] bool readIntValue(const Json& value, int& out) {
-    if (value.is_number_unsigned()) {
-        const unsigned long long raw = value.get<unsigned long long>();
-        if (raw > static_cast<unsigned long long>(std::numeric_limits<int>::max())) {
-            return false;
-        }
-        out = static_cast<int>(raw);
-        return true;
-    }
-    if (value.is_number_integer()) {
-        const long long raw = value.get<long long>();
-        if (raw < static_cast<long long>(std::numeric_limits<int>::min()) ||
-            raw > static_cast<long long>(std::numeric_limits<int>::max())) {
-            return false;
-        }
-        out = static_cast<int>(raw);
-        return true;
-    }
-    return false;
-}
-
-[[nodiscard]] bool readFloatValue(const Json& value, float& out) {
-    if (!value.is_number()) {
-        return false;
-    }
-    out = value.get<float>();
-    return true;
-}
-
-[[nodiscard]] bool readStringValue(const Json& value, std::string& out) {
-    if (!value.is_string()) {
-        return false;
-    }
-    out = value.get<std::string>();
-    return true;
-}
-
-[[nodiscard]] bool readBoolValue(const Json& value, bool& out) {
-    if (!value.is_boolean()) {
-        return false;
-    }
-    out = value.get<bool>();
-    return true;
-}
-
-[[nodiscard]] bool readIntField(const Json& object, const char* key, int& out) {
-    const auto found = object.find(key);
-    return found != object.end() && readIntValue(*found, out);
-}
-
-[[nodiscard]] bool readFloatField(const Json& object, const char* key, float& out) {
-    const auto found = object.find(key);
-    return found != object.end() && readFloatValue(*found, out);
-}
-
-[[nodiscard]] bool readStringField(const Json& object, const char* key, std::string& out) {
-    const auto found = object.find(key);
-    return found != object.end() && readStringValue(*found, out);
-}
-
-[[nodiscard]] bool readBoolField(const Json& object, const char* key, bool& out) {
-    const auto found = object.find(key);
-    return found != object.end() && readBoolValue(*found, out);
 }
 
 [[nodiscard]] bool readCoordValue(const Json& value, TileCoord& out) {

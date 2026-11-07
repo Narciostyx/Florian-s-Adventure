@@ -221,6 +221,12 @@ void printBanner() {
 /// Every texture in v1 is generated from `color`/`altColor`, so the run needs no art
 /// on disk; the moment real PNGs arrive the same entries gain a `path` and the
 /// placeholder fields stop being used.
+/// \brief Built-in fallback catalog used when `data/catalog.json` is missing.
+///
+/// \note DUAL SOURCE BY DESIGN: this is the *minimal* catalog so a bare checkout
+/// still boots (old entries render as color blocks, newer ones point at PNGs).
+/// `data/catalog.json` is the authoritative list. When adding content that code
+/// paths load by name, update BOTH copies or the fallback run silently loses it.
 constexpr std::string_view kCatalogText = R"({
   "assets": [
     {"id": "tex.ground.grass", "kind": "texture", "size": [16, 16], "tile": 8,
@@ -240,6 +246,10 @@ constexpr std::string_view kCatalogText = R"({
     {"id": "tex.enemy.bat_walk", "kind": "texture", "path": "textures/characters/bat_walk.png",
      "size": [64, 16], "color": "#4e3e6e", "altColor": "#947cbe"},
     {"id": "tex.marker", "kind": "texture", "size": [8, 8], "color": "#ffffff"},
+    {"id": "tex.ui.menu_bg", "kind": "texture", "path": "textures/ui/menu_bg.png", "size": [640, 360],
+     "color": "#3d5c3a", "altColor": "#e8a33d"},
+    {"id": "tex.ui.menu_button", "kind": "texture", "path": "textures/ui/menu_button.png", "size": [112, 24],
+     "color": "#8a5a2b", "altColor": "#e6c47a"},
     {"id": "tex.ground.water", "kind": "texture", "path": "textures/tiles/water.png", "size": [16, 16],
      "tile": 4, "color": "#3d6fa5", "altColor": "#5c8ec4"},
     {"id": "tex.item.boat", "kind": "texture", "path": "textures/items/boat.png", "size": [16, 16],
@@ -1757,9 +1767,6 @@ public:
 
     /// \brief `data/animations.json` player_idle section; breathing clip while standing.
     void setIdleConfig(const PlayerWalkAnimConfig* config) { m_idleConfig = config; }
-
-    /// \brief Toast sink for scene-originated messages (auto-disembark etc.).
-    void setToastCallback(std::function<void(std::string)> callback) { m_toast = std::move(callback); }
 
     /// \brief True while the player is riding the boat.
     [[nodiscard]] bool boatMode() const noexcept { return m_boatMode; }
@@ -3622,8 +3629,6 @@ private:
     fa::anim::Animator m_idleAnimator;
     std::shared_ptr<const fa::anim::AnimationClip> m_idleClip;
     bool m_idleActive = false;
-    /// \brief Optional toast sink owned by the composition root (play-message display).
-    std::function<void(std::string)> m_toast;
     /// \brief One animated enemy (walk sheet + playback state, driven by movement).
     struct EnemyWalkState {
         fa::scene::EntityId id;
@@ -3995,7 +4000,6 @@ public:
         scene->setBoatConfig(&boatWalkConfig);
         scene->setIdleConfig(&idleAnimConfig);
         scene->setSkillConfig(&skillConfig);
-        scene->setToastCallback([this](std::string message) { setPlayMessage(std::move(message)); });
         return scene;
     }
 
@@ -4531,6 +4535,8 @@ public:
         fa::editor::VisualEditorInput click;
         click.cursorScreen = fa::core::Vec2{mapArea.x + 5.5f * step, mapArea.y + 5.5f * step};
         click.primaryPressed = true;
+        // Brush tool: first click inspects, second click on the same cell replaces.
+        visualEditor->update(click, mapArea);
         visualEditor->update(click, mapArea);
         const bool painted = map.tileAt(5, 5, 0) == brush;
 
@@ -4596,7 +4602,9 @@ public:
             if (const fa::core::Status status = add(playerInventory->backpack(), "item.turnip", 3); status.isError()) {
                 return status;
             }
-            // The sword is the equipped weapon: right-click reads its `damage`.
+            // The sword stays equipped in the weapon slot (save/equipment semantics);
+            // swings and the qi read the damage of the weapon held in the SELECTED
+            // hotbar slot, so a copy also sits in the hotbar for `--play`.
             static_cast<void>(playerInventory->equipment().equip(
                 fa::inventory::EquipmentSlot::Weapon,
                 fa::inventory::ItemStack{fa::content::ContentId::fromName("item.sword"), 1, -1}));
@@ -5631,6 +5639,49 @@ public:
         flow = std::make_unique<fa::flow::GameFlow>(saveService.get(), calendar.get(), economy.get(), narrativeService);
         flow->setSaveBuilder([this](fa::save::SaveContext& context) { return fillSaveContext(context); });
         flow->setLoadHandler([this](const fa::save::SaveFile& file) { return applySaveFile(file); });
+        // "开始新游戏" must wipe the previous session: the scene, the shared GameState
+        // services (farming/debris/narrative are referenced by every scene), inventory,
+        // economy, calendar and transient UI. Without this handler the world simply
+        // kept running where the last session left it.
+        flow->setNewGameHandler([this]() -> fa::core::Status {
+            gameState.farming = fa::farming::FarmingService{&content};
+            gameState.debris = fa::farming::DebrisLayer{};
+            gameState.narrative = fa::narrative::NarrativeService{&narrative};
+            gameState.narrative.setSeason(fa::content::Season::Spring);
+            gameState.playerHealth = gameState.playerMaxHealth;
+            gameState.playerStamina = gameState.playerStaminaMax;
+            gameState.playerFacing = fa::player::Facing::South;
+
+            if (const fa::core::Status status = initializeInventory(true); status.isError()) {
+                return status;
+            }
+            if (economy != nullptr) {
+                economy->setGold(100);
+                economy->setSeason(fa::content::Season::Spring);
+                economy->setDay(1);
+                economy->restoreShipping({});
+                economy->restoreJobs({});
+                economy->clear();
+            }
+            if (calendar != nullptr) {
+                fa::world::GameDate fresh;
+                fresh.year = 1;
+                fresh.season = fa::world::Season::Spring;
+                fresh.day = 1;
+                calendar->restore(fresh, config.gameplay.wakeHour, fa::world::Weather::Sunny,
+                                  fa::world::Weather::Sunny);
+                lastEconomyTimeOfDay = calendar->timeOfDay();
+                economyMinuteCarry = 0.0f;
+            }
+            if (!switchMap(GameMap::Farm, std::nullopt)) {
+                return fa::core::errorStatus(fa::core::error_code::kUnsupported, "could not rebuild the farm scene");
+            }
+            damageTexts.clear();
+            playMessage.clear();
+            playMessageTimer = 0.0f;
+            setPlayMessage("新的冒险开始！");
+            return fa::core::okStatus();
+        });
         flow->setEndOfDayHandler([this] {
             if (gameScene == nullptr || calendar == nullptr) {
                 return;
@@ -5904,8 +5955,9 @@ public:
         debugTools->attachLogSink();
         if (debugMode) {
             // `--debug` opens with the overlays the play session needs: the stats panel
-            // (which also draws each AI's target line) and the physics shapes.
-            debugTools->toggleStats();
+            // (which also draws each AI's target line) and the physics shapes. The
+            // default is hidden; `--play` only shows it after an explicit F3.
+            debugTools->setStatsVisible(true);
             debugTools->setPhysicsVisible(true);
         }
 
@@ -8210,6 +8262,12 @@ public:
         return fa::core::makeRect((640.0f - width) * 0.5f, (360.0f - height) * 0.5f, width, height);
     }
 
+    /// \brief Named catalog texture for UI drawing (menu art); invalid when absent.
+    [[nodiscard]] fa::render::TextureHandle uiTexture(std::string_view name) const {
+        const auto found = namedTextureHandles.find(std::string(name));
+        return found != namedTextureHandles.end() ? found->second : fa::render::TextureHandle{};
+    }
+
     /// \brief Scales a base size with `ui.scale`, then centres it.
     [[nodiscard]] fa::core::Rect scaledCenteredRect(float width, float height) const {
         return centeredRect(width * config.ui.scale, height * config.ui.scale);
@@ -9394,41 +9452,70 @@ private:
         };
 
         if (showMainMenu && !slotsOpen) {
-            const fa::core::Rect panel = centeredRect(300.0f, 246.0f);
-            ui->panel(panel, theme.panel);
-            ui->border(panel, theme.panelBorder);
-            ui->text("Florian's Adventure",
-                     fa::core::makeRect(panel.x + 8.0f, panel.y + 10.0f, panel.w - 16.0f, 16.0f),
-                     title);
+            // Main menu: generated art (swap `textures/ui/menu_bg.png` /
+            // `menu_button.png` to retheme) + centred title + horizontal buttons.
+            const fa::render::TextureHandle bg = uiTexture("tex.ui.menu_bg");
+            const fa::render::TextureHandle btnTex = uiTexture("tex.ui.menu_button");
+            const fa::core::Rect full = fa::core::makeRect(0.0f, 0.0f, 640.0f, 360.0f);
+            if (bg.isValid()) {
+                ui->icon(full, bg);
+            } else {
+                ui->panel(full, theme.panel);
+            }
+
+            ui->text("Florian's Adventure", fa::core::makeRect(0.0f, 40.0f, 640.0f, 16.0f), title);
             char dayText[48]{};
             std::snprintf(dayText, sizeof(dayText), "春季 第 %d 天", calendar != nullptr ? calendar->date().day : 1);
-            ui->text(
-                dayText, fa::core::makeRect(panel.x + 8.0f, panel.y + 38.0f, panel.w - 16.0f, 8.0f), centeredLabel);
+            ui->text(dayText, fa::core::makeRect(0.0f, 64.0f, 640.0f, 8.0f), centeredLabel);
 
-            const float buttonWidth = 160.0f;
-            const float buttonX = panel.x + (panel.w - buttonWidth) * 0.5f;
-            if (press("menu.new", "开始新游戏", buttonX, panel.y + 64.0f, buttonWidth, 20.0f)) {
+            constexpr float kButtonW = 112.0f;
+            constexpr float kButtonH = 24.0f;
+            constexpr float kButtonGap = 10.0f;
+#if defined(FA_ENABLE_EDITOR)
+            constexpr int kButtonCount = 5;
+#else
+            constexpr int kButtonCount = 4;
+#endif
+            const float rowWidth = static_cast<float>(kButtonCount) * (kButtonW + kButtonGap) - kButtonGap;
+            float buttonX = (640.0f - rowWidth) * 0.5f;
+            constexpr float kButtonY = 286.0f;
+            const auto menuButton = [this, &btnTex](const char* id, const char* text, float x) {
+                const bool pressed = ui->button(fa::ui::UiId::fromName(id),
+                                                text,
+                                                fa::core::makeRect(x, kButtonY, kButtonW, kButtonH),
+                                                btnTex)
+                                         .pressed;
+                if (pressed) {
+                    ++uiPresses;
+                }
+                return pressed;
+            };
+            if (menuButton("menu.new", "开始新游戏", buttonX)) {
                 static_cast<void>(flow->startNewGame("play"));
             }
-            if (press("menu.continue", "继续", buttonX, panel.y + 90.0f, buttonWidth, 20.0f)) {
+            buttonX += kButtonW + kButtonGap;
+            if (menuButton("menu.continue", "继续", buttonX)) {
                 continueGame();
             }
-            if (press("menu.slots", "存档槽", buttonX, panel.y + 116.0f, buttonWidth, 20.0f)) {
+            buttonX += kButtonW + kButtonGap;
+            if (menuButton("menu.slots", "存档槽", buttonX)) {
                 refreshSlots();
                 slotsOpen = true;
             }
+            buttonX += kButtonW + kButtonGap;
 #if defined(FA_ENABLE_EDITOR)
-            if (press("menu.editor", "地图编辑器", buttonX, panel.y + 142.0f, buttonWidth, 20.0f)) {
+            if (menuButton("menu.editor", "地图编辑器", buttonX)) {
                 openVisualEditor();
             }
+            buttonX += kButtonW + kButtonGap;
 #endif
-            if (press("menu.quit", "退出", buttonX, panel.y + 168.0f, buttonWidth, 20.0f)) {
+            if (menuButton("menu.quit", "退出", buttonX)) {
                 flow->requestQuit();
                 if (requestAppQuit) {
                     requestAppQuit();
                 }
             }
-            ui->text("G 上床睡觉", fa::core::makeRect(panel.x + 8.0f, panel.y + 208.0f, panel.w - 16.0f, 8.0f), dim);
+            ui->text("G 上床睡觉", fa::core::makeRect(0.0f, 344.0f, 640.0f, 8.0f), dim);
         }
 
         if (showPause && !slotsOpen) {
@@ -9765,8 +9852,8 @@ private:
                          messageStyle);
             }
 
-            // The weapon line follows the selected slot: that is what right-click swings
-            // and what Q charges the sword qi with.
+            // The weapon line follows the selected slot: that is what LMB/G swings
+            // and what RMB charges the sword qi with.
             const fa::content::ItemDef* weaponDef = nullptr;
             if (playerInventory != nullptr) {
                 const fa::inventory::ItemStack& held = playerInventory->hotbar().selectedStack();

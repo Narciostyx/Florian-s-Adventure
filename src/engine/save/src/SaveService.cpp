@@ -1,6 +1,5 @@
 #include "fa/save/SaveService.hpp"
 
-#include <cctype>
 #include <cstdint>
 #include <ctime>
 #include <string>
@@ -273,9 +272,12 @@ bool SaveService::isValidSlotName(std::string_view slot) noexcept {
     if (slot.empty() || slot.size() > 64) {
         return false;
     }
+    // Explicit ASCII classes: std::isalnum is locale-dependent and could accept
+    // accented letters in some locales, which have no business in a file name.
     for (const char character : slot) {
-        const unsigned char value = static_cast<unsigned char>(character);
-        if (std::isalnum(value) == 0 && character != '_' && character != '-') {
+        const bool valid = (character >= 'a' && character <= 'z') || (character >= 'A' && character <= 'Z') ||
+                           (character >= '0' && character <= '9') || character == '_' || character == '-';
+        if (!valid) {
             return false;
         }
     }

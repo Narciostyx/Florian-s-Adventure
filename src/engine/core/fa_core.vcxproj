@@ -39,6 +39,7 @@
     <ClInclude Include="..\include\fa\core\Error.hpp" />
     <ClInclude Include="..\include\fa\core\Hash.hpp" />
     <ClInclude Include="..\include\fa\core\Ids.hpp" />
+    <ClInclude Include="..\include\fa\core\JsonReader.hpp" />
     <ClInclude Include="..\include\fa\core\Log.hpp" />
     <ClInclude Include="..\include\fa\core\Math.hpp" />
     <ClInclude Include="..\include\fa\core\Result.hpp" />

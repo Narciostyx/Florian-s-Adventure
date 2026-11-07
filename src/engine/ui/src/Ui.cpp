@@ -91,7 +91,7 @@ void UiContext::text(std::string_view value, core::Rect rect, const TextStyle& s
     ::fa::ui::drawText(m_font, value, offset(rect), style, m_queue);
 }
 
-UiResult UiContext::button(UiId id, std::string_view label, core::Rect rect) {
+UiResult UiContext::button(UiId id, std::string_view label, core::Rect rect, render::TextureHandle background) {
     UiResult result;
     result.hovered = hovered(rect);
 
@@ -104,9 +104,20 @@ UiResult UiContext::button(UiId id, std::string_view label, core::Rect rect) {
     }
 
     const bool held = m_active == id.value;
-    const core::Color fill = held ? m_theme.buttonPressed : (result.hovered ? m_theme.buttonHover : m_theme.button);
-    quad(offset(rect), fill);
-    border(rect, m_theme.panelBorder);
+    if (background.isValid()) {
+        // Image button: hover brightens, press darkens; no theme quad or border.
+        float level = 1.0f;
+        if (held) {
+            level = 0.72f;
+        } else if (result.hovered) {
+            level = 1.18f;
+        }
+        icon(rect, background, core::Color{level, level, level, 1.0f});
+    } else {
+        const core::Color fill = held ? m_theme.buttonPressed : (result.hovered ? m_theme.buttonHover : m_theme.button);
+        quad(offset(rect), fill);
+        border(rect, m_theme.panelBorder);
+    }
 
     const TextStyle style = widgetTextStyle(m_theme, TextAlign::Center);
     const float innerWidth = rect.w - 2.0f * m_theme.padding;
