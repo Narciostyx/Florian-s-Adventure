@@ -36,5 +36,13 @@
     "rows": { "down": 0, "up": 1, "left": 2, "right": 3 },
     "walk_durations": [0.20, 0.14, 0.20, 0.14],
     "idle_frame": 0
+  },
+  "player_idle": {
+    "texture": "tex.actor.player",
+    "frame_size": [24, 24],
+    "sprite_size": [24, 24],
+    "columns": 4,
+    "walk_durations": [0.35, 0.35, 0.35, 0.35],
+    "idle_frame": 0
   }
 }

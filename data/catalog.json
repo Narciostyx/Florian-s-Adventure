@@ -39,8 +39,9 @@
     {
       "id": "tex.actor.player",
       "kind": "texture",
+      "path": "textures/characters/player.png",
       "size": [
-        16,
+        96,
         24
       ],
       "color": "#e8c39e",

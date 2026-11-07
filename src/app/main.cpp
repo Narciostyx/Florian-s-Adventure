@@ -229,8 +229,8 @@ constexpr std::string_view kCatalogText = R"({
      "color": "#6b4a2f", "altColor": "#7d5a3a"},
     {"id": "tex.ground.wall", "kind": "texture", "size": [16, 16], "tile": 4,
      "color": "#3d465e", "altColor": "#55627e"},
-    {"id": "tex.actor.player", "kind": "texture", "size": [16, 24],
-     "color": "#e8c39e", "altColor": "#c79a74"},
+    {"id": "tex.actor.player", "kind": "texture", "path": "textures/characters/player.png",
+     "size": [96, 24], "color": "#e8c39e", "altColor": "#c79a74"},
     {"id": "tex.actor.player_walk", "kind": "texture", "path": "textures/characters/player_walk.png",
      "size": [96, 96], "color": "#e8c39e", "altColor": "#c79a74"},
     {"id": "tex.actor.player_boat", "kind": "texture", "path": "textures/characters/player_boat.png",
@@ -292,6 +292,14 @@ constexpr std::string_view kAnimationsText = R"({
     "columns": 4,
     "rows": { "down": 0, "up": 1, "left": 2, "right": 3 },
     "walk_durations": [0.20, 0.14, 0.20, 0.14],
+    "idle_frame": 0
+  },
+  "player_idle": {
+    "texture": "tex.actor.player",
+    "frame_size": [24, 24],
+    "sprite_size": [24, 24],
+    "columns": 4,
+    "walk_durations": [0.35, 0.35, 0.35, 0.35],
     "idle_frame": 0
   }
 })";
@@ -1747,6 +1755,9 @@ public:
     /// \brief `data/animations.json` player_boat section; rowing art while riding.
     void setBoatConfig(const PlayerWalkAnimConfig* config) { m_boatConfig = config; }
 
+    /// \brief `data/animations.json` player_idle section; breathing clip while standing.
+    void setIdleConfig(const PlayerWalkAnimConfig* config) { m_idleConfig = config; }
+
     /// \brief Toast sink for scene-originated messages (auto-disembark etc.).
     void setToastCallback(std::function<void(std::string)> callback) { m_toast = std::move(callback); }
 
@@ -2302,6 +2313,9 @@ private:
         }
         if (m_boatConfig != nullptr && m_boatConfig->valid) {
             m_boatTexture = textureForName(m_boatConfig->textureName);
+        }
+        if (m_idleConfig != nullptr && m_idleConfig->valid) {
+            m_idleTexture = textureForName(m_idleConfig->textureName);
         }
         static_cast<void>(world().add<fa::scene::Sprite>(m_markerEntity, sprite));
 
@@ -3015,6 +3029,43 @@ private:
         return true;
     }
 
+    /// \brief Plays the breathing idle clip (player.png sheet) while standing.
+    /// \return false when idle art is unavailable and the caller should fall back.
+    bool updateIdleAnimation(fa::scene::Sprite& sprite, float deltaSeconds) {
+        if (m_idleConfig == nullptr || !m_idleConfig->valid || !m_idleTexture.isValid()) {
+            return false;
+        }
+        if (m_idleClip == nullptr) {
+            auto clip = std::make_shared<fa::anim::AnimationClip>();
+            clip->texture = m_idleTexture;
+            clip->loop = true;
+            for (int column = 0; column < m_idleConfig->columns; ++column) {
+                const float duration = column < static_cast<int>(m_idleConfig->walkDurations.size())
+                                           ? m_idleConfig->walkDurations[static_cast<std::size_t>(column)]
+                                           : 0.35f;
+                clip->frames.push_back(fa::anim::AnimationFrame{
+                    fa::core::makeRect(static_cast<float>(column) * m_idleConfig->frameWidth, 0.0f,
+                                       m_idleConfig->frameWidth, m_idleConfig->frameHeight),
+                    duration, {}});
+            }
+            m_idleClip = std::move(clip);
+        }
+        sprite.texture = m_idleTexture;
+        sprite.size = fa::core::Vec2{m_idleConfig->spriteWidth, m_idleConfig->spriteHeight};
+        sprite.offset = fa::core::Vec2{(kMarkerSize - m_idleConfig->spriteWidth) * 0.5f,
+                                       kMarkerSize - m_idleConfig->spriteHeight};
+        if (!m_idleActive) {
+            m_animService.play(m_idleAnimator, m_idleClip, true);
+            m_idleActive = true;
+        }
+        static_cast<void>(m_animService.update(m_idleAnimator, deltaSeconds));
+        if (const fa::anim::AnimationFrame* frame = m_animService.currentFrame(m_idleAnimator);
+            frame != nullptr) {
+            sprite.source = frame->source;
+        }
+        return true;
+    }
+
     /// \brief Plays the four-way player walk clip and copies frames onto the sprite.
     ///
     /// Idle stands on the configured idle frame of the facing row; running switches to
@@ -3031,7 +3082,21 @@ private:
         if (updateBoatAnimation(params, *sprite, deltaSeconds)) {
             return;
         }
-        // Dismounted: restore the walk sheet (the boat branch owns the texture while riding).
+        // Standing: the dedicated idle clip owns the sprite; the walk branch below
+        // restores the walk sheet as soon as the player moves again.
+        if (!params.moving && updateIdleAnimation(*sprite, deltaSeconds)) {
+            m_walkActive = false;
+            m_walkSelection = -1;
+            m_walkRunLatch = false;
+            m_walkConfirmedRow = walkRowFor(params.facing);
+            m_walkPendingRow = m_walkConfirmedRow;
+            m_walkPendingFrames = 0;
+            m_animService.stop(m_playerAnimator);
+            return;
+        }
+        m_idleActive = false;
+        m_animService.stop(m_idleAnimator);
+        // Moving (or no idle art): restore the walk sheet (idle owns the texture while standing).
         sprite->texture = m_walkTexture;
         sprite->size = fa::core::Vec2{m_walkConfig->spriteWidth, m_walkConfig->spriteHeight};
         sprite->offset = fa::core::Vec2{(kMarkerSize - m_walkConfig->spriteWidth) * 0.5f,
@@ -3551,6 +3616,12 @@ private:
     int m_boatSelection = -1;
     fa::anim::Animator m_boatAnimator;
     std::array<std::shared_ptr<const fa::anim::AnimationClip>, 4> m_boatClips{};
+    /// \brief Idle breathing clip from `player.png` (tex.actor.player) while standing.
+    const PlayerWalkAnimConfig* m_idleConfig = nullptr;
+    fa::render::TextureHandle m_idleTexture;
+    fa::anim::Animator m_idleAnimator;
+    std::shared_ptr<const fa::anim::AnimationClip> m_idleClip;
+    bool m_idleActive = false;
     /// \brief Optional toast sink owned by the composition root (play-message display).
     std::function<void(std::string)> m_toast;
     /// \brief One animated enemy (walk sheet + playback state, driven by movement).
@@ -3870,6 +3941,7 @@ public:
             std::printf("data: animations.json has no usable player_walk section\n");
         }
         boatWalkConfig = parseSheetAnimConfig(readDataText("animations.json", kAnimationsText), "player_boat");
+        idleAnimConfig = parseSheetAnimConfig(readDataText("animations.json", kAnimationsText), "player_idle");
         skillConfig = parseSkillConfig(readDataText("skills.json", kSkillsText));
         return shopStatus;
     }
@@ -3921,6 +3993,7 @@ public:
         scene->setNamedTextures(&namedTextureHandles);
         scene->setWalkConfig(&playerWalkConfig);
         scene->setBoatConfig(&boatWalkConfig);
+        scene->setIdleConfig(&idleAnimConfig);
         scene->setSkillConfig(&skillConfig);
         scene->setToastCallback([this](std::string message) { setPlayMessage(std::move(message)); });
         return scene;
@@ -8202,10 +8275,20 @@ public:
     }
 
     void onEvents(std::span<const fa::platform::PlatformEvent> events) override {
+#if defined(FA_ENABLE_DEBUG_TOOLS)
+        // While the console owns the keyboard, every raw gameplay hotkey below is
+        // skipped: typing "time" must not trigger I/J/E/F2 side effects.
+        const bool consoleGrab = debugTools != nullptr && debugTools->consoleOpen();
+#else
+        const bool consoleGrab = false;
+#endif
 #if defined(FA_ENABLE_EDITOR)
         for (const fa::platform::PlatformEvent& event : events) {
             if (event.type != fa::platform::PlatformEventType::KeyDown) {
                 continue;
+            }
+            if (consoleGrab) {
+                break;
             }
             if (event.scancode == fa::platform::Scancode::F2) {
                 if (editor != nullptr) {
@@ -8265,7 +8348,7 @@ public:
 #endif
         const bool dialogueWasOpen = gameScene != nullptr && gameScene->narrative().dialogueActive();
 #if defined(FA_ENABLE_EDITOR)
-        if (editorWindowOpen) {
+        if (editorWindowOpen && !consoleGrab) {
             for (const fa::platform::PlatformEvent& event : events) {
                 if (event.type == fa::platform::PlatformEventType::KeyDown &&
                     event.scancode == fa::platform::Scancode::Escape) {
@@ -8275,7 +8358,7 @@ public:
             }
         }
 #endif
-        if (!editorActive && dialogueWasOpen) {
+        if (!editorActive && dialogueWasOpen && !consoleGrab) {
             for (const fa::platform::PlatformEvent& event : events) {
                 if (event.type != fa::platform::PlatformEventType::KeyDown) {
                     continue;
@@ -8305,7 +8388,8 @@ public:
         // Escape opens/closes the pause overlay; the browser-style slot panel
         // consumes it first so it never resumes gameplay by accident.
         const bool dialogueOpen = gameScene != nullptr && gameScene->narrative().dialogueActive();
-        if (playMode && flow != nullptr && !editorActive && !editorWindowOpen && !dialogueOpen && !dialogueWasOpen) {
+        if (playMode && flow != nullptr && !editorActive && !editorWindowOpen && !dialogueOpen && !dialogueWasOpen &&
+            !consoleGrab) {
             for (const fa::platform::PlatformEvent& event : events) {
                 if (event.type != fa::platform::PlatformEventType::KeyDown ||
                     event.scancode != fa::platform::Scancode::Escape) {
@@ -8338,7 +8422,7 @@ public:
 
         // I opens the backpack panel; like the shop, it pauses via Dialogue.
         if (playMode && flow != nullptr && !editorActive && !dialogueOpen && !shopOpen && !inventoryOpen &&
-            !questLogOpen && flow->state() == fa::flow::AppState::Playing) {
+            !questLogOpen && !consoleGrab && flow->state() == fa::flow::AppState::Playing) {
             for (const fa::platform::PlatformEvent& event : events) {
                 if (event.type == fa::platform::PlatformEventType::KeyDown &&
                     event.scancode == fa::platform::Scancode::I) {
@@ -8350,7 +8434,7 @@ public:
 
         // J opens the quest log; it uses the same Dialogue pause as the backpack.
         if (playMode && flow != nullptr && !editorActive && !dialogueOpen && !shopOpen && !inventoryOpen &&
-            !questLogOpen && flow->state() == fa::flow::AppState::Playing) {
+            !questLogOpen && !consoleGrab && flow->state() == fa::flow::AppState::Playing) {
             for (const fa::platform::PlatformEvent& event : events) {
                 if (event.type == fa::platform::PlatformEventType::KeyDown &&
                     event.scancode == fa::platform::Scancode::J) {
@@ -8362,7 +8446,7 @@ public:
 
         // E fires the character skill (teleport). The weapon skill moved to RMB.
         if (playMode && flow != nullptr && !editorActive && !dialogueOpen && !shopOpen && !inventoryOpen &&
-            !questLogOpen && flow->state() == fa::flow::AppState::Playing) {
+            !questLogOpen && !consoleGrab && flow->state() == fa::flow::AppState::Playing) {
             for (const fa::platform::PlatformEvent& event : events) {
                 if (event.type == fa::platform::PlatformEventType::KeyDown &&
                     event.scancode == fa::platform::Scancode::E) {
@@ -8588,6 +8672,8 @@ public:
     PlayerWalkAnimConfig playerWalkConfig;
     /// \brief `data/animations.json`: rowing-in-boat clip settings (riding animation).
     PlayerWalkAnimConfig boatWalkConfig;
+    /// \brief `data/animations.json`: idle breathing clip (player.png sheet).
+    PlayerWalkAnimConfig idleAnimConfig;
     /// \brief `data/skills.json`: E teleport and Q sword-qi tuning.
     SkillConfig skillConfig;
     /// \brief Session state shared by every map scene; declared before the stack so
