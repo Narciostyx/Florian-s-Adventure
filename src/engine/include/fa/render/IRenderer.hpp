@@ -41,7 +41,7 @@ struct RendererDesc {
 /// at any time between frames, but not in the middle of one.
 ///
 /// Deliberately absent from v1: text and glyph drawing (the font atlas is M09's
-/// call), render targets, and non-sprite passes. See docs/modules/06-rendering.md.
+/// call), render targets, and non-sprite passes. See docs/reference/code-reference.md.
 class IRenderer {
 public:
     virtual ~IRenderer() = default;

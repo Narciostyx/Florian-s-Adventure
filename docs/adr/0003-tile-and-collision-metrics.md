@@ -84,7 +84,7 @@
 
 - `docs/architecture/pixel-metrics.md`（应标记为已决策：方案 A）
 - `docs/architecture/overview-design.md` 第 7 节（坐标与排序）
-- `docs/modules/06-rendering.md`、`10-animation.md`、`12-tilemap-and-world.md`、`13-physics-collision.md`、`16-player-controller.md`、`17-interaction-grid-placement.md`
+- `docs/reference/code-reference.md`、`10-animation.md`、`12-tilemap-and-world.md`、`13-physics-collision.md`、`16-player-controller.md`、`17-interaction-grid-placement.md`
 - `docs/roadmap/vertical-slice.md`（内容清单尺寸）
 
 > 注：上述文档的对应章节已按本 ADR 回写完毕。本 ADR 为权威来源，实现中若发现冲突，以本文件为准。

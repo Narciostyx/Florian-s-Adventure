@@ -5,7 +5,7 @@
 > 仍在各自的构建记录里，不重复抄录。
 >
 > **维护方式**：每次交付后，把对应模块的新限制加入本文件；如果某项已修复，直接删除或标记为已完成。
-> **来源**：`docs/modules/*.md`、`docs/build/*.md`、`docs/plan-status.md`、`docs/architecture/*.md`。
+> **来源**：`docs/modules/*.md`、`docs/build/*.md`、`docs/status/plan-status.md`、`docs/architecture/*.md`。
 
 ## 1. 使用方式
 
@@ -82,7 +82,7 @@
 | 自动存档调度未接 | M25 已按天/退出调度；每 12 游戏小时与安全状态判定仍未实现 | M25 / M22 |
 | 无渲染目标 / 后处理 | 做不了光照、屏幕扭曲 | M22 需要时再加 `RenderPass` |
 | 单一混合模式 | 预乘 alpha、加色做不了 | M06（分批断点已留好） |
-| 图片仍是占位美术 | 已支持 `assets/textures/**/*.png`，当前 31 张是 AI 生成的像素素材（非正式美术） | 正式美术后置，见 [art-policy](architecture/art-policy.md) |
+| 图片仍是占位美术 | 已支持 `assets/textures/**/*.png`，当前 31 张是 AI 生成的像素素材（非正式美术） | 正式美术后置，见 [art-policy](../architecture/art-policy.md) |
 | 解码器在 app | M05 本身不带解码器；app 注册 stb_image，其他宿主需自行注册 | M05（`IImageDecoder`） |
 | 隐藏窗口依赖驱动 | 无 GL 驱动的 CI 镜像拿不到上下文 | M06 已降级为非致命 |
 | `/EHsc` 依赖第三方 include 图 | 新增 JSON/`<chrono>` 依赖会连锁要求 `/EHsc` | M00 规约 |
@@ -173,14 +173,14 @@
 
 ### M00 Build & Dependency Infrastructure
 
-**设计文档**：[modules/00-build-infrastructure.md](modules/00-build-infrastructure.md)
+**设计文档**：modules/00-build-infrastructure.md
 
 - VS2026 实际 MSVC 工具集版本与 vcpkg 的兼容性需尽早验证。
 - ImGui 的 SDL3/OpenGL3 backend 在 vcpkg 中的特性名/编译方式未最终确定。
 - Release 使用 `x64-windows-static-md` 还是 `x64-windows-static` 需评估 SDL3 分发与许可证。
 - 是否需要为 `tools/` 增加独立的 C++ 工具项目，或先用 Python/PowerShell 脚本。
 
-**构建记录**：[build/m00-fixups.md](build/m00-fixups.md)
+**构建记录**：build/m00-fixups.md
 
 | 项目 | 风险 | 说明 |
 |---|---|---|
@@ -191,11 +191,11 @@
 
 ### M01 Core Foundation
 
-**设计文档**：[modules/01-core-foundation.md](modules/01-core-foundation.md)
+**设计文档**：modules/01-core-foundation.md
 
 已解决
 
-- `Rect` 形态：采用独立结构体（见 [ADR-0004](adr/0004-core-math-and-result-shape.md)）。
+- `Rect` 形态：采用独立结构体（见 [ADR-0004](../adr/0004-core-math-and-result-shape.md)）。
 - 日志格式化：使用 1024 字节栈缓冲 + `vsnprintf`，不依赖 `std::format`。
 - 错误传递：C++20 下使用自研 `Result<T>`，不启用异常。
 
@@ -208,7 +208,7 @@
 
 ### M02 Platform Layer
 
-**设计文档**：[modules/02-platform-layer.md](modules/02-platform-layer.md)
+**设计文档**：modules/02-platform-layer.md
 
 | 问题 | 结论/状态 |
 |---|---|
@@ -220,9 +220,9 @@
 | 消息框阻塞事件泵 | 只在启动失败等场景使用，不当断言工具 |
 | 剪贴板/文件对话框 | 编辑器（M26）需要，暂未实现；`IPlatform` 留了扩展位 |
 
-更多实现细节与踩坑见 [M02 平台层：实现说明与实测](build/m02-platform.md)。
+更多实现细节与踩坑见 M02 平台层：实现说明与实测。
 
-**构建记录**：[build/m02-platform.md](build/m02-platform.md)
+**构建记录**：build/m02-platform.md
 
 | 项目 | 风险 | 说明 |
 |---|---|---|
@@ -235,7 +235,7 @@
 
 ### M03 Events & Jobs
 
-**设计文档**：[modules/03-events-and-jobs.md](modules/03-events-and-jobs.md)
+**设计文档**：modules/03-events-and-jobs.md
 
 | 风险 | 影响 | 处理 |
 |---|---|---|
@@ -248,7 +248,7 @@
 | 本工程单独开 `/EHsc` | 与全局「异常关闭」不完全一致 | 只影响 `fa_events`，代码本身从不 throw；细节见实现记录 |
 | 回调顺序未定义 | 多个作业同一帧完成时次序不稳定 | 需要顺序时在一次 `parallelFor` 内表达，或自行排序 |
 
-**构建记录**：[build/m03-events-jobs.md](build/m03-events-jobs.md)
+**构建记录**：build/m03-events-jobs.md
 
 | 风险 | 影响 | 处理 |
 |---|---|---|
@@ -263,7 +263,7 @@
 
 ### M04 Time & Frame Loop
 
-**设计文档**：[modules/04-time-and-frame-loop.md](modules/04-time-and-frame-loop.md)
+**设计文档**：modules/04-time-and-frame-loop.md
 
 | 风险 | 影响 | 处理 |
 |---|---|---|
@@ -274,7 +274,7 @@
 | 事件只是转发，尚无消费方 | 输入事件在 M07 之前无人处理 | `onEvents` 是明确的临时接缝，M07 接管后 sink 内部委托给输入层 |
 | 场景栈暂停语义未定义 | 菜单弹出时下层场景该如何暂停 | 由场景栈（M11）决定调用哪个域的 `setPaused`，M04 只提供能力 |
 
-**构建记录**：[build/m04-frame-loop.md](build/m04-frame-loop.md)
+**构建记录**：build/m04-frame-loop.md
 
 | 风险 | 影响 | 处理 |
 |---|---|---|
@@ -287,7 +287,7 @@
 
 ### M05 Asset Pipeline
 
-**设计文档**：[modules/05-asset-pipeline.md](modules/05-asset-pipeline.md)
+**设计文档**：modules/05-asset-pipeline.md
 
 | 风险 | 影响 | 处理 |
 |---|---|---|
@@ -302,7 +302,7 @@
 | 运行期换 catalog 语义未定义 | 换内容包后旧句柄仍指向旧槽位 | v1 不允许运行期换表；要支持得先定义「换表 = 全部失效」 |
 | 无文件监听 | 改了文件不会自动重载 | 手动 `reload(id)`；watch 取决于 M02 是否暴露（v1 不做） |
 
-**构建记录**：[build/m05-assets.md](build/m05-assets.md)
+**构建记录**：build/m05-assets.md
 
 | 风险 | 影响 | 处理 |
 |---|---|---|
@@ -320,7 +320,7 @@
 
 ### M06 Rendering
 
-**设计文档**：[modules/06-rendering.md](modules/06-rendering.md)
+**设计文档**：modules/06-rendering.md
 
 | 风险 | 影响 | 处理 |
 |---|---|---|
@@ -336,7 +336,7 @@
 | 单纹理批次上限 16384 quad | 超出后 `maxQuadsPerFrame` 的请求被夹到上限 | 夹取发生在 `initialize()`，`droppedItems` 可观测；正常帧远低于此 |
 | 相机跟随只做平移 | 没有前瞻、回拉、震动或轨道；`snapped()` 只在渲染端吸附 | 跟随参数已可调（死区/平滑/限速）；亚像素位置保留，避免移动台阶 |
 
-**构建记录**：[build/m06-render.md](build/m06-render.md)
+**构建记录**：build/m06-render.md
 
 | 风险 | 影响 | 处理 |
 |---|---|---|
@@ -355,7 +355,7 @@
 
 ### M07 Input
 
-**设计文档**：[modules/07-input.md](modules/07-input.md)
+**设计文档**：modules/07-input.md
 
 | 风险 | 影响 | 处理 |
 |---|---|---|
@@ -368,7 +368,7 @@
 | `applyDefaultBindings()` 无法区分「用户清空了」与「从没设过」 | 玩家把某动作解绑全部键后，下次启动会被重新填默认键 | 需要「显式解绑」标记时在存档里记空数组（`loadBindings` 合并语义已支持空表） |
 | 无输入录制/回放 | 无法做确定性回放测试 | 结构上只需记录 `PlatformEvent` 序列；`poll()` 是唯一入口，接入成本低 |
 
-**构建记录**：[build/m07-input.md](build/m07-input.md)
+**构建记录**：build/m07-input.md
 
 | 风险 | 影响 | 处理 |
 |---|---|---|
@@ -385,7 +385,7 @@
 
 ### M08 Audio
 
-**设计文档**：[modules/08-audio.md](modules/08-audio.md)
+**设计文档**：modules/08-audio.md
 
 - 没有解码器与音乐流式播放；`AudioClip` 全量常驻。
 - 固定 48 kHz / 1–2 声道；其他设备格式依赖 SDL 流转换。
@@ -395,7 +395,7 @@
 - 距离衰减是简单反比，不是物理正确的 3D 衰减。
 - 没有总线级 DSP、低通或混响；M22 的环境音需要后续扩展。
 
-**构建记录**：[build/m08-audio.md](build/m08-audio.md)
+**构建记录**：build/m08-audio.md
 
 - 没有解码器：WAV/OGG 要等 M05 的 `IAudioDecoder`；`AudioClip` 常驻内存。
 - 没有音乐流式播放：整曲 PCM 载入，长音乐要等 `MusicStream`。
@@ -406,7 +406,7 @@
 
 ### M09 UI & Text
 
-**设计文档**：[modules/09-ui-and-text.md](modules/09-ui-and-text.md)
+**设计文档**：modules/09-ui-and-text.md
 
 1. **文字按 UTF-8 字节遍历**：v1 只支持 ASCII；多字节字符会按字节分别回退成 `?`。CJK
    需要真正的 UTF-8 解码 + 动态图集。
@@ -420,7 +420,7 @@
 8. **字体纹理是单张图集**：CJK 字符数大，必须改成动态图集或位图字体子集。
 9. **整数字缩放**：非整数缩放会破坏像素风；`TextStyle::scale` 向下取整，调用方仍应传整数。
 
-**构建记录**：[build/m09-ui-and-text.md](build/m09-ui-and-text.md)
+**构建记录**：build/m09-ui-and-text.md
 
 1. 文字只支持 ASCII；多字节 UTF-8 会拆成多个 `?`。
 2. 内置 3×5 字体可读性有限，真实字体需要文件解析或动态图集。
@@ -436,7 +436,7 @@
 
 ### M10 Animation
 
-**设计文档**：[modules/10-animation.md](modules/10-animation.md)
+**设计文档**：modules/10-animation.md
 
 - 事件帧在低帧率下可能被跳过；固定步推进且跨帧逐个触发已缓解，但极端 speed 仍可能越过大量帧。
 - 方向切换会重启 clip；走/跑切换可能产生轻微相位跳变。
@@ -446,7 +446,7 @@
 - 事件是字符串，没有参数；M20 的攻击判定窗口需要结构化事件时再扩展。
 - 没有动画资源格式；clip 由代码/loader 构建，真实数据驱动要等 M05/M26。
 
-**构建记录**：[build/m10-animation.md](build/m10-animation.md)
+**构建记录**：build/m10-animation.md
 
 - 没有混合树/上下半身/武器叠加；需要多 `Animator` 通道。
 - 方向切换会重启 clip；8 向动画未实现。
@@ -457,7 +457,7 @@
 
 ### M11 Scene / World & ECS
 
-**设计文档**：[modules/11-scene-world-ecs.md](modules/11-scene-world-ecs.md)
+**设计文档**：modules/11-scene-world-ecs.md
 
 | 风险 | 影响 | 处理 |
 |---|---|---|
@@ -473,7 +473,7 @@
 | ~~无空间分区 / 查询索引~~ | 已由 M13 补齐：`SpatialHash` + `PhysicsWorld::overlap`/`overlapCircle`/`raycast` | 已解决（M13） |
 | `Sprite::entityOverride` 是 `uint32_t` | 与 `EntityId` 的 64 位身份不一致 | 它只用于调试与稳定排序，不参与实体查找 |
 
-**构建记录**：[build/m11-scene-ecs.md](build/m11-scene-ecs.md)
+**构建记录**：build/m11-scene-ecs.md
 
 | 风险 | 说明 | 处理 |
 |---|---|---|
@@ -487,7 +487,7 @@
 
 ### M12 Tilemap & World
 
-**设计文档**：[modules/12-tilemap-and-world.md](modules/12-tilemap-and-world.md)
+**设计文档**：modules/12-tilemap-and-world.md
 
 - `defFor` 是线性查找；单地图瓦片定义通常 < 100，若内容表膨胀到数百种需要考虑索引。
 - `stats()` 会遍历所有图层所有格子；调试/冒烟可用，不应每帧调用。
@@ -499,7 +499,7 @@
   半格。更大的地图要么按 23 行布局，要么改 `640×352`（M10/M12）。
 - 纹理绑定按名称由 composition root 完成；地图 JSON 不会自动加载纹理。
 
-**构建记录**：[build/m12-tilemap.md](build/m12-tilemap.md)
+**构建记录**：build/m12-tilemap.md
 
 与模块文档 §9 对应，这里只列“落地后立刻会碰到”的部分：
 
@@ -514,7 +514,7 @@
 
 ### M13 物理与碰撞
 
-**设计文档**：[modules/13-physics-collision.md](modules/13-physics-collision.md)
+**设计文档**：modules/13-physics-collision.md
 
 1. **实体对实体只有步首快照**：一步之内两个实体挤进同一格会重叠一帧。若 M20 出现"被怪推着穿墙"，需要加入实体对实体解算或分轴双向求解。
 2. **卡住即忽略的副作用**：如果实体的生成位置本来就在墙里，它会一直能穿那面墙，直到离开。放置型玩法（M17）要把生成点校验纳入流程。
@@ -528,7 +528,7 @@
 10. **`PhysicsError` 目前只是文档**：没有 `Result` 返回值，因为移动失败是常态而非异常。若将来需要严格错误上报，要统一改签名。
 11. **与存档的关系未定**：`Velocity` 要不要进存档？速度是意图，重进游戏应归零；`Collider` 是配置，应由内容库提供。留给 M14 决定。
 
-**构建记录**：[build/m13-physics-collision.md](build/m13-physics-collision.md)
+**构建记录**：build/m13-physics-collision.md
 
 与模块文档 §9 对应，这里只列"落地时立刻会碰到"的部分：
 
@@ -542,7 +542,7 @@
 
 ### M14 Serialization & Save
 
-**设计文档**：[modules/14-serialization-save.md](modules/14-serialization-save.md)
+**设计文档**：modules/14-serialization-save.md
 
 - JSON 体积随实体数增长；v1 可接受，后期可压缩或分块。
 - 没有通用组件 serializer；app 手写背包/快捷栏/装备/农田字段，其余玩法仍需逐模块接线。
@@ -553,7 +553,7 @@
 - M25 已定义 `LoadHandler` 的应用时机；app 在场景创建后恢复日历/位置/背包/农田/金币/掉落，敌人等资源引用仍需更晚的应用阶段。
 - M25 已按天/退出调度自动存档；“安全状态”与 12 游戏小时判定仍未实现，M14 不判断战斗/过场。
 
-**构建记录**：[build/m14-serialization-save.md](build/m14-serialization-save.md)
+**构建记录**：build/m14-serialization-save.md
 
 - 没有 World/Inventory/Quest/Economy 的通用 serializer；app 手写背包/快捷栏/装备/农田字段。
 - 没有地图差异、截图、CRC、压缩、加密与云存档。
@@ -564,7 +564,7 @@
 
 ### M15 Content Database
 
-**设计文档**：[modules/15-content-database.md](modules/15-content-database.md)
+**设计文档**：modules/15-content-database.md
 
 - 内容规模增大后全量加载耗时/内存上升；v1 接受，分片/懒加载后续再说。
 - 失败加载会保留部分新数据（便于修复重试），不是事务性回滚；多文件发布要小心。
@@ -575,7 +575,7 @@
 - `ContentId` 的前缀规则是内容约定；未来跨类型引用（如 `item.*` → `crop.*`）需要更通用的契约。
 - 错误码 6000–6008 归 M15；M14 存档继续使用 6009+。
 
-**构建记录**：[build/m15-content-database.md](build/m15-content-database.md)
+**构建记录**：build/m15-content-database.md
 
 1. 全量加载，大内容包的内存/时间后续再优化。
 2. 失败加载保留部分数据，不是事务回滚。
@@ -588,7 +588,7 @@
 
 ### M16 Player Controller
 
-**设计文档**：[modules/16-player-controller.md](modules/16-player-controller.md)
+**设计文档**：modules/16-player-controller.md
 
 - 冒烟标记是 8×8，不是 16×24 角色；真实玩家应使用 `kPlayerFeetCollider`（10×6，offset `{3,18}`）。
 - `UseTool`/`Attack` 的动作锁固定 0.2 s，未按工具/轻重攻击区分。
@@ -605,7 +605,7 @@
 - 内容 ID 仍是 `payload`；M15 已实现，接线时统一。
 - 动作请求只记录不发布；M03 事件化由组装根决定。
 
-**构建记录**：[build/m16-player-controller.md](build/m16-player-controller.md)
+**构建记录**：build/m16-player-controller.md
 
 1. 冒烟标记是 8×8；真实角色需要 `kPlayerFeetCollider`/16×24 精灵。
 2. 动作锁固定 0.2 s，未区分轻/重攻击或不同工具。
@@ -620,7 +620,7 @@
 
 ### M17 Interaction & Grid Placement
 
-**设计文档**：[modules/17-interaction-grid-placement.md](modules/17-interaction-grid-placement.md)
+**设计文档**：modules/17-interaction-grid-placement.md
 
 - `payload` 是临时内容 ID；M15 落地后要统一替换，避免出现第二套 ID。
 - 放置占用与实体碰撞可能不同步；M19 必须在放置成功后创建对应碰撞体。
@@ -632,7 +632,7 @@
 - `Interactable` 的矩形不会随 `Transform::scale/rotation` 变换；像素风只允许 90° 旋转。
 - 尚无“使用工具时暂停移动”的手感决策；由 M16 原型验证。
 
-**构建记录**：[build/m17-interaction-grid.md](build/m17-interaction-grid.md)
+**构建记录**：build/m17-interaction-grid.md
 
 1. `payload` 是临时内容 ID；M15 落地后要统一替换。
 2. 放置占用与实体碰撞仍是两套数据；M19 必须在放置后创建碰撞体。
@@ -646,7 +646,7 @@
 
 ### M18 Inventory & Items
 
-**设计文档**：[modules/18-inventory-items.md](modules/18-inventory-items.md)
+**设计文档**：modules/18-inventory-items.md
 
 1. **耐久只参与分栈，不参与移除**：`remove(id, count)` 会把不同耐久合并计数，返回的
    耐久取自第一个匹配槽；真正的耐久系统需要按实例拆分。
@@ -661,7 +661,7 @@
 9. **`ContentDatabase` 生命周期是调用方责任**：悬空指针会导致 `maxStackFor`/use 崩溃。
 10. **装备不校验类别**：Tool 槽可以放食物；内容约定/上层系统需要在装备前过滤。
 
-**构建记录**：[build/m18-inventory-items.md](build/m18-inventory-items.md)
+**构建记录**：build/m18-inventory-items.md
 
 1. 耐久只参与分栈，不参与按实例移除；`remove(id, count)` 会合并不同耐久的计数。
 2. 使用不自动消耗，handler 忘记 `removeAt` 会导致无限使用。
@@ -675,14 +675,14 @@
 
 ### M19 Farming & World Objects
 
-**设计文档**：[modules/19-farming-world-objects.md](modules/19-farming-world-objects.md)
+**设计文档**：modules/19-farming-world-objects.md
 
 - 按格存储与 ECS 并存，需明确哪类对象用哪种表示。
 - 每日结算的原子性：中途崩溃可能导致状态不一致；存档只在结算后写。
 - 季节/温室/动物等深度未定，影响数据模型扩展。
 - 作物数量大时的渲染批次与剔除需要优化。
 
-**构建记录**：[build/m19-farming-world-objects.md](build/m19-farming-world-objects.md)
+**构建记录**：build/m19-farming-world-objects.md
 
 - M19 不认识 `SaveArchive`；`restore()` 只接收整块快照，越界/非法格过滤与 JSON 格式由组装根负责。
 - 箱子存储与洒水器行为仍未实现；熔炉/工作台加工由 M24 的 `EconomyService` 处理，但没有设备实体。
@@ -694,7 +694,7 @@
 
 ### M20 Combat
 
-**设计文档**：[modules/20-combat.md](modules/20-combat.md)
+**设计文档**：modules/20-combat.md
 
 - 玩家攻击已由 M10 `hit` 事件驱动命中盒；敌人攻击仍是 AI 直接生成攻击盒，没有动画预兆。
 - 矩形 hitbox 不跟朝向旋转；需要扇形/朝向偏移时再扩展。
@@ -705,7 +705,7 @@
 - 投射物每步 `raycast` + `move`；数量大时需要批量查询/对象池。
 - 事件缓冲每帧由调用方清空；忘记清空会持续增长。
 
-**构建记录**：[build/m20-combat.md](build/m20-combat.md)
+**构建记录**：build/m20-combat.md
 
 - 矩形 hitbox 不随朝向旋转；没有扇形/连击/蓄力。
 - 击退直接 `move`，没有受击硬直/速度衰减；墙边可能被夹住。
@@ -718,14 +718,14 @@
 
 ### M21 AI
 
-**设计文档**：[modules/21-ai.md](modules/21-ai.md)
+**设计文档**：modules/21-ai.md
 
 - A* 在大量敌人时开销高；需限制同时寻路数量与路径长度。
 - 敌人卡在角落需要“脱困”逻辑（随机微移/传送回出生点）。
 - 行为数据驱动的表达能力与调试成本需平衡；v1 用代码状态机更简单。
 - 是否需要 NPC 日程系统？影响 M23 与 M22 的耦合方式。
 
-**构建记录**：[build/m21-ai.md](build/m21-ai.md)
+**构建记录**：build/m21-ai.md
 
 - 没有寻路任务池/每帧上限；大量 agent 同时重算会推高固定步耗时。
 - 没有听觉、区域仇恨、群体编队、包围或召唤。
@@ -739,14 +739,14 @@
 
 ### M22 Calendar / Weather / Lighting
 
-**设计文档**：[modules/22-calendar-weather-lighting.md](modules/22-calendar-weather-lighting.md)
+**设计文档**：modules/22-calendar-weather-lighting.md
 
 - 时间流速与玩家活动节奏需要平衡，影响整体体验。
 - 光照层与像素风颜色的兼容性需要美术调色。
 - 天气随机性与存档一致性（读档后天气不变）。
 - 季节长度、一天时长、睡眠惩罚均为产品决策。
 
-**构建记录**：[build/m22-calendar-weather-lighting.md](build/m22-calendar-weather-lighting.md)
+**构建记录**：build/m22-calendar-weather-lighting.md
 
 - 睡眠规则归 M25（`Sleep.hpp`）：任意时间睡到次日 08:00，按实际时长恢复体力；没有强制晕倒。
 - 天气只按季节权重，没有连续天气、天气预报准确率或区域差异。
@@ -757,14 +757,14 @@
 
 ### M23 NPC / Dialogue / Quests
 
-**设计文档**：[modules/23-npc-dialogue-quests.md](modules/23-npc-dialogue-quests.md)
+**设计文档**：modules/23-npc-dialogue-quests.md
 
 - 条件表达式若不受限会演变为脚本引擎；坚持白名单操作。
 - 任务进度的事件来源需要统一，否则各系统各自实现。
 - 对话与 UI 的输入上下文切换需要防重入。
 - v1 是否需要任务系统？若不需要，可先只做对话。
 
-**构建记录**：[build/m23-npc-dialogue-quests.md](build/m23-npc-dialogue-quests.md)
+**构建记录**：build/m23-npc-dialogue-quests.md
 
 - 没有 M15 集成：NPC/对话/任务定义在 M23 自己的数据库里，物品引用未跨表校验。
 - 存档由 P0-3 接入：`NarrativeSnapshot` 保存好感/flags/每日上限/任务进度；
@@ -780,12 +780,12 @@
 
 ### M24 Economy / Crafting / Shops
 
-**设计文档**：[modules/24-economy-crafting-shops.md](modules/24-economy-crafting-shops.md)
+**设计文档**：modules/24-economy-crafting-shops.md
 
 - 经济数值平衡需要大量迭代，架构只提供机制。
 - 出货箱结算与存档时机的顺序已由 M25 `endDay()` 固定为“结算 → 自动存档”；app 已在结算前写入经济段。
 
-**构建记录**：[build/m24-economy-crafting-shops.md](build/m24-economy-crafting-shops.md)
+**构建记录**：build/m24-economy-crafting-shops.md
 
 - 商店已按季节过滤库存并按日波动价格；仍无交易确认、分类页与列表滚动。
 - 季节/日期由 app 每帧同步到 `EconomyService`；没有独立的 `onSeasonChanged` 事件。
@@ -800,9 +800,9 @@
 
 ### M25 Game Flow
 
-**设计文档**：[modules/25-game-flow.md](modules/25-game-flow.md)
+**设计文档**：modules/25-game-flow.md
 
-**构建记录**：[build/m25-game-flow.md](build/m25-game-flow.md)
+**构建记录**：build/m25-game-flow.md
 
 - 状态机集中在 `GameFlow::transition()`，玩法规则仍由各模块持有，没有膨胀为上帝对象。
 - 主菜单/暂停/存档槽已由 app 用 M09 接线；菜单只支持鼠标，键盘焦点链未实现。
@@ -817,14 +817,14 @@
 
 ### M26 Editor Tools
 
-**设计文档**：[modules/26-editor-tools.md](modules/26-editor-tools.md)
+**设计文档**：modules/26-editor-tools.md
 
 - 编辑器与运行时的数据一致性是主要风险；共用格式与校验器。
 - 编辑器 UI 复杂度可能超过游戏本体；应严格限制范围。
 - 是否需要独立编辑器进程？v1 建议游戏内覆盖层。
 - 撤销系统对大地图全量快照的内存开销；采用命令差分。
 
-**构建记录**：[build/m26-editor-tools.md](build/m26-editor-tools.md)
+**构建记录**：build/m26-editor-tools.md
 
 - 没有对象/NPC/敌人/传送点放置面板；v1 只有瓦片编辑。
 - 没有属性面板、内容检查器、动画预览、碰撞层可视化编辑。
@@ -836,7 +836,7 @@
 
 ### M27 Debug Tools
 
-**设计文档**：[modules/27-debug-tools.md](modules/27-debug-tools.md)
+**设计文档**：modules/27-debug-tools.md
 
 - 调试代码泄漏到发布构建：已用条件 `ProjectReference` 隔离，但 `fa_tests` 仍链接它。
 - 控制台只支持 ASCII；CJK 输入仍需 M09 多字节字体与文本输入。
@@ -851,7 +851,7 @@
 - 物理调试每帧重建 `DebugShape` 列表；实体多时只在需要时开启 F5。
 - 没有 ImGui、时间控制、纹理查看器与远程控制。
 
-**构建记录**：[build/m27-debug-tools.md](build/m27-debug-tools.md)
+**构建记录**：build/m27-debug-tools.md
 
 - 控制台只支持 ASCII；CJK 依赖 M09 多字节字体与文本输入。
 - 没有时间控制、纹理查看器、线框模式、生成敌人/存档/读档命令。
@@ -864,15 +864,15 @@
 
 ## 4. 架构与工具链开放问题
 
-**来源**：[architecture/overview-design.md](architecture/overview-design.md)
+**来源**：[architecture/overview-design.md](../architecture/overview-design.md)
 
-1. 瓦片 16×16、640×360、脚部盒 10×6：已由 [ADR-0003](adr/0003-tile-and-collision-metrics.md) 决定。
+1. 瓦片 16×16、640×360、脚部盒 10×6：已由 [ADR-0003](../adr/0003-tile-and-collision-metrics.md) 决定。
 2. 耐力/奔跑/闪避/工具/攻击消耗已实现并可 JSON 配置；格挡、轻重攻击与不同工具手感仍未定。
 3. 季节/温室/加工链已实现；动物、品质、供需与产量表仍缺。
 4. 3 个手动槽 + `autosave` 已实现；自动存档频率与“安全状态”判定仍缺。
 5. 手柄仍未支持（架构已预留输入抽象）。
 
-**来源**：[architecture/tech-stack.md](architecture/tech-stack.md)
+**来源**：[architecture/tech-stack.md](../architecture/tech-stack.md)
 
 1. VS2026 / MSVC v145 与 `/std:c++20` 已在三配置验证（见 [计划完成情况](plan-status.md) §2）。
 2. 未引入 ImGui；M09 的即时模式 UI 已落地。

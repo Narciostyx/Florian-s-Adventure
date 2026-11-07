@@ -2,9 +2,9 @@
 
 > **用途**：把 28 个模块的命名空间、工程依赖、公开头文件、类/结构体、关键方法、枚举与常量集中到一页，方便接手代码时快速定位。
 >
-> **来源**：`src/engine/include/fa/**/*.hpp`、各模块 `fa_*.vcxproj` 的 `ProjectReference`、[模块地图](architecture/module-map.md) 与各模块设计文档。
+> **来源**：`src/engine/include/fa/**/*.hpp`、各模块 `fa_*.vcxproj` 的 `ProjectReference`、[模块地图](../architecture/module-map.md) 与各模块设计文档。
 >
-> **维护**：公开 API 变更时同步本文件；更细的语义、踩坑与限制仍以 [模块文档](index.md#模块设计文档)、[构建记录](index.md#构建与实测) 和 [已知限制](known-limitations.md) 为准。
+> **维护**：公开 API 变更时同步本文件；更细的语义、踩坑与限制仍以 [模块文档](../index.md#模块设计文档)、[构建记录](../index.md#构建与实测) 和 [已知限制](../status/known-limitations.md) 为准。
 >
 > **本版补充**：§1.4 依赖类型/所有权规则；§2.1–2.4 链接依赖图、跨模块运行时接线、全局类关系与依赖速记；每个模块新增“类关系与职责”表（关系/类职责/方法职责）。
 >
@@ -14,34 +14,34 @@
 
 | 模块 | 名称 | 工程 | 命名空间 | 设计文档 |
 |---|---|---|---|---|
-| M00 | Build & Dependency Infrastructure | 解决方案/脚本 | — | [00](modules/00-build-infrastructure.md) |
-| M01 | Core Foundation | `fa_core` | `fa::core` | [01](modules/01-core-foundation.md) |
-| M02 | Platform Layer | `fa_platform` | `fa::platform` | [02](modules/02-platform-layer.md) |
-| M03 | Events & Jobs | `fa_events` | `fa::events` | [03](modules/03-events-and-jobs.md) |
-| M04 | Time & Frame Loop | `fa_time` | `fa::time` | [04](modules/04-time-and-frame-loop.md) |
-| M05 | Asset Pipeline | `fa_assets` | `fa::assets` | [05](modules/05-asset-pipeline.md) |
-| M06 | Rendering | `fa_render` | `fa::render` | [06](modules/06-rendering.md) |
-| M07 | Input | `fa_input` | `fa::input` | [07](modules/07-input.md) |
-| M08 | Audio | `fa_audio` | `fa::audio` | [08](modules/08-audio.md) |
-| M09 | UI & Text | `fa_ui` | `fa::ui` | [09](modules/09-ui-and-text.md) |
-| M10 | Animation | `fa_anim` | `fa::anim` | [10](modules/10-animation.md) |
-| M11 | Scene / World & ECS | `fa_scene` | `fa::scene` | [11](modules/11-scene-world-ecs.md) |
-| M12 | Tilemap & World | `fa_tilemap` | `fa::tilemap` | [12](modules/12-tilemap-and-world.md) |
-| M13 | Physics & Collision | `fa_physics` | `fa::physics` | [13](modules/13-physics-collision.md) |
-| M14 | Serialization & Save | `fa_save` | `fa::save` | [14](modules/14-serialization-save.md) |
-| M15 | Content Database | `fa_content` | `fa::content` | [15](modules/15-content-database.md) |
-| M16 | Player Controller | `fa_player` | `fa::player` | [16](modules/16-player-controller.md) |
-| M17 | Interaction & Grid Placement | `fa_interaction` | `fa::interaction` | [17](modules/17-interaction-grid-placement.md) |
-| M18 | Inventory & Items | `fa_inventory` | `fa::inventory` | [18](modules/18-inventory-items.md) |
-| M19 | Farming & World Objects | `fa_farming` | `fa::farming` | [19](modules/19-farming-world-objects.md) |
-| M20 | Combat | `fa_combat` | `fa::combat` | [20](modules/20-combat.md) |
-| M21 | AI | `fa_ai` | `fa::ai` | [21](modules/21-ai.md) |
-| M22 | Calendar / Weather / Lighting | `fa_world` | `fa::world` | [22](modules/22-calendar-weather-lighting.md) |
-| M23 | NPC / Dialogue / Quests | `fa_narrative` | `fa::narrative` | [23](modules/23-npc-dialogue-quests.md) |
-| M24 | Economy / Crafting / Shops | `fa_economy` | `fa::economy` | [24](modules/24-economy-crafting-shops.md) |
-| M25 | Game Flow | `fa_flow` | `fa::flow` | [25](modules/25-game-flow.md) |
-| M26 | Editor Tools | `fa_editor` | `fa::editor` | [26](modules/26-editor-tools.md) |
-| M27 | Debug Tools | `fa_debug` | `fa::debug` | [27](modules/27-debug-tools.md) |
+| M00 | Build & Dependency Infrastructure | 解决方案/脚本 | — | 00 |
+| M01 | Core Foundation | `fa_core` | `fa::core` | 01 |
+| M02 | Platform Layer | `fa_platform` | `fa::platform` | 02 |
+| M03 | Events & Jobs | `fa_events` | `fa::events` | 03 |
+| M04 | Time & Frame Loop | `fa_time` | `fa::time` | 04 |
+| M05 | Asset Pipeline | `fa_assets` | `fa::assets` | 05 |
+| M06 | Rendering | `fa_render` | `fa::render` | 06 |
+| M07 | Input | `fa_input` | `fa::input` | 07 |
+| M08 | Audio | `fa_audio` | `fa::audio` | 08 |
+| M09 | UI & Text | `fa_ui` | `fa::ui` | 09 |
+| M10 | Animation | `fa_anim` | `fa::anim` | 10 |
+| M11 | Scene / World & ECS | `fa_scene` | `fa::scene` | 11 |
+| M12 | Tilemap & World | `fa_tilemap` | `fa::tilemap` | 12 |
+| M13 | Physics & Collision | `fa_physics` | `fa::physics` | 13 |
+| M14 | Serialization & Save | `fa_save` | `fa::save` | 14 |
+| M15 | Content Database | `fa_content` | `fa::content` | 15 |
+| M16 | Player Controller | `fa_player` | `fa::player` | 16 |
+| M17 | Interaction & Grid Placement | `fa_interaction` | `fa::interaction` | 17 |
+| M18 | Inventory & Items | `fa_inventory` | `fa::inventory` | 18 |
+| M19 | Farming & World Objects | `fa_farming` | `fa::farming` | 19 |
+| M20 | Combat | `fa_combat` | `fa::combat` | 20 |
+| M21 | AI | `fa_ai` | `fa::ai` | 21 |
+| M22 | Calendar / Weather / Lighting | `fa_world` | `fa::world` | 22 |
+| M23 | NPC / Dialogue / Quests | `fa_narrative` | `fa::narrative` | 23 |
+| M24 | Economy / Crafting / Shops | `fa_economy` | `fa::economy` | 24 |
+| M25 | Game Flow | `fa_flow` | `fa::flow` | 25 |
+| M26 | Editor Tools | `fa_editor` | `fa::editor` | 26 |
+| M27 | Debug Tools | `fa_debug` | `fa::debug` | 27 |
 
 ## 1. 分层、命名空间与错误码
 
@@ -137,7 +137,7 @@ L4  fa::editor  fa::debug
 
 ## 2. 工程依赖（`ProjectReference`）
 
-> 只列链接依赖；头文件里另有少量前向声明。完整规则见 [依赖规则](architecture/dependency-rules.md)。
+> 只列链接依赖；头文件里另有少量前向声明。完整规则见 [依赖规则](../architecture/dependency-rules.md)。
 
 | 工程 | 链接依赖 |
 |---|---|
@@ -401,7 +401,7 @@ classDiagram
 - **关键约定**：
   - 每个引擎模块一个静态库；`src/app` 是唯一可执行目标。
   - `/W4 /WX`、C++20、`/utf-8`、`/Zc:__cplusplus`、`/Zc:preprocessor`、默认 `/EHsc-`。
-  - 需要 `/EHsc`：平台/JSON/`<chrono>`/`<unordered_map>` 的工程（见 [plan-status §2](plan-status.md)）。
+  - 需要 `/EHsc`：平台/JSON/`<chrono>`/`<unordered_map>` 的工程（见 [plan-status §2](../status/plan-status.md)）。
   - 三配置：Debug / Development / Release × x64；Release 不链接 `fa_editor`/`fa_debug`。
 
 **类关系与职责**
@@ -1240,7 +1240,7 @@ classDiagram
 | 目标 | 做法 |
 |---|---|
 | 新增组件 | `struct MyComp { ... };` + `world.add<MyComp>(id, value)`；`world.each<MyComp>(...)` |
-| 新增/修改地图 | 编辑 `data/maps/farm.json`、`farm-scripted.json` 或 `forest.json`；字段见 [M12 §6](modules/12-tilemap-and-world.md)；缺失/解析失败会回落内置布局 |
+| 新增/修改地图 | 编辑 `data/maps/farm.json`、`farm-scripted.json` 或 `forest.json`；字段见 M12 §6；缺失/解析失败会回落内置布局 |
 | 新增地图场景 | 加 `DemoMap` 枚举值、对应 JSON、`makeDemoScene()` 分支；门口用 `MapPortal`，切换走 `switchMap()` |
 | 跨场景状态 | 放进 `GameState`（农田/背包/叙事/玩家生命耐力）；不要放在会被 `SceneStack::replace` 销毁的 `DemoScene` 成员里 |
 | 新增每帧逻辑 | 实现 `scene::ISystem`，在 `BasicScene::onEnter` 里 `systems().add(...)`；注意注册顺序 |
@@ -1290,7 +1290,7 @@ classDiagram
 
 ## 7. 阅读入口
 
-- **先读**：[计划完成情况](plan-status.md) → 本文件 → 对应模块设计文档 → 构建记录。
-- **架构**：[架构总览](architecture/overview-design.md)、[模块地图](architecture/module-map.md)、[依赖规则](architecture/dependency-rules.md)。
-- **限制**：[已知限制与后续改进汇总](known-limitations.md)。
-- **路线图**：[里程碑](roadmap/milestones.md)、[垂直切片](roadmap/vertical-slice.md)。
+- **先读**：[计划完成情况](../status/plan-status.md) → 本文件 → 对应模块设计文档 → 构建记录。
+- **架构**：[架构总览](../architecture/overview-design.md)、[模块地图](../architecture/module-map.md)、[依赖规则](../architecture/dependency-rules.md)。
+- **限制**：[已知限制与后续改进汇总](../status/known-limitations.md)。
+- **路线图**：里程碑、[垂直切片](../roadmap/vertical-slice.md)。

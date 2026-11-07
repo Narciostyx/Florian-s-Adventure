@@ -186,7 +186,7 @@ v1 没有解码器，音频是“音色参数 → PCM”生成；同一份 JSON 
 |---|---|---|
 | `id` | 是 | 纹理 id；`content`/`entities`/地图都用它引用 |
 | `kind` | 是 | `texture` 或 `json` |
-| `path` | 否 | 相对 `assets/` 的路径，形如 `textures/<类别>/<名字>.png`（见[规范第 11 节](architecture/conventions.md#11-资源命名)）；缺省为纯色占位 |
+| `path` | 否 | 相对 `assets/` 的路径，形如 `textures/<类别>/<名字>.png`（见[规范第 11 节](../architecture/conventions.md#11-资源命名)）；缺省为纯色占位 |
 | `size` | 占位时必填 | `[w,h]` |
 | `color` / `altColor` / `tile` | 否 | 占位颜色与棋盘格尺寸 |
 
@@ -199,10 +199,10 @@ app 会遍历 catalog 加载全部 `texture` 条目，因此新增作物/敌人�
 ## 6. 其它数据文件
 
 - `narrative.json`：NPC/对话/任务，格式见
-  [`modules/23-npc-dialogue-quests.md`](modules/23-npc-dialogue-quests.md)。
+  `modules/23-npc-dialogue-quests.md`。
 - `data/maps/*.json`：瓦片布局、图层、传送点，格式见
-  [`modules/12-tilemap-and-world.md`](modules/12-tilemap-and-world.md)。
+  `modules/12-tilemap-and-world.md`。
 - `config/game.json`：窗口/UI/玩法/体力参数，格式见
-  [`build/m02-platform.md`](build/m02-platform.md) 与 `src/app/GameConfig.hpp`。
+  `build/m02-platform.md` 与 `src/app/GameConfig.hpp`。
   `window.fill` 为 `false`（默认）时按整数倍缩放并留黑边；为 `true` 时按精确比例填满窗口
   （nearest 采样，个别源像素宽度为 2 或 3 个窗口像素）。

@@ -7,7 +7,7 @@
 namespace fa::core {
 
 /// Error codes are plain integers, not an enum class, so gameplay modules can add
-/// their own ranges without editing this file (see docs/modules/01-core-foundation.md
+/// their own ranges without editing this file (see docs/reference/code-reference.md
 /// section 6). Reserved ranges:
 ///     1000-1999  Core
 ///     2000-2999  Platform

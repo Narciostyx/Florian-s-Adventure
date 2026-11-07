@@ -85,8 +85,8 @@
 - `docs/architecture/module-map.md`
 - `docs/architecture/dependency-rules.md`
 - `docs/architecture/tech-stack.md`
-- `docs/modules/11-scene-world-ecs.md`
-- `docs/modules/15-content-database.md`
+- `docs/reference/code-reference.md`
+- `docs/reference/code-reference.md`
 
 ## 验证方式
 

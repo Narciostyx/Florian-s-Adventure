@@ -17,7 +17,7 @@ namespace fa::tilemap {
 
 /// \brief Parses one map document.
 ///
-/// The accepted shape is documented in `docs/modules/12-tilemap-and-world.md`:
+/// The accepted shape is documented in `docs/reference/code-reference.md`:
 /// `schema_version`, `width`, `height`, `tile_size`, `origin`, `outside_solid`,
 /// `tiles`, `layers`, and optional `areas`, `portals` and `ambient`. Layer data is a
 /// row-major flat array of tile ids and must contain exactly `width * height`

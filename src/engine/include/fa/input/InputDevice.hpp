@@ -21,7 +21,7 @@ class MouseDevice;
 enum class InputDeviceKind : std::uint8_t { Keyboard, Mouse, Gamepad };
 
 /// \brief One physical input source. Adding a device means implementing this and calling
-/// InputSystem::addDevice(); no gameplay code changes (docs/modules/07-input.md).
+/// InputSystem::addDevice(); no gameplay code changes (docs/reference/code-reference.md).
 ///
 /// The frame contract is: `poll()` with this frame's events, consumers query,
 /// then `endFrame()` clears the edges. `held()` therefore survives across frames

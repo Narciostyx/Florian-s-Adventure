@@ -4,7 +4,7 @@
 
 > 需要逐项完善程序时，先看 [已知限制与后续改进汇总](known-limitations.md)：它把各模块的限制和跨模块风险集中成一份清单。
 >
-> 需要定位代码时看 [代码速查](code-reference.md)：按模块列出命名空间、依赖、公开头文件、类型、方法、枚举与常量。
+> 需要定位代码时看 [代码速查](../reference/code-reference.md)：按模块列出命名空间、依赖、公开头文件、类型、方法、枚举与常量。
 
 - 最后更新：P2-2b 压力/长时基线（1000 精灵 p50/p99、真实 30 分钟 soak 183 循环）+ P2-2a 收尾（迁移/CI/soak/1080p）+ 攻击动画 + P2-1 内容补齐
 - 下一步：**P2-2 工程收尾（全新克隆 CI、性能/内存基线、soak）**
@@ -32,8 +32,8 @@
 | 规约 | 说明 |
 |---|---|
 | 源码只写 Doxygen 注释 | `///`、`//!`、`\brief`、`\param`；唯一例外是 `}  // namespace fa::core` 这类工具锚点。踩坑、背景、权衡**一律写进 `docs/build/mXX-*.md`**，不写进源码 |
-| 美术一律色块占位 | 已改为**纹理优先**：`assets/textures/<类别>/*.png` 优先，缺图/无解码器/解码失败时由 catalog 的 `color`/`altColor`/`tile` 程序化回落。见 [美术资源策略](architecture/art-policy.md) |
-| 文档必须同步 | 每次交付同时更新：模块文档（`docs/modules/`）、构建记录（`docs/build/`）、本文件、[索引](index.md) |
+| 美术一律色块占位 | 已改为**纹理优先**：`assets/textures/<类别>/*.png` 优先，缺图/无解码器/解码失败时由 catalog 的 `color`/`altColor`/`tile` 程序化回落。见 [美术资源策略](../architecture/art-policy.md) |
+| 文档必须同步 | 每次交付同时更新：模块文档（`docs/modules/`）、构建记录（`docs/build/`）、本文件、[索引](../index.md) |
 | 三个配置都要过 | Debug / Development / Release × x64，构建零 warning（`/W4 /WX`），`fa_tests.exe` 全绿，`fa_app.exe --frames 60` exit 0 |
 | 不引入新依赖除非必要 | M06 自研 GL 函数表而不引 glad；M05 用反向接口而不让 `fa_assets` 依赖 `fa_render` |
 | 上下文将满时 | 立即停止继续生成，先按 §0 写交接；不要开启新模块或大重构 |
@@ -69,34 +69,34 @@
 
 | 模块 | 名称 | 用例（新增） | 关键交付 | 文档 |
 |---|---|---|---|---|
-| M00 | Build & Dependency Infrastructure | — | `.sln` + 27 个引擎 `.vcxproj` + app/tests、`vcpkg.json`、`Directory.Build.props`、`scripts/build.ps1`、CI | [设计](modules/00-build-infrastructure.md) · [实测](build/m00-skeleton.md) · [踩坑](build/m00-fixups.md) |
-| M01 | Core Foundation | 22 | `Result`/`Status`/`Error`、`Vector2`、`Rect`、`Rng`、断言与日志 | [设计](modules/01-core-foundation.md) |
-| M02 | Platform Layer | 8 | 窗口、事件泵、`IFileSystem`（含原子写）、单调时钟、消息框、`IGlContext` | [设计](modules/02-platform-layer.md) · [实测](build/m02-platform.md) |
-| M03 | Events & Jobs | 26 | `EventBus` + RAII `Subscription`、`JobSystem` 线程池与 `parallelFor` | [设计](modules/03-events-and-jobs.md) · [实测](build/m03-events-jobs.md) |
-| M04 | Time & Frame Loop | 20 | 固定步时钟、`FrameContext`、时间域暂停/缩放、`FrameLoop` | [设计](modules/04-time-and-frame-loop.md) · [实测](build/m04-frame-loop.md) |
-| M05 | Asset Pipeline | 61 | `AssetId`/`AssetHandle`、`AssetCatalog`、异步加载 + 帧线程上传、占位降级、`ITextureUploader` 反向桥；app 注册 stb_image 解码 `assets/*.png` | [设计](modules/05-asset-pipeline.md) · [实测](build/m05-assets.md) |
-| M06 | Rendering | 42 | `IRenderer` + `RenderQueue` + `Camera2D`（边界夹取 + 死区/平滑/限速跟随）+ `Viewport`、自研 42 项 GL 函数表、精灵批处理、调试绘制 | [设计](modules/06-rendering.md) · [实测](build/m06-render.md) |
-| M07 | Input | 36 | `ActionId` + `Binding` + 每上下文 `ActionMap`、上下文栈、`IInput` 窄接口、JSON 键位持久化 | [设计](modules/07-input.md) · [实测](build/m07-input.md) |
-| M08 | Audio | 12 | `AudioClip` PCM16、32 voice 软件混音、Master/SFX/Music/Ambience 总线、pan/loop/fade/pitch、距离衰减、无锁 SPSC 命令队列、SDL3 `IAudioDevice` 回调、原子统计 | [设计](modules/08-audio.md) · [实测](build/m08-audio.md) · [ADR](adr/0005-audio-backend.md) |
-| M09 | UI & Text | 24 | 内置 3×5 ASCII 位图字体 + UTF-8 解码与离线烘焙的 10 px 中文图集（`extended` 二分查表、逐字形 `bearingY`、`fitToCodepoints`）、字形回退、测量/换行/对齐、投影/描边、立即模式面板/按钮/复选框/滑条/进度条、`RenderLayer::UI` 与主题 | [设计](modules/09-ui-and-text.md) · [实测](build/m09-ui-and-text.md) |
-| M10 | Animation | 4 | `AnimationClip` 帧/时长/事件、`Animator` 纯数据、`AnimationService` 循环/完成/跨帧事件、四向 `Direction`、`AnimationStateMachine` 条件转换与方向变体 | [设计](modules/10-animation.md) · [实测](build/m10-animation.md) |
-| M11 | Scene / World & ECS | 78 | `World` + `EntityId` 代际句柄 + `SparseSet` + `CommandBuffer`、`SystemPipeline` 三钩子调度、`SceneStack` 栈式场景、`SpriteExtractor` 纯数据提取；app 用 `replace()` 在农场/林地之间换场景 | [设计](modules/11-scene-world-ecs.md) · [实测](build/m11-scene-ecs.md) |
-| M12 | Tilemap & World | 17 | `Tilemap` + `TileId`/`TileCoord`/`TileBounds` + 多图层 + 瓦片属性、`worldToGrid`/`gridToWorld`/`queryArea`/`portalAt`、JSON 地图加载、4 邻接自动瓦片、`extractTiles` 视锥裁剪、`TilemapSolids` 物理适配器；app 从 `data/maps/*.json` 载入农场/林地，缺文件回落内置布局 | [设计](modules/12-tilemap-and-world.md) · [实测](build/m12-tilemap.md) |
-| M13 | Physics & Collision | 40 | `Collider` + `CollisionLayer` 双向掩码、`SpatialHash` 宽相、`TileGrid` 静态碰撞、轴分离 + ≤4px 子步求解、`overlap`/`overlapCircle`/`raycast`、触发器进出事件 | [设计](modules/13-physics-collision.md) · [实测](build/m13-physics-collision.md) |
-| M14 | Serialization & Save | 7 | `SaveArchive` JSON 值树（隐藏 nlohmann）、`SaveMetadata`/`SaveContext`/`SaveFile`、`SaveService` 多槽/原子写/`.bak` 恢复/迁移链、`ComponentSerializerRegistry` | [设计](modules/14-serialization-save.md) · [实测](build/m14-serialization-save.md) |
-| M15 | Content Database | 11 | `ContentId` + `ItemDef`/`CropDef`/`RecipeDef`/`EnemyDef`/`LootTableDef`、可选 `ItemDef::toolKind` 与 `damage`/`healAmount`/`staminaRestore`、季节掩码、JSON 多文档合并、前缀/重复/必填/数值校验、四类引用完整性、全量错误收集、按 ID/标签/类别查询 | [设计](modules/15-content-database.md) · [实测](build/m15-content-database.md) |
-| M16 | Player Controller | 14 | `PlayerController` 走/跑/加速度/斜向归一化、**八向朝向**（45° 扇区 + 斜向折叠）、状态机与动作锁、耐力/闪避/无敌窗口、奔跑/工具/攻击体力消耗（JSON 可配）、`PlayerSystem` 输入适配、`PlayerActionRequest` 记录、动画参数 | [设计](modules/16-player-controller.md) · [实测](build/m16-player-controller.md) |
-| M17 | Interaction & Grid Placement | 15 | `InteractionService` 目标选择（实体优先/朝向/距离/视线）、`Interactable` 组件、`IToolHandler` 分发、`PlacementGrid` 多格占用、`PlacementPreview`、交互/放置事件记录 | [设计](modules/17-interaction-grid-placement.md) · [实测](build/m17-interaction-grid.md) |
-| M18 | Inventory & Items | 22 | `ItemStack` + 内容驱动堆叠、`Inventory` 固定槽位与原子移除/交换/拆分/合并/转移、`Hotbar` 选中与消耗、`Equipment` Tool/Weapon、`IItemUseHandler` 分发（play `F` 食用汤）、`PlayerInventory` 快速转移 | [设计](modules/18-inventory-items.md) · [实测](build/m18-inventory-items.md) |
-| M19 | Farming & World Objects | 14 | `FarmTile`/`CropState`、无 ECS 的按格农田、锄地/浇水/播种/按天生长/收获、季节与温室、再生作物、`FarmingDayContext` 消费 M22 天气、`FarmingToolHandler`（Hoe/WateringCan/Seed/Harvest/Axe/Pickaxe，可 `setInventory` 切到玩家快捷栏）、`WorldObjectLayer`/`DebrisLayer`、`entries()`/`restore()` 整块农田快照 | [设计](modules/19-farming-world-objects.md) · [实测](build/m19-farming-world-objects.md) |
-| M20 | Combat | 7 | `Damage`/`Health` 结算、M16 闪避无敌、攻击窗口与单实例去重、投射物 raycast/move、击退、Poison/Burn/Slow、四类事件与 `CombatStats`；play 模式右键攻击（伤害读取装备武器）、敌人反击伤害、受击闪烁/伤害数字、命中/受伤/拾取 SFX、死亡掉落与自动拾取；玩家死亡不再被当作敌人销毁 | [设计](modules/20-combat.md) · [实测](build/m20-combat.md) |
-| M21 | AI | 11 | `AiService` + `AiAgent`/`AiTargetTag`/`BehaviorProfile`、A*（4 邻接 + 视线平滑）、Bresenham 视线、感知节流、Idle/Patrol/Chase/Attack/Flee/Return、M13 移动、M20 攻击执行、`AiStats`、`AiAgentSnapshot`/`captureAiAgent`/`applyAiAgentSnapshot`、`clearPaths`、`setAttackHandler`；play 林地史莱姆/蝙蝠 AI 参数由 `entities.json` 提供，攻击由 M10 挥砍的 `hit` 帧触发 | [设计](modules/21-ai.md) · [实测](build/m21-ai.md) |
-| M22 | Calendar / Weather / Lighting | 22 | `Season`/`Weather`/`GameDate`/`WorldClock`、0–24 时刻与跨日/季/年、`HourChanged`/`DayChanged`/`SeasonChanged`/`WeatherChanged`、按季节权重随机天气与 RNG 状态保存、自动浇水/生长倍率、环境光曲线与室内外、`LightSet` 点光与线性衰减采样 | [设计](modules/22-calendar-weather-lighting.md) · [实测](build/m22-calendar-weather-lighting.md) |
-| M23 | NPC / Dialogue / Quests | 10 | `NarrativeDatabase` + `NarrativeService`、NPC/对话图/任务 JSON、白名单条件与动作、每日好感/送礼、事件驱动任务进度与物品奖励、底部对话框与 Digit1–3 选择、`NarrativeSnapshot`/`snapshot`/`restore`、`questStates()`；app 已接农场 Elder 交互、`J` 任务日志与任务奖励 | [设计](modules/23-npc-dialogue-quests.md) · [实测](build/m23-npc-dialogue-quests.md) |
-| M24 | Economy / Crafting / Shops | 11 | `EconomyService` + `ShopDatabase`、钱包、买卖原子性、每日限购、季节库存（`ShopEntry::seasons`）、按日确定性价格波动（`price_swing`）、M15 配方加工任务、出货箱次日结算、`restore*` 存档；app 商店显示今日价/余量/季节，橙色出货箱 + 做汤/收取 | [设计](modules/24-economy-crafting-shops.md) · [实测](build/m24-economy-crafting-shops.md) |
-| M25 | Game Flow | 10 | `GameFlow`/`IGameFlow`、`AppState` 状态机、新游戏/读档、暂停/对话、日终结算（`EndOfDayHandler`）、自动存档、`saveToSlot(slot)`、睡眠恢复规则（`Sleep.hpp`）、死亡/复活、退出、7400 错误段；app 主菜单/暂停/存档槽 + GameOver 面板（复活/读自动存档/主菜单）+ 床边 `E` 任意时间睡觉 + 门口换地图；`GameState` 持有跨场景农田/背包/叙事/玩家状态；读档固定重建场景后应用叙事/AI/世界对象/生命段 | [设计](modules/25-game-flow.md) · [实测](build/m25-game-flow.md) |
-| M26 | Editor Tools | 12 | `MapEditor` + `EditorHistory` + `EditorOverlay`、Brush/Rect/Fill/Erase/Picker、命令差分 undo/redo、M12 `saveTilemapToJson()`、M09 状态面板、F2/1–5/`[`/`]`/Z/Y/S/L 快捷键；可视化编辑器的 `瓦片/对象/传送门` scope（NPC 与传送区域可放置，保存写回地图 JSON + `entities.json`）；Release 不链接 | [设计](modules/26-editor-tools.md) · [实测](build/m26-editor-tools.md) |
-| M27 | Debug Tools | 11 | `DebugConsole` 命令/引号/历史、`CVarRegistry` 四种类型与 save/load、`DebugLogSink` 环形日志、`DebugStats`（含角色相机、玩家世界/格子坐标与 AI 锁定目标）、实体快照、`UiContext` 覆盖层、M13 `DebugShape` 适配、F3/F4/F5/控制台事件路由；Release 不链接 | [设计](modules/27-debug-tools.md) · [实测](build/m27-debug-tools.md) |
+| M00 | Build & Dependency Infrastructure | — | `.sln` + 27 个引擎 `.vcxproj` + app/tests、`vcpkg.json`、`Directory.Build.props`、`scripts/build.ps1`、CI | 设计 · 实测 · 踩坑 |
+| M01 | Core Foundation | 22 | `Result`/`Status`/`Error`、`Vector2`、`Rect`、`Rng`、断言与日志 | 设计 |
+| M02 | Platform Layer | 8 | 窗口、事件泵、`IFileSystem`（含原子写）、单调时钟、消息框、`IGlContext` | 设计 · 实测 |
+| M03 | Events & Jobs | 26 | `EventBus` + RAII `Subscription`、`JobSystem` 线程池与 `parallelFor` | 设计 · 实测 |
+| M04 | Time & Frame Loop | 20 | 固定步时钟、`FrameContext`、时间域暂停/缩放、`FrameLoop` | 设计 · 实测 |
+| M05 | Asset Pipeline | 61 | `AssetId`/`AssetHandle`、`AssetCatalog`、异步加载 + 帧线程上传、占位降级、`ITextureUploader` 反向桥；app 注册 stb_image 解码 `assets/*.png` | 设计 · 实测 |
+| M06 | Rendering | 42 | `IRenderer` + `RenderQueue` + `Camera2D`（边界夹取 + 死区/平滑/限速跟随）+ `Viewport`、自研 42 项 GL 函数表、精灵批处理、调试绘制 | 设计 · 实测 |
+| M07 | Input | 36 | `ActionId` + `Binding` + 每上下文 `ActionMap`、上下文栈、`IInput` 窄接口、JSON 键位持久化 | 设计 · 实测 |
+| M08 | Audio | 12 | `AudioClip` PCM16、32 voice 软件混音、Master/SFX/Music/Ambience 总线、pan/loop/fade/pitch、距离衰减、无锁 SPSC 命令队列、SDL3 `IAudioDevice` 回调、原子统计 | 设计 · 实测 · [ADR](../adr/0005-audio-backend.md) |
+| M09 | UI & Text | 24 | 内置 3×5 ASCII 位图字体 + UTF-8 解码与离线烘焙的 10 px 中文图集（`extended` 二分查表、逐字形 `bearingY`、`fitToCodepoints`）、字形回退、测量/换行/对齐、投影/描边、立即模式面板/按钮/复选框/滑条/进度条、`RenderLayer::UI` 与主题 | 设计 · 实测 |
+| M10 | Animation | 4 | `AnimationClip` 帧/时长/事件、`Animator` 纯数据、`AnimationService` 循环/完成/跨帧事件、四向 `Direction`、`AnimationStateMachine` 条件转换与方向变体 | 设计 · 实测 |
+| M11 | Scene / World & ECS | 78 | `World` + `EntityId` 代际句柄 + `SparseSet` + `CommandBuffer`、`SystemPipeline` 三钩子调度、`SceneStack` 栈式场景、`SpriteExtractor` 纯数据提取；app 用 `replace()` 在农场/林地之间换场景 | 设计 · 实测 |
+| M12 | Tilemap & World | 17 | `Tilemap` + `TileId`/`TileCoord`/`TileBounds` + 多图层 + 瓦片属性、`worldToGrid`/`gridToWorld`/`queryArea`/`portalAt`、JSON 地图加载、4 邻接自动瓦片、`extractTiles` 视锥裁剪、`TilemapSolids` 物理适配器；app 从 `data/maps/*.json` 载入农场/林地，缺文件回落内置布局 | 设计 · 实测 |
+| M13 | Physics & Collision | 40 | `Collider` + `CollisionLayer` 双向掩码、`SpatialHash` 宽相、`TileGrid` 静态碰撞、轴分离 + ≤4px 子步求解、`overlap`/`overlapCircle`/`raycast`、触发器进出事件 | 设计 · 实测 |
+| M14 | Serialization & Save | 7 | `SaveArchive` JSON 值树（隐藏 nlohmann）、`SaveMetadata`/`SaveContext`/`SaveFile`、`SaveService` 多槽/原子写/`.bak` 恢复/迁移链、`ComponentSerializerRegistry` | 设计 · 实测 |
+| M15 | Content Database | 11 | `ContentId` + `ItemDef`/`CropDef`/`RecipeDef`/`EnemyDef`/`LootTableDef`、可选 `ItemDef::toolKind` 与 `damage`/`healAmount`/`staminaRestore`、季节掩码、JSON 多文档合并、前缀/重复/必填/数值校验、四类引用完整性、全量错误收集、按 ID/标签/类别查询 | 设计 · 实测 |
+| M16 | Player Controller | 14 | `PlayerController` 走/跑/加速度/斜向归一化、**八向朝向**（45° 扇区 + 斜向折叠）、状态机与动作锁、耐力/闪避/无敌窗口、奔跑/工具/攻击体力消耗（JSON 可配）、`PlayerSystem` 输入适配、`PlayerActionRequest` 记录、动画参数 | 设计 · 实测 |
+| M17 | Interaction & Grid Placement | 15 | `InteractionService` 目标选择（实体优先/朝向/距离/视线）、`Interactable` 组件、`IToolHandler` 分发、`PlacementGrid` 多格占用、`PlacementPreview`、交互/放置事件记录 | 设计 · 实测 |
+| M18 | Inventory & Items | 22 | `ItemStack` + 内容驱动堆叠、`Inventory` 固定槽位与原子移除/交换/拆分/合并/转移、`Hotbar` 选中与消耗、`Equipment` Tool/Weapon、`IItemUseHandler` 分发（play `F` 食用汤）、`PlayerInventory` 快速转移 | 设计 · 实测 |
+| M19 | Farming & World Objects | 14 | `FarmTile`/`CropState`、无 ECS 的按格农田、锄地/浇水/播种/按天生长/收获、季节与温室、再生作物、`FarmingDayContext` 消费 M22 天气、`FarmingToolHandler`（Hoe/WateringCan/Seed/Harvest/Axe/Pickaxe，可 `setInventory` 切到玩家快捷栏）、`WorldObjectLayer`/`DebrisLayer`、`entries()`/`restore()` 整块农田快照 | 设计 · 实测 |
+| M20 | Combat | 7 | `Damage`/`Health` 结算、M16 闪避无敌、攻击窗口与单实例去重、投射物 raycast/move、击退、Poison/Burn/Slow、四类事件与 `CombatStats`；play 模式右键攻击（伤害读取装备武器）、敌人反击伤害、受击闪烁/伤害数字、命中/受伤/拾取 SFX、死亡掉落与自动拾取；玩家死亡不再被当作敌人销毁 | 设计 · 实测 |
+| M21 | AI | 11 | `AiService` + `AiAgent`/`AiTargetTag`/`BehaviorProfile`、A*（4 邻接 + 视线平滑）、Bresenham 视线、感知节流、Idle/Patrol/Chase/Attack/Flee/Return、M13 移动、M20 攻击执行、`AiStats`、`AiAgentSnapshot`/`captureAiAgent`/`applyAiAgentSnapshot`、`clearPaths`、`setAttackHandler`；play 林地史莱姆/蝙蝠 AI 参数由 `entities.json` 提供，攻击由 M10 挥砍的 `hit` 帧触发 | 设计 · 实测 |
+| M22 | Calendar / Weather / Lighting | 22 | `Season`/`Weather`/`GameDate`/`WorldClock`、0–24 时刻与跨日/季/年、`HourChanged`/`DayChanged`/`SeasonChanged`/`WeatherChanged`、按季节权重随机天气与 RNG 状态保存、自动浇水/生长倍率、环境光曲线与室内外、`LightSet` 点光与线性衰减采样 | 设计 · 实测 |
+| M23 | NPC / Dialogue / Quests | 10 | `NarrativeDatabase` + `NarrativeService`、NPC/对话图/任务 JSON、白名单条件与动作、每日好感/送礼、事件驱动任务进度与物品奖励、底部对话框与 Digit1–3 选择、`NarrativeSnapshot`/`snapshot`/`restore`、`questStates()`；app 已接农场 Elder 交互、`J` 任务日志与任务奖励 | 设计 · 实测 |
+| M24 | Economy / Crafting / Shops | 11 | `EconomyService` + `ShopDatabase`、钱包、买卖原子性、每日限购、季节库存（`ShopEntry::seasons`）、按日确定性价格波动（`price_swing`）、M15 配方加工任务、出货箱次日结算、`restore*` 存档；app 商店显示今日价/余量/季节，橙色出货箱 + 做汤/收取 | 设计 · 实测 |
+| M25 | Game Flow | 10 | `GameFlow`/`IGameFlow`、`AppState` 状态机、新游戏/读档、暂停/对话、日终结算（`EndOfDayHandler`）、自动存档、`saveToSlot(slot)`、睡眠恢复规则（`Sleep.hpp`）、死亡/复活、退出、7400 错误段；app 主菜单/暂停/存档槽 + GameOver 面板（复活/读自动存档/主菜单）+ 床边 `E` 任意时间睡觉 + 门口换地图；`GameState` 持有跨场景农田/背包/叙事/玩家状态；读档固定重建场景后应用叙事/AI/世界对象/生命段 | 设计 · 实测 |
+| M26 | Editor Tools | 12 | `MapEditor` + `EditorHistory` + `EditorOverlay`、Brush/Rect/Fill/Erase/Picker、命令差分 undo/redo、M12 `saveTilemapToJson()`、M09 状态面板、F2/1–5/`[`/`]`/Z/Y/S/L 快捷键；可视化编辑器的 `瓦片/对象/传送门` scope（NPC 与传送区域可放置，保存写回地图 JSON + `entities.json`）；Release 不链接 | 设计 · 实测 |
+| M27 | Debug Tools | 11 | `DebugConsole` 命令/引号/历史、`CVarRegistry` 四种类型与 save/load、`DebugLogSink` 环形日志、`DebugStats`（含角色相机、玩家世界/格子坐标与 AI 锁定目标）、实体快照、`UiContext` 覆盖层、M13 `DebugShape` 适配、F3/F4/F5/控制台事件路由；Release 不链接 | 设计 · 实测 |
 
 实际落地顺序是 M01 → M02 → M04 → M03 → M07 → M06 → M05 → M11 → M13 → M12 → M17 → M16 → M15 → M09 → M18 → M08 → M27 → M14 → M10 → M20 → M22 → M19 → M21 → M26 → M23 → M24 → M25，所以上表顺序与时间顺序不同。
 M12 排在 M13 之后，是因为它要适配 M13 的 `ISolidTiles`；M17 排在 M12 之后，因为它要用地图做目标与放置校验；
@@ -108,30 +108,30 @@ one-shot、循环、总线音量与淡出，不引入 SDL_mixer。
 M22 保持更窄的依赖：`fa_world` **只引用 `fa_core`**。日历/天气是纯逻辑，事件是内部
 `vector`，光照是纯数据；组装根负责把 `advance()` 接到帧循环、把事件转发给玩法模块、
 在 Weather 层画暗化层与点光，因此 `fa_world` **不需要 `/EHsc`**（见
-[构建记录](build/m22-calendar-weather-lighting.md) §1、§3）。
+构建记录 §1、§3）。
 
 M08 保持窄依赖：`fa_audio` 只引用 `fa_core` 与 `fa_platform`，**不引用 `fa_assets`、`fa_render`、`fa_scene`**，
 `AudioClip` 由 M08 自己定义；命令队列是唯一的跨线程入口，统计通过原子快照发布，所以 `fa_audio` **不需要 `/EHsc`**
-（见 [构建记录](build/m08-audio.md) §3 第 8 条）。
+（见 构建记录 §3 第 8 条）。
 
 M27 是 L4 工具，按设计读取所有下层，但**不反向依赖任何玩法模块**：命令由 app 注册，
 `DebugStats` 由 app 填充，实体检查器只做值快照。`fa_debug` 因为 include `fa/scene/World.hpp`
 （`<unordered_map>`）需要 `/EHsc`；`fa_app` 只在 `Configuration != Release` 时引用它，
-Release 可执行文件不含调试代码（见 [构建记录](build/m27-debug-tools.md) §3 第 4、6 条）。
+Release 可执行文件不含调试代码（见 构建记录 §3 第 4、6 条）。
 
 M14 只引用 `fa_core`、`fa_platform`、`fa_scene`，**不依赖 M05/M06/M09/M12/M15**；
 `SaveArchive` 用 PIMPL 把 `nlohmann::json` 关在 cpp 里，公共头不泄漏第三方类型，
 `fa_save` 因此单独打开 `/EHsc`。玩法组件通过 `IComponentSerializer` 注册，不反向依赖存档实现
-（见 [构建记录](build/m14-serialization-save.md) §3 第 6 条）。
+（见 构建记录 §3 第 6 条）。
 
 M10 只引用 `fa_core` 与 `fa_render`，**不依赖 M05/M11**：`AnimationClip` 只存裸
 `render::TextureHandle`，`Animator` 是纯数据，ECS 调度由 composition root 负责；
 没有 JSON/`<chrono>`/`<unordered_map>`，所以 `fa_anim` 不需要 `/EHsc`
-（见 [构建记录](build/m10-animation.md) §3 第 6 条）。
+（见 构建记录 §3 第 6 条）。
 
 M20 只引用 `fa_core`、`fa_scene`、`fa_physics`、`fa_player`，**不依赖 M15/M18**：
 掉落表以字符串 id 事件交给组装根，M20 不 include 内容库/背包；伤害/攻击/投射物/状态
-都只读写 ECS 组件，表现由 app/M06/M10 消费事件（见 [构建记录](build/m20-combat.md) §3 第 9 条）。
+都只读写 ECS 组件，表现由 app/M06/M10 消费事件（见 构建记录 §3 第 9 条）。
 
 M05 交付时还顺带清理了一处历史遗留：`fa_render.vcxproj` 里有一条指向 `fa_assets` 的 `ProjectReference`，但没有任何源文件用它，已删除。**M05 与 M06 现在编译期互不依赖**——上传走 `ITextureUploader` 反向接口，由 `fa_app` 适配。
 
@@ -143,36 +143,36 @@ M11 同样保持窄依赖：`fa_scene` 只引用 `fa_core`、`fa_time`、`fa_ren
 M13 继续保持窄依赖：`fa_physics` 只引用 `fa_core`、`fa_time`、`fa_scene`，**不引用 `fa_assets`、`fa_events`、`fa_render`**。
 静态地形通过单方法接口 `ISolidTiles` 借用，M12 已用 `TilemapSolids` 适配器实现它，所以物理仍然不会反向依赖地图模块；
 调试绘制产出 `DebugShape` 列表而不是接收 `IRenderer&`；触发器结果按步记录在 `triggerEvents()` 里，由组装根决定是否发布到事件总线。
-代价是 `fa_physics` 因为 `std::unordered_map` 需要 `/EHsc`（见 [构建记录](build/m13-physics-collision.md) §5 第 1 条）。
+代价是 `fa_physics` 因为 `std::unordered_map` 需要 `/EHsc`（见 构建记录 §5 第 1 条）。
 
 M12 也保持窄依赖：`fa_tilemap` 只引用 `fa_core`、`fa_time`、`fa_render`、`fa_scene`、`fa_physics`，**不引用 `fa_assets`**。
 `TileDef` 只存裸 `render::TextureHandle`，JSON 里的 `texture` 是资源名，由 `fa_app` 解析后调用 `setTileTexture()` 绑定；
 `Tilemap` 是可拷贝/可移动的值类型，物理桥是一个单独的非 owning `TilemapSolids`，因此 `core::Result<Tilemap>` 能按值返回。
-提取接口同样是纯数据 `RenderQueue`；代价是 `fa_tilemap` 因为 nlohmann/json 需要 `/EHsc`（见 [构建记录](build/m12-tilemap.md) §5 第 4 条）。
+提取接口同样是纯数据 `RenderQueue`；代价是 `fa_tilemap` 因为 nlohmann/json 需要 `/EHsc`（见 构建记录 §5 第 4 条）。
 
 M17 继续窄依赖：`fa_interaction` 只引用 `fa_core`、`fa_scene`、`fa_physics`、`fa_tilemap`，**不引用 `fa_assets`、`fa_events`、`fa_input`、`fa_content`**。
 工具行为通过 `IToolHandler` 注册，具体内容 ID 暂用不透明 `std::uint32_t payload`（M15 已实现，接线时替换）；
 交互/放置结果按调用记录在 `events()`，由组装根决定是否发布到 M03；放置预览是纯数据 `PlacementPreview`，
-因此 M17 不需要 `IRenderer&`，也不需要 `/EHsc`（见 [构建记录](build/m17-interaction-grid.md) §5 第 11 条）。
+因此 M17 不需要 `IRenderer&`，也不需要 `/EHsc`（见 构建记录 §5 第 11 条）。
 
 M16 只引用 `fa_core`、`fa_input`、`fa_time`、`fa_scene`、`fa_physics`，**不引用 `fa_tilemap`、`fa_interaction`、`fa_content`、`fa_assets`**。
 控制器只写 `physics::Velocity`，位置仍由 M13 写；工具/攻击/交互/背包都记录成 `PlayerActionRequest`，由组装根决定转发；
 具体工具效果和伤害留给 M19/M20。`PlayerSystem.cpp` 因为 include `fa/input/Input.hpp`（间接 `<unordered_map>`）需要 `/EHsc`
-（见 [构建记录](build/m16-player-controller.md) §5 第 11 条）。
+（见 构建记录 §5 第 11 条）。
 
 M15 只引用 `fa_core` 与 `fa_assets`，**不引用 M11/M12/M16/M17**：定义只存 ID 与值，不含实体指针或瓦片结构；
 文件读取归 M05/composition root，`loadDocument()` 只接收文本。它用 nlohmann/json 做解析，
-所以 `fa_content` 单独打开 `/EHsc`（见 [构建记录](build/m15-content-database.md) §5 第 11 条）。
+所以 `fa_content` 单独打开 `/EHsc`（见 构建记录 §5 第 11 条）。
 
 M09 只引用 `fa_core` 与 `fa_render`，**不引用 `fa_assets`、`fa_input`、`fa_scene`、`fa_events`**：
 字体图集与 1×1 白纹理以裸 `TextureHandle` 传入，由 app 上传；鼠标快照与控件状态都由调用方每帧提供；
 文字与四边形都产出纯数据 `DrawItem`，所以 `fa_ui` 不需要 GL、资源或输入模块，也**不需要 `/EHsc`**
-（见 [构建记录](build/m09-ui-and-text.md) §5 第 10 条）。
+（见 构建记录 §5 第 10 条）。
 
 M18 只引用 `fa_core` 与 `fa_content`，**不引用 `fa_assets`、`fa_render`、`fa_input`、`fa_interaction`**；
 只 include `fa/scene/EntityId.hpp`（纯值头），不链接 `fa_scene`。物品只存 `ContentId`/数量/耐久，
 不存 `ItemDef*`；`ContentDatabase` 是借用指针，生命周期由组装根保证。handler 注册表用 `std::vector`
-线性查找，所以 `fa_inventory` 也**不需要 `/EHsc`**（见 [构建记录](build/m18-inventory-items.md) §5 第 10 条）。
+线性查找，所以 `fa_inventory` 也**不需要 `/EHsc`**（见 构建记录 §5 第 10 条）。
 
 **验收快照**（测试三配置一致；冒烟三配置都是 exit 0。固定步数由墙钟累积，并行负载下可能明显多于 60，不要逐字比对帧数或 y 坐标；x 坐标才是稳定断言）：
 
@@ -447,7 +447,7 @@ fa_app.exe --frames 60 (Release)
 | 自动存档调度未接 | M25 已按天/退出调度；每 12 游戏小时与安全状态判定仍未实现 | M25 / M22 |
 | 无渲染目标 / 后处理 | 做不了光照、屏幕扭曲 | M22 需要时再加 `RenderPass` |
 | 单一混合模式 | 预乘 alpha、加色做不了 | M06（分批断点已留好） |
-| 图片仍是占位美术 | 已支持 `assets/textures/**/*.png`，当前 31 张是 AI 生成的像素素材（非正式美术） | 正式美术后置，见 [art-policy](architecture/art-policy.md) |
+| 图片仍是占位美术 | 已支持 `assets/textures/**/*.png`，当前 31 张是 AI 生成的像素素材（非正式美术） | 正式美术后置，见 [art-policy](../architecture/art-policy.md) |
 | 只接了 PNG 解码 | app 注册的是 stb_image；JPEG/WebP 等其他格式仍需扩展解码器 | M05（注册 `IImageDecoder`） |
 | 隐藏窗口依赖驱动 | 无 GL 驱动的 CI 镜像拿不到上下文 | M06 已降级为非致命 |
 | `/EHsc` 依赖第三方 include 图 | 新增 JSON/`<chrono>` 依赖会连锁要求 `/EHsc` | M00 规约 |
@@ -554,4 +554,4 @@ fa_app.exe --frames 60 (Release)
 4. §6 重排下一步建议；
 5. 头部「最后更新」写上新的提交号（本次改动尚未提交，交付时补）。
 
-历史交付顺序与当时的细节，看各模块的 `docs/build/mXX-*.md`；决策背后的一次性权衡，看 [ADR](adr/README.md)。
+历史交付顺序与当时的细节，看各模块的 `docs/build/mXX-*.md`；决策背后的一次性权衡，看 [ADR](../adr/README.md)。

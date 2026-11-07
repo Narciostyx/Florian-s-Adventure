@@ -103,6 +103,6 @@ struct Rect {
 
 ## 影响的文档
 
-- `docs/modules/01-core-foundation.md`（已同步为实际 API）
+- `docs/reference/code-reference.md`（已同步为实际 API）
 - `docs/architecture/conventions.md`（错误处理与命名约定引用本 ADR）
 - 任何定义错误码的模块文档（3000+ / 4000+ 段）

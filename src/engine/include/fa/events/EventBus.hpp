@@ -178,7 +178,7 @@ std::string_view eventTypeName() noexcept {
 
 /// \brief Typed, decoupled messaging between modules.
 ///
-/// Threading rules (docs/modules/03-events-and-jobs.md):
+/// Threading rules (docs/reference/code-reference.md):
 ///   - subscribe / unsubscribe / publish / dispatchQueued / clear: owning thread only.
 ///     Ownership is the thread that constructed the bus; violations abort in Debug.
 ///   - enqueue: any thread, including job workers. That is the one supported way for

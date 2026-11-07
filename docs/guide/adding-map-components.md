@@ -3,9 +3,9 @@
 本文面向**后续的人类开发者与 AI 助手**：如何给地图编辑器和游戏世界新增组件（花、树、石头这类），
 以及必须遵守的约束。读完本文可以独立完成「一张新贴图 + 一个新组件」的全流程，不需要改引擎代码。
 
-关联基线：[美术资源策略](architecture/art-policy.md)（色块回落是硬要求）、
-[像素度量](architecture/pixel-metrics.md)（16×16 瓦片）、[编码与内容规范 §11](architecture/conventions.md#11-资源命名)（命名）、
-[M12 瓦片地图](modules/12-tilemap-and-world.md)、[M26 可视化编辑器](modules/26-visual-editor.md)。
+关联基线：[美术资源策略](../architecture/art-policy.md)（色块回落是硬要求）、
+[像素度量](../architecture/pixel-metrics.md)（16×16 瓦片）、[编码与内容规范 §11](../architecture/conventions.md#11-资源命名)（命名）、
+M12 瓦片地图、M26 可视化编辑器。
 
 ## 1. 先选形态：瓦片还是放置对象？
 
@@ -93,7 +93,7 @@
 - `path` 相对 `assets/`；`size` 必须与 PNG 实际一致（不一致会有 warn 日志并以图片为准）。
 - **`color`/`altColor`/`tile` 必须保留**：缺图时引擎生成双色棋盘回落，冒烟/CI/新克隆不依赖 PNG。
 - 忘记同步内嵌副本的后果：`data/` 缺失的环境（裸 checkout 冒烟）里该组件显示为洋红缺失或走
-  `textureForName` 兜底——按[美术资源策略 §3](architecture/art-policy.md) 洋红即"缺东西"信号。
+  `textureForName` 兜底——按[美术资源策略 §3](../architecture/art-policy.md) 洋红即"缺东西"信号。
 
 ## 7. 地图定义接入
 

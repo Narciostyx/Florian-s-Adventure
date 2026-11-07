@@ -32,7 +32,7 @@ MouseButton toMouseButton(std::uint8_t button) {
 }
 
 /// The only place in the engine that knows SDL's scancode numbering. Everything
-/// downstream sees fa::platform::Scancode (docs/modules/07-input.md).
+/// downstream sees fa::platform::Scancode (docs/reference/code-reference.md).
 Scancode toScancode(SDL_Scancode code) {
     switch (code) {
         case SDL_SCANCODE_A:

@@ -111,11 +111,11 @@ if (auto status = files.writeText(p, text); !status) {
   在它自己的 `.vcxproj` 里开 `/EHsc`，不要改全局开关。
 - **`nlohmann/json` 必须配 `/EHsc`**：它间接 include `<chrono>`，其 tzdb 段含真实的 `try/catch`，
   在 `/EHsc-` 下即便只是正常调用 `parse`/`dump` 也会触发 C4530，`/WX` 直接升级成错误。
-  凡是 include 该库的工程都要在 `.vcxproj` 里开 `/EHsc`（详见 [M07 坑 #2](../build/m07-input.md)）。
+  凡是 include 该库的工程都要在 `.vcxproj` 里开 `/EHsc`（详见 M07 坑 #2）。
 - **只用 SDL3 / OpenGL 本身不需要 `/EHsc`**：`fa_render` 既不 include `nlohmann/json` 也不 include
   任何会拉进 `<chrono>` 的头（GL 入口点全部是运行期解析的函数指针），因此在全局 `/EHsc-` 下正常编译。
   判断标准不是「模块听起来高不高级」，而是**include 图里有没有 `<chrono>`**
-  （详见 [M06 交付内容](../build/m06-render.md)）。
+  （详见 M06 交付内容）。
 
 ## 7. 日志
 
@@ -201,12 +201,12 @@ assets/content/crops/turnip.json
 - 全小写 `snake_case`；不用空格、中文、版本号。
 - 纹理图集：`<category>_atlas.png` + `<category>_atlas.json`。
 - 字体位图：`assets/fonts/ui_atlas.png` + `ui_atlas.json`（同一对命名），许可文本 `OFL.txt`
-  必须与派生字形同目录；文字内容见 [M09 第 6 节](../modules/09-ui-and-text.md#6-扩展点)。
+  必须与派生字形同目录；文字内容见 M09 第 6 节。
 - 同一资源的 ID 与路径解耦；ID 稳定，路径可迁移。
 - **ID 用英文，显示文本用中文**：`item.turnip` / `tex.ground.grass` / `spring` 这类标识符是
   存档、日志、控制台与测试的共同语言，不做翻译；`display_name` / `title` / `text` / 按钮标签
   等面向玩家的字符串统一中文，并且一定要跟 `tools/build_font_atlas.py` 一起重新烘焙
-  （见 [M09 第 6 节](../modules/09-ui-and-text.md#6-扩展点)）。引擎 `Status` 的错误文本仍是
+  （见 M09 第 6 节）。引擎 `Status` 的错误文本仍是
   英文，它同时进日志与 HUD；M27 的开发者工具（F3 统计面板、反引号控制台、F4 日志）整体保持
   英文——它们是调试遥测，不是玩家界面。
 - 大文件使用 Git LFS；提交前确认 `.gitattributes`。
@@ -254,8 +254,8 @@ docs(architecture): add module map
 
 ## 14. 文档规范
 
-- 模块文档使用 `docs/modules/xx-kebab-case.md`，开头标注层、优先级、状态、依赖。
-- 新增/修改模块时同步更新[模块地图](../architecture/module-map.md)与[文档索引](../index.md)。
+- 模块文档使用 `docs/reference/code-reference.md`，开头标注层、优先级、状态、依赖。
+- 新增/修改模块时同步更新[模块地图](module-map.md)与[文档索引](../index.md)。
 - 架构决策变更写 ADR；不直接改写历史 ADR 的结论。
 - 链接使用相对路径；合并前检查死链。
 - 图表使用 mermaid；不提交二进制图（截图除外）。

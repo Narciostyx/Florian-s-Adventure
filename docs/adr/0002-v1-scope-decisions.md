@@ -225,14 +225,14 @@ struct ProcessingJob {
 ## 影响的文档
 
 - `docs/architecture/overview-design.md`（第 16 节开放问题，其中 4 项已解答）
-- `docs/modules/07-input.md`
-- `docs/modules/14-serialization-save.md`
-- `docs/modules/16-player-controller.md`
-- `docs/modules/19-farming-world-objects.md`
-- `docs/modules/20-combat.md`
-- `docs/modules/22-calendar-weather-lighting.md`
-- `docs/modules/24-economy-crafting-shops.md`
-- `docs/modules/25-game-flow.md`
+- `docs/reference/code-reference.md`
+- `docs/reference/code-reference.md`
+- `docs/reference/code-reference.md`
+- `docs/reference/code-reference.md`
+- `docs/reference/code-reference.md`
+- `docs/reference/code-reference.md`
+- `docs/reference/code-reference.md`
+- `docs/reference/code-reference.md`
 - `docs/roadmap/vertical-slice.md`（切片可按此裁剪）
 
 > 注：上述模块文档的对应章节已按本 ADR 回写完毕（06、07、09、10、12、13、14、15、16、17、19、20、21、22、23、24、25、27）。本 ADR 仍为这些决策的**权威来源**，实现中若发现冲突，以本文件为准并修正模块文档。

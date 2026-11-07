@@ -59,7 +59,7 @@ struct JobDesc {
 /// is usable and destroyed before it. Threads are joined in the destructor, so a
 /// submit() racing shutdown cannot leak a worker.
 ///
-/// Waiting rules (docs/modules/03-events-and-jobs.md):
+/// Waiting rules (docs/reference/code-reference.md):
 ///   - wait() is for the frame thread. Calling it from a worker is only safe when the
 ///     awaited job is guaranteed to be picked up by a thread that is not waiting.
 ///   - parallelFor() is safe from the frame thread and from a worker: the calling

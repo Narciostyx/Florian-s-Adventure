@@ -75,7 +75,7 @@ M08 需要一条能播放 2D 音效、循环、总线音量、声像与淡入淡
 
 ## 影响的文档
 
-- `docs/modules/08-audio.md`
-- `docs/build/m08-audio.md`
+- `docs/reference/code-reference.md`
+- `docs/reference/code-reference.md`
 - `docs/architecture/module-map.md` / `dependency-rules.md`
-- `docs/plan-status.md`
+- `docs/status/plan-status.md`

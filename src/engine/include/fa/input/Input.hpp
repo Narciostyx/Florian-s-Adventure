@@ -18,7 +18,7 @@
 
 namespace fa::input {
 
-/// \brief What gameplay is allowed to know about input (docs/modules/07-input.md §5). One
+/// \brief What gameplay is allowed to know about input (docs/reference/code-reference.md). One
 /// narrow interface, no devices, no SDL, no JSON - M09/M16 depend on this and on
 /// nothing else, which keeps rebinding and device work free of gameplay changes.
 class IInput {
@@ -84,7 +84,7 @@ public:
 
     /// \brief Feeds one frame of platform events to every device. Focus loss clears all
     /// held state first, because the matching key-up events are often never
-    /// delivered (docs/modules/07-input.md §8) and a stuck key is worse than a
+    /// delivered (docs/reference/code-reference.md) and a stuck key is worse than a
     /// missed press.
     void poll(std::span<const fa::platform::PlatformEvent> events);
 

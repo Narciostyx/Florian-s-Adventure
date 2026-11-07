@@ -11,7 +11,7 @@
 > 林地敌人反击与受击闪烁/伤害数字，数据/配置/地图 JSON/PNG 纹理均已接通；
 > 3 作物 / 2 敌人 / 12 物品 / 8 SFX + 1 音乐已由 JSON 提供，玩家与敌人都用
 > 3 帧挥砍 + `hit` 帧判定；剩余正式美术/音频素材与敌人专属招式。
-> 详见 [计划完成情况](docs/plan-status.md) 与 [垂直切片](docs/roadmap/vertical-slice.md)。
+> 详见 [计划完成情况](docs/status/plan-status.md) 与 [垂直切片](docs/roadmap/vertical-slice.md)。
 
 ## 目标
 
@@ -44,18 +44,18 @@
 ## 文档入口
 
 - [文档索引](docs/index.md) —— 全部文档的导航与阅读顺序。
-- [代码速查](docs/code-reference.md) —— 28 个模块的命名空间、依赖、类型、方法与常量。
+- [代码速查](docs/reference/code-reference.md) —— 28 个模块的命名空间、依赖、类型、方法与常量。
+- [内容 JSON 格式](docs/reference/content-format.md) —— content/entities/shops/audio/catalog 的字段与校验规则。
+- [新增地图组件指南](docs/guide/adding-map-components.md) —— 贴图、瓦片 id、图层架构与协作规则。
 - [架构总览](docs/architecture/overview-design.md) —— 分层、主循环、时间、坐标、ECS、线程与存档边界。
 - [愿景与设计支柱](docs/architecture/vision-and-pillars.md) —— 产品定位、核心循环与 v1 范围。
 - [模块地图](docs/architecture/module-map.md) —— 28 个模块的职责、层级与依赖图。
 - [依赖规则](docs/architecture/dependency-rules.md) —— 允许/禁止的引用方式与编译期隔离。
 - [技术栈](docs/architecture/tech-stack.md) —— 工具链、第三方库、构建与 CI。
 - [编码与内容规范](docs/architecture/conventions.md) —— 命名、目录、错误处理、日志与 JSON 约定。
-- [里程碑](docs/roadmap/milestones.md) —— Phase A–F 的交付物与验收标准。
-- [垂直切片](docs/roadmap/vertical-slice.md) —— 第一个可玩版本的具体范围。
+- [美术资源策略](docs/architecture/art-policy.md) —— 色块占位与真实美术接入。
+- [垂直切片](docs/roadmap/vertical-slice.md) —— 第一个可玩版本的具体范围与验收。
 - [架构决策记录](docs/adr/README.md) —— 已确认的关键决策与背景。
-
-> 说明：`docs/README.md` 与 `docs/architecture/overview.md` 是早期脚手架生成的占位文件，内容已废弃。请以 `docs/index.md` 和 `docs/architecture/overview-design.md` 为准；这两个占位文件可在后续提交中删除。
 
 ## 模块分层
 
@@ -78,7 +78,7 @@
 5. **Phase E 完整循环**：M25 → M08 → M22（完整）→ M23 → M24。
 6. **Phase F 工具化**：M26 → M27。
 
-每个阶段的验收标准见[里程碑](docs/roadmap/milestones.md)。
+每个阶段的验收标准见[垂直切片](docs/roadmap/vertical-slice.md)。
 
 ## 目标仓库结构
 
@@ -89,11 +89,11 @@ Florian-s-Adventure/
 │  ├─ game/          # 玩法层：player / farming / combat / ai / npc ...
 │  └─ app/           # 唯一 composition root 与 main
 ├─ assets/           # 纹理 PNG（assets/textures/<类别>/，命名见 docs/architecture/conventions.md §11）
-├─ data/             # 内容/商店/叙事/音频/资源目录/实体生成表 JSON（格式见 docs/content-format.md）
+├─ data/             # 内容/商店/叙事/音频/资源目录/实体生成表 JSON（格式见 docs/reference/content-format.md）
 ├─ config/           # game.json（窗口/UI 缩放/路径/玩法参数）
 ├─ tools/            # 资源导入、校验、打包工具
 ├─ tests/            # 单元测试与集成测试
-├─ docs/             # 架构、模块、路线图、ADR
+├─ docs/             # 文档（guide/ reference/ status/ architecture/ adr/ roadmap/，导航见 docs/index.md）
 ├─ vcpkg.json
 └─ FloriansAdventure.sln
 ```
@@ -148,27 +148,27 @@ $msbuild='C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\
 
 `--resolution WxH` 覆盖窗口尺寸。演示地图（`data/maps/farm.json`、`farm-scripted.json`、
 `forest.json`）与 `data/entities.json` 的脚本化实体只服务自动化模式；正式玩法的起始内容
-是下一步的设计项，见 [交接文档](docs/handoff.md)。
+是下一步的设计项，见 [计划完成情况](docs/status/plan-status.md)。
 
 `--play` 操作：
 
 | 输入 | 动作 |
 |---|---|
-| `WASD` | 移动（八向朝向） |
+| `WASD` | 移动（八向朝向，四向帧动画；静止时呼吸待机动画） |
 | `Shift` | 奔跑，持续消耗体力 |
 | `Space` | 闪避/冲刺，消耗一次体力 |
-| `1`–`9` / 滚轮 | 选择快捷栏（1 锄头、2 浇水壶、3 萝卜种子） |
-| 左键 | 使用当前工具/种子；指向成熟作物自动收获（消耗体力） |
-| 右键 | 近战攻击（3 帧挥砍，`hit` 帧才判定；伤害读取装备武器 `damage`）；林地史莱姆/蝙蝠会追击/反击；命中显示受击闪烁、`-N` 伤害数字与 SFX，敌人死亡掉落并自动拾取 |
-| `F` | 食用选中的食物（汤：+20 HP、+30 体力） |
-| `E` | 交互（演示内容：Elder 对话、床边睡觉、出货箱出货、商人开商店）——**当前只在 `--play-test` 的演示地图里存在** |
-| 林地 | 史莱姆与快速蝙蝠会主动索敌/攻击，出招前有 3 帧挥砍起手；被打倒同样进入死亡菜单（演示地图内容） |
-| `I` | 打开背包：`全部/种子/工具/作物/食物/…` 分类 + `上一页/下一页`/滚轮翻页，点击「移动」在背包与快捷栏间转移 |
+| `1`–`9` / `0` / 滚轮 | 选择快捷栏（锄头、浇水壶、种子、汤、小船、木剑等） |
+| 左键 / `G` | 使用与交互（等效）：手持武器→近战挥砍；否则按优先级：村长/床/出货箱/商人交互 → 船（面向水域上船、靠岸下船）→ 食物进食 → 农具耕作 |
+| 右键 | 武器技能·剑气（仅手持武器；弹体沿朝向飞行，伤害=武器×1.5） |
+| `E` | 角色技能·瞬移（朝向前方 64px 内最远空位，带光环特效） |
+| 水面 | 选中船后面向水域按 `G`/左键上船；乘船时只能待在水域，靠岸按 `G` 跳岸下船 |
+| `I` | 打开背包：分类筛选 + 翻页，点击「移动」在背包与快捷栏间转移 |
 | `J` | 打开任务日志（进行中/已完成与目标进度） |
 | `Esc` | 关闭面板 / 暂停（继续/保存/存档槽/主菜单） |
 | 死亡 | GameOver 面板：`在床上复活` / `读取自动存档` / `主菜单`（鼠标） |
-| 反引号 | 调试控制台（`time.addDays N`、`time.set HH:MM`、`give`、`teleport`；命令保持英文） |
-| `F3` / `F4` / `F5` | 统计（含角色世界/格子坐标）/ 日志 / 物理调试（非 Release；`--debug` 下 F3 与物理默认开启） |
+| 反引号 | 调试控制台（`help`、`time.addDays N`、`time.set HH:MM`、`give`、`teleport`；中文输入法下可直接输入） |
+| `F2` | 地图编辑器（瓦片/对象/传送门/实体 四种 scope；瓦片单击查看、双击替换） |
+| `F3` / `F4` / `F5` | 统计+面向瓦片面板 / 日志 / 物理调试（默认关闭，`--debug` 启动即开） |
 
 体力数值在 `config/game.json` 的 `stamina` 段配置：`max`、`regen_per_second`、
 `run_drain_per_second`、`dodge_cost`、`attack_cost`、`tool_cost`。
@@ -176,7 +176,7 @@ $msbuild='C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\
 `stamina_restore` 字段配置。商店面板提供 `COOK SOUP`（消耗 2 个萝卜，30 游戏分钟）与 `COLLECT`；
 `data/shops.json` 的 `seasons` 控制季节库存，`price_swing` 控制按日价格波动幅度。
 `data/audio.json` 配置 8 个 SFX 与 1 首循环音乐（程序化音色），`data/catalog.json`
-注册纹理；完整字段见 [内容 JSON 格式](docs/content-format.md)。
+注册纹理；完整字段见 [内容 JSON 格式](docs/reference/content-format.md)。
 
 ### 地图编辑器（Debug / Development）
 
@@ -192,8 +192,8 @@ $msbuild='C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\
 「保存」在三种 scope 下都可见，会**同时**写回当前打开的地图文件与 `data/entities.json`；
 `entities.json` 里每行带 `map` 字段（`farm` / `forest` / `play/farm`），保存只重写当前地图的行，
 所以编辑农场不会动到林地的敌人。NPC 完全由数据决定：某张地图没有 `kind: "npc"` 的行，
-在那里按 `E` 就是「这张地图没有可对话对象」。详见
-[可视化编辑器设计 §10](docs/modules/26-visual-editor.md)。
+在那里按 `G` 就是「这张地图没有可对话对象」。接口与实现细节见
+[代码速查](docs/reference/code-reference.md) 的 M26 一节。
 
 存档包含日期/时间/天气、位置/朝向/生命/耐力、背包/快捷栏/装备、农田/作物、
 金币/出货/加工/商店余量、地面掉落、敌人存活与生命、杂物/放置物、AI 状态/目标，

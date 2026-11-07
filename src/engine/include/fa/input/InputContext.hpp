@@ -10,7 +10,7 @@ namespace fa::input {
 /// \brief Why a frame's input is being read. Each context owns its own ActionMap, so
 /// opening a menu makes gameplay actions stop firing even though the physical keys
 /// are still held - that is the "menu open => character stops" acceptance test
-/// in docs/modules/07-input.md, achieved without any per-action gating.
+/// in docs/reference/code-reference.md, achieved without any per-action gating.
 enum class InputContext : std::uint8_t {
     Gameplay,
     UI,

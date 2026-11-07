@@ -1,6 +1,6 @@
 # 美术资源策略：色块占位优先
 
-本文定义 v1 期间「资源长什么样」的规则。它是 [M05 Asset Pipeline](../modules/05-asset-pipeline.md) 与 [M06 Rendering](../modules/06-rendering.md) 共同依赖的约束。
+本文定义 v1 期间「资源长什么样」的规则。它是 M05 Asset Pipeline 与 M06 Rendering 共同依赖的约束。
 
 ## 1. 决定
 
@@ -98,7 +98,7 @@ tile >  0         → 以 tile 为边长的双色棋盘（color / altColor）
 （下表只列最早的 5 条基准项，
 其余是三种作物 × 4 阶段、第二个敌人、挥砍特效、9 张 `tex.item.*` 物品图标、四向行走/待机/划船
 角色表、敌人动画表、水/船/菜单素材与花/树/石装饰瓦片；新增流程见
-[地图组件协作指南](../adding-map-components.md)）：
+[地图组件协作指南](../guide/adding-map-components.md)）：
 
 | id | 尺寸 | 文件 | 用途 |
 |---|---|---|---|
@@ -113,7 +113,7 @@ tile >  0         → 以 tile 为边长的双色棋盘（color / altColor）
 背包列与快捷栏列都在每行左侧画 16×16 图标。解析不到图标时画洋红块，符合第 3 节的约定。
 商店与任务日志仍只显示文字，接图标是后续工作。
 
-新增资源时按 [模块文档](../modules/05-asset-pipeline.md) 的校验规则填写：
+新增资源时按 模块文档 的校验规则填写：
 `id` 唯一、`kind` 合法、path-less 纹理必须给 `size`、颜色必须是合法 HEX。
 
 ### 6.1 UI 字体图集
@@ -129,7 +129,7 @@ tile >  0         → 以 tile 为边长的双色棋盘（color / altColor）
 字体是 **Fusion Pixel Font**（<https://github.com/TakWolf/fusion-pixel-font>，SIL OFL 1.1，
 2026-10-30 取用时的最新 release，10px monospaced zh_hans 变体）。源 TTF 约 4 MB，**不入库**：
 它是未压缩的字体源文件，违反第 7 节；仓库里只放烘焙出来的位图，需要加字时按
-[M09 第 6 节](../modules/09-ui-and-text.md#6-扩展点) 重新生成。
+M09 第 6 节 重新生成。
 
 按 OFL 要求，再分发字形时必须附带许可文本，所以 `OFL.txt` 与图集同目录。
 
