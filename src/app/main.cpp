@@ -10200,7 +10200,14 @@ private:
         // M19: farmland and crops are plain data, so the composition root turns
         // them into tinted quads. Tilled cells sit below actors; crops use the
         // object layer and the cell's bottom edge as the depth key.
+        // Skipped while the editor owns the frame: these quads are world-space
+        // gameplay state (16 px/tile), and the editor draws the map in its own
+        // scaled viewport, so overlapping them produced a visible misalignment.
+#if defined(FA_ENABLE_EDITOR)
+        if (gameScene != nullptr && gameScene->isFarm() && uiWhiteTexture.isValid() && !editorWindowOpen) {
+#else
         if (gameScene != nullptr && gameScene->isFarm() && uiWhiteTexture.isValid()) {
+#endif
             for (const fa::farming::FarmTileEntry& entry : gameScene->farmingTiles()) {
                 const fa::core::Vec2 cellPosition = gameScene->farmingCellPosition(entry.cell);
                 if (entry.tile.tilled) {
