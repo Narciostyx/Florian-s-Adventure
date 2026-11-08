@@ -121,18 +121,25 @@ void VisualEditor::update(const VisualEditorInput& input, Rect mapViewport) {
         }
         return;
     }
-    // Regions: one scope, two tools. The palette toggle decides whether the two
-    // clicks build a portal trigger or a collision zone.
+    // Regions: one scope, three tools. The palette toggle decides whether the two
+    // clicks build a portal trigger, a collision zone or a farm zone.
     if (m_scope == EditorScope::Areas) {
         if (input.primaryPressed) {
-            if (m_areaCreatePortal) {
-                applyPortalClick(cell);
-            } else {
-                applyBlockerClick(cell);
+            switch (m_areaTool) {
+                case AreaTool::Portal:
+                    applyPortalClick(cell);
+                    break;
+                case AreaTool::Blocker:
+                    applyBlockerClick(cell);
+                    break;
+                case AreaTool::FarmZone:
+                    applyFarmZoneClick(cell);
+                    break;
             }
         } else if (input.secondaryPressed) {
             m_portalStart.reset();
             m_blockerStart.reset();
+            m_farmZoneStart.reset();
             m_status = "已取消";
         }
         return;
@@ -276,6 +283,18 @@ void VisualEditor::draw(ui::UiContext& ui,
             ui.panel(box, fa::core::Color{0.20f, 0.55f, 0.30f, 0.35f});
             ui.border(box, theme.accent, 1.0f);
         }
+        // Farm zones: brown soil tint, distinct from the green portal triggers.
+        for (const tilemap::MapArea& area : m_editor.map().areas()) {
+            if (area.kind != tilemap::AreaKind::FarmZone) {
+                continue;
+            }
+            const Rect box = makeRect(map.x + static_cast<float>(area.bounds.x) * step,
+                                      map.y + static_cast<float>(area.bounds.y) * step,
+                                      static_cast<float>(area.bounds.width) * step,
+                                      static_cast<float>(area.bounds.height) * step);
+            ui.panel(box, fa::core::Color{0.55f, 0.40f, 0.18f, 0.30f});
+            ui.border(box, fa::core::Color{0.75f, 0.58f, 0.30f, 0.90f}, 1.0f);
+        }
         if (m_placements != nullptr) {
             for (const MapPlacement& row : *m_placements) {
                 ui.panel(makeRect(map.x + static_cast<float>(row.cell.x) * step + 3.0f,
@@ -407,14 +426,20 @@ void VisualEditor::drawToolbar(ui::UiContext& ui, Rect screen) {
                               m_history.dirty() ? "未保存" : "已保存");
             }
             break;
-        case EditorScope::Areas:
+        case EditorScope::Areas: {
+            int farmZones = 0;
+            for (const tilemap::MapArea& area : m_editor.map().areas()) {
+                farmZones += area.kind == tilemap::AreaKind::FarmZone ? 1 : 0;
+            }
             std::snprintf(info,
                           sizeof(info),
-                          "区域 传送门%d 碰撞区%d  %s",
+                          "区域 门%d 区%d 耕%d  %s",
                           static_cast<int>(m_editor.map().portals().size()),
                           static_cast<int>(m_editor.map().blockers().size()),
+                          farmZones,
                           m_history.dirty() ? "未保存" : "已保存");
             break;
+        }
         case EditorScope::Placements:
             std::snprintf(info,
                           sizeof(info),
@@ -513,6 +538,8 @@ void VisualEditor::drawProperties(ui::UiContext& ui,
             drawPortalProperties(ui, props);
         } else if (m_selectedBlocker >= 0) {
             drawBlockerProperties(ui, props, textureIds);
+        } else if (m_selectedArea >= 0) {
+            drawFarmZoneProperties(ui, props);
         } else {
             ui.text(
                 "选择或点两格新建", makeRect(props.x + 6.0f, props.y + 16.0f, props.w - 12.0f, 8.0f), dimStyle(theme));
@@ -709,10 +736,12 @@ void VisualEditor::setScope(EditorScope scope) noexcept {
     m_scope = scope;
     m_portalStart.reset();
     m_blockerStart.reset();
+    m_farmZoneStart.reset();
     m_activeComponentKind = -1;
     m_selectedPlacement = -1;
     m_selectedPortal = -1;
     m_selectedBlocker = -1;
+    m_selectedArea = -1;
     m_selectedEntity = m_entityInfos.empty() ? -1 : 0;
     m_hasInspected = false;
     m_framesSinceClick = -1;
@@ -881,22 +910,35 @@ void VisualEditor::drawAreaPalette(ui::UiContext& ui, Rect palette) {
 
     float y = palette.y + 16.0f;
     // Create-tool toggle: which region type the next two clicks build.
-    const float half = (palette.w - 12.0f - 3.0f) / 2.0f;
-    const Rect portalTool = makeRect(palette.x + 6.0f, y, half, 13.0f);
-    if (ui.button(ui::UiId::fromName("ve.area.tool.portal"), "传送门", portalTool).pressed) {
-        m_areaCreatePortal = true;
+    const float gap = 3.0f;
+    const float third = (palette.w - 12.0f - 2.0f * gap) / 3.0f;
+    const auto toolButton = [&](const char* name, std::string_view text, int column) {
+        return ui
+            .button(ui::UiId::fromName(name),
+                    text,
+                    makeRect(palette.x + 6.0f + static_cast<float>(column) * (third + gap), y, third, 13.0f))
+            .pressed;
+    };
+    if (toolButton("ve.area.tool.portal", "传送门", 0)) {
+        m_areaTool = AreaTool::Portal;
         m_status = "新建：传送门";
     }
-    if (m_areaCreatePortal) {
-        ui.border(portalTool, theme.accent, 1.0f);
+    if (m_areaTool == AreaTool::Portal) {
+        ui.border(makeRect(palette.x + 6.0f, y, third, 13.0f), theme.accent, 1.0f);
     }
-    const Rect zoneTool = makeRect(palette.x + 6.0f + half + 3.0f, y, half, 13.0f);
-    if (ui.button(ui::UiId::fromName("ve.area.tool.blocker"), "碰撞区", zoneTool).pressed) {
-        m_areaCreatePortal = false;
+    if (toolButton("ve.area.tool.blocker", "碰撞区", 1)) {
+        m_areaTool = AreaTool::Blocker;
         m_status = "新建：碰撞区";
     }
-    if (!m_areaCreatePortal) {
-        ui.border(zoneTool, theme.accent, 1.0f);
+    if (m_areaTool == AreaTool::Blocker) {
+        ui.border(makeRect(palette.x + 6.0f + third + gap, y, third, 13.0f), theme.accent, 1.0f);
+    }
+    if (toolButton("ve.area.tool.farmzone", "耕地区", 2)) {
+        m_areaTool = AreaTool::FarmZone;
+        m_status = "新建：耕地区";
+    }
+    if (m_areaTool == AreaTool::FarmZone) {
+        ui.border(makeRect(palette.x + 6.0f + 2.0f * (third + gap), y, third, 13.0f), theme.accent, 1.0f);
     }
     y += 15.0f;
 
@@ -920,6 +962,7 @@ void VisualEditor::drawAreaPalette(ui::UiContext& ui, Rect palette) {
         if (ui.button(ui::UiId::fromName(id), line, rect).pressed) {
             m_selectedPortal = static_cast<int>(index);
             m_selectedBlocker = -1;
+            m_selectedArea = -1;
             m_portalStart.reset();
         }
         if (m_selectedPortal == static_cast<int>(index)) {
@@ -945,6 +988,7 @@ void VisualEditor::drawAreaPalette(ui::UiContext& ui, Rect palette) {
         if (ui.button(ui::UiId::fromName(id), line, rect).pressed) {
             m_selectedBlocker = static_cast<int>(index);
             m_selectedPortal = -1;
+            m_selectedArea = -1;
             m_blockerStart.reset();
         }
         if (m_selectedBlocker == static_cast<int>(index)) {
@@ -952,7 +996,39 @@ void VisualEditor::drawAreaPalette(ui::UiContext& ui, Rect palette) {
         }
         y += 15.0f;
     }
-    if (portals.empty() && blockers.empty()) {
+    // Farm zones live in the areas table; only the farm-zone rows are listed here.
+    const std::span<const tilemap::MapArea> areas = m_editor.map().areas();
+    bool anyFarmZone = false;
+    for (std::size_t index = 0; index < areas.size(); ++index) {
+        if (areas[index].kind != tilemap::AreaKind::FarmZone) {
+            continue;
+        }
+        anyFarmZone = true;
+        if (y + 13.0f > palette.y + palette.h) {
+            return;
+        }
+        char id[32]{};
+        std::snprintf(id, sizeof(id), "ve.area.farmzone.%zu", index);
+        char line[64]{};
+        std::snprintf(line,
+                      sizeof(line),
+                      "area_%u  %dx%d  耕",
+                      areas[index].areaId,
+                      areas[index].bounds.width,
+                      areas[index].bounds.height);
+        const Rect rect = makeRect(palette.x + 6.0f, y, palette.w - 12.0f, 13.0f);
+        if (ui.button(ui::UiId::fromName(id), line, rect).pressed) {
+            m_selectedArea = static_cast<int>(index);
+            m_selectedPortal = -1;
+            m_selectedBlocker = -1;
+            m_farmZoneStart.reset();
+        }
+        if (m_selectedArea == static_cast<int>(index)) {
+            ui.border(rect, theme.accent, 1.0f);
+        }
+        y += 15.0f;
+    }
+    if (portals.empty() && blockers.empty() && !anyFarmZone) {
         ui.text("无 - 选类型后点两格", makeRect(palette.x + 6.0f, y, palette.w - 12.0f, 8.0f), dimStyle(theme));
     }
 }
@@ -1367,6 +1443,76 @@ int VisualEditor::blockerIndexAt(const tilemap::TileCoord cell) const noexcept {
         }
     }
     return -1;
+}
+
+void VisualEditor::applyFarmZoneClick(const tilemap::TileCoord cell) {
+    if (m_farmZoneStart.has_value()) {
+        const tilemap::TileCoord from = *m_farmZoneStart;
+        const tilemap::TileCoord to = cell;
+        tilemap::MapArea area;
+        area.bounds = tilemap::TileBounds{
+            std::min(from.x, to.x), std::min(from.y, to.y), std::abs(from.x - to.x) + 1, std::abs(from.y - to.y) + 1};
+        area.kind = tilemap::AreaKind::FarmZone;
+        // Area ids are numeric and stable in saves: take the next free number.
+        std::uint32_t nextId = 1;
+        for (const tilemap::MapArea& existing : m_editor.map().areas()) {
+            nextId = std::max(nextId, existing.areaId + 1);
+        }
+        area.areaId = nextId;
+        m_editor.map().addArea(area);
+        m_farmZoneStart.reset();
+        m_selectedArea = static_cast<int>(m_editor.map().areas().size()) - 1;
+        m_history.markDirty();
+        char line[64]{};
+        std::snprintf(line, sizeof(line), "已创建耕地区域 %dx%d", area.bounds.width, area.bounds.height);
+        m_status = line;
+        return;
+    }
+    const int existing = farmZoneIndexAt(cell);
+    if (existing >= 0) {
+        m_selectedArea = existing;
+        m_status = "已选中耕地区域";
+        return;
+    }
+    m_farmZoneStart = cell;
+    m_status = "再点一次确定对角";
+}
+
+int VisualEditor::farmZoneIndexAt(const tilemap::TileCoord cell) const noexcept {
+    const std::span<const tilemap::MapArea> areas = m_editor.map().areas();
+    for (std::size_t index = 0; index < areas.size(); ++index) {
+        if (areas[index].kind == tilemap::AreaKind::FarmZone && areas[index].bounds.contains(cell)) {
+            return static_cast<int>(index);
+        }
+    }
+    return -1;
+}
+
+void VisualEditor::drawFarmZoneProperties(ui::UiContext& ui, Rect props) {
+    const ui::UiTheme& theme = ui.theme();
+    float y = props.y + 16.0f;
+    char id[32]{};
+    char line[96]{};
+    const std::span<tilemap::MapArea> areas = m_editor.map().mutableAreas();
+    if (m_selectedArea < 0 || m_selectedArea >= static_cast<int>(areas.size()) ||
+        areas[static_cast<std::size_t>(m_selectedArea)].kind != tilemap::AreaKind::FarmZone) {
+        ui.text("选择或点两格新建", makeRect(props.x + 6.0f, y, props.w - 12.0f, 8.0f), dimStyle(theme));
+        return;
+    }
+    tilemap::MapArea& area = areas[static_cast<std::size_t>(m_selectedArea)];
+    std::snprintf(line, sizeof(line), "耕地区域 %u  %dx%d", area.areaId, area.bounds.width, area.bounds.height);
+    ui.text(line, makeRect(props.x + 6.0f, y, props.w - 12.0f, 8.0f), labelStyle(theme));
+    y += 12.0f;
+    ui.text("区内草地可用锄头开垦", makeRect(props.x + 6.0f, y, props.w - 12.0f, 8.0f), dimStyle(theme));
+    y += 12.0f;
+
+    std::snprintf(id, sizeof(id), "ve.farmzone.delete.%d", m_selectedArea);
+    if (ui.button(ui::UiId::fromName(id), "删除", makeRect(props.x + 6.0f, y, props.w - 12.0f, 11.0f)).pressed) {
+        m_editor.map().removeArea(static_cast<std::size_t>(m_selectedArea));
+        m_selectedArea = -1;
+        m_history.markDirty();
+        m_status = "已删除耕地区域";
+    }
 }
 
 void VisualEditor::drawDecorPalette(ui::UiContext& ui, Rect palette) {

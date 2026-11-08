@@ -482,7 +482,7 @@ TEST_CASE("two clicks with the zone tool in the areas scope create a collision z
     idle.cursorScreen = fa::core::Vec2{-100.0f, -100.0f};
     editor.update(idle, viewport);
     editor.setScope(EditorScope::Areas);
-    editor.setAreaTool(false);  // the collision-zone create tool
+    editor.setAreaTool(VisualEditor::AreaTool::Blocker);  // the collision-zone create tool
 
     VisualEditorInput first;
     first.cursorScreen = fa::core::Vec2{40.0f, 40.0f};
@@ -515,6 +515,51 @@ TEST_CASE("two clicks with the zone tool in the areas scope create a collision z
     CHECK_FALSE(map.isSolidCell(3, 3));
 }
 
+TEST_CASE("the areas scope boxes a farm zone that makes grass tillable", "[editor]") {
+    using fa::editor::EditorScope;
+    using fa::editor::VisualEditor;
+    using fa::editor::VisualEditorInput;
+
+    Tilemap map = makeMap();
+    VisualEditor editor(map);
+    // The plain grass ground is not tillable before any zone exists.
+    CHECK_FALSE(map.isTillable(3, 3));
+
+    editor.setActive(true);
+    const fa::core::Rect viewport{0.0f, 0.0f, 128.0f, 128.0f};
+
+    VisualEditorInput idle;
+    idle.cursorScreen = fa::core::Vec2{-100.0f, -100.0f};
+    editor.update(idle, viewport);
+    editor.setScope(EditorScope::Areas);
+    editor.setAreaTool(VisualEditor::AreaTool::FarmZone);
+
+    VisualEditorInput first;
+    first.cursorScreen = fa::core::Vec2{40.0f, 40.0f};
+    first.primaryPressed = true;
+    editor.update(first, viewport);
+    CHECK(map.areas().empty());
+
+    VisualEditorInput second;
+    second.cursorScreen = fa::core::Vec2{104.0f, 56.0f};
+    second.primaryPressed = true;
+    editor.update(second, viewport);
+
+    REQUIRE(map.areas().size() == 1);
+    CHECK(map.areas()[0].kind == fa::tilemap::AreaKind::FarmZone);
+    CHECK(map.areas()[0].bounds == fa::tilemap::TileBounds{2, 2, 5, 2});
+    // Inside the box the grass may now be hoed; outside it may not.
+    CHECK(map.isTillable(3, 3));
+    CHECK_FALSE(map.isTillable(0, 0));
+    CHECK(editor.dirty());
+
+    const fa::core::Result<Tilemap> reloaded = fa::tilemap::loadTilemapFromJson(editor.mapText());
+    REQUIRE(reloaded.isOk());
+    REQUIRE(reloaded.value().areas().size() == 1);
+    CHECK(reloaded.value().areas()[0].kind == fa::tilemap::AreaKind::FarmZone);
+    CHECK(reloaded.value().isTillable(3, 3));
+}
+
 TEST_CASE("two clicks in the areas scope create a portal trigger that survives JSON", "[editor]") {
     using fa::editor::EditorScope;
     using fa::editor::VisualEditor;
@@ -530,7 +575,7 @@ TEST_CASE("two clicks in the areas scope create a portal trigger that survives J
     idle.cursorScreen = fa::core::Vec2{-100.0f, -100.0f};
     editor.update(idle, viewport);
     editor.setScope(EditorScope::Areas);
-    CHECK(editor.areaToolPortal());  // default create tool is the portal
+    CHECK(editor.currentAreaTool() == VisualEditor::AreaTool::Portal);  // default create tool is the portal
 
     VisualEditorInput first;
     first.cursorScreen = fa::core::Vec2{40.0f, 40.0f};

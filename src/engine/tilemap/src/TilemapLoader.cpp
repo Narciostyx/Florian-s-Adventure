@@ -146,6 +146,10 @@ using namespace fa::core::jsonread;  // NOLINT: shared type-checked readers (fa/
         out = AreaKind::Greenhouse;
         return true;
     }
+    if (name == "farm_zone") {
+        out = AreaKind::FarmZone;
+        return true;
+    }
     return false;
 }
 
@@ -367,8 +371,8 @@ core::Result<Tilemap> loadTilemapFromJson(std::string_view json) {
                     jsonError(tilemap_error::kInvalidRegion, "duplicate area id " + std::to_string(areaId)));
             }
             if (!readAreaKind(entry, area.kind)) {
-                return core::Result<Tilemap>::err(
-                    jsonError(tilemap_error::kInvalidRegion, "area has an unknown \"kind\" (outdoor or greenhouse)"));
+                return core::Result<Tilemap>::err(jsonError(
+                    tilemap_error::kInvalidRegion, "area has an unknown \"kind\" (outdoor, greenhouse or farm_zone)"));
             }
             const auto bounds = entry.find("bounds");
             if (bounds == entry.end() || !readBoundsValue(*bounds, area.bounds) ||

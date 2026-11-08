@@ -71,10 +71,12 @@ public:
     /// \brief Selects an entity component for the 组件 scope by kind name.
     /// \return false when the kind is not in the component list.
     bool selectComponent(std::string_view kind) noexcept;
-    /// \brief What the next two clicks in the 区域 scope create: true = portal,
-    /// false = collision zone. The palette toggle and tests drive this.
-    void setAreaTool(bool portalTool) noexcept { m_areaCreatePortal = portalTool; }
-    [[nodiscard]] bool areaToolPortal() const noexcept { return m_areaCreatePortal; }
+    /// \brief What the next two clicks in the 区域 scope create.
+    enum class AreaTool : std::uint8_t { Portal, Blocker, FarmZone };
+
+    /// \brief Selects the 区域 create tool. The palette toggle and tests drive this.
+    void setAreaTool(AreaTool tool) noexcept { m_areaTool = tool; }
+    [[nodiscard]] AreaTool currentAreaTool() const noexcept { return m_areaTool; }
     /// \brief Callback that writes the placement table back to `data/entities.json`.
     void setPlacementSave(PlacementSaveHandler handler);
     /// \brief Map ids a portal may lead to. The app owns the map registry.
@@ -150,6 +152,8 @@ private:
     void drawDecorProperties(ui::UiContext& ui, core::Rect props);
     /// \brief Inspector for the selected collision zone: texture, height, door, delete.
     void drawBlockerProperties(ui::UiContext& ui, core::Rect props, std::span<const std::string> textureIds);
+    /// \brief Inspector for the selected farm zone.
+    void drawFarmZoneProperties(ui::UiContext& ui, core::Rect props);
     /// \brief Inspector for the placement scope.
     void drawObjectProperties(ui::UiContext& ui, core::Rect props);
     /// \brief Entity list panel (read-only scope): one button per spawn row.
@@ -179,6 +183,8 @@ private:
     void applyDecorErase(tilemap::TileCoord cell);
     /// \brief First click sets the corner, second builds the collision zone (blocker scope).
     void applyBlockerClick(tilemap::TileCoord cell);
+    /// \brief First click sets the corner, second builds the farm zone (areas scope).
+    void applyFarmZoneClick(tilemap::TileCoord cell);
     /// \brief Index of the layer components stand on: "decor", else the
     /// ground-detail layer, else created on demand. -1 when unusable.
     [[nodiscard]] int decorLayerIndex();
@@ -190,6 +196,7 @@ private:
     [[nodiscard]] int placementIndexAt(tilemap::TileCoord cell) const noexcept;
     [[nodiscard]] int portalIndexAt(tilemap::TileCoord cell) const noexcept;
     [[nodiscard]] int blockerIndexAt(tilemap::TileCoord cell) const noexcept;
+    [[nodiscard]] int farmZoneIndexAt(tilemap::TileCoord cell) const noexcept;
     [[nodiscard]] int entityIndexAt(tilemap::TileCoord cell) const noexcept;
     /// @}
     /// \brief Runs the placement save callback when the app supplied one.
@@ -213,8 +220,8 @@ private:
     /// \brief Subset of `m_kinds` shown in the component palette; -1 selects a tile.
     std::vector<PlacementKind> m_componentKinds;
     int m_activeComponentKind = -1;
-    /// \brief 区域 scope create tool: true builds a portal, false a collision zone.
-    bool m_areaCreatePortal = true;
+    /// \brief 区域 scope create tool: portal, collision zone or farm zone.
+    AreaTool m_areaTool = AreaTool::Portal;
     PlacementSaveHandler m_placementSave;
     std::vector<std::string> m_portalTargets;
     /// \brief Read-only spawn rows for the Entities scope; owned by the editor between opens.
@@ -223,6 +230,8 @@ private:
     int m_selectedPlacement = -1;
     int m_selectedPortal = -1;
     int m_selectedBlocker = -1;
+    /// \brief Selected farm-zone row in `map().areas()`; -1 when nothing is picked.
+    int m_selectedArea = -1;
     int m_selectedEntity = -1;
     int m_activeKind = 0;
     /// \brief 单击查看 / 双击替换（笔刷工具）：距首次点击的帧数，-1=无待确认点击。
@@ -238,6 +247,8 @@ private:
     std::optional<tilemap::TileCoord> m_portalStart;
     /// \brief First corner of a collision zone that is mid-creation (click-click).
     std::optional<tilemap::TileCoord> m_blockerStart;
+    /// \brief First corner of a farm zone that is mid-creation (click-click).
+    std::optional<tilemap::TileCoord> m_farmZoneStart;
 };
 
 }  // namespace fa::editor

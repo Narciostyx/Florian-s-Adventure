@@ -29,6 +29,8 @@ std::string_view toString(AreaKind kind) noexcept {
             return "outdoor";
         case AreaKind::Greenhouse:
             return "greenhouse";
+        case AreaKind::FarmZone:
+            return "farm_zone";
         default:
             return "unknown";
     }
@@ -257,7 +259,20 @@ bool Tilemap::isWater(int column, int row) const noexcept {
 }
 
 bool Tilemap::isTillable(int column, int row) const noexcept {
-    return anyDefHas(column, row, &TileDef::tillable);
+    if (anyDefHas(column, row, &TileDef::tillable)) {
+        return true;
+    }
+    // A farm zone makes ordinary ground (grass) tillable without a tile def.
+    return farmZoneAt(TileCoord{column, row}) != nullptr;
+}
+
+const MapArea* Tilemap::farmZoneAt(TileCoord coord) const noexcept {
+    for (const MapArea& area : m_areas) {
+        if (area.kind == AreaKind::FarmZone && area.bounds.contains(coord)) {
+            return &area;
+        }
+    }
+    return nullptr;
 }
 
 bool Tilemap::isSolidCell(int column, int row) const noexcept {

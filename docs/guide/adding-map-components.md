@@ -13,7 +13,7 @@ M12 瓦片地图、M26 可视化编辑器。
 |---|---|---|---|---|
 | **瓦片 Tile** | `data/maps/<地图>.json` 的 `tiles` 定义 + `ground` 图层格 | 作用域「瓦片」→ 笔刷面板选地面瓦片、单击查看/双击替换 | 铺满一格的地面：站得上去、参与物理与寻路 | grass、wall、soil、water、bramble |
 | **组件 Component** | 瓦片类：`decor` 图层格（`tag` 为 `decor`/`obstacle` 或 `render_height>1` 的定义自动归入）；实体类：`data/entities.json` 的 spawn 行 | 作用域「组件」→ 选条目后**左键点格放置、右键清除**（瓦片类走撤销历史） | 站在地表之上的叠放物与家具。**所有组件都要求下方是特定瓦片（当前=草地 grass），永不替换地面** | flower、tree、stone、grass_tuft、床、箱子、荆棘 |
-| **区域 Area** | 地图 JSON 的 `portals` / `blockers` 数组 | 作用域「区域」→ 面板先选新建类型（传送门/碰撞区），再点两格框选 | 矩形地图区域：传送触发、整片禁行+立绘贴图 | portal、碰撞区 |
+| **区域 Area** | 地图 JSON 的 `portals` / `blockers` / `areas` 数组 | 作用域「区域」→ 面板先选新建类型（传送门/碰撞区/耕地区），再点两格框选 | 矩形地图区域：传送触发、整片禁行+立绘贴图、可耕范围 | portal、碰撞区、耕地区域 |
 | **对象 Placement** | `data/entities.json`（`EntitySpawn` 表） | 作用域「对象」→ 选种类后点格放置 | **仅人物/生物**：对话 NPC、商人、敌人 | npc、merchant、enemy |
 
 判断口诀：**"是什么地面"→ 瓦片；"草地上站了什么（含家具/荆棘）"→ 组件；"一片矩形区域"→ 区域；"会走路的角色"→ 对象**。
@@ -218,3 +218,16 @@ fa_app --play-test  exit 0、无 "-> bad"
   留空表示"只有判定、不画"。
 - 贴图句柄与瓦片一样由合成根按名字绑定（`bindMapTextures` / 编辑器保存后重绑），
   所以新碰撞区贴图同样受第 6 节双源登记与色块回落约束。
+
+## 13. 耕地区域（Farm Zone，编辑器「区域」作用域）
+
+「区域」面板的第三种新建工具。点两格框选一片矩形，登记为地图 `areas` 数组里
+`kind = "farm_zone"` 的 `MapArea`：**区域内的普通地面（草地）自动变为可耕**——
+锄头在区内把草开垦成土，区外依旧不行；已有的 `tillable` 瓦片（soil）不受影响。
+
+- 判定入口是 `Tilemap::isTillable`（`anyDefHas(tillable) || farmZoneAt(cell)`），
+  M19 农事与 F3 面向瓦片面板自动生效，玩法代码零改动。
+- 编辑器叠层为棕色半透明（区别于绿色传送门、红色碰撞区）；属性面板可删除。
+- JSON 形如 `{ "id": 1, "kind": "farm_zone", "bounds": [8, 5, 6, 4] }`；`id` 为正整数
+  且在地图内唯一（loader 已校验），编辑器自动取下一个空号。
+- 与温室（greenhouse）同表不同用途：温室是环境属性（反季生长），耕地区是农事许可。

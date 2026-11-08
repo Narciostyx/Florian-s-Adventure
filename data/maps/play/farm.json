@@ -9,7 +9,18 @@
     ],
     "music": ""
   },
-  "areas": [],
+  "areas": [
+    {
+      "bounds": [
+        1,
+        6,
+        10,
+        7
+      ],
+      "id": 1,
+      "kind": "farm_zone"
+    }
+  ],
   "blockers": [],
   "height": 23,
   "layers": [

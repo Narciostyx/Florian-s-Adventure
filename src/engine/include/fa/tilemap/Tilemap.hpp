@@ -22,10 +22,13 @@ namespace fa::tilemap {
 /// \brief What a map region is used for.
 ///
 /// Greenhouse is an area property, not a separate scene (ADR-0002), so M19 reads it
-/// from the map and never hard-codes coordinates.
+/// from the map and never hard-codes coordinates. A farm zone marks tillable ground
+/// without a tillable tile def: the hoe may open grass inside the region.
 enum class AreaKind : std::uint8_t {
     Outdoor,
     Greenhouse,
+    /// \brief 耕地区域: cells become tillable for the farming tools.
+    FarmZone,
     Count,
 };
 
@@ -213,8 +216,12 @@ public:
     /// \brief Whether any def on the cell is water. Out-of-grid cells are dry.
     [[nodiscard]] bool isWater(int column, int row) const noexcept;
 
-    /// \brief Whether any def on the cell can be tilled. Out-of-grid cells are not.
+    /// \brief Whether any def on the cell can be tilled, or a farm zone covers it.
+    /// Out-of-grid cells are not.
     [[nodiscard]] bool isTillable(int column, int row) const noexcept;
+
+    /// \brief The first farm-zone area containing `coord`, or null.
+    [[nodiscard]] const MapArea* farmZoneAt(TileCoord coord) const noexcept;
 
     /// \brief Whether any def on the cell is a wall, or a blocking collision
     /// zone covers it.

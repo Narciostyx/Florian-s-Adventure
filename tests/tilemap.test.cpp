@@ -325,6 +325,31 @@ TEST_CASE("regions can be edited and removed after loading", "[tilemap][regions]
     CHECK_FALSE(map.removePortal(1));
 }
 
+TEST_CASE("farm zones make ground tillable and survive the JSON round trip", "[tilemap][regions]") {
+    Tilemap map(6, 6, kTile);
+    REQUIRE(map.addTileDef(makeDef(1)));  // grass: walkable, not tillable
+    addGround(map, TileId{1});
+    CHECK_FALSE(map.isTillable(3, 3));
+
+    fa::tilemap::MapArea zone;
+    zone.areaId = 4;
+    zone.kind = AreaKind::FarmZone;
+    zone.bounds = TileBounds{2, 2, 2, 2};
+    map.addArea(zone);
+    CHECK(map.isTillable(3, 3));
+    CHECK_FALSE(map.isTillable(1, 1));
+    REQUIRE(map.farmZoneAt(TileCoord{2, 2}) != nullptr);
+    CHECK(map.farmZoneAt(TileCoord{2, 2})->areaId == 4);
+    CHECK(fa::tilemap::toString(AreaKind::FarmZone) == "farm_zone");
+
+    const std::string text = fa::tilemap::saveTilemapToJson(map);
+    const auto loaded = fa::tilemap::loadTilemapFromJson(text);
+    REQUIRE(loaded.isOk());
+    REQUIRE(loaded.value().areas().size() == 1);
+    CHECK(loaded.value().areas()[0].kind == AreaKind::FarmZone);
+    CHECK(loaded.value().isTillable(3, 3));
+}
+
 TEST_CASE("collision zones block cells and open again under portals", "[tilemap][regions]") {
     Tilemap map(6, 6, kTile);
     REQUIRE(map.addTileDef(makeDef(1)));
