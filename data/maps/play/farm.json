@@ -10,6 +10,20 @@
     "music": ""
   },
   "areas": [],
+  "blockers": [
+    {
+      "bounds": [
+        26,
+        8,
+        10,
+        6
+      ],
+      "id": "zone_1",
+      "passable": false,
+      "render_height": 8,
+      "texture": "tex.marker"
+    }
+  ],
   "height": 23,
   "layers": [
     {
@@ -1365,7 +1379,7 @@
         0,
         0,
         0,
-        0,
+        7,
         0,
         0,
         0,
@@ -1864,7 +1878,9 @@
         0,
         0,
         0
-      ]
+      ],
+      "visible": true,
+      "z_order": 0
     }
   ],
   "origin": [
@@ -1927,43 +1943,40 @@
     {
       "id": 5,
       "name": "water",
-      "texture": "tex.ground.water",
       "solid": true,
-      "walkable": false,
-      "water": true,
-      "tillable": false,
       "source": [
         0.0,
         0.0,
         0.0,
         0.0
       ],
-      "tag": "water"
+      "tag": "water",
+      "texture": "tex.ground.water",
+      "tillable": false,
+      "walkable": false,
+      "water": true
     },
     {
       "id": 6,
       "name": "flower",
-      "texture": "tex.ground.flower",
       "solid": false,
-      "walkable": true,
-      "tillable": false,
-      "water": false,
       "source": [
         0.0,
         0.0,
         0.0,
         0.0
       ],
-      "tag": "decor"
+      "tag": "decor",
+      "texture": "tex.ground.flower",
+      "tillable": false,
+      "walkable": true,
+      "water": false
     },
     {
       "id": 7,
       "name": "tree",
-      "texture": "tex.ground.tree",
+      "render_height": 3,
       "solid": true,
-      "walkable": false,
-      "tillable": false,
-      "water": false,
       "source": [
         0.0,
         0.0,
@@ -1971,23 +1984,42 @@
         0.0
       ],
       "tag": "obstacle",
-      "render_height": 3
+      "texture": "tex.ground.tree",
+      "tillable": false,
+      "walkable": false,
+      "water": false
     },
     {
       "id": 8,
       "name": "stone",
-      "texture": "tex.ground.stone",
       "solid": true,
-      "walkable": false,
-      "tillable": false,
-      "water": false,
       "source": [
         0.0,
         0.0,
         0.0,
         0.0
       ],
-      "tag": "obstacle"
+      "tag": "obstacle",
+      "texture": "tex.ground.stone",
+      "tillable": false,
+      "walkable": false,
+      "water": false
+    },
+    {
+      "id": 9,
+      "name": "grass_tuft",
+      "solid": false,
+      "source": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "tag": "decor",
+      "texture": "tex.ground.grass_tuft",
+      "tillable": false,
+      "walkable": true,
+      "water": false
     }
   ],
   "width": 40

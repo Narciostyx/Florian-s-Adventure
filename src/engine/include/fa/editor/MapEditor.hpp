@@ -47,6 +47,9 @@ public:
     [[nodiscard]] core::Status applySecondary();
 
     [[nodiscard]] core::Status paint(tilemap::TileCoord cell, tilemap::TileId tile);
+    /// \brief Paints one cell of an explicit layer (undoable), used by the decor
+    /// component scope so placing grass/flower/tree never touches the ground tile.
+    [[nodiscard]] core::Status paintAt(tilemap::TileCoord cell, tilemap::TileId tile, int layerIndex);
     [[nodiscard]] core::Status erase(tilemap::TileCoord cell);
     [[nodiscard]] core::Status fillRect(tilemap::TileCoord from, tilemap::TileCoord to, tilemap::TileId tile);
     [[nodiscard]] core::Status floodFill(tilemap::TileCoord start, tilemap::TileId tile);

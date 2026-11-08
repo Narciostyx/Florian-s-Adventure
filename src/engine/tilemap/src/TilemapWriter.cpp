@@ -104,6 +104,18 @@ std::string saveTilemapToJson(const Tilemap& map) {
     }
     document["portals"] = std::move(portals);
 
+    Json blockers = Json::array();
+    for (const MapBlocker& blocker : map.blockers()) {
+        Json entry;
+        entry["id"] = blocker.id;
+        entry["bounds"] = boundsJson(blocker.bounds);
+        entry["texture"] = blocker.textureName;
+        entry["render_height"] = blocker.renderHeight;
+        entry["passable"] = blocker.passable;
+        blockers.push_back(std::move(entry));
+    }
+    document["blockers"] = std::move(blockers);
+
     const MapAmbient& ambient = map.ambient();
     document["ambient"] =
         Json{{"indoor", ambient.indoor},

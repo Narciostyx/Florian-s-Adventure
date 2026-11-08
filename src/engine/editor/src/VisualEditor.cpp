@@ -38,6 +38,12 @@ VisualEditor::VisualEditor(tilemap::Tilemap& map) : m_history(128), m_editor(map
         m_selectedTile = map.tileDefs().front().id;
         m_editor.setBrush(m_selectedTile);
     }
+    for (const tilemap::TileDef& def : map.tileDefs()) {
+        if (isComponentDef(def)) {
+            m_decorBrush = def.id;
+            break;
+        }
+    }
 }
 
 void VisualEditor::setActive(bool active) noexcept {
@@ -102,6 +108,25 @@ void VisualEditor::update(const VisualEditorInput& input, Rect mapViewport) {
             applyPlacementClick(cell);
         } else if (input.secondaryPressed) {
             applyPlacementErase(cell);
+        }
+        return;
+    }
+    // Components stand on top of the ground: this scope paints the decor layer
+    // only, and only over grass, so a placement never replaces the tile below.
+    if (m_scope == EditorScope::Decor) {
+        if (input.primaryPressed) {
+            applyDecorClick(cell);
+        } else if (input.secondaryPressed) {
+            applyDecorErase(cell);
+        }
+        return;
+    }
+    if (m_scope == EditorScope::Blockers) {
+        if (input.primaryPressed) {
+            applyBlockerClick(cell);
+        } else if (input.secondaryPressed) {
+            m_blockerStart.reset();
+            m_status = "已取消";
         }
         return;
     }
@@ -198,6 +223,9 @@ void VisualEditor::resizeMap(int width, int height) {
     for (const tilemap::MapPortal& portal : map.portals()) {
         resized.addPortal(portal);
     }
+    for (const tilemap::MapBlocker& blocker : map.blockers()) {
+        resized.addBlocker(blocker);
+    }
     map = std::move(resized);
     m_history.clear();
     char message[64]{};
@@ -231,6 +259,16 @@ void VisualEditor::draw(ui::UiContext& ui,
     // earlier render layer) stay underneath them.
     if (!m_editor.map().empty()) {
         const float step = kTileSize * m_tileScale;
+        for (const tilemap::MapBlocker& blocker : m_editor.map().blockers()) {
+            const Rect box = makeRect(map.x + static_cast<float>(blocker.bounds.x) * step,
+                                      map.y + static_cast<float>(blocker.bounds.y) * step,
+                                      static_cast<float>(blocker.bounds.width) * step,
+                                      static_cast<float>(blocker.bounds.height) * step);
+            // Reddish: blocked ground. A zone reopened as a door is drawn hollow.
+            ui.panel(box, blocker.passable ? fa::core::Color{0.30f, 0.50f, 0.80f, 0.18f}
+                                           : fa::core::Color{0.72f, 0.28f, 0.24f, 0.32f});
+            ui.border(box, fa::core::Color{0.85f, 0.40f, 0.32f, 0.90f}, 1.0f);
+        }
         for (const tilemap::MapPortal& portal : m_editor.map().portals()) {
             const Rect box = makeRect(map.x + static_cast<float>(portal.bounds.x) * step,
                                       map.y + static_cast<float>(portal.bounds.y) * step,
@@ -311,6 +349,12 @@ void VisualEditor::drawToolbar(ui::UiContext& ui, Rect screen) {
     if (button("ve.scope.tiles", "瓦片", 36.0f)) {
         setScope(EditorScope::Tiles);
     }
+    if (button("ve.scope.decor", "组件", 36.0f)) {
+        setScope(EditorScope::Decor);
+    }
+    if (button("ve.scope.blockers", "碰撞区", 48.0f)) {
+        setScope(EditorScope::Blockers);
+    }
     if (button("ve.scope.objects", "对象", 36.0f)) {
         setScope(EditorScope::Placements);
     }
@@ -333,6 +377,10 @@ void VisualEditor::drawToolbar(ui::UiContext& ui, Rect screen) {
             m_editor.setTool(EditorTool::Fill);
         }
         x += 8.0f;
+    }
+    // Undo/redo walk the same tile history wherever the change came from: tile
+    // brushes and decor placements are both tile commands.
+    if (tileScope || m_scope == EditorScope::Decor) {
         if (button("ve.undo", "撤销", 40.0f)) {
             static_cast<void>(m_history.undo(m_editor.map()));
             m_status = "已撤销";
@@ -354,6 +402,20 @@ void VisualEditor::drawToolbar(ui::UiContext& ui, Rect screen) {
 
     char info[96]{};
     switch (m_scope) {
+        case EditorScope::Decor:
+            std::snprintf(info,
+                          sizeof(info),
+                          "组件 #%u  仅草地  %s",
+                          m_decorBrush.value,
+                          m_history.dirty() ? "未保存" : "已保存");
+            break;
+        case EditorScope::Blockers:
+            std::snprintf(info,
+                          sizeof(info),
+                          "碰撞区 %d 个  %s",
+                          static_cast<int>(m_editor.map().blockers().size()),
+                          m_history.dirty() ? "未保存" : "已保存");
+            break;
         case EditorScope::Placements:
             std::snprintf(info,
                           sizeof(info),
@@ -395,6 +457,14 @@ void VisualEditor::drawPalette(ui::UiContext& ui, Rect screen, std::span<const s
         drawEntityPalette(ui, palette);
         return;
     }
+    if (m_scope == EditorScope::Decor) {
+        drawDecorPalette(ui, palette);
+        return;
+    }
+    if (m_scope == EditorScope::Blockers) {
+        drawBlockerPalette(ui, palette);
+        return;
+    }
     if (m_scope != EditorScope::Tiles) {
         drawObjectPalette(ui, palette);
         return;
@@ -405,6 +475,11 @@ void VisualEditor::drawPalette(ui::UiContext& ui, Rect screen, std::span<const s
 
     float y = palette.y + 28.0f;
     for (const tilemap::TileDef& def : m_editor.map().tileDefs()) {
+        // Grass/flower/tree-like overlays are components, not tiles: they live
+        // in the 组件 scope so painting one can never replace the ground tile.
+        if (isComponentDef(def)) {
+            continue;
+        }
         if (y + 14.0f > palette.y + palette.h) {
             break;
         }
@@ -438,6 +513,14 @@ void VisualEditor::drawProperties(ui::UiContext& ui,
     ui.text("属性", makeRect(props.x + 6.0f, props.y + 4.0f, 180.0f, 8.0f), labelStyle(theme));
     if (m_scope == EditorScope::Entities) {
         drawEntityProperties(ui, props);
+        return;
+    }
+    if (m_scope == EditorScope::Decor) {
+        drawDecorProperties(ui, props);
+        return;
+    }
+    if (m_scope == EditorScope::Blockers) {
+        drawBlockerProperties(ui, props, textureIds);
         return;
     }
     if (m_scope != EditorScope::Tiles) {
@@ -618,8 +701,10 @@ void VisualEditor::setScope(EditorScope scope) noexcept {
     }
     m_scope = scope;
     m_portalStart.reset();
+    m_blockerStart.reset();
     m_selectedPlacement = -1;
     m_selectedPortal = -1;
+    m_selectedBlocker = -1;
     m_selectedEntity = m_entityInfos.empty() ? -1 : 0;
     m_hasInspected = false;
     m_framesSinceClick = -1;
@@ -630,6 +715,10 @@ std::span<const MapPlacement> VisualEditor::placements() const noexcept {
         return {};
     }
     return std::span<const MapPlacement>{*m_placements};
+}
+
+std::span<const tilemap::MapBlocker> VisualEditor::blockers() const noexcept {
+    return m_editor.map().blockers();
 }
 
 int VisualEditor::placementIndexAt(const tilemap::TileCoord cell) const noexcept {
@@ -1063,6 +1152,331 @@ void VisualEditor::drawEntityProperties(ui::UiContext& ui, Rect props) {
                 makeRect(props.x + 6.0f, y, props.w - 12.0f, 8.0f),
                 dimStyle(theme));
         y += 11.0f;
+    }
+}
+
+bool VisualEditor::isComponentDef(const tilemap::TileDef& def) noexcept {
+    return def.tag == "decor" || def.tag == "obstacle" || def.renderHeight > 1;
+}
+
+int VisualEditor::decorLayerIndex() {
+    tilemap::Tilemap& map = m_editor.map();
+    int index = map.findLayer("decor");
+    if (index < 0) {
+        for (int i = 0; i < map.layerCount(); ++i) {
+            const tilemap::TileLayer* layer = map.layerAt(i);
+            if (layer != nullptr && layer->renderLayer == render::RenderLayer::GroundDetail) {
+                index = i;
+                break;
+            }
+        }
+    }
+    if (index >= 0) {
+        return index;
+    }
+    // A map authored without a decor layer gets one on the first placement.
+    int topOrder = 0;
+    for (const tilemap::TileLayer& layer : map.layers()) {
+        topOrder = std::max(topOrder, layer.zOrder);
+    }
+    tilemap::TileLayer decor;
+    decor.name = "decor";
+    decor.zOrder = topOrder + 1;
+    decor.renderLayer = render::RenderLayer::GroundDetail;
+    decor.tiles.assign(map.cellCount(), tilemap::TileId{});
+    return map.addLayer(std::move(decor));
+}
+
+bool VisualEditor::isGrassGround(const tilemap::TileCoord cell) const {
+    const tilemap::Tilemap& map = m_editor.map();
+    int ground = map.findLayer("ground");
+    if (ground < 0) {
+        ground = 0;
+    }
+    const tilemap::TileDef* def = map.tileDef(map.tileAt(cell.x, cell.y, ground));
+    return def != nullptr && (def->name == "grass" || def->tag == "grass");
+}
+
+void VisualEditor::applyDecorClick(const tilemap::TileCoord cell) {
+    if (!m_decorBrush.isValid()) {
+        m_status = "先在组件面板选择";
+        return;
+    }
+    if (!isGrassGround(cell)) {
+        m_status = "只能放在草地上";
+        return;
+    }
+    const int layer = decorLayerIndex();
+    if (layer < 0) {
+        m_status = "无法创建装饰图层";
+        return;
+    }
+    const core::Status status = m_editor.paintAt(cell, m_decorBrush, layer);
+    if (status.isOk()) {
+        const tilemap::TileDef* def = m_editor.map().tileDef(m_decorBrush);
+        m_status = def != nullptr ? "已放置 " + def->name : "已放置组件";
+    } else {
+        m_status = status.error().message;
+    }
+}
+
+void VisualEditor::applyDecorErase(const tilemap::TileCoord cell) {
+    tilemap::Tilemap& map = m_editor.map();
+    int layer = map.findLayer("decor");
+    if (layer < 0) {
+        for (int i = 0; i < map.layerCount(); ++i) {
+            const tilemap::TileLayer* candidate = map.layerAt(i);
+            if (candidate != nullptr && candidate->renderLayer == render::RenderLayer::GroundDetail) {
+                layer = i;
+                break;
+            }
+        }
+    }
+    if (layer < 0 || !map.tileAt(cell.x, cell.y, layer).isValid()) {
+        m_status = "这里没有组件";
+        return;
+    }
+    const core::Status status = m_editor.paintAt(cell, tilemap::kEmptyTile, layer);
+    m_status = status.isOk() ? "已清除组件" : status.error().message;
+}
+
+void VisualEditor::applyBlockerClick(const tilemap::TileCoord cell) {
+    if (m_blockerStart.has_value()) {
+        const tilemap::TileCoord from = *m_blockerStart;
+        const tilemap::TileCoord to = cell;
+        tilemap::MapBlocker blocker;
+        blocker.bounds = tilemap::TileBounds{
+            std::min(from.x, to.x), std::min(from.y, to.y), std::abs(from.x - to.x) + 1, std::abs(from.y - to.y) + 1};
+        blocker.id = "zone_" + std::to_string(m_editor.map().blockers().size() + 1);
+        // Default: the texture exactly covers the box. The inspector lifts it
+        // higher; collision never leaves the box.
+        blocker.renderHeight = blocker.bounds.height;
+        m_editor.map().addBlocker(blocker);
+        m_blockerStart.reset();
+        m_selectedBlocker = static_cast<int>(m_editor.map().blockers().size()) - 1;
+        m_history.markDirty();
+        char line[64]{};
+        std::snprintf(line, sizeof(line), "已创建碰撞区 %dx%d", blocker.bounds.width, blocker.bounds.height);
+        m_status = line;
+        return;
+    }
+    const int existing = blockerIndexAt(cell);
+    if (existing >= 0) {
+        m_selectedBlocker = existing;
+        m_status = "已选中碰撞区";
+        return;
+    }
+    m_blockerStart = cell;
+    m_status = "再点一次确定对角";
+}
+
+int VisualEditor::blockerIndexAt(const tilemap::TileCoord cell) const noexcept {
+    const std::span<const tilemap::MapBlocker> blockers = m_editor.map().blockers();
+    for (std::size_t index = 0; index < blockers.size(); ++index) {
+        if (blockers[index].bounds.contains(cell)) {
+            return static_cast<int>(index);
+        }
+    }
+    return -1;
+}
+
+void VisualEditor::drawDecorPalette(ui::UiContext& ui, Rect palette) {
+    const ui::UiTheme& theme = ui.theme();
+    ui.panel(palette, theme.panel);
+    ui.text("组件", makeRect(palette.x + 6.0f, palette.y + 4.0f, 180.0f, 8.0f), labelStyle(theme));
+    ui.text("花草树", makeRect(palette.x + 6.0f, palette.y + 16.0f, 120.0f, 8.0f), dimStyle(theme));
+
+    float y = palette.y + 28.0f;
+    int shown = 0;
+    for (const tilemap::TileDef& def : m_editor.map().tileDefs()) {
+        if (!isComponentDef(def)) {
+            continue;
+        }
+        if (y + 14.0f > palette.y + palette.h) {
+            break;
+        }
+        char id[32]{};
+        std::snprintf(id, sizeof(id), "ve.decor.%u", def.id.value);
+        char line[64]{};
+        std::snprintf(line, sizeof(line), "%s  #%u", def.name.c_str(), def.id.value);
+        const Rect rect = makeRect(palette.x + 6.0f, y, palette.w - 12.0f, 13.0f);
+        if (ui.button(ui::UiId::fromName(id), line, rect).pressed) {
+            m_decorBrush = def.id;
+            m_status = "组件 " + def.name;
+        }
+        if (def.id == m_decorBrush) {
+            ui.border(rect, theme.accent, 1.0f);
+        }
+        ++shown;
+        y += 15.0f;
+    }
+    if (shown == 0) {
+        ui.text("无组件定义", makeRect(palette.x + 6.0f, y, palette.w - 12.0f, 8.0f), dimStyle(theme));
+    }
+}
+
+void VisualEditor::drawDecorProperties(ui::UiContext& ui, Rect props) {
+    const ui::UiTheme& theme = ui.theme();
+    float y = props.y + 16.0f;
+    char line[96]{};
+    const tilemap::TileDef* def = m_editor.map().tileDef(m_decorBrush);
+    if (def == nullptr) {
+        ui.text("在组件面板选择花/草/树", makeRect(props.x + 6.0f, y, props.w - 12.0f, 8.0f), dimStyle(theme));
+        return;
+    }
+    std::snprintf(line, sizeof(line), "组件 #%u  %s", def->id.value, def->name.c_str());
+    ui.text(line, makeRect(props.x + 6.0f, y, props.w - 12.0f, 8.0f), labelStyle(theme));
+    y += 12.0f;
+    std::snprintf(line,
+                  sizeof(line),
+                  "%s  %s",
+                  def->solid ? "阻挡" : "可通行",
+                  def->renderHeight > 1 ? ("高" + std::to_string(def->renderHeight) + "格").c_str() : "1格高");
+    ui.text(line, makeRect(props.x + 6.0f, y, props.w - 12.0f, 8.0f), dimStyle(theme));
+    y += 12.0f;
+    ui.text("左键放置/右键清除",
+            makeRect(props.x + 6.0f, y, props.w - 12.0f, 8.0f),
+            dimStyle(theme));
+    y += 11.0f;
+    ui.text("只叠在草地上，不替换瓦片",
+            makeRect(props.x + 6.0f, y, props.w - 12.0f, 8.0f),
+            dimStyle(theme));
+}
+
+void VisualEditor::drawBlockerPalette(ui::UiContext& ui, Rect palette) {
+    const ui::UiTheme& theme = ui.theme();
+    ui.panel(palette, theme.panel);
+    ui.text("组件", makeRect(palette.x + 6.0f, palette.y + 4.0f, 180.0f, 8.0f), labelStyle(theme));
+
+    float y = palette.y + 16.0f;
+    ui.text("碰撞区", makeRect(palette.x + 6.0f, y, 120.0f, 8.0f), dimStyle(theme));
+    y += 12.0f;
+    const std::span<const tilemap::MapBlocker> blockers = m_editor.map().blockers();
+    if (blockers.empty()) {
+        ui.text("无 - 在地图上点两格", makeRect(palette.x + 6.0f, y, palette.w - 12.0f, 8.0f), dimStyle(theme));
+        return;
+    }
+    for (std::size_t index = 0; index < blockers.size(); ++index) {
+        if (y + 13.0f > palette.y + palette.h) {
+            break;
+        }
+        char id[32]{};
+        std::snprintf(id, sizeof(id), "ve.blocker.%zu", index);
+        char line[64]{};
+        std::snprintf(line,
+                      sizeof(line),
+                      "%s  %dx%d  h%d",
+                      blockers[index].id.c_str(),
+                      blockers[index].bounds.width,
+                      blockers[index].bounds.height,
+                      blockers[index].renderHeight);
+        const Rect rect = makeRect(palette.x + 6.0f, y, palette.w - 12.0f, 13.0f);
+        if (ui.button(ui::UiId::fromName(id), line, rect).pressed) {
+            m_selectedBlocker = static_cast<int>(index);
+            m_blockerStart.reset();
+        }
+        if (m_selectedBlocker == static_cast<int>(index)) {
+            ui.border(rect, theme.accent, 1.0f);
+        }
+        y += 15.0f;
+    }
+}
+
+void VisualEditor::drawBlockerProperties(ui::UiContext& ui, Rect props, std::span<const std::string> textureIds) {
+    const ui::UiTheme& theme = ui.theme();
+    float y = props.y + 16.0f;
+    char id[32]{};
+    char line[96]{};
+    const std::span<tilemap::MapBlocker> blockers = m_editor.map().mutableBlockers();
+    if (m_selectedBlocker < 0 || m_selectedBlocker >= static_cast<int>(blockers.size())) {
+        ui.text("选择或点两格新建", makeRect(props.x + 6.0f, y, props.w - 12.0f, 8.0f), dimStyle(theme));
+        return;
+    }
+    tilemap::MapBlocker& blocker = blockers[static_cast<std::size_t>(m_selectedBlocker)];
+    std::snprintf(line,
+                  sizeof(line),
+                  "%s  判定 %dx%d 格",
+                  blocker.id.c_str(),
+                  blocker.bounds.width,
+                  blocker.bounds.height);
+    ui.text(line, makeRect(props.x + 6.0f, y, props.w - 12.0f, 8.0f), labelStyle(theme));
+    y += 12.0f;
+
+    // Texture picker, like the tile inspector: the map stores the name and the
+    // app rebinds the GPU handle on save, so the editor preview updates live.
+    std::snprintf(line,
+                  sizeof(line),
+                  "贴图 %s",
+                  blocker.textureName.empty() ? "-" : blocker.textureName.c_str());
+    ui.text(line, makeRect(props.x + 6.0f, y, props.w - 12.0f, 8.0f), dimStyle(theme));
+    y += 12.0f;
+    if (!textureIds.empty()) {
+        const float half = (props.w - 12.0f - 3.0f) / 2.0f;
+        const float rowH = 13.0f;
+        const auto cycle = [&](int direction) {
+            int index = 0;
+            for (std::size_t i = 0; i < textureIds.size(); ++i) {
+                if (textureIds[i] == blocker.textureName) {
+                    index = static_cast<int>(i);
+                }
+            }
+            index = (index + static_cast<int>(textureIds.size()) + direction) % static_cast<int>(textureIds.size());
+            blocker.textureName = textureIds[static_cast<std::size_t>(index)];
+            m_selectedTexture = index;
+            m_history.markDirty();
+        };
+        if (ui.button(ui::UiId::fromName("ve.blocker.tex.prev"),
+                      "<",
+                      makeRect(props.x + 6.0f, y, half, rowH))
+                .pressed) {
+            cycle(-1);
+        }
+        if (ui.button(ui::UiId::fromName("ve.blocker.tex.next"),
+                      ">",
+                      makeRect(props.x + 6.0f + half + 3.0f, y, half, rowH))
+                .pressed) {
+            cycle(1);
+        }
+        y += rowH + 4.0f;
+    }
+
+    // Render height in tiles: the quad grows upward from the box's bottom edge.
+    constexpr float small = 20.0f;
+    std::snprintf(line, sizeof(line), "贴图高 %d 格", blocker.renderHeight);
+    ui.text(line, makeRect(props.x + 6.0f, y, 90.0f, 8.0f), dimStyle(theme));
+    if (ui.button(ui::UiId::fromName("ve.blocker.h-"), "-", makeRect(props.x + 100.0f, y, small, 11.0f)).pressed &&
+        blocker.renderHeight > 1) {
+        --blocker.renderHeight;
+        m_history.markDirty();
+    }
+    if (ui.button(ui::UiId::fromName("ve.blocker.h+"), "+", makeRect(props.x + 122.0f, y, small, 11.0f)).pressed &&
+        blocker.renderHeight < 256) {
+        ++blocker.renderHeight;
+        m_history.markDirty();
+    }
+    y += 14.0f;
+
+    bool passable = blocker.passable;
+    if (ui.checkbox(ui::UiId::fromName("ve.blocker.pass"),
+                    "门/可进入",
+                    passable,
+                    makeRect(props.x + 6.0f, y, props.w - 12.0f, 13.0f))
+            .pressed) {
+        blocker.passable = passable;
+        m_history.markDirty();
+    }
+    y += 14.0f;
+    ui.text("判定只在框选区；传送门处可入",
+            makeRect(props.x + 6.0f, y, props.w - 12.0f, 8.0f),
+            dimStyle(theme));
+    y += 12.0f;
+
+    std::snprintf(id, sizeof(id), "ve.blocker.delete.%d", m_selectedBlocker);
+    if (ui.button(ui::UiId::fromName(id), "删除", makeRect(props.x + 6.0f, y, props.w - 12.0f, 11.0f)).pressed) {
+        m_editor.map().removeBlocker(static_cast<std::size_t>(m_selectedBlocker));
+        m_selectedBlocker = -1;
+        m_history.markDirty();
+        m_status = "已删除碰撞区";
     }
 }
 

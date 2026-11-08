@@ -62,16 +62,20 @@ core::Status MapEditor::applySecondary() {
 }
 
 core::Status MapEditor::paint(tilemap::TileCoord cell, tilemap::TileId tile) {
+    return paintAt(cell, tile, m_layer);
+}
+
+core::Status MapEditor::paintAt(tilemap::TileCoord cell, tilemap::TileId tile, int layerIndex) {
     if (!m_map.contains(cell.x, cell.y)) {
         return core::errorStatus(core::error_code::kOutOfRange, "paint cell is outside the map");
     }
-    const tilemap::TileId before = m_map.tileAt(cell.x, cell.y, m_layer);
+    const tilemap::TileId before = m_map.tileAt(cell.x, cell.y, layerIndex);
     if (before == tile) {
         return core::okStatus();
     }
     TileChange change;
     change.cell = cell;
-    change.layer = m_layer;
+    change.layer = layerIndex;
     change.before = before;
     change.after = tile;
     return applyChanges({std::move(change)}, "paint");

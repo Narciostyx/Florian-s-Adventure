@@ -414,6 +414,47 @@ core::Result<Tilemap> loadTilemapFromJson(std::string_view json) {
         }
     }
 
+    if (const auto blockers = document.find("blockers"); blockers != document.end()) {
+        if (!blockers->is_array()) {
+            return core::Result<Tilemap>::err(
+                jsonError(tilemap_error::kInvalidRegion, "\"blockers\" must be an array"));
+        }
+        for (const Json& entry : *blockers) {
+            if (!entry.is_object()) {
+                return core::Result<Tilemap>::err(
+                    jsonError(tilemap_error::kInvalidRegion, "every blocker must be an object"));
+            }
+            MapBlocker blocker;
+            if (!readStringField(entry, "id", blocker.id) || blocker.id.empty()) {
+                return core::Result<Tilemap>::err(
+                    jsonError(tilemap_error::kInvalidRegion, "blocker needs a non-empty \"id\""));
+            }
+            const auto bounds = entry.find("bounds");
+            if (bounds == entry.end() || !readBoundsValue(*bounds, blocker.bounds) ||
+                !boundsFit(blocker.bounds, width, height)) {
+                return core::Result<Tilemap>::err(
+                    jsonError(tilemap_error::kInvalidRegion, "blocker \"bounds\" must be a non-empty in-map rectangle"));
+            }
+            if (entry.contains("texture") && !readStringField(entry, "texture", blocker.textureName)) {
+                return core::Result<Tilemap>::err(
+                    jsonError(tilemap_error::kInvalidRegion, "blocker \"texture\" must be a string"));
+            }
+            if (entry.contains("render_height")) {
+                int renderHeight = 1;
+                if (!readIntField(entry, "render_height", renderHeight) || renderHeight < 1 || renderHeight > 256) {
+                    return core::Result<Tilemap>::err(
+                        jsonError(tilemap_error::kInvalidRegion, "blocker \"render_height\" must be an integer in 1..256"));
+                }
+                blocker.renderHeight = renderHeight;
+            }
+            if (entry.contains("passable") && !readBoolField(entry, "passable", blocker.passable)) {
+                return core::Result<Tilemap>::err(
+                    jsonError(tilemap_error::kInvalidRegion, "blocker \"passable\" must be a boolean"));
+            }
+            map.addBlocker(std::move(blocker));
+        }
+    }
+
     if (const auto ambient = document.find("ambient"); ambient != document.end()) {
         if (!ambient->is_object()) {
             return core::Result<Tilemap>::err(

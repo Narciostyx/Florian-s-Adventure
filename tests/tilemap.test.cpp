@@ -28,6 +28,7 @@
 #include <fa/tilemap/TilemapError.hpp>
 #include <fa/tilemap/TilemapExtract.hpp>
 #include <fa/tilemap/TilemapLoader.hpp>
+#include <fa/tilemap/TilemapWriter.hpp>
 
 namespace {
 
@@ -322,6 +323,108 @@ TEST_CASE("regions can be edited and removed after loading", "[tilemap][regions]
     CHECK(map.areas()[0].areaId == 2);
     // Removing shifts the rest, so a stale index is refused rather than wrapping around.
     CHECK_FALSE(map.removePortal(1));
+}
+
+TEST_CASE("collision zones block cells and open again under portals", "[tilemap][regions]") {
+    Tilemap map(6, 6, kTile);
+    REQUIRE(map.addTileDef(makeDef(1)));
+    addGround(map, TileId{1});
+
+    fa::tilemap::MapBlocker zone;
+    zone.id = "wall";
+    zone.bounds = TileBounds{2, 2, 2, 2};
+    map.addBlocker(zone);
+
+    CHECK(map.isSolidCell(2, 2));
+    CHECK_FALSE(map.isWalkable(2, 2));
+    CHECK(map.isSolidCell(3, 3));
+    CHECK_FALSE(map.isSolidCell(1, 2));
+    REQUIRE(map.blockerAt(TileCoord{2, 2}) != nullptr);
+    CHECK(map.blockerAt(TileCoord{2, 2})->id == "wall");
+    CHECK(map.blockerAt(TileCoord{1, 1}) == nullptr);
+
+    // A portal covering one cell - a teleport pad or a door - reopens the zone there.
+    fa::tilemap::MapPortal pad;
+    pad.id = "gate";
+    pad.bounds = TileBounds{3, 3, 1, 1};
+    pad.targetMap = "farm";
+    map.addPortal(pad);
+    CHECK_FALSE(map.isSolidCell(3, 3));
+    CHECK(map.isWalkable(3, 3));
+    CHECK(map.isSolidCell(2, 2));
+
+    // Door mode: the zone still draws but stops blocking anywhere.
+    map.mutableBlockers()[0].passable = true;
+    CHECK_FALSE(map.isSolidCell(2, 2));
+    CHECK(map.blockerAt(TileCoord{2, 2}) == nullptr);
+    map.mutableBlockers()[0].passable = false;
+
+    CHECK(map.stats().blockers == 1);
+    CHECK_FALSE(map.removeBlocker(9));
+    REQUIRE(map.removeBlocker(0));
+    CHECK(map.blockers().empty());
+    CHECK_FALSE(map.isSolidCell(2, 2));
+}
+
+TEST_CASE("collision zones survive the JSON round trip", "[tilemap][loader]") {
+    Tilemap map(6, 6, kTile);
+    REQUIRE(map.addTileDef(makeDef(1)));
+    addGround(map, TileId{1});
+    fa::tilemap::MapBlocker zone;
+    zone.id = "house";
+    zone.bounds = TileBounds{1, 1, 3, 2};
+    zone.textureName = "tex.ground.wall";
+    zone.renderHeight = 5;
+    map.addBlocker(zone);
+
+    const std::string text = fa::tilemap::saveTilemapToJson(map);
+    const auto loaded = fa::tilemap::loadTilemapFromJson(text);
+    REQUIRE(loaded.isOk());
+    REQUIRE(loaded.value().blockers().size() == 1);
+    const fa::tilemap::MapBlocker& copy = loaded.value().blockers()[0];
+    CHECK(copy.id == "house");
+    CHECK(copy.bounds == TileBounds{1, 1, 3, 2});
+    CHECK(copy.textureName == "tex.ground.wall");
+    CHECK(copy.renderHeight == 5);
+    CHECK_FALSE(copy.passable);
+    CHECK(loaded.value().isSolidCell(1, 1));
+
+    // Height beyond the cap is refused rather than silently clamped.
+    std::string tooTall = text;
+    const std::size_t pos = tooTall.find("5");
+    REQUIRE(pos != std::string::npos);
+    tooTall.replace(pos, 1, "999");
+    CHECK(loadErrorCode(tooTall) != 0);
+}
+
+TEST_CASE("collision zones extract one tall quad anchored to the box bottom", "[tilemap][extract]") {
+    Tilemap map(8, 8, kTile);
+    REQUIRE(map.addTileDef(makeDef(1, true, false, false, false, 5)));
+    addGround(map, TileId{1});
+    fa::tilemap::MapBlocker zone;
+    zone.id = "wall";
+    zone.bounds = TileBounds{2, 4, 2, 1};
+    zone.renderHeight = 3;
+    zone.texture = TextureHandle{9};
+    map.addBlocker(zone);
+
+    fa::render::RenderQueue queue;
+    const TileExtractStats stats = fa::tilemap::extractTiles(map, queue);
+    REQUIRE(stats.submitted == 65);  // 64 ground cells + the zone
+    REQUIRE(queue.size() == 65);
+
+    const auto items = queue.items();
+    const fa::render::DrawItem& quad = items[64];
+    CHECK(quad.texture.value() == 9u);
+    // Width spans the box; height spans renderHeight, anchored at the box's bottom edge.
+    CHECK(quad.size == Vec2{32.0f, 48.0f});
+    CHECK(quad.position == Vec2{2.0f * kTile, (4 + 1 - 3) * static_cast<float>(kTile)});
+    CHECK(quad.layer == RenderLayer::Objects);
+
+    // A zone without a bound texture follows skipWithoutTexture like any tile.
+    map.mutableBlockers()[0].texture = TextureHandle{};
+    queue.clear();
+    REQUIRE(fa::tilemap::extractTiles(map, queue).submitted == 64);
 }
 
 TEST_CASE("JSON loader reads a complete map document", "[tilemap][loader]") {

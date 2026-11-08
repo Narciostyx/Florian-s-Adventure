@@ -50,6 +50,32 @@ struct MapPortal {
     TileCoord targetTile{};
 };
 
+/// \brief A boxed collision zone: blocks movement inside its bounds while its
+/// texture renders at any height.
+///
+/// The editor authors these by dragging a rectangle (like a portal). Collision
+/// always covers exactly `bounds` (minus portal-covered cells, so a door or a
+/// teleport zone stays enterable); the texture is one quad anchored to the
+/// region's bottom edge and may extend `renderHeight` tiles upward beyond the
+/// box, exactly like a tall tile def.
+struct MapBlocker {
+    /// \brief Stable id, unique within the map.
+    std::string id;
+    /// \brief Cells the zone blocks. This is the only part collision sees.
+    TileBounds bounds{};
+    /// \brief Asset id read from the map document; empty means "draw nothing".
+    std::string textureName;
+    /// \brief Resolved GPU texture; the composition root binds it by name.
+    render::TextureHandle texture{};
+    /// \brief Texture height in tiles, anchored at the region's bottom edge.
+    ///
+    /// Unbounded upward: a wall sprite can span more rows than the box blocks.
+    /// Values below 1 are treated as 1.
+    int renderHeight = 1;
+    /// \brief Door mode: the zone draws but stops blocking (a walkable facade).
+    bool passable = false;
+};
+
 /// \brief Map-wide environment values consumed by M22 and M08.
 struct MapAmbient {
     /// \brief Indoor maps do not follow the outdoor day/night curve.
@@ -83,6 +109,7 @@ struct TilemapStats {
     std::size_t tileDefs = 0;
     std::size_t areas = 0;
     std::size_t portals = 0;
+    std::size_t blockers = 0;
     /// \brief Cells with at least one non-empty tile across all layers.
     std::size_t nonEmptyTiles = 0;
     /// \brief Cells whose combined defs block movement.
@@ -189,9 +216,12 @@ public:
     /// \brief Whether any def on the cell can be tilled. Out-of-grid cells are not.
     [[nodiscard]] bool isTillable(int column, int row) const noexcept;
 
-    /// \brief Whether any def on the cell is a wall.
+    /// \brief Whether any def on the cell is a wall, or a blocking collision
+    /// zone covers it.
     ///
-    /// Out-of-grid cells follow `outsideIsSolid()`.
+    /// Out-of-grid cells follow `outsideIsSolid()`. Cells a portal covers are
+    /// never blocked by a zone: that is how a door or teleport pad stays
+    /// enterable inside a walled-off region.
     [[nodiscard]] bool isSolidCell(int column, int row) const noexcept;
 
     /// \brief Grid cell containing a world point. Uses floor, so negatives work.
@@ -236,6 +266,22 @@ public:
     /// \brief The first portal whose trigger area contains `coord`, or null.
     [[nodiscard]] const MapPortal* portalAt(TileCoord coord) const noexcept;
 
+    /// \brief Appends a collision zone.
+    void addBlocker(MapBlocker blocker);
+    [[nodiscard]] std::span<const MapBlocker> blockers() const noexcept { return m_blockers; }
+
+    /// \brief Writable view so a tool can resize, retexture or relabel a zone.
+    [[nodiscard]] std::span<MapBlocker> mutableBlockers() noexcept { return m_blockers; }
+
+    /// \brief Drops the blocker at `index`; false when the index is out of range.
+    bool removeBlocker(std::size_t index) noexcept;
+
+    /// \brief The first blocking zone containing `coord`, or null.
+    ///
+    /// Passable zones and cells a portal covers are not reported: those are the
+    /// door/teleport exemptions gameplay relies on to enter a blocked region.
+    [[nodiscard]] const MapBlocker* blockerAt(TileCoord coord) const noexcept;
+
     [[nodiscard]] const MapAmbient& ambient() const noexcept { return m_ambient; }
     void setAmbient(MapAmbient ambient) noexcept { m_ambient = std::move(ambient); }
 
@@ -255,6 +301,7 @@ private:
     std::vector<TileLayer> m_layers;
     std::vector<MapArea> m_areas;
     std::vector<MapPortal> m_portals;
+    std::vector<MapBlocker> m_blockers;
     MapAmbient m_ambient;
 };
 

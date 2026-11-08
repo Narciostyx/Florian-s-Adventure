@@ -352,6 +352,115 @@ TEST_CASE("the object scope places and erases spawn rows without painting tiles"
     CHECK(editor.placements().empty());
 }
 
+TEST_CASE("the decor scope stacks components on grass without replacing the ground", "[editor]") {
+    using fa::editor::EditorScope;
+    using fa::editor::VisualEditor;
+    using fa::editor::VisualEditorInput;
+
+    Tilemap map = makeMap();
+    TileDef flower;
+    flower.id = TileId{4};
+    flower.name = "flower";
+    flower.walkable = true;
+    flower.tag = "decor";
+    REQUIRE(map.addTileDef(flower));
+    // A non-grass cell for the placement rule to reject.
+    REQUIRE(map.setTile(2, 2, 0, TileId{kSoilTile}));
+
+    VisualEditor editor(map);
+    editor.setActive(true);
+    const fa::core::Rect viewport{0.0f, 0.0f, 128.0f, 128.0f};
+    VisualEditorInput idle;
+    idle.cursorScreen = fa::core::Vec2{-100.0f, -100.0f};
+    editor.update(idle, viewport);
+    editor.setScope(EditorScope::Decor);
+
+    const auto clickAt = [&](int column, int row, bool secondary) {
+        VisualEditorInput in;
+        in.cursorScreen = fa::core::Vec2{(static_cast<float>(column) + 0.5f) * 16.0f,
+                                         (static_cast<float>(row) + 0.5f) * 16.0f};
+        in.primaryPressed = !secondary;
+        in.secondaryPressed = secondary;
+        editor.update(in, viewport);
+    };
+
+    // The single component definition starts selected: flower stands on top of
+    // the grass, and the ground tile keeps its id.
+    clickAt(5, 4, false);
+    CHECK(map.tileAt(5, 4, 0) == TileId{kGrassTile});
+    REQUIRE(map.findLayer("decor") >= 0);  // created on first placement
+    const int decor = map.findLayer("decor");
+    CHECK(map.tileAt(5, 4, decor) == TileId{4});
+    CHECK(editor.dirty());
+
+    // The grass rule rejects everything that is not meadow.
+    clickAt(2, 2, false);
+    CHECK(map.tileAt(2, 2, decor) == fa::tilemap::kEmptyTile);
+
+    // Right click clears the component, never the ground.
+    clickAt(5, 4, true);
+    CHECK(map.tileAt(5, 4, decor) == fa::tilemap::kEmptyTile);
+    CHECK(map.tileAt(5, 4, 0) == TileId{kGrassTile});
+
+    // Decor edits ride the same undo history as tile brushes.
+    REQUIRE(editor.history().undo(map));
+    CHECK(map.tileAt(5, 4, decor) == TileId{4});
+
+    // And they serialize into the map document like any layer change.
+    const fa::core::Result<Tilemap> reloaded = fa::tilemap::loadTilemapFromJson(editor.mapText());
+    REQUIRE(reloaded.isOk());
+    const int decorReloaded = reloaded.value().findLayer("decor");
+    REQUIRE(decorReloaded >= 0);
+    CHECK(reloaded.value().tileAt(5, 4, decorReloaded) == TileId{4});
+    CHECK(reloaded.value().tileAt(5, 4, 0) == TileId{kGrassTile});
+}
+
+TEST_CASE("two clicks in the blocker scope create a collision zone that survives JSON", "[editor]") {
+    using fa::editor::EditorScope;
+    using fa::editor::VisualEditor;
+    using fa::editor::VisualEditorInput;
+
+    Tilemap map = makeMap();
+    VisualEditor editor(map);
+    editor.setActive(true);
+    const fa::core::Rect viewport{0.0f, 0.0f, 128.0f, 128.0f};
+
+    VisualEditorInput idle;
+    idle.cursorScreen = fa::core::Vec2{-100.0f, -100.0f};
+    editor.update(idle, viewport);
+    editor.setScope(EditorScope::Blockers);
+
+    VisualEditorInput first;
+    first.cursorScreen = fa::core::Vec2{40.0f, 40.0f};
+    first.primaryPressed = true;
+    editor.update(first, viewport);
+    CHECK(map.blockers().empty());
+
+    VisualEditorInput second;
+    second.cursorScreen = fa::core::Vec2{104.0f, 56.0f};
+    second.primaryPressed = true;
+    editor.update(second, viewport);
+
+    REQUIRE(editor.blockers().size() == 1);
+    const fa::tilemap::MapBlocker& zone = map.blockers()[0];
+    CHECK(zone.bounds == fa::tilemap::TileBounds{2, 2, 5, 2});
+    // Default: the texture exactly covers the box; collision is the box itself.
+    CHECK(zone.renderHeight == 2);
+    CHECK_FALSE(zone.passable);
+    CHECK(map.isSolidCell(3, 3));
+    CHECK(editor.dirty());
+
+    const fa::core::Result<Tilemap> reloaded = fa::tilemap::loadTilemapFromJson(editor.mapText());
+    REQUIRE(reloaded.isOk());
+    REQUIRE(reloaded.value().blockers().size() == 1);
+    CHECK(reloaded.value().blockers()[0].bounds == fa::tilemap::TileBounds{2, 2, 5, 2});
+    CHECK(reloaded.value().isSolidCell(3, 3));
+
+    // Door mode: the zone keeps its texture but bodies may enter again.
+    map.mutableBlockers()[0].passable = true;
+    CHECK_FALSE(map.isSolidCell(3, 3));
+}
+
 TEST_CASE("two clicks in the portal scope create a trigger region that survives JSON", "[editor]") {
     using fa::editor::EditorScope;
     using fa::editor::VisualEditor;

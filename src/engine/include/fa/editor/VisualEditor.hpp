@@ -17,6 +17,8 @@
 
 namespace fa::tilemap {
 class Tilemap;
+struct TileDef;
+struct MapBlocker;
 }
 
 namespace fa::ui {
@@ -78,6 +80,8 @@ public:
     void setScope(EditorScope scope) noexcept;
     /// \brief The borrowed placement table (empty when tile-only mode).
     [[nodiscard]] std::span<const MapPlacement> placements() const noexcept;
+    /// \brief The live map's collision zones (blocker scope data).
+    [[nodiscard]] std::span<const tilemap::MapBlocker> blockers() const noexcept;
 
     /// \brief Show or hide the editor; hiding keeps undo history and selections.
     void setActive(bool active) noexcept;
@@ -125,6 +129,14 @@ private:
     void drawPalette(ui::UiContext& ui, core::Rect screen, std::span<const std::string> textureIds);
     /// \brief Palette for the placement/portal scopes: kinds on the left, list on the right.
     void drawObjectPalette(ui::UiContext& ui, core::Rect palette);
+    /// \brief Component palette (decor scope): the grass/flower/tree defs.
+    void drawDecorPalette(ui::UiContext& ui, core::Rect palette);
+    /// \brief Inspector for the decor scope: the selected component and its rules.
+    void drawDecorProperties(ui::UiContext& ui, core::Rect props);
+    /// \brief Blocker list (collision-zone scope).
+    void drawBlockerPalette(ui::UiContext& ui, core::Rect palette);
+    /// \brief Inspector for the selected collision zone: texture, height, door, delete.
+    void drawBlockerProperties(ui::UiContext& ui, core::Rect props, std::span<const std::string> textureIds);
     /// \brief Inspector for the placement/portal scopes.
     void drawObjectProperties(ui::UiContext& ui, core::Rect props);
     /// \brief Entity list panel (read-only scope): one button per spawn row.
@@ -147,9 +159,24 @@ private:
     void applyPlacementErase(tilemap::TileCoord cell);
     /// \brief First click sets the corner, second builds the region (portal scope).
     void applyPortalClick(tilemap::TileCoord cell);
+    /// \brief Places the selected component at \p cell (decor scope); the ground
+    /// tile under the cell must be grass and is never replaced.
+    void applyDecorClick(tilemap::TileCoord cell);
+    /// \brief Clears the decor cell at \p cell (decor scope, right click).
+    void applyDecorErase(tilemap::TileCoord cell);
+    /// \brief First click sets the corner, second builds the collision zone (blocker scope).
+    void applyBlockerClick(tilemap::TileCoord cell);
+    /// \brief Index of the layer components stand on: "decor", else the
+    /// ground-detail layer, else created on demand. -1 when unusable.
+    [[nodiscard]] int decorLayerIndex();
+    /// \brief Whether the ground tile at \p cell is grass (decor placement rule).
+    [[nodiscard]] bool isGrassGround(tilemap::TileCoord cell) const;
+    /// \brief Whether a definition belongs to the component palette, not the tile one.
+    [[nodiscard]] static bool isComponentDef(const tilemap::TileDef& def) noexcept;
     /// \brief Row indices at \p cell; -1 when nothing is there. @{
     [[nodiscard]] int placementIndexAt(tilemap::TileCoord cell) const noexcept;
     [[nodiscard]] int portalIndexAt(tilemap::TileCoord cell) const noexcept;
+    [[nodiscard]] int blockerIndexAt(tilemap::TileCoord cell) const noexcept;
     [[nodiscard]] int entityIndexAt(tilemap::TileCoord cell) const noexcept;
     /// @}
     /// \brief Runs the placement save callback when the app supplied one.
@@ -162,6 +189,8 @@ private:
     core::Rect m_mapViewport{};
     float m_tileScale = 1.0f;
     tilemap::TileId m_selectedTile{};
+    /// \brief Selected component definition in the decor scope (grass/flower/tree).
+    tilemap::TileId m_decorBrush{};
     int m_selectedTexture = 0;
     std::string m_status;
     EditorScope m_scope = EditorScope::Tiles;
@@ -175,6 +204,7 @@ private:
     /// \brief Selected row in `m_placements` / `map().portals()`; -1 when nothing is picked.
     int m_selectedPlacement = -1;
     int m_selectedPortal = -1;
+    int m_selectedBlocker = -1;
     int m_selectedEntity = -1;
     int m_activeKind = 0;
     /// \brief 单击查看 / 双击替换（笔刷工具）：距首次点击的帧数，-1=无待确认点击。
@@ -188,6 +218,8 @@ private:
     bool m_hasInspected = false;
     /// \brief First corner of a portal that is mid-creation (click-click, like the rect tool).
     std::optional<tilemap::TileCoord> m_portalStart;
+    /// \brief First corner of a collision zone that is mid-creation (click-click).
+    std::optional<tilemap::TileCoord> m_blockerStart;
 };
 
 }  // namespace fa::editor

@@ -31,9 +31,14 @@ enum class EditorTool : std::uint8_t {
 /// \brief Stable name for the panel, logs and tests.
 [[nodiscard]] std::string_view toString(EditorTool tool) noexcept;
 
-/// \brief What the canvas edits: tiles, or the objects the map asks the game to place.
+/// \brief What the canvas edits: tiles, the decor components that stand on them,
+/// the collision zones, or the objects the map asks the game to place.
 enum class EditorScope : std::uint8_t {
     Tiles = 0,
+    /// \brief Grass/flower/tree decor: painted onto the decor layer, ground kept.
+    Decor,
+    /// \brief Boxed collision zones with a texture (walls, houses); doors via portals.
+    Blockers,
     Placements,
     Portals,
     /// \brief Read-only view of the app's spawn table (npcs, enemies, props).

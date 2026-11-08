@@ -280,6 +280,8 @@ constexpr std::string_view kCatalogText = R"({
      "tile": 4, "color": "#3d6fa5", "altColor": "#5c8ec4"},
     {"id": "tex.ground.flower", "kind": "texture", "path": "textures/tiles/flower.png", "size": [16, 16],
      "tile": 4, "color": "#69a86a", "altColor": "#e06fa0"},
+    {"id": "tex.ground.grass_tuft", "kind": "texture", "path": "textures/tiles/grass_tuft.png", "size": [16, 16],
+     "tile": 4, "color": "#5c8a42", "altColor": "#3f7d32"},
     {"id": "tex.ground.tree", "kind": "texture", "path": "textures/tiles/tree.png", "size": [16, 48],
      "tile": 4, "color": "#2f6a35", "altColor": "#4a8250"},
     {"id": "tex.ground.stone", "kind": "texture", "path": "textures/tiles/stone.png", "size": [16, 16],
@@ -2211,6 +2213,13 @@ private:
         for (const fa::tilemap::TileDef& def : m_map.tileDefs()) {
             static_cast<void>(m_map.setTileTexture(def.id, textureForName(def.textureName), def.source));
         }
+        // Collision zones resolve their texture by name too; an unnamed zone is
+        // collision-only and simply never draws.
+        for (fa::tilemap::MapBlocker& blocker : m_map.mutableBlockers()) {
+            if (!blocker.textureName.empty()) {
+                blocker.texture = textureForName(blocker.textureName);
+            }
+        }
     }
 
     void buildWorld() {
@@ -4074,6 +4083,9 @@ public:
         }
 #if defined(FA_ENABLE_EDITOR)
         editor = std::make_unique<fa::editor::EditorOverlay>(gameScene->editableMap());
+        // The visual editor borrowed the destroyed scene's map; force a rebind
+        // on the next open instead of editing freed memory.
+        visualEditor.reset();
 #endif
         return true;
     }
@@ -4463,7 +4475,11 @@ public:
         if (gameScene == nullptr) {
             return;
         }
-        if (visualEditor == nullptr) {
+        // The editor borrows the scene's tilemap. A new game or a map switch
+        // destroys the old scene, so a leftover editor would dangle on freed
+        // memory and the next session died with exit code 3 (abort). Rebind
+        // whenever the live map object changed.
+        if (visualEditor == nullptr || &visualEditor->map() != &gameScene->editableMap()) {
             visualEditor = std::make_unique<fa::editor::VisualEditor>(gameScene->editableMap());
         }
         buildEditorPlacements();
@@ -4510,6 +4526,11 @@ public:
             for (const fa::tilemap::TileDef& def : map.tileDefs()) {
                 static_cast<void>(map.setTileTexture(def.id, gameScene->textureForName(def.textureName), def.source));
             }
+            for (fa::tilemap::MapBlocker& blocker : map.mutableBlockers()) {
+                blocker.texture = blocker.textureName.empty()
+                                      ? fa::render::TextureHandle{}
+                                      : gameScene->textureForName(blocker.textureName);
+            }
         }
         return saved;
     }
@@ -4540,14 +4561,38 @@ public:
                     if (!item.texture.isValid()) {
                         continue;
                     }
+                    // Tall defs (trees) draw their whole height upward from the
+                    // anchor cell, the same way the runtime extractor does.
+                    const int height = def->renderHeight > 1 ? def->renderHeight : 1;
                     item.position = fa::core::Vec2{view.x + viewport.x + static_cast<float>(column) * step,
-                                                   view.y + viewport.y + static_cast<float>(row) * step};
-                    item.size = fa::core::Vec2{step, step};
+                                                   view.y + viewport.y +
+                                                       (static_cast<float>(row) - static_cast<float>(height - 1)) * step};
+                    item.size = fa::core::Vec2{step, step * static_cast<float>(height)};
                     item.source = def->source;
                     item.layer = layer->renderLayer;
                     renderQueue.submit(item);
                 }
             }
+        }
+        // Collision zones: the texture may span more rows than the box blocks.
+        for (const fa::tilemap::MapBlocker& blocker : map.blockers()) {
+            if (blocker.textureName.empty()) {
+                continue;
+            }
+            fa::render::DrawItem item;
+            item.texture = gameScene->textureForName(blocker.textureName);
+            if (!item.texture.isValid()) {
+                continue;
+            }
+            const int height = blocker.renderHeight > 1 ? blocker.renderHeight : 1;
+            item.position = fa::core::Vec2{
+                view.x + viewport.x + static_cast<float>(blocker.bounds.x) * step,
+                view.y + viewport.y +
+                    static_cast<float>(blocker.bounds.y + blocker.bounds.height - height) * step};
+            item.size = fa::core::Vec2{static_cast<float>(blocker.bounds.width) * step,
+                                       step * static_cast<float>(height)};
+            item.layer = fa::render::RenderLayer::Objects;
+            renderQueue.submit(item);
         }
     }
 

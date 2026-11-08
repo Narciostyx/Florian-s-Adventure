@@ -56,6 +56,7 @@ core::Status Tilemap::reset(int width, int height, int tileSize) {
     m_layers.clear();
     m_areas.clear();
     m_portals.clear();
+    m_blockers.clear();
     m_ambient = MapAmbient{};
     return core::okStatus();
 }
@@ -263,6 +264,11 @@ bool Tilemap::isSolidCell(int column, int row) const noexcept {
     if (!contains(column, row)) {
         return m_outsideIsSolid;
     }
+    if (blockerAt(TileCoord{column, row}) != nullptr) {
+        // A blocking collision zone walls off its cells even where the tiles
+        // under them would allow walking; portal cells stay enterable.
+        return true;
+    }
     if (m_waterPassable) {
         // Riding: only water is passable; the boat cannot touch land.
         return !anyDefHas(column, row, &TileDef::water);
@@ -345,6 +351,32 @@ const MapPortal* Tilemap::portalAt(TileCoord coord) const noexcept {
     return nullptr;
 }
 
+void Tilemap::addBlocker(MapBlocker blocker) {
+    m_blockers.push_back(std::move(blocker));
+}
+
+bool Tilemap::removeBlocker(const std::size_t index) noexcept {
+    if (index >= m_blockers.size()) {
+        return false;
+    }
+    m_blockers.erase(m_blockers.begin() + static_cast<std::ptrdiff_t>(index));
+    return true;
+}
+
+const MapBlocker* Tilemap::blockerAt(TileCoord coord) const noexcept {
+    for (const MapBlocker& blocker : m_blockers) {
+        if (blocker.passable || !blocker.bounds.contains(coord)) {
+            continue;
+        }
+        // A door or teleport pad punched into the zone reopens those cells.
+        if (portalAt(coord) != nullptr) {
+            continue;
+        }
+        return &blocker;
+    }
+    return nullptr;
+}
+
 TilemapStats Tilemap::stats() const noexcept {
     TilemapStats stats;
     stats.width = m_width;
@@ -354,6 +386,7 @@ TilemapStats Tilemap::stats() const noexcept {
     stats.tileDefs = m_tileDefs.size();
     stats.areas = m_areas.size();
     stats.portals = m_portals.size();
+    stats.blockers = m_blockers.size();
 
     const std::size_t cells = cellCount();
     for (std::size_t cell = 0; cell < cells; ++cell) {

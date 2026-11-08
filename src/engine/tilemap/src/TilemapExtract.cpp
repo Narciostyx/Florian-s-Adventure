@@ -134,6 +134,35 @@ TileExtractStats extractTiles(const Tilemap& map, render::RenderQueue& queue, co
             }
         }
     }
+
+    // Collision zones draw last so a wall facade overlaps the tiles behind it,
+    // the way the region is meant to read on screen. Collision sees only the
+    // box; the quad is anchored to the box's bottom edge and may extend
+    // `renderHeight` tiles upward without bound.
+    for (const MapBlocker& blocker : map.blockers()) {
+        if (!blocker.texture.isValid() && options.skipWithoutTexture) {
+            continue;
+        }
+        const float boxWidth = static_cast<float>(blocker.bounds.width) * tile;
+        const float boxLeft = mapOrigin.x + static_cast<float>(blocker.bounds.x) * tile;
+        const float boxBottom = mapOrigin.y + static_cast<float>(blocker.bounds.y + blocker.bounds.height) * tile;
+        const int height = blocker.renderHeight > 1 ? blocker.renderHeight : 1;
+        const float drawnHeight = static_cast<float>(height) * tile;
+        const core::Rect quad = core::makeRect(boxLeft, boxBottom - drawnHeight, boxWidth, drawnHeight);
+        if (options.cullToViewBounds && core::isEmpty(core::intersect(quad, options.viewBounds))) {
+            ++stats.culled;
+            continue;
+        }
+        render::DrawItem item;
+        item.texture = blocker.texture;
+        item.position = core::Vec2{quad.x, quad.y};
+        item.size = core::Vec2{boxWidth, drawnHeight};
+        item.layer = render::RenderLayer::Objects;
+        item.sortY = boxBottom;
+        item.entityId = ++nextEntityId;
+        queue.submit(item);
+        ++stats.submitted;
+    }
     return stats;
 }
 
