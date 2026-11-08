@@ -64,6 +64,17 @@ public:
     /// callback runs, so a discarded session leaves `entities.json` untouched. Passing a
     /// null pointer returns the editor to tile-only mode.
     void setPlacements(std::vector<MapPlacement>* placements, std::vector<PlacementKind> kinds);
+    /// \brief Entity components the 组件 palette also offers (bed, chest). Picking one
+    /// and clicking the map writes a placement row - the interactive entity, not a tile.
+    /// The kind names must exist in the `kinds` list passed to \ref setPlacements.
+    void setComponentKinds(std::vector<PlacementKind> kinds);
+    /// \brief Selects an entity component for the 组件 scope by kind name.
+    /// \return false when the kind is not in the component list.
+    bool selectComponent(std::string_view kind) noexcept;
+    /// \brief What the next two clicks in the 区域 scope create: true = portal,
+    /// false = collision zone. The palette toggle and tests drive this.
+    void setAreaTool(bool portalTool) noexcept { m_areaCreatePortal = portalTool; }
+    [[nodiscard]] bool areaToolPortal() const noexcept { return m_areaCreatePortal; }
     /// \brief Callback that writes the placement table back to `data/entities.json`.
     void setPlacementSave(PlacementSaveHandler handler);
     /// \brief Map ids a portal may lead to. The app owns the map registry.
@@ -127,17 +138,19 @@ private:
     void drawToolbar(ui::UiContext& ui, core::Rect screen);
     /// \brief Tile or object palette (upper right), per scope.
     void drawPalette(ui::UiContext& ui, core::Rect screen, std::span<const std::string> textureIds);
-    /// \brief Palette for the placement/portal scopes: kinds on the left, list on the right.
+    /// \brief Palette for the placement scope: kinds on the left, list on the right.
     void drawObjectPalette(ui::UiContext& ui, core::Rect palette);
+    /// \brief Palette for the 区域 scope: create-tool toggle, then portals and zones.
+    void drawAreaPalette(ui::UiContext& ui, core::Rect palette);
+    /// \brief Inspector for the selected portal trigger.
+    void drawPortalProperties(ui::UiContext& ui, core::Rect props);
     /// \brief Component palette (decor scope): the grass/flower/tree defs.
     void drawDecorPalette(ui::UiContext& ui, core::Rect palette);
     /// \brief Inspector for the decor scope: the selected component and its rules.
     void drawDecorProperties(ui::UiContext& ui, core::Rect props);
-    /// \brief Blocker list (collision-zone scope).
-    void drawBlockerPalette(ui::UiContext& ui, core::Rect palette);
     /// \brief Inspector for the selected collision zone: texture, height, door, delete.
     void drawBlockerProperties(ui::UiContext& ui, core::Rect props, std::span<const std::string> textureIds);
-    /// \brief Inspector for the placement/portal scopes.
+    /// \brief Inspector for the placement scope.
     void drawObjectProperties(ui::UiContext& ui, core::Rect props);
     /// \brief Entity list panel (read-only scope): one button per spawn row.
     void drawEntityPalette(ui::UiContext& ui, core::Rect palette);
@@ -197,6 +210,11 @@ private:
     /// \brief Borrowed from the composition root; null when the app has no spawn table.
     std::vector<MapPlacement>* m_placements = nullptr;
     std::vector<PlacementKind> m_kinds;
+    /// \brief Subset of `m_kinds` shown in the component palette; -1 selects a tile.
+    std::vector<PlacementKind> m_componentKinds;
+    int m_activeComponentKind = -1;
+    /// \brief 区域 scope create tool: true builds a portal, false a collision zone.
+    bool m_areaCreatePortal = true;
     PlacementSaveHandler m_placementSave;
     std::vector<std::string> m_portalTargets;
     /// \brief Read-only spawn rows for the Entities scope; owned by the editor between opens.

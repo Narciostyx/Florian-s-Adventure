@@ -2397,25 +2397,29 @@ private:
 
         if (isFarm()) {
             // A bed beside the start position: E within 28 px advances the day and
-            // triggers M25's end-of-day settlement + autosave.
-            m_bedEntity = world().create();
+            // triggers M25's end-of-day settlement + autosave. The player world only
+            // gets one when the entity table authors a bed row for it (the editor's
+            // 组件 scope writes that row); the automated modes keep the fixture.
             const EntitySpawn* bedSpawn = m_scripted ? nullptr : findSpawn("bed");
-            fa::scene::Transform bedTransform;
-            bedTransform.position = bedSpawn != nullptr ? spawnPosition(*bedSpawn) : fa::core::Vec2{336.0f, 200.0f};
-            static_cast<void>(world().add<fa::scene::Transform>(m_bedEntity, bedTransform));
+            if (m_showcaseContent || bedSpawn != nullptr) {
+                m_bedEntity = world().create();
+                fa::scene::Transform bedTransform;
+                bedTransform.position = bedSpawn != nullptr ? spawnPosition(*bedSpawn) : fa::core::Vec2{336.0f, 200.0f};
+                static_cast<void>(world().add<fa::scene::Transform>(m_bedEntity, bedTransform));
 
-            fa::scene::Sprite bedSprite;
-            bedSprite.texture = bedSpawn != nullptr ? textureForName(bedSpawn->texture) : m_soil;
-            bedSprite.size = fa::core::Vec2{16.0f, 16.0f};
-            bedSprite.layer = fa::render::RenderLayer::Objects;
-            bedSprite.tint = bedSpawn != nullptr ? bedSpawn->tint : fa::core::Color{0.35f, 0.65f, 1.0f, 1.0f};
-            static_cast<void>(world().add<fa::scene::Sprite>(m_bedEntity, bedSprite));
+                fa::scene::Sprite bedSprite;
+                bedSprite.texture = bedSpawn != nullptr ? textureForName(bedSpawn->texture) : m_soil;
+                bedSprite.size = fa::core::Vec2{16.0f, 16.0f};
+                bedSprite.layer = fa::render::RenderLayer::Objects;
+                bedSprite.tint = bedSpawn != nullptr ? bedSpawn->tint : fa::core::Color{0.35f, 0.65f, 1.0f, 1.0f};
+                static_cast<void>(world().add<fa::scene::Sprite>(m_bedEntity, bedSprite));
 
-            fa::interaction::Interactable bedInteractable;
-            bedInteractable.area = fa::core::Rect{0.0f, 0.0f, 16.0f, 16.0f};
-            bedInteractable.priority = 10;
-            bedInteractable.payload = bedSpawn != nullptr ? bedSpawn->payload : 99;
-            static_cast<void>(world().add<fa::interaction::Interactable>(m_bedEntity, bedInteractable));
+                fa::interaction::Interactable bedInteractable;
+                bedInteractable.area = fa::core::Rect{0.0f, 0.0f, 16.0f, 16.0f};
+                bedInteractable.priority = 10;
+                bedInteractable.payload = bedSpawn != nullptr ? bedSpawn->payload : 99;
+                static_cast<void>(world().add<fa::interaction::Interactable>(m_bedEntity, bedInteractable));
+            }
 
             if (!m_scripted) {
                 // Play-only props: a shipping box for crops and a merchant for the shop.
@@ -2448,6 +2452,11 @@ private:
                                               int fallbackPayload,
                                               fa::scene::EntityId& out) {
                     const EntitySpawn* spawn = findSpawn(kind);
+                    if (spawn == nullptr && !m_showcaseContent) {
+                        // The player world stays a bare map until the editor authors
+                        // the row; no fallback crate/merchant appears out of nowhere.
+                        return;
+                    }
                     addProp(spawn != nullptr ? spawnPosition(*spawn) : fallbackPosition,
                             spawn != nullptr ? textureForName(spawn->texture) : m_soil,
                             spawn != nullptr ? spawn->tint : fallbackTint,
@@ -2466,56 +2475,60 @@ private:
                              m_merchantEntity);
             }
 
-            // A trigger volume on the marker's path, tall enough that the marker cannot slip
-            // around it, so both entering and leaving are observed in the same run.
-            const fa::scene::EntityId trigger = world().create();
-            fa::scene::Transform triggerTransform;
-            triggerTransform.position = fa::core::Vec2{330.0f, 196.0f};
-            static_cast<void>(world().add<fa::scene::Transform>(trigger, triggerTransform));
+            // Smoke fixtures (trigger volume, crate, claimable prop) belong to the
+            // automated modes; `--play` starts with an empty field.
+            if (m_showcaseContent) {
+                // A trigger volume on the marker's path, tall enough that the marker cannot slip
+                // around it, so both entering and leaving are observed in the same run.
+                const fa::scene::EntityId trigger = world().create();
+                fa::scene::Transform triggerTransform;
+                triggerTransform.position = fa::core::Vec2{330.0f, 196.0f};
+                static_cast<void>(world().add<fa::scene::Transform>(trigger, triggerTransform));
 
-            fa::physics::Collider volume;
-            volume.size = fa::core::Vec2{8.0f, 40.0f};
-            volume.layer = fa::physics::CollisionLayer::Trigger;
-            volume.mask = fa::physics::maskOf(fa::physics::CollisionLayer::Player);
-            volume.isTrigger = true;
-            static_cast<void>(world().add<fa::physics::Collider>(trigger, volume));
+                fa::physics::Collider volume;
+                volume.size = fa::core::Vec2{8.0f, 40.0f};
+                volume.layer = fa::physics::CollisionLayer::Trigger;
+                volume.mask = fa::physics::maskOf(fa::physics::CollisionLayer::Player);
+                volume.isTrigger = true;
+                static_cast<void>(world().add<fa::physics::Collider>(trigger, volume));
 
-            // M17: one crate to target and one prop entity whose cell the smoke test claims.
-            m_crateEntity = world().create();
-            fa::scene::Transform crateTransform;
-            crateTransform.position = m_map.gridToWorld(fa::tilemap::TileCoord{kCrateColumn, kCrateRow});
-            static_cast<void>(world().add<fa::scene::Transform>(m_crateEntity, crateTransform));
+                // M17: one crate to target and one prop entity whose cell the smoke test claims.
+                m_crateEntity = world().create();
+                fa::scene::Transform crateTransform;
+                crateTransform.position = m_map.gridToWorld(fa::tilemap::TileCoord{kCrateColumn, kCrateRow});
+                static_cast<void>(world().add<fa::scene::Transform>(m_crateEntity, crateTransform));
 
-            fa::scene::Sprite crateSprite;
-            crateSprite.texture = m_chest.isValid() ? m_chest : m_soil;
-            crateSprite.size =
-                fa::core::Vec2{static_cast<float>(fa::render::kTileSize), static_cast<float>(fa::render::kTileSize)};
-            crateSprite.layer = fa::render::RenderLayer::Objects;
-            static_cast<void>(world().add<fa::scene::Sprite>(m_crateEntity, crateSprite));
+                fa::scene::Sprite crateSprite;
+                crateSprite.texture = m_chest.isValid() ? m_chest : m_soil;
+                crateSprite.size = fa::core::Vec2{static_cast<float>(fa::render::kTileSize),
+                                                  static_cast<float>(fa::render::kTileSize)};
+                crateSprite.layer = fa::render::RenderLayer::Objects;
+                static_cast<void>(world().add<fa::scene::Sprite>(m_crateEntity, crateSprite));
 
-            fa::interaction::Interactable crate;
-            crate.area = fa::core::makeRect(
-                0.0f, 0.0f, static_cast<float>(fa::render::kTileSize), static_cast<float>(fa::render::kTileSize));
-            crate.priority = 1;
-            crate.payload = kCratePayload;
-            static_cast<void>(world().add<fa::interaction::Interactable>(m_crateEntity, crate));
+                fa::interaction::Interactable crate;
+                crate.area = fa::core::makeRect(
+                    0.0f, 0.0f, static_cast<float>(fa::render::kTileSize), static_cast<float>(fa::render::kTileSize));
+                crate.priority = 1;
+                crate.payload = kCratePayload;
+                static_cast<void>(world().add<fa::interaction::Interactable>(m_crateEntity, crate));
 
-            m_placedEntity = world().create();
-            fa::scene::Transform placedTransform;
-            placedTransform.position = m_map.gridToWorld(fa::tilemap::TileCoord{kPlacedColumn, kPlacedRow});
-            static_cast<void>(world().add<fa::scene::Transform>(m_placedEntity, placedTransform));
+                m_placedEntity = world().create();
+                fa::scene::Transform placedTransform;
+                placedTransform.position = m_map.gridToWorld(fa::tilemap::TileCoord{kPlacedColumn, kPlacedRow});
+                static_cast<void>(world().add<fa::scene::Transform>(m_placedEntity, placedTransform));
 
-            fa::scene::Sprite placedSprite;
-            placedSprite.texture = m_wall;
-            placedSprite.size = crateSprite.size;
-            placedSprite.layer = fa::render::RenderLayer::Objects;
-            static_cast<void>(world().add<fa::scene::Sprite>(m_placedEntity, placedSprite));
+                fa::scene::Sprite placedSprite;
+                placedSprite.texture = m_wall;
+                placedSprite.size = crateSprite.size;
+                placedSprite.layer = fa::render::RenderLayer::Objects;
+                static_cast<void>(world().add<fa::scene::Sprite>(m_placedEntity, placedSprite));
 
-            fa::physics::Collider placedCollider;
-            placedCollider.size = placedSprite.size;
-            placedCollider.layer = fa::physics::CollisionLayer::World;
-            placedCollider.mask = fa::physics::maskOf(fa::physics::CollisionLayer::Player);
-            static_cast<void>(world().add<fa::physics::Collider>(m_placedEntity, placedCollider));
+                fa::physics::Collider placedCollider;
+                placedCollider.size = placedSprite.size;
+                placedCollider.layer = fa::physics::CollisionLayer::World;
+                placedCollider.mask = fa::physics::maskOf(fa::physics::CollisionLayer::Player);
+                static_cast<void>(world().add<fa::physics::Collider>(m_placedEntity, placedCollider));
+            }
         }
 
         if (isFarm()) {
@@ -3906,6 +3919,8 @@ public:
     std::function<void()> requestAppQuit;
     /// \brief True while the save-slot panel is open.
     bool slotsOpen = false;
+    /// \brief Row whose 删除 is armed (first click); -1 when nothing is armed.
+    int slotDeleteArm = -1;
     /// \brief Save-slot metadata cached when the panel opens.
     std::vector<fa::save::SaveMetadata> slotList;
     /// \brief Count of slot-menu buttons pressed, mirrored into the smoke summary.
@@ -4369,18 +4384,18 @@ public:
 
     /// \brief Palette options. The editor stays content-free: kinds, their Chinese labels and
     /// the dialogue ids an NPC may run are all supplied from here.
+    ///
+    /// 对象 is the people scope: characters only. Furniture and hazards are placed
+    /// from 组件 as entity components (see \ref openVisualEditor's component kinds).
     [[nodiscard]] std::vector<fa::editor::PlacementKind> editorPlacementKinds() const {
         std::vector<std::string> dialogues;
         for (const fa::narrative::DialogueDef& def : narrative.dialogues()) {
             dialogues.emplace_back(def.id.name());
         }
         return {
-            fa::editor::PlacementKind{"npc", "NPC 可对话", dialogues},
-            fa::editor::PlacementKind{"bed", "床", {}},
-            fa::editor::PlacementKind{"shipping", "出货箱", {}},
+            fa::editor::PlacementKind{"npc", "NPC", dialogues},
             fa::editor::PlacementKind{"merchant", "商人", {}},
             fa::editor::PlacementKind{"enemy", "敌人", {}},
-            fa::editor::PlacementKind{"hazard", "荆棘", {}},
         };
     }
 
@@ -4491,6 +4506,10 @@ public:
         }
         buildEditorPlacements();
         visualEditor->setPlacements(&editorPlacements, editorPlacementKinds());
+        // The 组件 palette also offers the interactive furniture and hazards: placing
+        // one writes a spawn row (over grass, like every component), so the real
+        // entity - sleepable bed, shipping chest, damaging thorns - appears in game.
+        visualEditor->setComponentKinds({{"bed", "床", {}}, {"shipping", "箱子", {}}, { "hazard", "荆棘", {} }});
         visualEditor->setPortalTargets(editorPortalTargets());
         visualEditor->setEntityInfos(buildEditorEntityInfos());
         visualEditor->setPlacementSave(
@@ -4833,19 +4852,25 @@ public:
         lastEconomyTimeOfDay = calendar->timeOfDay();
         economyMinuteCarry = 0.0f;
 
-        fa::world::PointLight markerLight;
-        markerLight.position = fa::core::Vec2{344.0f, 260.0f};
-        markerLight.radius = 64.0f;
-        markerLight.color = fa::core::Color{1.0f, 0.80f, 0.40f, 1.0f};
-        markerLight.intensity = 0.8f;
-        static_cast<void>(lights.add(markerLight));
+        // The two placeholder point lights are M22 smoke fixtures, not gameplay
+        // content: they draw translucent demo squares in the field. The player
+        // world (玩法开发阶段) starts light-free; real light sources arrive with
+        // lanterns/furniture when that system is authored.
+        if (!forPlay) {
+            fa::world::PointLight markerLight;
+            markerLight.position = fa::core::Vec2{344.0f, 260.0f};
+            markerLight.radius = 64.0f;
+            markerLight.color = fa::core::Color{1.0f, 0.80f, 0.40f, 1.0f};
+            markerLight.intensity = 0.8f;
+            static_cast<void>(lights.add(markerLight));
 
-        fa::world::PointLight animLight;
-        animLight.position = fa::core::Vec2{120.0f, 160.0f};
-        animLight.radius = 48.0f;
-        animLight.color = fa::core::Color{0.50f, 0.80f, 1.00f, 1.0f};
-        animLight.intensity = 0.7f;
-        static_cast<void>(lights.add(animLight));
+            fa::world::PointLight animLight;
+            animLight.position = fa::core::Vec2{120.0f, 160.0f};
+            animLight.radius = 48.0f;
+            animLight.color = fa::core::Color{0.50f, 0.80f, 1.00f, 1.0f};
+            animLight.intensity = 0.7f;
+            static_cast<void>(lights.add(animLight));
+        }
     }
 
     [[nodiscard]] CalendarRunStats calendarStats() const {
@@ -9600,6 +9625,7 @@ private:
             if (menuButton("menu.slots", "存档槽", buttonX)) {
                 refreshSlots();
                 slotsOpen = true;
+                slotDeleteArm = -1;
             }
             buttonX += kButtonW + kButtonGap;
 #if defined(FA_ENABLE_EDITOR)
@@ -9635,6 +9661,7 @@ private:
             if (press("pause.slots", "存档槽", buttonX, panel.y + 84.0f, buttonWidth, 20.0f)) {
                 refreshSlots();
                 slotsOpen = true;
+                slotDeleteArm = -1;
             }
             if (press("pause.menu", "主菜单", buttonX, panel.y + 108.0f, buttonWidth, 20.0f)) {
                 static_cast<void>(flow->enterMainMenu());
@@ -9707,11 +9734,31 @@ private:
                         saveSlot(name);
                     }
                 }
+                if (meta != nullptr && saveService != nullptr) {
+                    // Two clicks: the first arms the row, the second deletes the slot
+                    // and its backup. Any other row's click disarms it again. The
+                    // button hugs whatever precedes it: after 保存 in game, after 读取
+                    // in the main menu (where saving is not offered).
+                    char delId[32]{};
+                    std::snprintf(delId, sizeof(delId), "slot.delete.%zu", index);
+                    const float deleteX = canSave && index > 0 ? panel.x + 432.0f : panel.x + 366.0f;
+                    const bool armed = slotDeleteArm == static_cast<int>(index);
+                    if (press(delId, armed ? "确认" : "删除", deleteX, y - 4.0f, 58.0f, 18.0f)) {
+                        if (armed) {
+                            static_cast<void>(saveService->deleteSlot(name));
+                            refreshSlots();
+                            slotDeleteArm = -1;
+                        } else {
+                            slotDeleteArm = static_cast<int>(index);
+                        }
+                    }
+                }
                 y += 30.0f;
             }
 
             if (press("slots.back", "返回", panel.x + 10.0f, panel.y + 206.0f, 70.0f, 20.0f)) {
                 slotsOpen = false;
+                slotDeleteArm = -1;
             }
         }
     }

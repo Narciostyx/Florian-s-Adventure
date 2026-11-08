@@ -122,8 +122,8 @@ tile >  0         → 以 tile 为边长的双色棋盘（color / altColor）
 
 | 文件 | 体积 | 来源 |
 |---|---|---|
-| `ui_atlas.png` | 66×666（457 字形），约 11 KB | `tools/build_font_atlas.py` 离线烘焙 |
-| `ui_atlas.json` | 约 53 KB | 同上，逐字形度量 |
+| `ui_atlas.png` | 66×675（462 字形），约 12 KB | `tools/build_font_atlas.py` 离线烘焙 |
+| `ui_atlas.json` | 约 55 KB | 同上，逐字形度量 |
 | `OFL.txt` | 4.4 KB | Fusion Pixel 的 SIL OFL 1.1 许可与署名 |
 
 字体是 **Fusion Pixel Font**（<https://github.com/TakWolf/fusion-pixel-font>，SIL OFL 1.1，

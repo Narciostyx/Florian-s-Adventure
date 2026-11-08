@@ -29,12 +29,10 @@ std::string_view toString(EditorScope scope) noexcept {
             return "tiles";
         case EditorScope::Decor:
             return "decor";
-        case EditorScope::Blockers:
-            return "blockers";
+        case EditorScope::Areas:
+            return "areas";
         case EditorScope::Placements:
             return "placements";
-        case EditorScope::Portals:
-            return "portals";
         case EditorScope::Entities:
             return "entities";
         default:

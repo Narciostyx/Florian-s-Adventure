@@ -415,7 +415,60 @@ TEST_CASE("the decor scope stacks components on grass without replacing the grou
     CHECK(reloaded.value().tileAt(5, 4, 0) == TileId{kGrassTile});
 }
 
-TEST_CASE("two clicks in the blocker scope create a collision zone that survives JSON", "[editor]") {
+TEST_CASE("the decor scope places entity components as placement rows", "[editor]") {
+    using fa::editor::EditorScope;
+    using fa::editor::MapPlacement;
+    using fa::editor::PlacementKind;
+    using fa::editor::VisualEditor;
+    using fa::editor::VisualEditorInput;
+
+    Tilemap map = makeMap();
+    REQUIRE(map.setTile(2, 2, 0, TileId{kSoilTile}));
+
+    VisualEditor editor(map);
+    std::vector<MapPlacement> rows;
+    editor.setPlacements(&rows, {PlacementKind{"npc", "NPC", {}}, PlacementKind{"bed", "床", {}}});
+    editor.setComponentKinds({PlacementKind{"bed", "床", {}}});
+    editor.setActive(true);
+    const fa::core::Rect viewport{0.0f, 0.0f, 128.0f, 128.0f};
+
+    VisualEditorInput idle;
+    idle.cursorScreen = fa::core::Vec2{-100.0f, -100.0f};
+    editor.update(idle, viewport);
+    editor.setScope(EditorScope::Decor);
+
+    CHECK_FALSE(editor.selectComponent("enemy"));
+    REQUIRE(editor.selectComponent("bed"));
+
+    const auto clickAt = [&](int column, int row, bool secondary) {
+        VisualEditorInput in;
+        in.cursorScreen =
+            fa::core::Vec2{(static_cast<float>(column) + 0.5f) * 16.0f, (static_cast<float>(row) + 0.5f) * 16.0f};
+        in.primaryPressed = !secondary;
+        in.secondaryPressed = secondary;
+        editor.update(in, viewport);
+    };
+
+    // Entity components write spawn rows, but every component still needs its
+    // ground type: soil is rejected, grass is accepted, and the ground tile is
+    // never replaced.
+    clickAt(2, 2, false);
+    CHECK(editor.placements().empty());
+    clickAt(5, 4, false);
+    REQUIRE(editor.placements().size() == 1);
+    CHECK(editor.placements()[0].kind == "bed");
+    CHECK(editor.placements()[0].id == "bed_1");
+    CHECK(editor.placements()[0].cell == TileCoord{5, 4});
+    CHECK(tileAt(map, 5, 4) == TileId{kGrassTile});
+    CHECK(tileAt(map, 2, 2) == TileId{kSoilTile});
+    CHECK(editor.dirty());
+
+    // Right click in the same scope removes the row again.
+    clickAt(5, 4, true);
+    CHECK(editor.placements().empty());
+}
+
+TEST_CASE("two clicks with the zone tool in the areas scope create a collision zone that survives JSON", "[editor]") {
     using fa::editor::EditorScope;
     using fa::editor::VisualEditor;
     using fa::editor::VisualEditorInput;
@@ -428,7 +481,8 @@ TEST_CASE("two clicks in the blocker scope create a collision zone that survives
     VisualEditorInput idle;
     idle.cursorScreen = fa::core::Vec2{-100.0f, -100.0f};
     editor.update(idle, viewport);
-    editor.setScope(EditorScope::Blockers);
+    editor.setScope(EditorScope::Areas);
+    editor.setAreaTool(false);  // the collision-zone create tool
 
     VisualEditorInput first;
     first.cursorScreen = fa::core::Vec2{40.0f, 40.0f};
@@ -461,7 +515,7 @@ TEST_CASE("two clicks in the blocker scope create a collision zone that survives
     CHECK_FALSE(map.isSolidCell(3, 3));
 }
 
-TEST_CASE("two clicks in the portal scope create a trigger region that survives JSON", "[editor]") {
+TEST_CASE("two clicks in the areas scope create a portal trigger that survives JSON", "[editor]") {
     using fa::editor::EditorScope;
     using fa::editor::VisualEditor;
     using fa::editor::VisualEditorInput;
@@ -475,7 +529,8 @@ TEST_CASE("two clicks in the portal scope create a trigger region that survives 
     VisualEditorInput idle;
     idle.cursorScreen = fa::core::Vec2{-100.0f, -100.0f};
     editor.update(idle, viewport);
-    editor.setScope(EditorScope::Portals);
+    editor.setScope(EditorScope::Areas);
+    CHECK(editor.areaToolPortal());  // default create tool is the portal
 
     VisualEditorInput first;
     first.cursorScreen = fa::core::Vec2{40.0f, 40.0f};

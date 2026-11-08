@@ -1,4 +1,4 @@
-# 新增地图组件协作指南（瓦片 / 组件 / 碰撞区 / 放置对象）
+# 新增地图组件协作指南（瓦片 / 组件 / 区域 / 对象）
 
 本文面向**后续的人类开发者与 AI 助手**：如何给地图编辑器和游戏世界新增组件（花、树、石头这类），
 以及必须遵守的约束。读完本文可以独立完成「一张新贴图 + 一个新组件」的全流程，不需要改引擎代码。
@@ -7,16 +7,16 @@
 [像素度量](../architecture/pixel-metrics.md)（16×16 瓦片）、[编码与内容规范 §11](../architecture/conventions.md#11-资源命名)（命名）、
 M12 瓦片地图、M26 可视化编辑器。
 
-## 1. 先选形态：瓦片 / 组件 / 碰撞区 / 放置对象？
+## 1. 先选形态：瓦片 / 组件 / 区域 / 对象？
 
 | 形态 | 存在哪 | 编辑器入口 | 适合 | 例子 |
 |---|---|---|---|---|
 | **瓦片 Tile** | `data/maps/<地图>.json` 的 `tiles` 定义 + `ground` 图层格 | 作用域「瓦片」→ 笔刷面板选地面瓦片、单击查看/双击替换 | 铺满一格的地面：站得上去、参与物理与寻路 | grass、wall、soil、water、bramble |
-| **组件 Component** | 同一份地图 JSON：`decor` 图层上的瓦片格（`tag` 为 `decor`/`obstacle` 或 `render_height>1` 的定义自动归入） | 作用域「组件」→ 选花/草/树后**左键点格放置、右键清除**（走撤销历史） | 站在地表之上的叠放物：**只允许放在草地（grass）上，永不替换地面瓦片** | flower、tree、stone、grass_tuft |
-| **碰撞区 Blocker** | 地图 JSON 的 `blockers` 数组 | 作用域「碰撞区」→ 点两格框选，再选贴图/高度 | 一整片禁行区（墙、屋身、水坝）：**判定只算框选格子，贴图可向上任意加高**；门（勾选「门/可进入」）或盖在其上的传送门自动放行 | 房屋外壁、围栏 |
-| **放置对象 Placement** | `data/entities.json`（`EntitySpawn` 表） | 作用域「对象」→ 选种类后点格放置 | 有行为的实体：对话、床、商人、敌人 | npc、bed、merchant、enemy、hazard |
+| **组件 Component** | 瓦片类：`decor` 图层格（`tag` 为 `decor`/`obstacle` 或 `render_height>1` 的定义自动归入）；实体类：`data/entities.json` 的 spawn 行 | 作用域「组件」→ 选条目后**左键点格放置、右键清除**（瓦片类走撤销历史） | 站在地表之上的叠放物与家具。**所有组件都要求下方是特定瓦片（当前=草地 grass），永不替换地面** | flower、tree、stone、grass_tuft、床、箱子、荆棘 |
+| **区域 Area** | 地图 JSON 的 `portals` / `blockers` 数组 | 作用域「区域」→ 面板先选新建类型（传送门/碰撞区），再点两格框选 | 矩形地图区域：传送触发、整片禁行+立绘贴图 | portal、碰撞区 |
+| **对象 Placement** | `data/entities.json`（`EntitySpawn` 表） | 作用域「对象」→ 选种类后点格放置 | **仅人物/生物**：对话 NPC、商人、敌人 | npc、merchant、enemy |
 
-判断口诀：**"是什么地面"→ 瓦片；"草地上站了什么"→ 组件；"一大片禁行+一张立绘"→ 碰撞区；"有没有交互逻辑"→ 放置对象**。
+判断口诀：**"是什么地面"→ 瓦片；"草地上站了什么（含家具/荆棘）"→ 组件；"一片矩形区域"→ 区域；"会走路的角色"→ 对象**。
 新增放置对象见第 9 节，新增碰撞区见第 12 节。
 
 ## 2. 图层架构：地面 vs 装饰（先懂这个再选形态）
@@ -166,7 +166,8 @@ clean dark outline, centered, isolated on a flat solid pure magenta background
 1. `data/entities.json`：一行 `{id, kind, map, position|cell, texture, tint, payload, ...}`；
 2. `parseEntitySpawns` 的 `knownKind` 白名单加新 kind（否则整行被跳过）；
 3. `GameScene::buildWorld` 增加按 kind 生成实体的分支（Sprite/Collider/Interactable 组件）；
-4. `editorPlacementKinds()` 加调色板项（kind、中文 label、可选 targets）；
+4. `editorPlacementKinds()` 加调色板项（kind、中文 label、可选 targets）——人物类走「对象」；
+   家具/危险类（床、箱子、荆棘）改在 `openVisualEditor` 的 `setComponentKinds` 注册，出现在「组件」面板；
 5. `saveEntitySpawns` 的 kind 映射（编辑器写回时保留字段）；
 6. 有存档需求的，接入 M25 的 world 段读写；
 7. F3 面向瓦片面板想显示它：`facingTileDebugLines` 的 props 表加一项；
@@ -197,11 +198,12 @@ fa_app --play-test  exit 0、无 "-> bad"
 5. 本文的 id 分配表是唯一登记表：新增后立刻更新本文件，避免并行开发撞号。
 6. 生成素材被 API 拒绝（额度/鉴权）时：停止生成、保留已完成部分、向维护者汇报，不要重试轰炸。
 
-## 12. 碰撞区（Blockers）：框选禁行 + 立绘贴图
+## 12. 碰撞区（Blockers，编辑器「区域」作用域）：框选禁行 + 立绘贴图
 
-编辑器作用域「碰撞区」：点两格框选一片矩形，这片**格子**从此阻挡通行；之后给它选一张
+编辑器作用域「区域」：面板先切到「碰撞区」新建工具，再点两格框选一片矩形，这片**格子**从此阻挡通行；之后给它选一张
 贴图（同瓦片面板的 `<` `>` 循环），贴图锚定在框选区**底边**、`贴图高 N 格`可向上加高——
-判定永远只在框选的格子里，贴图高度不受框选限制（和树这类高瓦片同一原理）。
+判定永远只在框选的格子里，贴图高度不受框选限制（和树这类高瓦片同一原理）。「区域」里的
+「传送门」新建工具沿用同样的两格框选，产出传送触发区。
 
 - 想让角色进入：勾选「门/可进入」（整个区域放行，纯立绘），或在区域上叠一个传送门——
   **被传送门覆盖的格子自动解除阻挡**（`Tilemap::blockerAt` 的豁免规则）。

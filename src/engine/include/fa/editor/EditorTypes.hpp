@@ -32,15 +32,16 @@ enum class EditorTool : std::uint8_t {
 [[nodiscard]] std::string_view toString(EditorTool tool) noexcept;
 
 /// \brief What the canvas edits: tiles, the decor components that stand on them,
-/// the collision zones, or the objects the map asks the game to place.
+/// map regions (portals and collision zones), or the characters the map asks the
+/// game to place.
 enum class EditorScope : std::uint8_t {
     Tiles = 0,
-    /// \brief Grass/flower/tree decor: painted onto the decor layer, ground kept.
+    /// \brief Grass/flower/tree decor plus furniture (bed, chest, hazard): painted
+    /// onto the decor layer or written as spawn rows, never replacing the ground.
     Decor,
-    /// \brief Boxed collision zones with a texture (walls, houses); doors via portals.
-    Blockers,
+    /// \brief Boxed regions: portal triggers and collision zones share this scope.
+    Areas,
     Placements,
-    Portals,
     /// \brief Read-only view of the app's spawn table (npcs, enemies, props).
     Entities,
     Count,
