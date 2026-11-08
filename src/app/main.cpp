@@ -6081,11 +6081,11 @@ public:
         debugTools = std::make_unique<fa::debug::DebugTools>();
         debugTools->attachLogSink();
         if (debugMode) {
-            // `--debug` opens with the overlays the play session needs: the stats panel
-            // (which also draws each AI's target line) and the physics shapes. The
-            // cursor marker (F6) and the log panel (F4) still start hidden.
+            // `--debug` opens with the stats panel (which also draws each AI's
+            // target line). The physics shapes stay hidden: the cyan player
+            // collider box under the player's feet read as a stray cursor. F5
+            // toggles them on when collision debugging is actually wanted.
             debugTools->setStatsVisible(true);
-            debugTools->setPhysicsVisible(true);
         }
 
         static_cast<void>(debugTools->registerCommand(
@@ -10490,7 +10490,7 @@ int main(int argc, char** argv) {
             std::printf("play mode: WASD move, 1-9 hotbar, wheel cycle, LMB/G use, RMB sword qi, E teleport\n");
             std::printf("           console `, F3 stats, F4 log, F5 physics, F6 cursor marker,\n");
             std::printf("           time.addDays N / time.set HH:MM\n");
-            std::printf("debug mode: stats + physics/AI overlays + help panel on at start, log level Debug\n");
+            std::printf("debug mode: stats overlay + help panel on at start (F5 physics, F6 cursor hidden), log level Debug\n");
         }
 #endif
     }
