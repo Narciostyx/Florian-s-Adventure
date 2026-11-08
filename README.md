@@ -60,7 +60,7 @@ $msbuild='C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\
 ```
 
 三配置：`Debug` / `Development` / `Release` × `x64`；产物在 `build\bin\x64\<Config>\`。
-VS 中把 `fa_app` 设为启动项目后 **F5** 即以 `--play --window` 编译并调试。
+VS 中把 `fa_app` 设为启动项目后 **F5** 即以 `--debug` 编译并调试。
 运行时从 `data/`、`config/`、`assets/` 读取数据/配置/图片；任意文件缺失都会回落到内置默认值。
 
 ## 命令行选项
@@ -69,8 +69,8 @@ VS 中把 `fa_app` 设为启动项目后 **F5** 即以 `--play --window` 编译�
 |---|---|---|
 | （无参数） | 无头脚本烟测：跑几帧，打印 m02–m27 模块报告后退出 | 隐藏 |
 | `--help` / `-h` | 打印选项说明并退出 | — |
-| `--play` | 正式游戏（写 `data/log/Log_<时间戳>.txt`） | 默认有 |
-| `--debug` | 正式游戏 + 调试叠加默认开启（F3/F5）+ Debug 级日志 | 默认有 |
+| `--play` | 正式游戏，无任何调试信息（写 `data/log/Log_<时间戳>.txt`） | 默认有 |
+| `--debug` | 正式游戏 + 调试工具（控制台/叠加层，启动即开 F3/F5）+ Debug 级日志 | 默认有 |
 | `--play-test` | 无头玩法自检：新游戏、种植、战斗、传送、死亡、存档闭环 | 隐藏 |
 | `--window` | 强制开窗口（任意自动化模式） | 有 |
 | `--frames N` | 跑 N 帧后退出 | 隐藏 |
@@ -96,8 +96,8 @@ VS 中把 `fa_app` 设为启动项目后 **F5** 即以 `--play --window` 编译�
 | `J` | 打开任务日志 |
 | `F2` | 地图编辑器（瓦片/对象/传送门/实体 四种 scope；瓦片单击查看、双击替换） |
 | `Esc` | 关闭面板 / 暂停（继续/保存/存档槽/主菜单） |
-| `F3` / `F4` / `F5` | 统计+面向瓦片面板 / 日志 / 物理调试（默认关闭，`--debug` 启动即开） |
-| `` ` `` | 调试控制台（`help`、`time.addDays`、`time.set`、`give`、`teleport`；中文输入法兼容） |
+| `F3` / `F4` / `F5` / `F6` | 统计+面向瓦片面板 / 日志 / 物理调试 / 鼠标世界坐标标记（仅 `--debug` 可用；启动开 F3/F5，其余默认关闭） |
+| `` ` `` | 调试控制台（仅 `--debug` 可用；`help`、`time.addDays`、`time.set`、`give`、`teleport`；中文输入法兼容） |
 
 数值配置：体力在 `config/game.json` 的 `stamina` 段；武器伤害/食物效果在 `data/content.json`；
 技能参数在 `data/skills.json`；动画参数在 `data/animations.json`。

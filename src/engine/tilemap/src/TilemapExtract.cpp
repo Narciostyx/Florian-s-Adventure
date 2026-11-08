@@ -121,8 +121,9 @@ TileExtractStats extractTiles(const Tilemap& map, render::RenderQueue& queue, co
                 render::DrawItem item;
                 item.texture = def->texture;
                 const int height = def->renderHeight > 1 ? def->renderHeight : 1;
-                item.position = core::Vec2{mapOrigin.x + static_cast<float>(column) * tile,
-                                           mapOrigin.y + (static_cast<float>(row) - static_cast<float>(height - 1)) * tile};
+                item.position =
+                    core::Vec2{mapOrigin.x + static_cast<float>(column) * tile,
+                               mapOrigin.y + (static_cast<float>(row) - static_cast<float>(height - 1)) * tile};
                 item.size = core::Vec2{tile, static_cast<float>(height) * tile};
                 item.source = def->source;
                 item.layer = layer.renderLayer;

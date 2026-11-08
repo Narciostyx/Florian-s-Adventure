@@ -55,6 +55,12 @@ public:
     [[nodiscard]] bool physicsVisible() const noexcept { return m_physicsVisible; }
     void togglePhysics() noexcept { m_physicsVisible = !m_physicsVisible; }
 
+    /// \brief F6 toggles the cursor world-position marker (yellow box + green
+    /// line). Hidden by default in every mode, including debug builds.
+    void setCursorVisible(bool visible) noexcept { m_cursorVisible = visible; }
+    [[nodiscard]] bool cursorVisible() const noexcept { return m_cursorVisible; }
+    void toggleCursor() noexcept { m_cursorVisible = !m_cursorVisible; }
+
     /// \brief Opens/closes the console; opening prints the registered command list.
     void setConsoleOpen(bool open);
     /// \brief Whether the console currently owns input.
@@ -91,6 +97,7 @@ private:
     DebugStats m_stats;
     DebugOverlayState m_overlayState;
     bool m_physicsVisible = false;
+    bool m_cursorVisible = false;
     bool m_logAttached = false;
 };
 

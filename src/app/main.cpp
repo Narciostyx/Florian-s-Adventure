@@ -159,24 +159,24 @@ struct Options {
 
 /// \brief Prints the command-line reference (also used by `--help`).
 void printUsage() {
-    std::printf(
-        "usage: fa_app [options]\n"
-        "  (no options)        headless scripted smoke: runs a few frames, prints the\n"
-        "                      m02..m27 module report, exits\n"
-        "  --help, -h          show this help and exit\n"
-        "  --play              playable session: window opens, WASD move, 1-9 hotbar,\n"
-        "                      wheel cycle, LMB/G use, RMB sword qi, E teleport\n"
-        "  --debug             --play plus debug overlays on at startup (F3 stats panel,\n"
-        "                      F5 collision boxes) and Debug-level logging\n"
-        "  --play-test         headless play-loop self check: drives the real play mode\n"
-        "                      through new game, farming, combat, portals, death, saves\n"
-        "  --window            force a visible window even in automation modes\n"
-        "  --frames N          stop after N frames (smoke/soak/stress run length)\n"
-        "  --resolution WxH    override the window size from config/game.json (e.g. 1920x1080)\n"
-        "  --soak SECONDS      soak test: run SECONDS*60 fixed steps with periodic\n"
-        "                      save/load cycles and check for entity/texture leaks\n"
-        "  --stress N          stress test: headless scene with N sprites for 600 frames\n"
-        "                      (p50/p99 frame-time report)\n");
+    std::printf("usage: fa_app [options]\n"
+                "  (no options)        headless scripted smoke: runs a few frames, prints the\n"
+                "                      m02..m27 module report, exits\n"
+                "  --help, -h          show this help and exit\n"
+                "  --play              playable session, no debug info: window opens, WASD move,\n"
+                "                      1-9 hotbar, wheel cycle, LMB/G use, RMB sword qi, E teleport\n"
+                "  --debug             --play plus the debug toolset: console (`), F3 stats, F4 log,\n"
+                "                      F5 collision boxes, F6 cursor marker; overlays on at startup,\n"
+                "                      Debug-level logging\n"
+                "  --play-test         headless play-loop self check: drives the real play mode\n"
+                "                      through new game, farming, combat, portals, death, saves\n"
+                "  --window            force a visible window even in automation modes\n"
+                "  --frames N          stop after N frames (smoke/soak/stress run length)\n"
+                "  --resolution WxH    override the window size from config/game.json (e.g. 1920x1080)\n"
+                "  --soak SECONDS      soak test: run SECONDS*60 fixed steps with periodic\n"
+                "                      save/load cycles and check for entity/texture leaks\n"
+                "  --stress N          stress test: headless scene with N sprites for 600 frames\n"
+                "                      (p50/p99 frame-time report)\n");
 }
 
 Options parseOptions(int argc, char** argv) {
@@ -389,8 +389,7 @@ struct PlayerWalkAnimConfig {
     return value.is_number() ? value.get<int>() : fallback;
 }
 
-[[nodiscard]] inline std::vector<float> jsonFloats(const nlohmann::json& value,
-                                                    const std::vector<float>& fallback) {
+[[nodiscard]] inline std::vector<float> jsonFloats(const nlohmann::json& value, const std::vector<float>& fallback) {
     if (!value.is_array() || value.empty()) {
         return fallback;
     }
@@ -473,14 +472,14 @@ struct PlayerWalkAnimConfig {
             if (const auto f = e.find("durations"); f != e.end()) {
                 ec.durations = jsonFloats(*f, ec.durations);
             }
-            if (!ec.matchTexture.empty() && !ec.textureName.empty() && ec.columns > 0 &&
-                !ec.durations.empty() && ec.frameWidth > 0.0f && ec.frameHeight > 0.0f) {
+            if (!ec.matchTexture.empty() && !ec.textureName.empty() && ec.columns > 0 && !ec.durations.empty() &&
+                ec.frameWidth > 0.0f && ec.frameHeight > 0.0f) {
                 cfg.enemies.push_back(std::move(ec));
             }
         }
     }
-    cfg.valid = !cfg.textureName.empty() && cfg.columns > 0 && !cfg.walkDurations.empty() &&
-                cfg.frameWidth > 0.0f && cfg.frameHeight > 0.0f;
+    cfg.valid = !cfg.textureName.empty() && cfg.columns > 0 && !cfg.walkDurations.empty() && cfg.frameWidth > 0.0f &&
+                cfg.frameHeight > 0.0f;
     return cfg;
 }
 
@@ -513,18 +512,17 @@ struct SkillConfig {
     }
     if (const auto tp = doc.find("teleport"); tp != doc.end() && tp->is_object()) {
         cfg.teleportRange = jsonFloat(tp->value("range", nlohmann::json(cfg.teleportRange)), cfg.teleportRange);
-        cfg.teleportStaminaCost = jsonFloat(tp->value("stamina_cost", nlohmann::json(cfg.teleportStaminaCost)),
-                                            cfg.teleportStaminaCost);
+        cfg.teleportStaminaCost =
+            jsonFloat(tp->value("stamina_cost", nlohmann::json(cfg.teleportStaminaCost)), cfg.teleportStaminaCost);
         cfg.teleportCooldown =
             jsonFloat(tp->value("cooldown", nlohmann::json(cfg.teleportCooldown)), cfg.teleportCooldown);
     }
     if (const auto qi = doc.find("sword_qi"); qi != doc.end() && qi->is_object()) {
-        cfg.qiDamageMultiplier = jsonFloat(qi->value("damage_multiplier", nlohmann::json(cfg.qiDamageMultiplier)),
-                                           cfg.qiDamageMultiplier);
+        cfg.qiDamageMultiplier =
+            jsonFloat(qi->value("damage_multiplier", nlohmann::json(cfg.qiDamageMultiplier)), cfg.qiDamageMultiplier);
         cfg.qiSpeed = jsonFloat(qi->value("speed", nlohmann::json(cfg.qiSpeed)), cfg.qiSpeed);
         cfg.qiLifetime = jsonFloat(qi->value("lifetime", nlohmann::json(cfg.qiLifetime)), cfg.qiLifetime);
-        cfg.qiStaminaCost = jsonFloat(qi->value("stamina_cost", nlohmann::json(cfg.qiStaminaCost)),
-                                      cfg.qiStaminaCost);
+        cfg.qiStaminaCost = jsonFloat(qi->value("stamina_cost", nlohmann::json(cfg.qiStaminaCost)), cfg.qiStaminaCost);
         cfg.qiCooldown = jsonFloat(qi->value("cooldown", nlohmann::json(cfg.qiCooldown)), cfg.qiCooldown);
     }
     return cfg;
@@ -1929,7 +1927,11 @@ public:
             std::snprintf(buf, sizeof(buf), "tile #%u undefined", static_cast<unsigned>(id.value));
             lines.push_back(buf);
         } else {
-            std::snprintf(buf, sizeof(buf), "tile %s #%u tag=%s", def->name.c_str(), static_cast<unsigned>(def->id.value),
+            std::snprintf(buf,
+                          sizeof(buf),
+                          "tile %s #%u tag=%s",
+                          def->name.c_str(),
+                          static_cast<unsigned>(def->id.value),
                           def->tag.empty() ? "-" : def->tag.c_str());
             lines.push_back(buf);
             std::string flags = def->walkable ? "walk" : "blocked";
@@ -2603,8 +2605,7 @@ private:
             // for the clip and register per-entity playback state.
             const EnemyWalkAnimConfig* enemyCfg = nullptr;
             if (m_walkConfig != nullptr) {
-                const std::string_view match =
-                    textureName.empty() ? std::string_view("tex.enemy.slime") : textureName;
+                const std::string_view match = textureName.empty() ? std::string_view("tex.enemy.slime") : textureName;
                 for (const EnemyWalkAnimConfig& e : m_walkConfig->enemies) {
                     if (e.matchTexture == match) {
                         enemyCfg = &e;
@@ -2635,13 +2636,13 @@ private:
                     const float duration = column < static_cast<int>(enemyCfg->durations.size())
                                                ? enemyCfg->durations[static_cast<std::size_t>(column)]
                                                : enemyCfg->durations.back();
-                    clip->frames.push_back(fa::anim::AnimationFrame{
-                        fa::core::makeRect(static_cast<float>(column) * enemyCfg->frameWidth,
-                                           0.0f,
-                                           enemyCfg->frameWidth,
-                                           enemyCfg->frameHeight),
-                        duration,
-                        {}});
+                    clip->frames.push_back(
+                        fa::anim::AnimationFrame{fa::core::makeRect(static_cast<float>(column) * enemyCfg->frameWidth,
+                                                                    0.0f,
+                                                                    enemyCfg->frameWidth,
+                                                                    enemyCfg->frameHeight),
+                                                 duration,
+                                                 {}});
                 }
                 EnemyWalkState state;
                 state.id = id;
@@ -2916,14 +2917,14 @@ private:
             return 0;
         }
         switch (fa::player::cardinalFacing(facing)) {
-        case fa::player::Facing::North:
-            return m_walkConfig->rowUp;
-        case fa::player::Facing::West:
-            return m_walkConfig->rowLeft;
-        case fa::player::Facing::East:
-            return m_walkConfig->rowRight;
-        default:
-            return m_walkConfig->rowDown;
+            case fa::player::Facing::North:
+                return m_walkConfig->rowUp;
+            case fa::player::Facing::West:
+                return m_walkConfig->rowLeft;
+            case fa::player::Facing::East:
+                return m_walkConfig->rowRight;
+            default:
+                return m_walkConfig->rowDown;
         }
     }
 
@@ -2947,8 +2948,7 @@ private:
         }
         if (m_walkClips[static_cast<std::size_t>(index)] == nullptr && m_walkConfig != nullptr &&
             m_walkTexture.isValid()) {
-            const std::vector<float>& durations =
-                running ? m_walkConfig->runDurations : m_walkConfig->walkDurations;
+            const std::vector<float>& durations = running ? m_walkConfig->runDurations : m_walkConfig->walkDurations;
             auto clip = std::make_shared<fa::anim::AnimationClip>();
             clip->texture = m_walkTexture;
             clip->loop = true;
@@ -3044,10 +3044,10 @@ private:
             clip->texture = m_boatTexture;
             clip->loop = true;
             for (int column = 0; column < m_boatConfig->columns; ++column) {
-                const float duration = column < static_cast<int>(m_boatConfig->walkDurations.size())
-                                           ? m_boatConfig->walkDurations[static_cast<std::size_t>(column)]
-                                           : (m_boatConfig->walkDurations.empty() ? 0.15f
-                                                                                  : m_boatConfig->walkDurations.back());
+                const float duration =
+                    column < static_cast<int>(m_boatConfig->walkDurations.size())
+                        ? m_boatConfig->walkDurations[static_cast<std::size_t>(column)]
+                        : (m_boatConfig->walkDurations.empty() ? 0.15f : m_boatConfig->walkDurations.back());
                 clip->frames.push_back(fa::anim::AnimationFrame{boatRect(row, column), duration, {}});
             }
             m_boatClips[static_cast<std::size_t>(row)] = std::move(clip);
@@ -3067,8 +3067,8 @@ private:
         }
         sprite.texture = m_boatTexture;
         sprite.size = fa::core::Vec2{m_boatConfig->spriteWidth, m_boatConfig->spriteHeight};
-        sprite.offset = fa::core::Vec2{(kMarkerSize - m_boatConfig->spriteWidth) * 0.5f,
-                                       kMarkerSize - m_boatConfig->spriteHeight};
+        sprite.offset =
+            fa::core::Vec2{(kMarkerSize - m_boatConfig->spriteWidth) * 0.5f, kMarkerSize - m_boatConfig->spriteHeight};
         const int row = walkRowFor(params.facing);
         if (!params.moving) {
             m_boatSelection = -1;
@@ -3085,8 +3085,7 @@ private:
             m_boatSelection = row;
         }
         static_cast<void>(m_animService.update(m_boatAnimator, deltaSeconds));
-        if (const fa::anim::AnimationFrame* frame = m_animService.currentFrame(m_boatAnimator);
-            frame != nullptr) {
+        if (const fa::anim::AnimationFrame* frame = m_animService.currentFrame(m_boatAnimator); frame != nullptr) {
             sprite.source = frame->source;
         }
         return true;
@@ -3106,24 +3105,26 @@ private:
                 const float duration = column < static_cast<int>(m_idleConfig->walkDurations.size())
                                            ? m_idleConfig->walkDurations[static_cast<std::size_t>(column)]
                                            : 0.35f;
-                clip->frames.push_back(fa::anim::AnimationFrame{
-                    fa::core::makeRect(static_cast<float>(column) * m_idleConfig->frameWidth, 0.0f,
-                                       m_idleConfig->frameWidth, m_idleConfig->frameHeight),
-                    duration, {}});
+                clip->frames.push_back(
+                    fa::anim::AnimationFrame{fa::core::makeRect(static_cast<float>(column) * m_idleConfig->frameWidth,
+                                                                0.0f,
+                                                                m_idleConfig->frameWidth,
+                                                                m_idleConfig->frameHeight),
+                                             duration,
+                                             {}});
             }
             m_idleClip = std::move(clip);
         }
         sprite.texture = m_idleTexture;
         sprite.size = fa::core::Vec2{m_idleConfig->spriteWidth, m_idleConfig->spriteHeight};
-        sprite.offset = fa::core::Vec2{(kMarkerSize - m_idleConfig->spriteWidth) * 0.5f,
-                                       kMarkerSize - m_idleConfig->spriteHeight};
+        sprite.offset =
+            fa::core::Vec2{(kMarkerSize - m_idleConfig->spriteWidth) * 0.5f, kMarkerSize - m_idleConfig->spriteHeight};
         if (!m_idleActive) {
             m_animService.play(m_idleAnimator, m_idleClip, true);
             m_idleActive = true;
         }
         static_cast<void>(m_animService.update(m_idleAnimator, deltaSeconds));
-        if (const fa::anim::AnimationFrame* frame = m_animService.currentFrame(m_idleAnimator);
-            frame != nullptr) {
+        if (const fa::anim::AnimationFrame* frame = m_animService.currentFrame(m_idleAnimator); frame != nullptr) {
             sprite.source = frame->source;
         }
         return true;
@@ -3162,8 +3163,8 @@ private:
         // Moving (or no idle art): restore the walk sheet (idle owns the texture while standing).
         sprite->texture = m_walkTexture;
         sprite->size = fa::core::Vec2{m_walkConfig->spriteWidth, m_walkConfig->spriteHeight};
-        sprite->offset = fa::core::Vec2{(kMarkerSize - m_walkConfig->spriteWidth) * 0.5f,
-                                        kMarkerSize - m_walkConfig->spriteHeight};
+        sprite->offset =
+            fa::core::Vec2{(kMarkerSize - m_walkConfig->spriteWidth) * 0.5f, kMarkerSize - m_walkConfig->spriteHeight};
         if (!params.moving) {
             m_walkActive = false;
             m_walkSelection = -1;
@@ -3213,8 +3214,7 @@ private:
             m_walkSelection = selection;
         }
         static_cast<void>(m_animService.update(m_playerAnimator, deltaSeconds));
-        if (const fa::anim::AnimationFrame* frame = m_animService.currentFrame(m_playerAnimator);
-            frame != nullptr) {
+        if (const fa::anim::AnimationFrame* frame = m_animService.currentFrame(m_playerAnimator); frame != nullptr) {
             sprite->source = frame->source;
         }
     }
@@ -3239,11 +3239,10 @@ private:
                     sprite->source = frame->source;
                 }
             } else {
-                sprite->source =
-                    fa::core::makeRect(static_cast<float>(state.cfg->idleFrame) * state.cfg->frameWidth,
-                                       0.0f,
-                                       state.cfg->frameWidth,
-                                       state.cfg->frameHeight);
+                sprite->source = fa::core::makeRect(static_cast<float>(state.cfg->idleFrame) * state.cfg->frameWidth,
+                                                    0.0f,
+                                                    state.cfg->frameWidth,
+                                                    state.cfg->frameHeight);
             }
         }
     }
@@ -3323,8 +3322,8 @@ private:
         desc.position = markerCenter() + dir * 10.0f;
         desc.velocity = dir * m_skillConfig->qiSpeed;
         desc.lifetime = m_skillConfig->qiLifetime;
-        desc.damage = std::max(1, static_cast<int>(static_cast<float>(weaponDamage) *
-                                                      m_skillConfig->qiDamageMultiplier));
+        desc.damage =
+            std::max(1, static_cast<int>(static_cast<float>(weaponDamage) * m_skillConfig->qiDamageMultiplier));
         desc.targetMask = fa::physics::maskOf(fa::physics::CollisionLayer::Enemy);
         desc.owner = m_markerEntity;
         const fa::scene::EntityId entity = m_combat->spawnProjectile(world(), desc);
@@ -3334,8 +3333,7 @@ private:
         // Visual: the mid-swing slash frame, rotated along the flight direction.
         const fa::render::TextureHandle slash = textureForName("tex.effect.slash");
         if (slash.isValid()) {
-            if (fa::scene::Transform* transform = world().tryGet<fa::scene::Transform>(entity);
-                transform != nullptr) {
+            if (fa::scene::Transform* transform = world().tryGet<fa::scene::Transform>(entity); transform != nullptr) {
                 transform->position = desc.position - fa::core::Vec2{8.0f, 8.0f};
                 transform->rotation = std::atan2(dir.y, dir.x);
             }
@@ -4036,10 +4034,18 @@ public:
         // is tagged for the showcase worlds, so `--play` stays free of scripted content while the
         // editor can still author rows for it.
         const std::string mapId = showcaseContent ? (map == GameMap::Forest ? "forest" : "farm")
-                                              : (map == GameMap::Forest ? "play/forest" : "play/farm");
-        auto scene = std::make_unique<GameScene>(
-            input, content, narrative, gameState, map, !playMode, &entitySpawns, spawn, mapText, mapId,
-            showcaseContent);
+                                                  : (map == GameMap::Forest ? "play/forest" : "play/farm");
+        auto scene = std::make_unique<GameScene>(input,
+                                                 content,
+                                                 narrative,
+                                                 gameState,
+                                                 map,
+                                                 !playMode,
+                                                 &entitySpawns,
+                                                 spawn,
+                                                 mapText,
+                                                 mapId,
+                                                 showcaseContent);
         scene->setTextures(gpuTextureOf(grassTexture),
                            gpuTextureOf(wallTexture),
                            gpuTextureOf(soilTexture),
@@ -4233,7 +4239,7 @@ public:
         editorStats.saveOk = saved.isOk();
         const fa::core::Result<fa::tilemap::Tilemap> loaded = fa::tilemap::loadTilemapFromJson(text);
         editorStats.loadOk = loaded.isOk() && loaded.value().width() == gameScene->editableMap().width() &&
-                            loaded.value().height() == gameScene->editableMap().height();
+                             loaded.value().height() == gameScene->editableMap().height();
     }
 
     /// \brief Saves the current editor map to the editor slot.
@@ -4308,9 +4314,7 @@ public:
         };
         const auto hex = [](fa::core::Color c) {
             char buffer[16]{};
-            const auto channel = [](float v) {
-                return static_cast<int>(std::clamp(v, 0.0f, 1.0f) * 255.0f + 0.5f);
-            };
+            const auto channel = [](float v) { return static_cast<int>(std::clamp(v, 0.0f, 1.0f) * 255.0f + 0.5f); };
             std::snprintf(buffer, sizeof(buffer), "#%02x%02x%02x", channel(c.r), channel(c.g), channel(c.b));
             return std::string(buffer);
         };
@@ -4328,7 +4332,10 @@ public:
             p.emplace_back("map", row.map.empty() ? "*" : row.map);
             if (row.hasPosition) {
                 char pos[48]{};
-                std::snprintf(pos, sizeof(pos), "(%.0f, %.0f)", static_cast<double>(row.position.x),
+                std::snprintf(pos,
+                              sizeof(pos),
+                              "(%.0f, %.0f)",
+                              static_cast<double>(row.position.x),
                               static_cast<double>(row.position.y));
                 p.emplace_back("position", pos);
             } else {
@@ -4527,9 +4534,8 @@ public:
                 static_cast<void>(map.setTileTexture(def.id, gameScene->textureForName(def.textureName), def.source));
             }
             for (fa::tilemap::MapBlocker& blocker : map.mutableBlockers()) {
-                blocker.texture = blocker.textureName.empty()
-                                      ? fa::render::TextureHandle{}
-                                      : gameScene->textureForName(blocker.textureName);
+                blocker.texture = blocker.textureName.empty() ? fa::render::TextureHandle{}
+                                                              : gameScene->textureForName(blocker.textureName);
             }
         }
         return saved;
@@ -4564,9 +4570,9 @@ public:
                     // Tall defs (trees) draw their whole height upward from the
                     // anchor cell, the same way the runtime extractor does.
                     const int height = def->renderHeight > 1 ? def->renderHeight : 1;
-                    item.position = fa::core::Vec2{view.x + viewport.x + static_cast<float>(column) * step,
-                                                   view.y + viewport.y +
-                                                       (static_cast<float>(row) - static_cast<float>(height - 1)) * step};
+                    item.position = fa::core::Vec2{
+                        view.x + viewport.x + static_cast<float>(column) * step,
+                        view.y + viewport.y + (static_cast<float>(row) - static_cast<float>(height - 1)) * step};
                     item.size = fa::core::Vec2{step, step * static_cast<float>(height)};
                     item.source = def->source;
                     item.layer = layer->renderLayer;
@@ -4587,10 +4593,9 @@ public:
             const int height = blocker.renderHeight > 1 ? blocker.renderHeight : 1;
             item.position = fa::core::Vec2{
                 view.x + viewport.x + static_cast<float>(blocker.bounds.x) * step,
-                view.y + viewport.y +
-                    static_cast<float>(blocker.bounds.y + blocker.bounds.height - height) * step};
-            item.size = fa::core::Vec2{static_cast<float>(blocker.bounds.width) * step,
-                                       step * static_cast<float>(height)};
+                view.y + viewport.y + static_cast<float>(blocker.bounds.y + blocker.bounds.height - height) * step};
+            item.size =
+                fa::core::Vec2{static_cast<float>(blocker.bounds.width) * step, step * static_cast<float>(height)};
             item.layer = fa::render::RenderLayer::Objects;
             renderQueue.submit(item);
         }
@@ -5760,8 +5765,8 @@ public:
                 fresh.year = 1;
                 fresh.season = fa::world::Season::Spring;
                 fresh.day = 1;
-                calendar->restore(fresh, config.gameplay.wakeHour, fa::world::Weather::Sunny,
-                                  fa::world::Weather::Sunny);
+                calendar->restore(
+                    fresh, config.gameplay.wakeHour, fa::world::Weather::Sunny, fa::world::Weather::Sunny);
                 lastEconomyTimeOfDay = calendar->timeOfDay();
                 economyMinuteCarry = 0.0f;
             }
@@ -6040,6 +6045,11 @@ public:
 #if defined(FA_ENABLE_DEBUG_TOOLS)
     /// \brief Creates the M27 console/overlay and registers app-level commands.
     ///
+    /// Only constructed for `--debug` and the automation runs; a plain `--play`
+    /// session never sees any of it. Stats/physics overlays start visible only
+    /// when `--debug` was requested; the cursor marker (F6) starts hidden
+    /// everywhere.
+    ///
     /// The commands intentionally go through public APIs only: `teleport` writes a
     /// Transform, `give` uses the M18 backpack, `entities` uses the M27 inspector.
     void initializeDebug() {
@@ -6048,7 +6058,7 @@ public:
         if (debugMode) {
             // `--debug` opens with the overlays the play session needs: the stats panel
             // (which also draws each AI's target line) and the physics shapes. The
-            // default is hidden; `--play` only shows it after an explicit F3.
+            // cursor marker (F6) and the log panel (F4) still start hidden.
             debugTools->setStatsVisible(true);
             debugTools->setPhysicsVisible(true);
         }
@@ -7090,15 +7100,13 @@ public:
         } else if (gameScene->isNearShippingBox()) {
             const int shipped = shipAllCrops();
             setPlayMessage(shipped > 0 ? "已出货 " + std::to_string(shipped) + " 作物" : "没有可出货的东西");
-        } else if (gameScene->isNearMerchant() && flow != nullptr &&
-                   flow->state() == fa::flow::AppState::Playing) {
+        } else if (gameScene->isNearMerchant() && flow != nullptr && flow->state() == fa::flow::AppState::Playing) {
             if (flow->enterDialogue().isOk()) {
                 shopOpen = true;
                 shopMessage.clear();
                 shopMessageTimer = 0.0f;
             }
-        } else if (playerInventory != nullptr &&
-                   playerInventory->hotbar().selectedStack().id.name() == "item.boat") {
+        } else if (playerInventory != nullptr && playerInventory->hotbar().selectedStack().id.name() == "item.boat") {
             // Boat selected: disembark on land, or board when facing water.
             if (gameScene->boatMode()) {
                 setPlayMessage(gameScene->disembarkBoatManually());
@@ -9572,11 +9580,10 @@ private:
             float buttonX = (640.0f - rowWidth) * 0.5f;
             constexpr float kButtonY = 286.0f;
             const auto menuButton = [this, &btnTex](const char* id, const char* text, float x) {
-                const bool pressed = ui->button(fa::ui::UiId::fromName(id),
-                                                text,
-                                                fa::core::makeRect(x, kButtonY, kButtonW, kButtonH),
-                                                btnTex)
-                                         .pressed;
+                const bool pressed =
+                    ui->button(
+                          fa::ui::UiId::fromName(id), text, fa::core::makeRect(x, kButtonY, kButtonW, kButtonH), btnTex)
+                        .pressed;
                 if (pressed) {
                     ++uiPresses;
                 }
@@ -9812,7 +9819,9 @@ private:
             static constexpr float kGap = 3.0f;
             const float totalWidth = static_cast<float>(slotCount) * (kCell + kGap) - kGap;
             const float left = (visible.w - totalWidth) * 0.5f;
-            const float top = visible.h - kCell - 8.0f;
+            // Room for the key digits under the cells: the bar sits 20 px off the
+            // bottom edge so the numbers stay on screen.
+            const float top = visible.h - kCell - 20.0f;
 
             fa::ui::TextStyle slotStyle;
             slotStyle.color = theme.text;
@@ -9847,7 +9856,7 @@ private:
 
                 char key[4]{};
                 std::snprintf(key, sizeof(key), "%d", (slot + 1) % 10);
-                ui->text(key, fa::core::makeRect(x + 10.0f, top - 12.0f, kCell, 10.0f), slotStyle);
+                ui->text(key, fa::core::makeRect(x + 10.0f, top + kCell + 2.0f, kCell, 10.0f), slotStyle);
             }
         }
 
@@ -9889,29 +9898,10 @@ private:
         }
 
         if (playMode && !inMenu) {
-            // Stacked under the status panel on the left edge, halved to match it:
-            // 118x66, 9 px line grid, compact key hints.
-            const fa::core::Rect panel = fa::core::makeRect(8.0f, 62.0f, 118.0f, 66.0f);
-            ui->panel(panel, theme.panel);
-            ui->border(panel, theme.panelBorder);
-
-            fa::ui::TextStyle style;
-            style.color = theme.text;
-            style.scale = config.ui.scale;
-
-            const fa::inventory::ItemStack& selected =
-                playerInventory != nullptr ? playerInventory->hotbar().selectedStack() : fa::inventory::ItemStack{};
-            const fa::content::ItemDef* selectedDef = selected.empty() ? nullptr : content.item(selected.id);
-            char toolText[64]{};
-            std::snprintf(toolText,
-                          sizeof(toolText),
-                          "工具 %s",
-                          selectedDef != nullptr ? selectedDef->displayName.c_str() : "空");
-            ui->text(toolText, fa::core::makeRect(panel.x + 4.0f, panel.y + 2.0f, 110.0f, 10.0f), style);
-            ui->text("1-9选栏 J任务 G交互",
-                     fa::core::makeRect(panel.x + 4.0f, panel.y + 11.0f, 110.0f, 10.0f),
-                     style);
-
+            // The help panel explains how the game resolves tools, weapons and
+            // keys - judgement info a player should not need. It belongs to
+            // `--debug`; a plain `--play` session only ever shows the quest line
+            // and the transient message, which are game feedback, not internals.
             std::string questText;
             if (gameScene != nullptr && gameScene->isFarm()) {
                 const fa::narrative::NarrativeService& dialogueState = gameScene->narrative();
@@ -9928,45 +9918,87 @@ private:
                     questText = "任务已完成";
                 }
             }
-            float messageY = panel.y + 20.0f;
-            if (!questText.empty()) {
-                ui->text(fa::ui::fitToCodepoints(questText, 10),
-                         fa::core::makeRect(panel.x + 4.0f, panel.y + 20.0f, 110.0f, 10.0f),
-                         style);
-                messageY = panel.y + 29.0f;
-            }
 
-            if (playMessageTimer > 0.0f && !playMessage.empty()) {
-                fa::ui::TextStyle messageStyle = style;
-                messageStyle.color = theme.accent;
-                ui->text(fa::ui::fitToCodepoints(playMessage, 10),
-                         fa::core::makeRect(panel.x + 4.0f, messageY, 110.0f, 10.0f),
-                         messageStyle);
-            }
+            fa::ui::TextStyle style;
+            style.color = theme.text;
+            style.scale = config.ui.scale;
 
-            // The weapon line follows the selected slot: that is what LMB/G swings
-            // and what RMB charges the sword qi with.
-            const fa::content::ItemDef* weaponDef = nullptr;
-            if (playerInventory != nullptr) {
-                const fa::inventory::ItemStack& held = playerInventory->hotbar().selectedStack();
-                const fa::content::ItemDef* heldDef = held.empty() ? nullptr : content.item(held.id);
-                if (heldDef != nullptr && (heldDef->category == "weapon" || heldDef->damage > 0)) {
-                    weaponDef = heldDef;
+            if (debugMode) {
+                // Stacked under the status panel on the left edge, halved to match it:
+                // 118x66, 9 px line grid, compact key hints.
+                const fa::core::Rect panel = fa::core::makeRect(8.0f, 62.0f, 118.0f, 66.0f);
+                ui->panel(panel, theme.panel);
+                ui->border(panel, theme.panelBorder);
+
+                const fa::inventory::ItemStack& selected =
+                    playerInventory != nullptr ? playerInventory->hotbar().selectedStack() : fa::inventory::ItemStack{};
+                const fa::content::ItemDef* selectedDef = selected.empty() ? nullptr : content.item(selected.id);
+                char toolText[64]{};
+                std::snprintf(toolText,
+                              sizeof(toolText),
+                              "工具 %s",
+                              selectedDef != nullptr ? selectedDef->displayName.c_str() : "空");
+                ui->text(toolText, fa::core::makeRect(panel.x + 4.0f, panel.y + 2.0f, 110.0f, 10.0f), style);
+                ui->text(
+                    "1-9选栏 J任务 G交互", fa::core::makeRect(panel.x + 4.0f, panel.y + 11.0f, 110.0f, 10.0f), style);
+
+                float messageY = panel.y + 20.0f;
+                if (!questText.empty()) {
+                    ui->text(fa::ui::fitToCodepoints(questText, 10),
+                             fa::core::makeRect(panel.x + 4.0f, panel.y + 20.0f, 110.0f, 10.0f),
+                             style);
+                    messageY = panel.y + 29.0f;
+                }
+
+                if (playMessageTimer > 0.0f && !playMessage.empty()) {
+                    fa::ui::TextStyle messageStyle = style;
+                    messageStyle.color = theme.accent;
+                    ui->text(fa::ui::fitToCodepoints(playMessage, 10),
+                             fa::core::makeRect(panel.x + 4.0f, messageY, 110.0f, 10.0f),
+                             messageStyle);
+                }
+
+                // The weapon line follows the selected slot: that is what LMB/G swings
+                // and what RMB charges the sword qi with.
+                const fa::content::ItemDef* weaponDef = nullptr;
+                if (playerInventory != nullptr) {
+                    const fa::inventory::ItemStack& held = playerInventory->hotbar().selectedStack();
+                    const fa::content::ItemDef* heldDef = held.empty() ? nullptr : content.item(held.id);
+                    if (heldDef != nullptr && (heldDef->category == "weapon" || heldDef->damage > 0)) {
+                        weaponDef = heldDef;
+                    }
+                }
+                char weaponText[64]{};
+                std::snprintf(weaponText,
+                              sizeof(weaponText),
+                              "武器 %s 伤害 %d",
+                              weaponDef != nullptr ? weaponDef->displayName.c_str() : "空手",
+                              weaponDef != nullptr ? std::max(1, weaponDef->damage) : 0);
+                ui->text(weaponText, fa::core::makeRect(panel.x + 4.0f, panel.y + 38.0f, 110.0f, 8.0f), style);
+                ui->text(
+                    "I背包 G吃 左键攻击", fa::core::makeRect(panel.x + 4.0f, panel.y + 47.0f, 110.0f, 8.0f), style);
+                ui->text("E瞬移 右键剑气", fa::core::makeRect(panel.x + 4.0f, panel.y + 56.0f, 110.0f, 8.0f), style);
+            } else if (!questText.empty() || (playMessageTimer > 0.0f && !playMessage.empty())) {
+                // Plain play feedback: quest progress and the transient message,
+                // without any tool/weapon/key judgement lines.
+                const fa::core::Rect panel = fa::core::makeRect(8.0f, 62.0f, 118.0f, 28.0f);
+                ui->panel(panel, theme.panel);
+                ui->border(panel, theme.panelBorder);
+                float messageY = panel.y + 2.0f;
+                if (!questText.empty()) {
+                    ui->text(fa::ui::fitToCodepoints(questText, 10),
+                             fa::core::makeRect(panel.x + 4.0f, messageY, 110.0f, 10.0f),
+                             style);
+                    messageY += 11.0f;
+                }
+                if (playMessageTimer > 0.0f && !playMessage.empty()) {
+                    fa::ui::TextStyle messageStyle = style;
+                    messageStyle.color = theme.accent;
+                    ui->text(fa::ui::fitToCodepoints(playMessage, 10),
+                             fa::core::makeRect(panel.x + 4.0f, messageY, 110.0f, 10.0f),
+                             messageStyle);
                 }
             }
-            char weaponText[64]{};
-            std::snprintf(weaponText,
-                          sizeof(weaponText),
-                          "武器 %s 伤害 %d",
-                          weaponDef != nullptr ? weaponDef->displayName.c_str() : "空手",
-                          weaponDef != nullptr ? std::max(1, weaponDef->damage) : 0);
-            ui->text(weaponText, fa::core::makeRect(panel.x + 4.0f, panel.y + 38.0f, 110.0f, 8.0f), style);
-            ui->text("I背包 G吃 左键攻击",
-                     fa::core::makeRect(panel.x + 4.0f, panel.y + 47.0f, 110.0f, 8.0f),
-                     style);
-            ui->text("E瞬移 右键剑气",
-                     fa::core::makeRect(panel.x + 4.0f, panel.y + 56.0f, 110.0f, 8.0f),
-                     style);
         }
 
 #if defined(FA_ENABLE_DEBUG_TOOLS)
@@ -10214,12 +10246,25 @@ private:
         renderQueue.sort();
         renderer->submitAll(renderQueue.items());
 
-        renderer->drawDebugRect(fa::core::makeRect(cursor.x - 8.0f, cursor.y - 8.0f, 16.0f, 16.0f),
-                                fa::core::Color{1.0f, 1.0f, 0.2f, 1.0f});
-        renderer->drawDebugLine(fa::core::Vec2{cursor.x, cursor.y},
-                                fa::core::Vec2{cursor.x + 24.0f, cursor.y - 16.0f},
-                                fa::core::Color{0.2f, 1.0f, 0.6f, 1.0f});
-        if (gameScene != nullptr) {
+        // The cursor marker (yellow 16x16 box + green chain-check line) proves the
+        // window -> virtual -> world coordinate chain, but it is a debug tool: it
+        // stays hidden in every mode unless F6 / `cursor.show` turns it on.
+#if defined(FA_ENABLE_DEBUG_TOOLS)
+        const bool cursorMarkerVisible = debugTools != nullptr && debugTools->cursorVisible();
+#else
+        const bool cursorMarkerVisible = false;
+#endif
+        if (cursorMarkerVisible) {
+            renderer->drawDebugRect(fa::core::makeRect(cursor.x - 8.0f, cursor.y - 8.0f, 16.0f, 16.0f),
+                                    fa::core::Color{1.0f, 1.0f, 0.2f, 1.0f});
+            renderer->drawDebugLine(fa::core::Vec2{cursor.x, cursor.y},
+                                    fa::core::Vec2{cursor.x + 24.0f, cursor.y - 16.0f},
+                                    fa::core::Color{0.2f, 1.0f, 0.6f, 1.0f});
+        }
+        // The facing-tile interaction highlight (green = reachable, red = not) is
+        // a debug aid too: it shares the F6 cursor-marker switch and is gone by
+        // default in every mode.
+        if (cursorMarkerVisible && gameScene != nullptr) {
             const fa::core::Rect targetRect = gameScene->interactionTargetRect();
             if (!fa::core::isEmpty(targetRect)) {
                 renderer->drawDebugRect(targetRect, gameScene->interactionTargetColor());
@@ -10386,11 +10431,12 @@ int main(int argc, char** argv) {
         "window %dx%d px, dpi scale %.2f\n", window.width(), window.height(), static_cast<double>(window.dpiScale()));
 
     if (options.playMode) {
-        std::printf("play mode: WASD move, 1-9 hotbar, wheel cycle, LMB/G use, RMB sword qi, E teleport\n");
-        std::printf("           console `, F3 stats, time.addDays N / time.set HH:MM\n");
 #if defined(FA_ENABLE_DEBUG_TOOLS)
         if (options.debugMode) {
-            std::printf("debug mode: stats + physics/AI overlays on, log level Debug\n");
+            std::printf("play mode: WASD move, 1-9 hotbar, wheel cycle, LMB/G use, RMB sword qi, E teleport\n");
+            std::printf("           console `, F3 stats, F4 log, F5 physics, F6 cursor marker,\n");
+            std::printf("           time.addDays N / time.set HH:MM\n");
+            std::printf("debug mode: stats + physics/AI overlays + help panel on at start, log level Debug\n");
         }
 #endif
     }
@@ -10424,7 +10470,12 @@ int main(int argc, char** argv) {
     }
 
 #if defined(FA_ENABLE_DEBUG_TOOLS)
-    sink.initializeDebug();
+    // Debug info belongs to `--debug` and to the automation runs that assert on it.
+    // A plain `--play` session creates no debug tools at all: no F3/F4/F5/F6 panels
+    // and no console.
+    if (!options.playMode || options.debugMode || options.playTest) {
+        sink.initializeDebug();
+    }
 #endif
 
     // A hidden window may still get a software GL context, but CI images that have
@@ -10575,6 +10626,13 @@ int main(int argc, char** argv) {
     if (!eventsJobsOk) {
         std::printf("events/jobs smoke failed: the final job reported an error\n");
         return 1;
+    }
+
+    // A plain `--play` session is the game, not a test report: the m02..m27 module
+    // dump belongs to the automation runs and to `--debug`. Failures above still
+    // print; a clean play session just exits quietly.
+    if (options.playMode && !options.debugMode && !options.playTest) {
+        return (playTestOk && soakOk && stressOk) ? 0 : 1;
     }
 
     std::printf("ran %llu frame(s) in %.3fs\n", static_cast<unsigned long long>(loop.frameCount()), elapsedSeconds);

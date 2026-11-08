@@ -19,7 +19,7 @@ namespace fa::tilemap {
 class Tilemap;
 struct TileDef;
 struct MapBlocker;
-}
+}  // namespace fa::tilemap
 
 namespace fa::ui {
 class UiContext;

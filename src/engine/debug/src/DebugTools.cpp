@@ -31,6 +31,9 @@ bool DebugTools::handleEvent(const platform::PlatformEvent& event) {
             case platform::Scancode::F5:
                 togglePhysics();
                 return true;
+            case platform::Scancode::F6:
+                toggleCursor();
+                return true;
             case platform::Scancode::Grave:
                 setConsoleOpen(!consoleOpen());
                 return true;
@@ -189,6 +192,18 @@ void DebugTools::registerBuiltins() {
         "physics.toggle", "toggle physics debug shapes", [this](DebugConsole&, std::span<const std::string>) {
             togglePhysics();
         }}));
+    static_cast<void>(registerCommand(ConsoleCommand{
+        "cursor.show", "show the cursor world-position marker", [this](DebugConsole&, std::span<const std::string>) {
+            setCursorVisible(true);
+        }}));
+    static_cast<void>(registerCommand(ConsoleCommand{
+        "cursor.hide", "hide the cursor world-position marker", [this](DebugConsole&, std::span<const std::string>) {
+            setCursorVisible(false);
+        }}));
+    static_cast<void>(
+        registerCommand(ConsoleCommand{"cursor.toggle",
+                                       "toggle the cursor world-position marker",
+                                       [this](DebugConsole&, std::span<const std::string>) { toggleCursor(); }}));
     static_cast<void>(registerCommand(
         ConsoleCommand{"console.close", "close the console", [this](DebugConsole&, std::span<const std::string>) {
                            setConsoleOpen(false);

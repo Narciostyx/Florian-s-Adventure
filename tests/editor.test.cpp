@@ -377,8 +377,8 @@ TEST_CASE("the decor scope stacks components on grass without replacing the grou
 
     const auto clickAt = [&](int column, int row, bool secondary) {
         VisualEditorInput in;
-        in.cursorScreen = fa::core::Vec2{(static_cast<float>(column) + 0.5f) * 16.0f,
-                                         (static_cast<float>(row) + 0.5f) * 16.0f};
+        in.cursorScreen =
+            fa::core::Vec2{(static_cast<float>(column) + 0.5f) * 16.0f, (static_cast<float>(row) + 0.5f) * 16.0f};
         in.primaryPressed = !secondary;
         in.secondaryPressed = secondary;
         editor.update(in, viewport);

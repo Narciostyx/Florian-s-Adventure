@@ -432,8 +432,8 @@ core::Result<Tilemap> loadTilemapFromJson(std::string_view json) {
             const auto bounds = entry.find("bounds");
             if (bounds == entry.end() || !readBoundsValue(*bounds, blocker.bounds) ||
                 !boundsFit(blocker.bounds, width, height)) {
-                return core::Result<Tilemap>::err(
-                    jsonError(tilemap_error::kInvalidRegion, "blocker \"bounds\" must be a non-empty in-map rectangle"));
+                return core::Result<Tilemap>::err(jsonError(tilemap_error::kInvalidRegion,
+                                                            "blocker \"bounds\" must be a non-empty in-map rectangle"));
             }
             if (entry.contains("texture") && !readStringField(entry, "texture", blocker.textureName)) {
                 return core::Result<Tilemap>::err(
@@ -442,8 +442,8 @@ core::Result<Tilemap> loadTilemapFromJson(std::string_view json) {
             if (entry.contains("render_height")) {
                 int renderHeight = 1;
                 if (!readIntField(entry, "render_height", renderHeight) || renderHeight < 1 || renderHeight > 256) {
-                    return core::Result<Tilemap>::err(
-                        jsonError(tilemap_error::kInvalidRegion, "blocker \"render_height\" must be an integer in 1..256"));
+                    return core::Result<Tilemap>::err(jsonError(
+                        tilemap_error::kInvalidRegion, "blocker \"render_height\" must be an integer in 1..256"));
                 }
                 blocker.renderHeight = renderHeight;
             }
