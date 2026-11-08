@@ -10,20 +10,7 @@
     "music": ""
   },
   "areas": [],
-  "blockers": [
-    {
-      "bounds": [
-        26,
-        8,
-        10,
-        6
-      ],
-      "id": "zone_1",
-      "passable": false,
-      "render_height": 8,
-      "texture": "tex.marker"
-    }
-  ],
+  "blockers": [],
   "height": 23,
   "layers": [
     {
@@ -1470,7 +1457,7 @@
         0,
         0,
         0,
-        0,
+        6,
         0,
         0,
         0,
@@ -1888,7 +1875,22 @@
     0.0
   ],
   "outside_solid": true,
-  "portals": [],
+  "portals": [
+    {
+      "bounds": [
+        30,
+        8,
+        3,
+        2
+      ],
+      "id": "portal_1",
+      "target_map": "forest",
+      "target_tile": [
+        0,
+        0
+      ]
+    }
+  ],
   "schema_version": 1,
   "tile_size": 16,
   "tiles": [
