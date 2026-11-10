@@ -1143,17 +1143,18 @@ classDiagram
 
 - **工程/依赖**：`fa_editor` ← `fa_core`、`fa_tilemap`、`fa_render`、`fa_ui`；Release 不链接。
 - **命名空间**：`fa::editor`。
-- **头文件**：`MapEditor.hpp`、`EditorHistory.hpp`、`EditorOverlay.hpp`、`EditorTypes.hpp`。
+- **头文件**：`MapEditor.hpp`、`EditorHistory.hpp`、`EditorOverlay.hpp`、`EditorTypes.hpp`、`VisualEditor.hpp`。
 
 | 类型 | 关键公开 API |
 |---|---|
 | `MapEditor` | `setLayer`、`layer`、`setBrush`、`brush`、`setTool`、`tool`、`setHover`、`hover`、`applyPrimary`、`applySecondary`、`paint`、`erase`、`fillRect`、`floodFill`、`cancelRect`、`previewCells`、`map`、`history`、`mapText`、`stats` |
 | `EditorHistory` | `record`、`undo`、`redo`、`canUndo`、`canRedo`、`undoDepth`、`redoDepth`、`capacity`、`dirty`、`markSaved`、`clear`、`commands`、`undos`、`redos` |
 | `EditorOverlay` | `toggle`、`setActive`、`active`、`update`、`draw`、`setTool`、`setLayer`、`setBrush`、`undo`、`redo`、`hover`、`previewCells`、`mapText`、`stats` |
+| `VisualEditor` | `setPlacements`、`setComponentKinds`、`setPortalTargets`、`setEntityInfos`、`scope`/`setScope`、`setActive`、`update`、`draw`、`map`/`editor`/`history`、`mapText`、`dirty`、`closeRequested` |
 | `EditorStats` / `EditorFrameInput` | 工具/层/笔刷/undo/redo/命令数/脏标记；鼠标与按键 |
 
-- **枚举**：`EditorTool { Brush, Rect, Fill, Erase, Picker, Count }`。
-- **快捷键**：F2 开关；1–5 工具；`[`/`]` 图层；Z/Y 撤销/重做；S/L 保存/加载；Esc 退出。
+- **枚举**：`EditorTool { Brush, Rect, Fill, Erase, Picker, Count }`；`EditorScope { Tiles, Decor, Areas, Placements, Entities, Count }`。
+- **入口**：玩家用的地图编辑器是 `VisualEditor`，从主菜单「地图编辑器」打开，作用域为 瓦片 / 组件 / 区域 / 对象 / 实体。`EditorOverlay` 是烟测 / 调试用的运行时叠加编辑器，不绑定玩法快捷键。
 - **要点**：直接改运行时 `Tilemap`；命令差分 undo/redo；L 只验证加载，不替换实时地图。
 
 **类关系与职责**
@@ -1185,7 +1186,7 @@ classDiagram
 
 - **枚举**：`CVarType { Bool, Int, Float, String }`、`LogLevel` 复用 core。
 - **函数**：`splitCommandLine`、`trimCommandLine`、`formatStats`、`formatLogLine`、`formatInspection`、`inspectWorld`、`drawPhysicsShapes`。
-- **快捷键**：F3 统计、F4 日志、F5 物理、反引号控制台。
+- **快捷键**：F3 统计、F4 日志、F5 物理、F6 鼠标世界坐标标记、反引号控制台（调试工具仅在 `--debug` 与自动化运行创建，`--play` 不创建）。
 - **要点**：M27 不依赖玩法模块；相机/玩家/AI 目标是 app 填的纯数据快照；AI 文本最多 6 行；F3 显示玩家世界/格子坐标，并画 agent/目标连线。
 
 **类关系与职责**
@@ -1215,7 +1216,7 @@ classDiagram
 | `SmokeSink` | `IFrameSink` 实现：事件路由、固定步、日历推进、渲染与 HUD，持有全部服务、`GameState` 与 `SceneStack`；`makeDemoScene()`/`switchMap()` 换图，`openNpcDialogue()`/`chooseDialogue()`/`advanceDialogue()` 管对话，`processNarrativeEvents()` 结算任务，`respawnFromDeath()`/`loadFromDeath()`/`mainMenuFromDeath()` 管 GameOver 面板，`processCombatEvents()` 区分玩家/敌人受击并驱动受击闪烁/伤害数字，`buildInventoryPanel()`/`buildShopPanel()`/`buildQuestLogPanel()` 绘制分类背包、季节商店与任务日志 |
 | 各 `*DemoStats` | 每个模块的冒烟摘要快照 |
 
-**启动选项**：`--window` 显示窗口并默认进入 play（可用 `--play` 显式指定）；`--frames N` 无窗口时跑 scripted smoke；`--play-test` 无头跑通对话/任务/种植/战斗/换图/存档并返回失败码。
+**启动选项**：无参数为无头 scripted smoke（打印 m02..m27 报告后退出）；`--play`  playable 会话（无调试信息）；`--debug` 为 `--play` 加调试工具与叠加层；`--play-test` 无头跑通对话/任务/种植/战斗/换图/存档并返回失败码；`--window` 强制可见窗口；`--frames N` 限定帧数。
 
 **地图装配**：`makeDemoScene(map, spawn)` 按 `DemoMap` 选择 `maps/farm.json`、`maps/farm-scripted.json` 或 `maps/forest.json`，把文本交给 `DemoScene`；`loadTilemapFromJson()` 成功后 `m_mapLoaded=true`，失败则用 `buildWorld()` 的代码内布局。`switchMap()` 调 `SceneStack::replace()`，随后重建编辑器并重新链玩家快捷栏；`GameState` 保证农田/叙事/生命耐力跨图不丢。
 
@@ -1290,7 +1291,6 @@ classDiagram
 
 ## 7. 阅读入口
 
-- **先读**：[计划完成情况](../status/plan-status.md) → 本文件 → 对应模块设计文档 → 构建记录。
+- **先读**：[计划完成情况](../status/plan-status.md) → 本文件 → 对应模块的架构文档。
 - **架构**：[架构总览](../architecture/overview-design.md)、[模块地图](../architecture/module-map.md)、[依赖规则](../architecture/dependency-rules.md)。
 - **限制**：[已知限制与后续改进汇总](../status/known-limitations.md)。
-- **路线图**：里程碑、[垂直切片](../roadmap/vertical-slice.md)。

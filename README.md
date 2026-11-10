@@ -44,7 +44,7 @@ Florian-s-Adventure/
 ├─ data/             # content/entities/shops/audio/catalog/animations/skills/maps JSON
 ├─ config/           # game.json（窗口/UI 缩放/路径/玩法/体力参数）
 ├─ tools/            # 资源工具（字体图集烘焙等）
-├─ docs/             # 文档：guide/ reference/ status/ architecture/ adr/ roadmap/
+├─ docs/             # 文档：guide/ reference/ status/ architecture/
 ├─ saves/            # 运行期存档（git 忽略）
 ├─ build/            # MSBuild 输出与共享 .props（bin/obj 忽略）
 ├─ vcpkg.json
@@ -94,7 +94,7 @@ VS 中把 `fa_app` 设为启动项目后 **F5** 即以 `--debug` 编译并调试
 | `E` | 角色技能·瞬移（朝向前方 64px 内最远空位，带光环特效） |
 | `I` | 打开背包：分类筛选 + 翻页，背包与快捷栏互相转移 |
 | `J` | 打开任务日志 |
-| `F2` | 已禁用（叠加式编辑器不再响应；地图编辑器从主菜单进入） |
+| 主菜单「地图编辑器」 | 打开地图编辑器（作用域：瓦片 / 组件 / 区域 / 对象 / 实体） |
 | `Esc` | 关闭面板 / 暂停（继续/保存/存档槽/主菜单） |
 | `F3` / `F4` / `F5` / `F6` | 统计+面向瓦片面板 / 日志 / 物理调试 / 鼠标世界坐标标记（仅 `--debug` 可用；启动只开 F3，其余默认关闭） |
 | `` ` `` | 调试控制台（仅 `--debug` 可用；`help`、`time.addDays`、`time.set`、`give`、`teleport`；中文输入法兼容） |

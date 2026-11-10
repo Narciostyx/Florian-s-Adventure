@@ -198,11 +198,9 @@ app 会遍历 catalog 加载全部 `texture` 条目，因此新增作物/敌人�
 
 ## 6. 其它数据文件
 
-- `narrative.json`：NPC/对话/任务，格式见
-  `modules/23-npc-dialogue-quests.md`。
-- `data/maps/*.json`：瓦片布局、图层、传送点，格式见
-  `modules/12-tilemap-and-world.md`。
-- `config/game.json`：窗口/UI/玩法/体力参数，格式见
-  `build/m02-platform.md` 与 `src/app/GameConfig.hpp`。
+- `narrative.json`：NPC / 对话 / 任务，加载器见 `src/engine/narrative/src`，样例见 `data/narrative.json`。
+- `data/maps/*.json`：瓦片定义、图层、区域（`areas`/`portals`/`blockers`），加载器见
+  `src/engine/tilemap/src/TilemapLoader.cpp`，样例见 `data/maps/`。
+- `config/game.json`：窗口 / UI / 玩法 / 体力参数，字段见 `src/app/GameConfig.hpp`。
   `window.fill` 为 `false`（默认）时按整数倍缩放并留黑边；为 `true` 时按精确比例填满窗口
   （nearest 采样，个别源像素宽度为 2 或 3 个窗口像素）。

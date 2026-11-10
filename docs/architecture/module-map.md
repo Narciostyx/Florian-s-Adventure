@@ -1,6 +1,7 @@
 # 模块地图
 
-本文列出 Florian's Adventure 的全部 28 个模块、层级、优先级、职责与依赖。模块设计细节见 `docs/modules/`。
+本文列出 Florian's Adventure 的全部模块、层级、优先级、职责与依赖。接口细节以代码与头文件的
+Doxygen 注释为准，符号索引见[代码速查](../reference/code-reference.md)。
 
 ## 1. 模块总表
 
@@ -222,13 +223,12 @@ flowchart TB
 | 已实现 | 代码、测试、文档一致 |
 | 待定 | 依赖未确认的产品决策 |
 
-当前 M00–M07、M11–M13、M15–M17 已实现；其余模块为**设计完成**，尚未编码。逐模块状态、接口面与下一步建议以
-[计划完成情况](../status/plan-status.md) 为准。
+各模块的实现状态以[计划完成情况](../status/plan-status.md)为准。
 
 ## 6. 新增模块的流程
 
 1. 在本文总表增加一行，分配下一个 `Mxx` 编号与层级。
-2. 在 `docs/modules/` 新增同名文档，按统一模板填写。
+2. 在头文件写 Doxygen 注释描述接口，并在[代码速查](../reference/code-reference.md)登记该模块。
 3. 更新[依赖规则](dependency-rules.md)与[文档索引](../index.md)。
-4. 如果引入新的跨层依赖，先写 ADR。
+4. 如果引入新的跨层依赖，先在架构文档记录理由与影响范围。
 5. 在 composition root 中注册新系统/服务，并补充测试计划。
