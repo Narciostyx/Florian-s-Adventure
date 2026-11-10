@@ -4257,29 +4257,6 @@ public:
                              loaded.value().height() == gameScene->editableMap().height();
     }
 
-    /// \brief Saves the current editor map to the editor slot.
-    void saveEditorMap() {
-        if (editor == nullptr || fileSystem == nullptr) {
-            return;
-        }
-        static_cast<void>(fileSystem->createDirectories("saves"));
-        editorStats.saveOk = fileSystem->writeTextAtomic("saves/editor-map.json", editor->mapText()).isOk();
-    }
-
-    /// \brief Reads the editor slot and validates it with the runtime loader.
-    void loadEditorMap() {
-        if (editor == nullptr || fileSystem == nullptr) {
-            return;
-        }
-        const fa::core::Result<std::string> text = fileSystem->readText("saves/editor-map.json");
-        if (text.isError()) {
-            editorStats.loadOk = false;
-            return;
-        }
-        const fa::core::Result<fa::tilemap::Tilemap> loaded = fa::tilemap::loadTilemapFromJson(text.value());
-        editorStats.loadOk = loaded.isOk();
-    }
-
     /// \brief Cell containing a world position, for rows that only store a position.
     [[nodiscard]] static fa::tilemap::TileCoord tilemapCell(const fa::core::Vec2& position, int tileSize) {
         const int size = tileSize > 0 ? tileSize : static_cast<int>(fa::render::kTileSize);
@@ -8460,69 +8437,16 @@ public:
     void onEvents(std::span<const fa::platform::PlatformEvent> events) override {
 #if defined(FA_ENABLE_DEBUG_TOOLS)
         // While the console owns the keyboard, every raw gameplay hotkey below is
-        // skipped: typing "time" must not trigger I/J/E/F2 side effects.
+        // skipped: typing "time" must not trigger I/J/E side effects.
         const bool consoleGrab = debugTools != nullptr && debugTools->consoleOpen();
 #else
         const bool consoleGrab = false;
 #endif
 #if defined(FA_ENABLE_EDITOR)
-        for (const fa::platform::PlatformEvent& event : events) {
-            if (event.type != fa::platform::PlatformEventType::KeyDown) {
-                continue;
-            }
-            if (consoleGrab) {
-                break;
-            }
-            if (event.scancode == fa::platform::Scancode::F2) {
-                if (editor != nullptr) {
-                    editor->toggle();
-                }
-                continue;
-            }
-            if (editor == nullptr || !editor->active()) {
-                continue;
-            }
-            switch (event.scancode) {
-                case fa::platform::Scancode::Digit1:
-                    editor->setTool(fa::editor::EditorTool::Brush);
-                    break;
-                case fa::platform::Scancode::Digit2:
-                    editor->setTool(fa::editor::EditorTool::Rect);
-                    break;
-                case fa::platform::Scancode::Digit3:
-                    editor->setTool(fa::editor::EditorTool::Fill);
-                    break;
-                case fa::platform::Scancode::Digit4:
-                    editor->setTool(fa::editor::EditorTool::Erase);
-                    break;
-                case fa::platform::Scancode::Digit5:
-                    editor->setTool(fa::editor::EditorTool::Picker);
-                    break;
-                case fa::platform::Scancode::LeftBracket:
-                    editor->setLayer(editor->stats().layer - 1);
-                    break;
-                case fa::platform::Scancode::RightBracket:
-                    editor->setLayer(editor->stats().layer + 1);
-                    break;
-                case fa::platform::Scancode::Z:
-                    editor->undo();
-                    break;
-                case fa::platform::Scancode::Y:
-                    editor->redo();
-                    break;
-                case fa::platform::Scancode::S:
-                    saveEditorMap();
-                    break;
-                case fa::platform::Scancode::L:
-                    loadEditorMap();
-                    break;
-                case fa::platform::Scancode::Escape:
-                    editor->setActive(false);
-                    break;
-                default:
-                    break;
-            }
-        }
+        // The in-world overlay editor (EditorOverlay) is no longer reachable from
+        // gameplay: F2 used to toggle it, but the map editor players use is the
+        // VisualEditor window opened from the main menu. The overlay stays only as
+        // the M26 smoke fixture (its mapText/save path); no key activates it here.
 #endif
 #if defined(FA_ENABLE_EDITOR)
         const bool editorActive = editor != nullptr && editor->active();
@@ -10425,7 +10349,18 @@ void adoptProjectRoot(fa::platform::IFileSystem& fileSystem) {
 
 }  // namespace
 
+/// \brief Program entry point: parse the command line, bring up the engine
+/// subsystems in dependency order, run the frame loop, then tear everything
+/// down in reverse and print the m02..m27 smoke report.
+///
+/// The run is orchestrated through `sink` (the SmokeSink frame observer): it
+/// owns the scene, the modules and every counter the report reads. Subsystems
+/// come up so each finds what it depends on already present (content before
+/// inventory, renderer before assets/UI), and optional ones (audio, GL, assets)
+/// degrade to a headless run instead of failing when the mode needs no window.
 int main(int argc, char** argv) {
+    // 1. Command line. `--help` short-circuits; the mode flags decide how much
+    //    of the engine below is required versus tolerated-absent.
     const Options options = parseOptions(argc, argv);
     if (options.showHelp) {
         printUsage();
@@ -10433,6 +10368,10 @@ int main(int argc, char** argv) {
     }
     printBanner();
 
+    // 2. Platform and window. The platform is created first so its file system
+    //    can relocate the working directory to the repo root (every content path
+    //    is relative to it) before anything reads a file. The window descriptor
+    //    carries the resolved size and the hidden/visible choice from the mode.
     std::unique_ptr<fa::platform::IPlatform> platform = fa::platform::createPlatform();
     adoptProjectRoot(platform->files());
 
@@ -10501,6 +10440,11 @@ int main(int argc, char** argv) {
 #endif
     }
 
+    // 3. Subsystem init, in dependency order. Content (item/crop/quest tables)
+    //    precedes the systems that read it (inventory, economy, calendar). Audio,
+    //    the GL renderer, assets and UI are each optional: a failure downgrades to
+    //    a headless run unless the mode opened a real window, in which case it is
+    //    fatal. Debug tooling is created only for `--debug` and the automation runs.
     const fa::core::Status contentStatus = sink.initializeContent();
     if (contentStatus.isError()) {
         std::printf(
@@ -10576,6 +10520,10 @@ int main(int argc, char** argv) {
         }
     }
 
+    // 4. Application flow (new game / save / load / day cycle), then the optional
+    //    soak and stress harnesses, then the frame loop itself. `maxFrames` and the
+    //    pacing encode the mode contract: a visible window runs until closed and is
+    //    paced by vsync, a hidden run takes a few software-paced frames.
     sink.initializeFlow();
     if (options.soakSeconds > 0) {
         sink.beginSoak();
@@ -10597,6 +10545,10 @@ int main(int argc, char** argv) {
     const int exitCode = loop.run();
     const double elapsedSeconds = platform->monotonicSeconds() - startedSeconds;
 
+    // 5. After the loop: flush the job system, run the post-mortem self-tests
+    //    (play-loop, soak, stress, save, flow), then snapshot every module counter
+    //    into locals. This must happen before teardown, because the scene stack and
+    //    renderer are destroyed by shutdown and their stats die with them.
     const fa::time::FixedStepClock& clock = loop.clock();
     const bool eventsJobsOk = run.flush();
     bool playTestOk = true;
@@ -10669,6 +10621,8 @@ int main(int argc, char** argv) {
     const fa::debug::DebugStats debugSnapshot = sink.debugSnapshot();
     sink.shutdownDebug();
 #endif
+    // 6. Teardown in reverse init order: debug, then flow/save/calendar, then the
+    //    window-bound resources (audio, GL) before the platform closes the window.
     sink.shutdownFlow();
     sink.shutdownSave();
     sink.shutdownCalendar();
@@ -10678,6 +10632,8 @@ int main(int argc, char** argv) {
     sink.shutdownRenderer();
     platform->shutdown();
 
+    // 7. Exit-code gates. A failed frame loop or job flush is fatal regardless of
+    //    mode; the smoke self-test results only affect the final return below.
     if (exitCode != 0) {
         std::printf("frame loop failed (%d): the platform clock is unavailable\n", exitCode);
         return exitCode;
@@ -10695,6 +10651,9 @@ int main(int argc, char** argv) {
         return (playTestOk && soakOk && stressOk) ? 0 : 1;
     }
 
+    // 8. Module report. Each `mNN:` line is one engine module's live counters, read
+    //    from the snapshot above; the automation modes assert on this output, so it
+    //    stays stable. A clean `--play` session returns before reaching here.
     std::printf("ran %llu frame(s) in %.3fs\n", static_cast<unsigned long long>(loop.frameCount()), elapsedSeconds);
     std::printf("  fixed steps: %llu (tick %llu, step %.4fs), dropped: %llu\n",
                 static_cast<unsigned long long>(sink.fixedSteps),
