@@ -332,6 +332,13 @@ core::Status GameFlow::enterMainMenu() {
         return moved;
     }
 
+    // Returning to the menu wipes the session, so flush it to the autosave slot
+    // first. Gameplay systems (farming, inventory) do not raise the dirty flag,
+    // so an in-session save is unconditional whenever a slot exists.
+    if (!fromBoot && m_saves != nullptr && !m_session.slot.empty()) {
+        static_cast<void>(saveToSlot(kAutosaveSlot, true));
+    }
+
     m_session = GameSession{};
     m_session.autosaveIntervalDays = interval;
     m_day = 1;
@@ -396,7 +403,10 @@ void GameFlow::requestQuit() {
     if (m_state == AppState::Quit) {
         return;
     }
-    if (m_autosaveOnQuit && m_session.dirty && !m_session.slot.empty() && m_saves != nullptr) {
+    // Quit is a natural save point. The dirty flag is not raised by gameplay
+    // systems (tilling, planting, harvesting), so flush unconditionally when a
+    // session exists; the interval/quit policy only guards the service checks.
+    if (m_autosaveOnQuit && m_saves != nullptr && !m_session.slot.empty()) {
         static_cast<void>(saveToSlot(kAutosaveSlot, true));
     }
     if (transition(AppState::Quit, "quit").isOk()) {

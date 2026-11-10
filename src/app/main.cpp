@@ -8662,6 +8662,11 @@ public:
             switch (event.type) {
                 case fa::platform::PlatformEventType::Quit:
                     ++quitEvents;
+                    // Closing the window must run the flow's quit policy, or the
+                    // autosave-on-quit never happens and the session is lost.
+                    if (playMode && flow != nullptr) {
+                        flow->requestQuit();
+                    }
                     break;
                 case fa::platform::PlatformEventType::WindowResized:
                     ++resizeEvents;
@@ -10490,7 +10495,8 @@ int main(int argc, char** argv) {
             std::printf("play mode: WASD move, 1-9 hotbar, wheel cycle, LMB/G use, RMB sword qi, E teleport\n");
             std::printf("           console `, F3 stats, F4 log, F5 physics, F6 cursor marker,\n");
             std::printf("           time.addDays N / time.set HH:MM\n");
-            std::printf("debug mode: stats overlay + help panel on at start (F5 physics, F6 cursor hidden), log level Debug\n");
+            std::printf(
+                "debug mode: stats overlay + help panel on at start (F5 physics, F6 cursor hidden), log level Debug\n");
         }
 #endif
     }

@@ -429,7 +429,8 @@ TEST_CASE("Autosave on quit writes the automatic slot", "[flow]") {
     });
 
     REQUIRE(flow.startNewGame("slot1").isOk());
-    flow.markDirty();
+    // No markDirty: gameplay systems (farming, inventory) never raise the flag,
+    // so the quit flush must not depend on it.
     flow.requestQuit();
     CHECK(flow.state() == AppState::Quit);
     CHECK(saves.slots.count("autosave") == 1);
@@ -440,9 +441,26 @@ TEST_CASE("Autosave on quit writes the automatic slot", "[flow]") {
     CHECK(flow.state() == AppState::Boot);
     flow.setAutosaveOnQuit(false);
     REQUIRE(flow.startNewGame("slot2").isOk());
-    flow.markDirty();
     flow.requestQuit();
     CHECK(flow.state() == AppState::Quit);
     CHECK(saves.saveCalls == 1);
     CHECK(flow.stats().autosaves == 0);
+}
+
+TEST_CASE("returning to the main menu flushes the session to the autosave slot", "[flow]") {
+    FakeSaveService saves;
+    GameFlow flow(&saves);
+    flow.setSaveBuilder([](SaveContext& context) {
+        context.inGameDay = 7;
+        return fa::core::okStatus();
+    });
+
+    REQUIRE(flow.startNewGame("slot1").isOk());
+    // Nothing marked dirty: the wipe of the session must still save the world.
+    REQUIRE(flow.enterMainMenu().isOk());
+    CHECK(flow.state() == AppState::MainMenu);
+    CHECK(saves.slots.count("autosave") == 1);
+    CHECK(saves.slots.at("autosave").inGameDay == 7);
+    CHECK(flow.stats().autosaves == 1);
+    CHECK(flow.session().slot.empty());
 }
