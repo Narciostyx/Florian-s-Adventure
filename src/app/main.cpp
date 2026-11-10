@@ -129,7 +129,291 @@
 #include <fa/world/Calendar.hpp>
 #include <fa/world/Lighting.hpp>
 
+/// \brief Smoke-test harness surface: the data types the scripted self-tests and the
+/// m02..m27 report carry, plus the end-to-end events/jobs fixture. Kept in a named
+/// namespace so this test-only surface is scope-separated from the production game
+/// code (GameScene, the frame loop, the HUD) that lives in the anonymous namespace.
+namespace smoke {
+
+/// \brief Published once per fixed simulation tick.
+struct TickCompleted {
+    std::uint64_t tick = 0;
+};
+
+/// \brief Published from a job completion, so it reaches handlers on the main thread.
+struct UploadFinished {
+    int value = 0;
+};
+
+/// \brief Minimal end-to-end use of M03 inside the smoke run.
+///
+/// Covers all three delivery paths the engine relies on: a synchronous publish from
+/// the fixed update, work handed to the job pool, and a completion callback that
+/// enqueues an event delivered by the next drain on the main thread.
+class EventsAndJobsRun final {
+public:
+    EventsAndJobsRun() {
+        m_tickSubscription =
+            fa::events::Subscription(m_bus, m_bus.subscribe<TickCompleted>([this](const TickCompleted& event) {
+                lastTick = event.tick;
+                ++tickEvents;
+            }));
+        m_uploadSubscription =
+            fa::events::Subscription(m_bus, m_bus.subscribe<UploadFinished>([this](const UploadFinished& event) {
+                uploadedValue += event.value;
+                ++uploadEvents;
+            }));
+    }
+
+    void beginTick(std::uint64_t tick) {
+        m_bus.publish(TickCompleted{tick});
+        const fa::events::JobHandle handle =
+            m_jobs.submit(fa::events::JobDesc{"smoke-upload", []() { return fa::core::okStatus(); }});
+        m_inFlight.push_back(handle);
+        m_jobs.onComplete(handle, [this, tick](fa::core::Status status) {
+            if (status.isOk()) {
+                m_bus.enqueue(UploadFinished{static_cast<int>(tick)});
+            }
+        });
+    }
+
+    void endFrame() {
+        m_jobs.drainCompletedJobs();
+        m_bus.dispatchQueued();
+    }
+
+    /// \brief Blocks for every submitted job so the run ends with every event delivered.
+    /// \return False when any of those jobs reported an error.
+    bool flush() {
+        bool ok = true;
+        for (const fa::events::JobHandle& handle : m_inFlight) {
+            ok = m_jobs.wait(handle).isOk() && ok;
+        }
+        m_inFlight.clear();
+        endFrame();
+        return ok;
+    }
+
+    std::size_t tickEvents = 0;
+    std::size_t uploadEvents = 0;
+    std::uint64_t lastTick = 0;
+    int uploadedValue = 0;
+
+private:
+    fa::events::EventBus m_bus;
+    fa::events::JobSystem m_jobs{2};
+    std::vector<fa::events::JobHandle> m_inFlight;
+    fa::events::Subscription m_tickSubscription;
+    fa::events::Subscription m_uploadSubscription;
+};
+
+/// \brief Counters for the one M17 sequence the smoke run performs.
+struct InteractionRunStats {
+    bool targetValid = false;
+    bool targetReachable = false;
+    bool targetIsEntity = false;
+    float targetDistance = 0.0f;
+    fa::tilemap::TileCoord targetCell{};
+    bool toolUsed = false;
+    std::size_t toolUses = 0;
+    bool placementOk = false;
+    std::size_t placements = 0;
+    std::size_t events = 0;
+    std::size_t occupiedCells = 0;
+    bool previewBefore = false;
+    bool previewAfter = false;
+};
+
+/// \brief Counters for the scripted M19 sequence.
+struct FarmingRunStats {
+    bool hoeOk = false;
+    bool seedOk = false;
+    bool waterOk = false;
+    bool harvestOk = false;
+    bool greenhouseOk = false;
+    bool wiltedOk = false;
+    int stage = 0;
+    bool harvestable = false;
+    int harvestCount = 0;
+    int seedCount = 0;
+    fa::farming::FarmingStats stats;
+};
+
+/// \brief Snapshot of the scripted M24 economy sequence.
+struct EconomyRunStats {
+    bool buyOk = false;
+    bool sellOk = false;
+    bool craftOk = false;
+    bool collectOk = false;
+    bool shipOk = false;
+    int settledGold = 0;
+    int gold = 0;
+    int seeds = 0;
+    int turnips = 0;
+    int soups = 0;
+    fa::economy::EconomyStats stats;
+};
+
+/// \brief Snapshot of the scripted M25 application-flow sequence.
+struct FlowRunStats {
+    bool newGameOk = false;
+    bool pauseOk = false;
+    bool saveOk = false;
+    bool dayEndOk = false;
+    bool gameOverOk = false;
+    bool respawnOk = false;
+    bool menuOk = false;
+    bool loadOk = false;
+    bool quitOk = false;
+    fa::flow::FlowStats stats;
+};
+
+/// \brief Snapshot of the scripted M23 dialogue/quest sequence.
+struct NarrativeRunStats {
+    bool active = false;
+    std::string node;
+    std::size_t choices = 0;
+    int affinity = 0;
+    bool questCompleted = false;
+    bool questActive = false;
+    int seeds = 0;
+    std::uint64_t dialoguesStarted = 0;
+    std::uint64_t dialoguesEnded = 0;
+    std::uint64_t nodes = 0;
+    std::uint64_t choicesMade = 0;
+    std::uint64_t gifts = 0;
+    std::size_t events = 0;
+};
+
+/// \brief Snapshot of the scripted M21 agent for the smoke summary.
+struct AiRunStats {
+    fa::ai::AiState state = fa::ai::AiState::Idle;
+    bool targetValid = false;
+    bool targetVisible = false;
+    std::size_t pathNodes = 0;
+    fa::ai::AiStats stats;
+};
+
+#if defined(FA_ENABLE_EDITOR)
+/// \brief Snapshot of the M26 editor and its save/load round-trip.
+struct EditorRunStats {
+    bool active = false;
+    fa::editor::EditorTool tool = fa::editor::EditorTool::Brush;
+    int layer = 0;
+    unsigned brush = 0;
+    std::size_t undoDepth = 0;
+    std::size_t redoDepth = 0;
+    std::size_t previewCells = 0;
+    std::uint64_t commands = 0;
+    std::uint64_t undos = 0;
+    std::uint64_t redos = 0;
+    bool dirty = false;
+    bool saveOk = false;
+    bool loadOk = false;
+    int mapWidth = 0;
+    int mapHeight = 0;
+};
+#endif
+
+/// \brief Counters for the one M18 sequence the smoke run performs.
+struct InventoryRunStats {
+    int backpackItems = 0;
+    int backpackSlots = 0;
+    int hotbarItems = 0;
+    int selected = 0;
+    bool toolEquipped = false;
+    fa::content::ContentId toolId;
+    int soupUses = 0;
+    std::size_t inventoryEvents = 0;
+    std::size_t useEvents = 0;
+};
+
+/// \brief Counters for the one M14 save/load round-trip the smoke run performs.
+struct SaveRunStats {
+    bool ok = false;
+    bool recovered = false;
+    std::string error;
+    std::string slot;
+    std::string scene;
+    int version = 0;
+    int day = 0;
+    double playSeconds = 0.0;
+    std::size_t entities = 0;
+    fa::core::Vec2 marker{};
+    float stamina = 0.0f;
+    std::size_t slots = 0;
+};
+
+/// \brief Counters for the one M10 animation the smoke run plays.
+struct AnimationRunStats {
+    std::uint64_t updates = 0;
+    std::uint64_t events = 0;
+    std::size_t frameIndex = 0;
+    std::size_t frameCount = 0;
+    std::size_t lastEventFrame = 0;
+    std::string lastEvent;
+    bool finished = false;
+};
+
+/// \brief Counters for the scripted M20 combat sequence.
+struct CombatRunStats {
+    std::uint64_t updates = 0;
+    std::uint64_t attacks = 0;
+    std::uint64_t attackHits = 0;
+    std::uint64_t damageDealt = 0;
+    std::uint64_t kills = 0;
+    std::uint64_t projectiles = 0;
+    std::uint64_t projectileHits = 0;
+    std::uint64_t projectileWallHits = 0;
+    std::uint64_t statusApplications = 0;
+    std::uint64_t statusTicks = 0;
+    std::size_t damageEvents = 0;
+    std::size_t deathEvents = 0;
+    std::size_t projectileEvents = 0;
+    std::size_t statusEvents = 0;
+};
+
+/// \brief Snapshot of the M22 calendar/weather/ambient state for the summary.
+struct CalendarRunStats {
+    int year = 1;
+    fa::world::Season season = fa::world::Season::Spring;
+    int day = 1;
+    int hour = 8;
+    int minute = 0;
+    fa::world::Weather today = fa::world::Weather::Sunny;
+    fa::world::Weather tomorrow = fa::world::Weather::Sunny;
+    float ambientIntensity = 1.0f;
+    bool autoWater = false;
+    float growth = 1.0f;
+    std::uint64_t days = 0;
+    std::uint64_t hours = 0;
+    std::uint64_t seasons = 0;
+    std::uint64_t weatherChanges = 0;
+    std::size_t events = 0;
+};
+
+}  // namespace smoke
+
 namespace {
+
+// The smoke-test data types live in `namespace smoke`; import them here so the
+// production classes below (GameScene, SmokeSink) keep referring to them by their
+// bare names, and so `main` still sees them through the anonymous namespace.
+using smoke::AiRunStats;
+using smoke::AnimationRunStats;
+using smoke::CalendarRunStats;
+using smoke::CombatRunStats;
+using smoke::EconomyRunStats;
+using smoke::EventsAndJobsRun;
+using smoke::FarmingRunStats;
+using smoke::FlowRunStats;
+using smoke::InteractionRunStats;
+using smoke::InventoryRunStats;
+using smoke::NarrativeRunStats;
+using smoke::SaveRunStats;
+#if defined(FA_ENABLE_EDITOR)
+using smoke::EditorRunStats;
+#endif
 
 struct Options {
     /// A visible window is opt-in for the automation modes so CI never blocks; the player
@@ -660,156 +944,6 @@ private:
     std::vector<fa::render::TextureHandle> m_live;
 };
 
-/// \brief Published once per fixed simulation tick.
-struct TickCompleted {
-    std::uint64_t tick = 0;
-};
-
-/// \brief Published from a job completion, so it reaches handlers on the main thread.
-struct UploadFinished {
-    int value = 0;
-};
-
-/// \brief Minimal end-to-end use of M03 inside the smoke run.
-///
-/// Covers all three delivery paths the engine relies on: a synchronous publish from
-/// the fixed update, work handed to the job pool, and a completion callback that
-/// enqueues an event delivered by the next drain on the main thread.
-class EventsAndJobsRun final {
-public:
-    EventsAndJobsRun() {
-        m_tickSubscription =
-            fa::events::Subscription(m_bus, m_bus.subscribe<TickCompleted>([this](const TickCompleted& event) {
-                lastTick = event.tick;
-                ++tickEvents;
-            }));
-        m_uploadSubscription =
-            fa::events::Subscription(m_bus, m_bus.subscribe<UploadFinished>([this](const UploadFinished& event) {
-                uploadedValue += event.value;
-                ++uploadEvents;
-            }));
-    }
-
-    void beginTick(std::uint64_t tick) {
-        m_bus.publish(TickCompleted{tick});
-        const fa::events::JobHandle handle =
-            m_jobs.submit(fa::events::JobDesc{"smoke-upload", []() { return fa::core::okStatus(); }});
-        m_inFlight.push_back(handle);
-        m_jobs.onComplete(handle, [this, tick](fa::core::Status status) {
-            if (status.isOk()) {
-                m_bus.enqueue(UploadFinished{static_cast<int>(tick)});
-            }
-        });
-    }
-
-    void endFrame() {
-        m_jobs.drainCompletedJobs();
-        m_bus.dispatchQueued();
-    }
-
-    /// \brief Blocks for every submitted job so the run ends with every event delivered.
-    /// \return False when any of those jobs reported an error.
-    bool flush() {
-        bool ok = true;
-        for (const fa::events::JobHandle& handle : m_inFlight) {
-            ok = m_jobs.wait(handle).isOk() && ok;
-        }
-        m_inFlight.clear();
-        endFrame();
-        return ok;
-    }
-
-    std::size_t tickEvents = 0;
-    std::size_t uploadEvents = 0;
-    std::uint64_t lastTick = 0;
-    int uploadedValue = 0;
-
-private:
-    fa::events::EventBus m_bus;
-    fa::events::JobSystem m_jobs{2};
-    std::vector<fa::events::JobHandle> m_inFlight;
-    fa::events::Subscription m_tickSubscription;
-    fa::events::Subscription m_uploadSubscription;
-};
-
-/// \brief Counters for the one M17 sequence the smoke run performs.
-struct InteractionRunStats {
-    bool targetValid = false;
-    bool targetReachable = false;
-    bool targetIsEntity = false;
-    float targetDistance = 0.0f;
-    fa::tilemap::TileCoord targetCell{};
-    bool toolUsed = false;
-    std::size_t toolUses = 0;
-    bool placementOk = false;
-    std::size_t placements = 0;
-    std::size_t events = 0;
-    std::size_t occupiedCells = 0;
-    bool previewBefore = false;
-    bool previewAfter = false;
-};
-
-/// \brief Counters for the scripted M19 sequence.
-struct FarmingRunStats {
-    bool hoeOk = false;
-    bool seedOk = false;
-    bool waterOk = false;
-    bool harvestOk = false;
-    bool greenhouseOk = false;
-    bool wiltedOk = false;
-    int stage = 0;
-    bool harvestable = false;
-    int harvestCount = 0;
-    int seedCount = 0;
-    fa::farming::FarmingStats stats;
-};
-
-/// \brief Snapshot of the scripted M24 economy sequence.
-struct EconomyRunStats {
-    bool buyOk = false;
-    bool sellOk = false;
-    bool craftOk = false;
-    bool collectOk = false;
-    bool shipOk = false;
-    int settledGold = 0;
-    int gold = 0;
-    int seeds = 0;
-    int turnips = 0;
-    int soups = 0;
-    fa::economy::EconomyStats stats;
-};
-
-/// \brief Snapshot of the scripted M25 application-flow sequence.
-struct FlowRunStats {
-    bool newGameOk = false;
-    bool pauseOk = false;
-    bool saveOk = false;
-    bool dayEndOk = false;
-    bool gameOverOk = false;
-    bool respawnOk = false;
-    bool menuOk = false;
-    bool loadOk = false;
-    bool quitOk = false;
-    fa::flow::FlowStats stats;
-};
-
-/// \brief Snapshot of the scripted M23 dialogue/quest sequence.
-struct NarrativeRunStats {
-    bool active = false;
-    std::string node;
-    std::size_t choices = 0;
-    int affinity = 0;
-    bool questCompleted = false;
-    bool questActive = false;
-    int seeds = 0;
-    std::uint64_t dialoguesStarted = 0;
-    std::uint64_t dialoguesEnded = 0;
-    std::uint64_t nodes = 0;
-    std::uint64_t choicesMade = 0;
-    std::uint64_t gifts = 0;
-    std::size_t events = 0;
-};
-
 /// \brief A dropped item waiting for the player to walk over it.
 struct LootDrop {
     fa::content::ContentId item;
@@ -947,36 +1081,6 @@ struct AiTargetDebugSnapshot {
     bool hasTargetCenter = false;
 };
 
-/// \brief Snapshot of the scripted M21 agent for the smoke summary.
-struct AiRunStats {
-    fa::ai::AiState state = fa::ai::AiState::Idle;
-    bool targetValid = false;
-    bool targetVisible = false;
-    std::size_t pathNodes = 0;
-    fa::ai::AiStats stats;
-};
-
-#if defined(FA_ENABLE_EDITOR)
-/// \brief Snapshot of the M26 editor and its save/load round-trip.
-struct EditorRunStats {
-    bool active = false;
-    fa::editor::EditorTool tool = fa::editor::EditorTool::Brush;
-    int layer = 0;
-    unsigned brush = 0;
-    std::size_t undoDepth = 0;
-    std::size_t redoDepth = 0;
-    std::size_t previewCells = 0;
-    std::uint64_t commands = 0;
-    std::uint64_t undos = 0;
-    std::uint64_t redos = 0;
-    bool dirty = false;
-    bool saveOk = false;
-    bool loadOk = false;
-    int mapWidth = 0;
-    int mapHeight = 0;
-};
-#endif
-
 /// \brief Records the one generic tool call the smoke run dispatches.
 ///
 /// M19 owns Hoe/WateringCan/Seed/Harvest/Axe/Pickaxe now, so this recording
@@ -997,83 +1101,6 @@ public:
     std::size_t uses = 0;
     std::uint32_t lastPayload = 0;
     fa::tilemap::TileCoord lastCell{};
-};
-
-/// \brief Counters for the one M18 sequence the smoke run performs.
-struct InventoryRunStats {
-    int backpackItems = 0;
-    int backpackSlots = 0;
-    int hotbarItems = 0;
-    int selected = 0;
-    bool toolEquipped = false;
-    fa::content::ContentId toolId;
-    int soupUses = 0;
-    std::size_t inventoryEvents = 0;
-    std::size_t useEvents = 0;
-};
-
-/// \brief Counters for the one M14 save/load round-trip the smoke run performs.
-struct SaveRunStats {
-    bool ok = false;
-    bool recovered = false;
-    std::string error;
-    std::string slot;
-    std::string scene;
-    int version = 0;
-    int day = 0;
-    double playSeconds = 0.0;
-    std::size_t entities = 0;
-    fa::core::Vec2 marker{};
-    float stamina = 0.0f;
-    std::size_t slots = 0;
-};
-
-/// \brief Counters for the one M10 animation the smoke run plays.
-struct AnimationRunStats {
-    std::uint64_t updates = 0;
-    std::uint64_t events = 0;
-    std::size_t frameIndex = 0;
-    std::size_t frameCount = 0;
-    std::size_t lastEventFrame = 0;
-    std::string lastEvent;
-    bool finished = false;
-};
-
-/// \brief Counters for the scripted M20 combat sequence.
-struct CombatRunStats {
-    std::uint64_t updates = 0;
-    std::uint64_t attacks = 0;
-    std::uint64_t attackHits = 0;
-    std::uint64_t damageDealt = 0;
-    std::uint64_t kills = 0;
-    std::uint64_t projectiles = 0;
-    std::uint64_t projectileHits = 0;
-    std::uint64_t projectileWallHits = 0;
-    std::uint64_t statusApplications = 0;
-    std::uint64_t statusTicks = 0;
-    std::size_t damageEvents = 0;
-    std::size_t deathEvents = 0;
-    std::size_t projectileEvents = 0;
-    std::size_t statusEvents = 0;
-};
-
-/// \brief Snapshot of the M22 calendar/weather/ambient state for the summary.
-struct CalendarRunStats {
-    int year = 1;
-    fa::world::Season season = fa::world::Season::Spring;
-    int day = 1;
-    int hour = 8;
-    int minute = 0;
-    fa::world::Weather today = fa::world::Weather::Sunny;
-    fa::world::Weather tomorrow = fa::world::Weather::Sunny;
-    float ambientIntensity = 1.0f;
-    bool autoWater = false;
-    float growth = 1.0f;
-    std::uint64_t days = 0;
-    std::uint64_t hours = 0;
-    std::uint64_t seasons = 0;
-    std::uint64_t weatherChanges = 0;
-    std::size_t events = 0;
 };
 
 /// \brief Consumes one food item and records the use.
@@ -10349,221 +10376,22 @@ void adoptProjectRoot(fa::platform::IFileSystem& fileSystem) {
 
 }  // namespace
 
-/// \brief Program entry point: parse the command line, bring up the engine
-/// subsystems in dependency order, run the frame loop, then tear everything
-/// down in reverse and print the m02..m27 smoke report.
+namespace smoke {
+
+/// \brief Print the m02..m27 smoke report from the live run state.
 ///
-/// The run is orchestrated through `sink` (the SmokeSink frame observer): it
-/// owns the scene, the modules and every counter the report reads. Subsystems
-/// come up so each finds what it depends on already present (content before
-/// inventory, renderer before assets/UI), and optional ones (audio, GL, assets)
-/// degrade to a headless run instead of failing when the mode needs no window.
-int main(int argc, char** argv) {
-    // 1. Command line. `--help` short-circuits; the mode flags decide how much
-    //    of the engine below is required versus tolerated-absent.
-    const Options options = parseOptions(argc, argv);
-    if (options.showHelp) {
-        printUsage();
-        return 0;
-    }
-    printBanner();
-
-    // 2. Platform and window. The platform is created first so its file system
-    //    can relocate the working directory to the repo root (every content path
-    //    is relative to it) before anything reads a file. The window descriptor
-    //    carries the resolved size and the hidden/visible choice from the mode.
-    std::unique_ptr<fa::platform::IPlatform> platform = fa::platform::createPlatform();
-    adoptProjectRoot(platform->files());
-
-    EventsAndJobsRun run;
-    SmokeSink sink;
-    sink.run = &run;
-    sink.playMode = options.playMode;
-    sink.debugMode = options.debugMode;
-    sink.playTest = options.playTest;
-    sink.initializeConfig(*platform);
-    if (options.width > 0 && options.height > 0) {
-        sink.config.window.width = options.width;
-        sink.config.window.height = options.height;
-        std::printf("window override: %dx%d\n", options.width, options.height);
-    }
-
-    fa::platform::WindowDesc desc;
-    desc.title = "Florian's Adventure";
-    desc.width = sink.config.window.width;
-    desc.height = sink.config.window.height;
-    desc.minWidth = sink.config.window.minWidth;
-    desc.minHeight = sink.config.window.minHeight;
-    desc.resizable = sink.config.window.resizable;
-    desc.highDpi = sink.config.window.highDpi;
-    desc.hidden = !options.visibleWindow;
-
-    const fa::core::Status initialized = platform->initialize(desc);
-    if (initialized.isError()) {
-        std::printf("platform init failed (%d): %s\n", initialized.error().code, initialized.error().message.c_str());
-        return 1;
-    }
-
-    // Only the player modes write a run log: an automation run must not leave files behind
-    // on a CI runner, and its console output is already the artifact.
-    std::unique_ptr<fa::app::RunLogFileSink> runLog;
-    if (options.isPlayerMode()) {
-        const std::string path = fa::app::runLogFilePath(sink.config.paths.data + "/log");
-        const std::string header = std::string("Florian's Adventure run log - mode ") +
-                                   (options.debugMode ? "debug" : "play") +
-                                   (options.visibleWindow ? ", window" : ", hidden");
-        runLog = std::make_unique<fa::app::RunLogFileSink>(platform->files(), path, header);
-        sink.runLogFile = runLog.get();
-        if (runLog->ok()) {
-            std::printf("log file: %s\n", runLog->path().c_str());
-        } else {
-            std::printf("log file: cannot write %s, console only\n", runLog->path().c_str());
-        }
-    }
-    if (options.debugMode) {
-        fa::core::setLogLevel(fa::core::LogLevel::Debug);
-    }
-
-    const fa::platform::IWindow& window = platform->window();
-    std::printf(
-        "window %dx%d px, dpi scale %.2f\n", window.width(), window.height(), static_cast<double>(window.dpiScale()));
-
-    if (options.playMode) {
-#if defined(FA_ENABLE_DEBUG_TOOLS)
-        if (options.debugMode) {
-            std::printf("play mode: WASD move, 1-9 hotbar, wheel cycle, LMB/G use, RMB sword qi, E teleport\n");
-            std::printf("           console `, F3 stats, F4 log, F5 physics, F6 cursor marker,\n");
-            std::printf("           time.addDays N / time.set HH:MM\n");
-            std::printf(
-                "debug mode: stats overlay + help panel on at start (F5 physics, F6 cursor hidden), log level Debug\n");
-        }
-#endif
-    }
-
-    // 3. Subsystem init, in dependency order. Content (item/crop/quest tables)
-    //    precedes the systems that read it (inventory, economy, calendar). Audio,
-    //    the GL renderer, assets and UI are each optional: a failure downgrades to
-    //    a headless run unless the mode opened a real window, in which case it is
-    //    fatal. Debug tooling is created only for `--debug` and the automation runs.
-    const fa::core::Status contentStatus = sink.initializeContent();
-    if (contentStatus.isError()) {
-        std::printf(
-            "content init failed (%d): %s\n", contentStatus.error().code, contentStatus.error().message.c_str());
-        platform->shutdown();
-        return 1;
-    }
-
-    const fa::core::Status inventoryStatus = sink.initializeInventory(options.playMode);
-    if (inventoryStatus.isError()) {
-        std::printf(
-            "inventory init failed (%d): %s\n", inventoryStatus.error().code, inventoryStatus.error().message.c_str());
-        platform->shutdown();
-        return 1;
-    }
-
-    sink.initializeEconomy(!options.playMode);
-    sink.initializeSave(*platform);
-    sink.initializeCalendar(options.playMode);
-
-    /// Audio is optional in exactly the same way as GL: a CI image without a
-    /// sound card must still finish the smoke run.
-    const fa::core::Status audioStatus = sink.initializeAudio(*platform);
-    if (audioStatus.isError()) {
-        std::printf("audio init failed (%d): %s\n", audioStatus.error().code, audioStatus.error().message.c_str());
-        std::printf("  continuing without audio\n");
-    }
-
-#if defined(FA_ENABLE_DEBUG_TOOLS)
-    // Debug info belongs to `--debug` and to the automation runs that assert on it.
-    // A plain `--play` session creates no debug tools at all: no F3/F4/F5/F6 panels
-    // and no console.
-    if (!options.playMode || options.debugMode || options.playTest) {
-        sink.initializeDebug();
-    }
-#endif
-
-    // A hidden window may still get a software GL context, but CI images that have
-    // none must not fail the smoke run; a visible run has to be able to draw.
-    const fa::core::Status renderStatus =
-        sink.initializeRenderer(*platform, options.visibleWindow && sink.config.window.vsync);
-    if (renderStatus.isError()) {
-        std::printf("render init failed (%d): %s\n", renderStatus.error().code, renderStatus.error().message.c_str());
-        if (options.visibleWindow) {
-            platform->shutdown();
-            return 1;
-        }
-        std::printf("  continuing without rendering (hidden run)\n");
-    } else {
-        // The cache needs a renderer to upload through, so it only comes up once the
-        // GL context exists.
-        const fa::core::Status assetStatus = sink.initializeAssets(*platform);
-        if (assetStatus.isError()) {
-            std::printf("asset init failed (%d): %s\n", assetStatus.error().code, assetStatus.error().message.c_str());
-            if (options.visibleWindow) {
-                sink.shutdownRenderer();
-                platform->shutdown();
-                return 1;
-            }
-            std::printf("  continuing without assets (hidden run)\n");
-        }
-
-        // M09 needs only a renderer: it uploads a generated atlas, not an asset file.
-        const fa::core::Status uiStatus = sink.initializeUi(*platform);
-        if (uiStatus.isError()) {
-            std::printf("ui init failed (%d): %s\n", uiStatus.error().code, uiStatus.error().message.c_str());
-            if (options.visibleWindow) {
-                sink.shutdownRenderer();
-                platform->shutdown();
-                return 1;
-            }
-            std::printf("  continuing without UI (hidden run)\n");
-        }
-    }
-
-    // 4. Application flow (new game / save / load / day cycle), then the optional
-    //    soak and stress harnesses, then the frame loop itself. `maxFrames` and the
-    //    pacing encode the mode contract: a visible window runs until closed and is
-    //    paced by vsync, a hidden run takes a few software-paced frames.
-    sink.initializeFlow();
-    if (options.soakSeconds > 0) {
-        sink.beginSoak();
-    }
-    if (options.stressSprites > 0) {
-        sink.beginStress(options.stressSprites);
-    }
-
-    fa::time::FrameLoopConfig config;
-    /// A hidden smoke run needs a few frames; a visible window runs until closed.
-    config.maxFrames = options.frames > 0 ? static_cast<std::uint64_t>(options.frames)
-                                          : (options.playTest ? 1u : (options.visibleWindow ? 0u : 3u));
-    /// Software pacing only for headless runs; a real window is paced by vsync (M06).
-    config.pacingFramesPerSecond = options.visibleWindow ? 0 : fa::time::kFixedStepsPerSecond;
-
-    fa::time::FrameLoop loop(*platform, sink, config);
-    sink.requestAppQuit = [&loop] { loop.requestQuit(); };
-    const double startedSeconds = platform->monotonicSeconds();
-    const int exitCode = loop.run();
-    const double elapsedSeconds = platform->monotonicSeconds() - startedSeconds;
-
-    // 5. After the loop: flush the job system, run the post-mortem self-tests
-    //    (play-loop, soak, stress, save, flow), then snapshot every module counter
-    //    into locals. This must happen before teardown, because the scene stack and
-    //    renderer are destroyed by shutdown and their stats die with them.
-    const fa::time::FixedStepClock& clock = loop.clock();
-    const bool eventsJobsOk = run.flush();
-    bool playTestOk = true;
-    if (options.playTest) {
-        playTestOk = sink.runPlaySelfTest();
-    }
-    const bool soakOk = sink.finishSoak();
-    const bool stressOk = sink.finishStress();
-    if (!options.playMode) {
-        /// M14 runs after the scene has lived for the whole smoke run.
-        sink.runSaveSmoke();
-        /// M25 exercises the application flow once the smoke state is complete.
-        sink.runFlowSmoke();
-    }
-    // Snapshot what the summary reports: the strings and the stats die with the context.
+/// Lives in `namespace smoke` (the test surface) rather than in `main`. It reads the
+/// sink, clock, loop and events/jobs fixture directly, so `main` calls it before
+/// teardown while those objects are still populated. `playMode` is passed in (the
+/// caller's `options`) instead of reaching for the anonymous-namespace `Options`.
+void printReport(SmokeSink& sink,
+                 const fa::time::FixedStepClock& clock,
+                 const fa::time::FrameLoop& loop,
+                 const EventsAndJobsRun& run,
+                 bool playMode,
+                 double elapsedSeconds) {
+    // Snapshot the counters the report reads; they die with the context, so this runs
+    // before teardown. The GL strings come from the live renderer.
     std::string glVersionText;
     std::string glRendererText;
     int liveTextures = 0;
@@ -10579,7 +10407,6 @@ int main(int argc, char** argv) {
     const fa::content::ContentStats contentStats = sink.contentStats();
     const int contentStack = sink.contentSampleStack();
     const std::size_t catalogEntries = sink.catalog.size();
-    // Scene counters die with the stack, which shutdownRenderer() clears first.
     const fa::scene::SceneStackStats stackStats = sink.sceneStackStats();
     const fa::scene::WorldStats worldStats = sink.sceneWorldStats();
     const fa::core::Vec2 marker = sink.sceneMarkerPosition();
@@ -10591,7 +10418,6 @@ int main(int argc, char** argv) {
     const fa::player::PlayerStats playerStats = sink.scenePlayerStats();
     const fa::player::PlayerAnimationParams playerAnim = sink.scenePlayerAnimation();
     const float playerStamina = sink.scenePlayerStamina();
-    // Probe first: the ray is a real query and its counter belongs in the summary.
     const float probeDistance = sink.sceneProbeDistance();
     const fa::physics::PhysicsStats physicsStats = sink.scenePhysicsStats();
     const std::size_t uiGlyphs = sink.uiFontGlyphCount();
@@ -10619,41 +10445,8 @@ int main(int argc, char** argv) {
     const std::size_t debugCommands = sink.debugCommandCount();
     const std::size_t debugCvars = sink.debugCVarCount();
     const fa::debug::DebugStats debugSnapshot = sink.debugSnapshot();
-    sink.shutdownDebug();
 #endif
-    // 6. Teardown in reverse init order: debug, then flow/save/calendar, then the
-    //    window-bound resources (audio, GL) before the platform closes the window.
-    sink.shutdownFlow();
-    sink.shutdownSave();
-    sink.shutdownCalendar();
-    /// Audio and the GL context both belong to the platform window, so they go
-    /// before the platform shuts it down.
-    sink.shutdownAudio();
-    sink.shutdownRenderer();
-    platform->shutdown();
 
-    // 7. Exit-code gates. A failed frame loop or job flush is fatal regardless of
-    //    mode; the smoke self-test results only affect the final return below.
-    if (exitCode != 0) {
-        std::printf("frame loop failed (%d): the platform clock is unavailable\n", exitCode);
-        return exitCode;
-    }
-
-    if (!eventsJobsOk) {
-        std::printf("events/jobs smoke failed: the final job reported an error\n");
-        return 1;
-    }
-
-    // A plain `--play` session is the game, not a test report: the m02..m27 module
-    // dump belongs to the automation runs and to `--debug`. Failures above still
-    // print; a clean play session just exits quietly.
-    if (options.playMode && !options.debugMode && !options.playTest) {
-        return (playTestOk && soakOk && stressOk) ? 0 : 1;
-    }
-
-    // 8. Module report. Each `mNN:` line is one engine module's live counters, read
-    //    from the snapshot above; the automation modes assert on this output, so it
-    //    stays stable. A clean `--play` session returns before reaching here.
     std::printf("ran %llu frame(s) in %.3fs\n", static_cast<unsigned long long>(loop.frameCount()), elapsedSeconds);
     std::printf("  fixed steps: %llu (tick %llu, step %.4fs), dropped: %llu\n",
                 static_cast<unsigned long long>(sink.fixedSteps),
@@ -10804,7 +10597,7 @@ int main(int argc, char** argv) {
                 static_cast<unsigned long long>(physicsStats.triggerEnds),
                 physicsStats.triggerEvents);
     std::printf("       nearest wall straight ahead: %g px\n", static_cast<double>(probeDistance));
-    if (options.playMode) {
+    if (playMode) {
         std::printf("  m14: play slot %s, %llu save(s), %llu autosave(s), day %d\n",
                     flowStats.stats.slot.empty() ? "-" : flowStats.stats.slot.c_str(),
                     static_cast<unsigned long long>(flowStats.stats.saves),
@@ -11051,5 +10844,257 @@ int main(int argc, char** argv) {
     std::printf("M02+M03+M04+M05+M06+M07+M08+M09+M10+M11+M12+M13+M14+M15+M16+M17+M18+M19+M20+M21+M22+M23+M24+M25 smoke "
                 "test OK\n");
 #endif
+}
+
+}  // namespace smoke
+
+/// \brief Program entry point: parse the command line, bring up the engine
+/// subsystems in dependency order, run the frame loop, then tear everything
+/// down in reverse and print the m02..m27 smoke report.
+///
+/// The run is orchestrated through `sink` (the SmokeSink frame observer): it
+/// owns the scene, the modules and every counter the report reads. Subsystems
+/// come up so each finds what it depends on already present (content before
+/// inventory, renderer before assets/UI), and optional ones (audio, GL, assets)
+/// degrade to a headless run instead of failing when the mode needs no window.
+int main(int argc, char** argv) {
+    // 1. Command line. `--help` short-circuits; the mode flags decide how much
+    //    of the engine below is required versus tolerated-absent.
+    const Options options = parseOptions(argc, argv);
+    if (options.showHelp) {
+        printUsage();
+        return 0;
+    }
+    printBanner();
+
+    // 2. Platform and window. The platform is created first so its file system
+    //    can relocate the working directory to the repo root (every content path
+    //    is relative to it) before anything reads a file. The window descriptor
+    //    carries the resolved size and the hidden/visible choice from the mode.
+    std::unique_ptr<fa::platform::IPlatform> platform = fa::platform::createPlatform();
+    adoptProjectRoot(platform->files());
+
+    EventsAndJobsRun run;
+    SmokeSink sink;
+    sink.run = &run;
+    sink.playMode = options.playMode;
+    sink.debugMode = options.debugMode;
+    sink.playTest = options.playTest;
+    sink.initializeConfig(*platform);
+    if (options.width > 0 && options.height > 0) {
+        sink.config.window.width = options.width;
+        sink.config.window.height = options.height;
+        std::printf("window override: %dx%d\n", options.width, options.height);
+    }
+
+    fa::platform::WindowDesc desc;
+    desc.title = "Florian's Adventure";
+    desc.width = sink.config.window.width;
+    desc.height = sink.config.window.height;
+    desc.minWidth = sink.config.window.minWidth;
+    desc.minHeight = sink.config.window.minHeight;
+    desc.resizable = sink.config.window.resizable;
+    desc.highDpi = sink.config.window.highDpi;
+    desc.hidden = !options.visibleWindow;
+
+    const fa::core::Status initialized = platform->initialize(desc);
+    if (initialized.isError()) {
+        std::printf("platform init failed (%d): %s\n", initialized.error().code, initialized.error().message.c_str());
+        return 1;
+    }
+
+    // Only the player modes write a run log: an automation run must not leave files behind
+    // on a CI runner, and its console output is already the artifact.
+    std::unique_ptr<fa::app::RunLogFileSink> runLog;
+    if (options.isPlayerMode()) {
+        const std::string path = fa::app::runLogFilePath(sink.config.paths.data + "/log");
+        const std::string header = std::string("Florian's Adventure run log - mode ") +
+                                   (options.debugMode ? "debug" : "play") +
+                                   (options.visibleWindow ? ", window" : ", hidden");
+        runLog = std::make_unique<fa::app::RunLogFileSink>(platform->files(), path, header);
+        sink.runLogFile = runLog.get();
+        if (runLog->ok()) {
+            std::printf("log file: %s\n", runLog->path().c_str());
+        } else {
+            std::printf("log file: cannot write %s, console only\n", runLog->path().c_str());
+        }
+    }
+    if (options.debugMode) {
+        fa::core::setLogLevel(fa::core::LogLevel::Debug);
+    }
+
+    const fa::platform::IWindow& window = platform->window();
+    std::printf(
+        "window %dx%d px, dpi scale %.2f\n", window.width(), window.height(), static_cast<double>(window.dpiScale()));
+
+    if (options.playMode) {
+#if defined(FA_ENABLE_DEBUG_TOOLS)
+        if (options.debugMode) {
+            std::printf("play mode: WASD move, 1-9 hotbar, wheel cycle, LMB/G use, RMB sword qi, E teleport\n");
+            std::printf("           console `, F3 stats, F4 log, F5 physics, F6 cursor marker,\n");
+            std::printf("           time.addDays N / time.set HH:MM\n");
+            std::printf(
+                "debug mode: stats overlay + help panel on at start (F5 physics, F6 cursor hidden), log level Debug\n");
+        }
+#endif
+    }
+
+    // 3. Subsystem init, in dependency order. Content (item/crop/quest tables)
+    //    precedes the systems that read it (inventory, economy, calendar). Audio,
+    //    the GL renderer, assets and UI are each optional: a failure downgrades to
+    //    a headless run unless the mode opened a real window, in which case it is
+    //    fatal. Debug tooling is created only for `--debug` and the automation runs.
+    const fa::core::Status contentStatus = sink.initializeContent();
+    if (contentStatus.isError()) {
+        std::printf(
+            "content init failed (%d): %s\n", contentStatus.error().code, contentStatus.error().message.c_str());
+        platform->shutdown();
+        return 1;
+    }
+
+    const fa::core::Status inventoryStatus = sink.initializeInventory(options.playMode);
+    if (inventoryStatus.isError()) {
+        std::printf(
+            "inventory init failed (%d): %s\n", inventoryStatus.error().code, inventoryStatus.error().message.c_str());
+        platform->shutdown();
+        return 1;
+    }
+
+    sink.initializeEconomy(!options.playMode);
+    sink.initializeSave(*platform);
+    sink.initializeCalendar(options.playMode);
+
+    /// Audio is optional in exactly the same way as GL: a CI image without a
+    /// sound card must still finish the smoke run.
+    const fa::core::Status audioStatus = sink.initializeAudio(*platform);
+    if (audioStatus.isError()) {
+        std::printf("audio init failed (%d): %s\n", audioStatus.error().code, audioStatus.error().message.c_str());
+        std::printf("  continuing without audio\n");
+    }
+
+#if defined(FA_ENABLE_DEBUG_TOOLS)
+    // Debug info belongs to `--debug` and to the automation runs that assert on it.
+    // A plain `--play` session creates no debug tools at all: no F3/F4/F5/F6 panels
+    // and no console.
+    if (!options.playMode || options.debugMode || options.playTest) {
+        sink.initializeDebug();
+    }
+#endif
+
+    // A hidden window may still get a software GL context, but CI images that have
+    // none must not fail the smoke run; a visible run has to be able to draw.
+    const fa::core::Status renderStatus =
+        sink.initializeRenderer(*platform, options.visibleWindow && sink.config.window.vsync);
+    if (renderStatus.isError()) {
+        std::printf("render init failed (%d): %s\n", renderStatus.error().code, renderStatus.error().message.c_str());
+        if (options.visibleWindow) {
+            platform->shutdown();
+            return 1;
+        }
+        std::printf("  continuing without rendering (hidden run)\n");
+    } else {
+        // The cache needs a renderer to upload through, so it only comes up once the
+        // GL context exists.
+        const fa::core::Status assetStatus = sink.initializeAssets(*platform);
+        if (assetStatus.isError()) {
+            std::printf("asset init failed (%d): %s\n", assetStatus.error().code, assetStatus.error().message.c_str());
+            if (options.visibleWindow) {
+                sink.shutdownRenderer();
+                platform->shutdown();
+                return 1;
+            }
+            std::printf("  continuing without assets (hidden run)\n");
+        }
+
+        // M09 needs only a renderer: it uploads a generated atlas, not an asset file.
+        const fa::core::Status uiStatus = sink.initializeUi(*platform);
+        if (uiStatus.isError()) {
+            std::printf("ui init failed (%d): %s\n", uiStatus.error().code, uiStatus.error().message.c_str());
+            if (options.visibleWindow) {
+                sink.shutdownRenderer();
+                platform->shutdown();
+                return 1;
+            }
+            std::printf("  continuing without UI (hidden run)\n");
+        }
+    }
+
+    // 4. Application flow (new game / save / load / day cycle), then the optional
+    //    soak and stress harnesses, then the frame loop itself. `maxFrames` and the
+    //    pacing encode the mode contract: a visible window runs until closed and is
+    //    paced by vsync, a hidden run takes a few software-paced frames.
+    sink.initializeFlow();
+    if (options.soakSeconds > 0) {
+        sink.beginSoak();
+    }
+    if (options.stressSprites > 0) {
+        sink.beginStress(options.stressSprites);
+    }
+
+    fa::time::FrameLoopConfig config;
+    /// A hidden smoke run needs a few frames; a visible window runs until closed.
+    config.maxFrames = options.frames > 0 ? static_cast<std::uint64_t>(options.frames)
+                                          : (options.playTest ? 1u : (options.visibleWindow ? 0u : 3u));
+    /// Software pacing only for headless runs; a real window is paced by vsync (M06).
+    config.pacingFramesPerSecond = options.visibleWindow ? 0 : fa::time::kFixedStepsPerSecond;
+
+    fa::time::FrameLoop loop(*platform, sink, config);
+    sink.requestAppQuit = [&loop] { loop.requestQuit(); };
+    const double startedSeconds = platform->monotonicSeconds();
+    const int exitCode = loop.run();
+    const double elapsedSeconds = platform->monotonicSeconds() - startedSeconds;
+
+    // 5. After the loop: flush the job system, run the post-mortem self-tests
+    //    (play-loop, soak, stress, save, flow), then snapshot every module counter
+    //    into locals. This must happen before teardown, because the scene stack and
+    //    renderer are destroyed by shutdown and their stats die with them.
+    const fa::time::FixedStepClock& clock = loop.clock();
+    const bool eventsJobsOk = run.flush();
+    bool playTestOk = true;
+    if (options.playTest) {
+        playTestOk = sink.runPlaySelfTest();
+    }
+    const bool soakOk = sink.finishSoak();
+    const bool stressOk = sink.finishStress();
+    if (!options.playMode) {
+        /// M14 runs after the scene has lived for the whole smoke run.
+        sink.runSaveSmoke();
+        /// M25 exercises the application flow once the smoke state is complete.
+        sink.runFlowSmoke();
+    }
+    // The m02..m27 report is a smoke concern (see `smoke::printReport`); it reads the
+    // live sink, so it runs before teardown. A clean `--play` session and any failed
+    // gate skip it (the failure messages below still print).
+    const bool quietPlay = options.playMode && !options.debugMode && !options.playTest;
+    if (exitCode == 0 && eventsJobsOk && !quietPlay) {
+        smoke::printReport(sink, clock, loop, run, options.playMode, elapsedSeconds);
+    }
+
+    // 6. Teardown in reverse init order: debug, then flow/save/calendar, then the
+    //    window-bound resources (audio, GL) before the platform closes the window.
+#if defined(FA_ENABLE_DEBUG_TOOLS)
+    sink.shutdownDebug();
+#endif
+    sink.shutdownFlow();
+    sink.shutdownSave();
+    sink.shutdownCalendar();
+    /// Audio and the GL context both belong to the platform window, so they go
+    /// before the platform shuts it down.
+    sink.shutdownAudio();
+    sink.shutdownRenderer();
+    platform->shutdown();
+
+    // 7. Exit-code gates. A failed frame loop or job flush is fatal regardless of
+    //    mode; the smoke self-test results only affect the final return below.
+    if (exitCode != 0) {
+        std::printf("frame loop failed (%d): the platform clock is unavailable\n", exitCode);
+        return exitCode;
+    }
+
+    if (!eventsJobsOk) {
+        std::printf("events/jobs smoke failed: the final job reported an error\n");
+        return 1;
+    }
+
     return (playTestOk && soakOk && stressOk) ? 0 : 1;
 }
