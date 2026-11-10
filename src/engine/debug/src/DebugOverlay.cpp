@@ -86,8 +86,7 @@ void DebugOverlay::draw(ui::UiContext& ui,
         // Second hub: the facing-tile panel, stacked directly under the stats block.
         if (!stats.facingTileInfo.empty()) {
             const float secondHeight = 8.0f + static_cast<float>(stats.facingTileInfo.size()) * lineHeight;
-            const core::Rect tilePanel =
-                core::makeRect(panel.x, panel.y + height + 4.0f, kWidth, secondHeight);
+            const core::Rect tilePanel = core::makeRect(panel.x, panel.y + height + 4.0f, kWidth, secondHeight);
             ui.panel(tilePanel, theme.panel);
             ui.border(tilePanel, theme.panelBorder);
             float ty = tilePanel.y + 4.0f;
