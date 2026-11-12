@@ -8,11 +8,13 @@
 - 当前可运行内容：窗口 + 固定步长主循环 + 事件/作业 + 输入 + OpenGL 精灵渲染 + 资源缓存；
   ECS 世界与场景栈、AABB 物理与瓦片碰撞、瓦片地图与图层提取、交互目标与格子放置；
   玩家移动/朝向/耐力/闪避、内容数据库、位图字体与即时模式 HUD、背包/快捷栏/装备/使用、
-  PCM16 软件混音、调试控制台与覆盖层、JSON 存档槽与迁移、帧动画、战斗/投射物/状态、
+  PCM16 软件混音与 WAV 解码（`audio.json` 的 `path` 字段接入真实 SFX/音乐）、调试控制台与覆盖层、
+  JSON 存档槽与迁移、帧动画、战斗/投射物/状态、
   AI 索敌追击、日历/天气/光照、NPC 对话与任务、经济/制作/商店、游戏流程与存档闭环；
   地图编辑器（Debug/Development）。画面为 `assets/textures/<类别>/` 下的像素 PNG，缺图按 catalog
   的 `color`/`altColor`/`tile` 回落为色块。
-- 下一步：把现有能力接成可玩的垂直切片并打磨（真实美术/音频素材、玩法数值与内容、工程基线）。
+- 下一步：把现有能力接成可玩的垂直切片并打磨（美术与首支真实音频已接入；音频流式播放、
+  玩法数值与内容、工程基线仍待完善）。
 
 ## 1. 长期有效的规约
 
@@ -65,7 +67,7 @@
 | M05 | Asset Pipeline | 61 | `AssetId`/`AssetHandle`、`AssetCatalog`、异步加载 + 帧线程上传、占位降级、`ITextureUploader` 反向桥；app 注册 stb_image 解码 `assets/*.png` | 设计 · 实测 |
 | M06 | Rendering | 42 | `IRenderer` + `RenderQueue` + `Camera2D`（边界夹取 + 死区/平滑/限速跟随）+ `Viewport`、自研 42 项 GL 函数表、精灵批处理、调试绘制 | 设计 · 实测 |
 | M07 | Input | 36 | `ActionId` + `Binding` + 每上下文 `ActionMap`、上下文栈、`IInput` 窄接口、JSON 键位持久化 | 设计 · 实测 |
-| M08 | Audio | 12 | `AudioClip` PCM16、32 voice 软件混音、Master/SFX/Music/Ambience 总线、pan/loop/fade/pitch、距离衰减、无锁 SPSC 命令队列、SDL3 `IAudioDevice` 回调、原子统计 | 设计 · 实测 |
+| M08 | Audio | 13 | `AudioClip` PCM16、`decodeWav` WAV(PCM8/16) 解码+线性重采样、32 voice 软件混音、Master/SFX/Music/Ambience 总线、pan/loop/fade/pitch、距离衰减、无锁 SPSC 命令队列、SDL3 `IAudioDevice` 回调、原子统计 | 设计 · 实测 |
 | M09 | UI & Text | 24 | 内置 3×5 ASCII 位图字体 + UTF-8 解码与离线烘焙的 10 px 中文图集（`extended` 二分查表、逐字形 `bearingY`、`fitToCodepoints`）、字形回退、测量/换行/对齐、投影/描边、立即模式面板/按钮/复选框/滑条/进度条、`RenderLayer::UI` 与主题 | 设计 · 实测 |
 | M10 | Animation | 4 | `AnimationClip` 帧/时长/事件、`Animator` 纯数据、`AnimationService` 循环/完成/跨帧事件、四向 `Direction`、`AnimationStateMachine` 条件转换与方向变体 | 设计 · 实测 |
 | M11 | Scene / World & ECS | 78 | `World` + `EntityId` 代际句柄 + `SparseSet` + `CommandBuffer`、`SystemPipeline` 三钩子调度、`SceneStack` 栈式场景、`SpriteExtractor` 纯数据提取；app 用 `replace()` 在农场/林地之间换场景 | 设计 · 实测 |
@@ -83,7 +85,7 @@
 | M23 | NPC / Dialogue / Quests | 10 | `NarrativeDatabase` + `NarrativeService`、NPC/对话图/任务 JSON、白名单条件与动作、每日好感/送礼、事件驱动任务进度与物品奖励、底部对话框与 Digit1–3 选择、`NarrativeSnapshot`/`snapshot`/`restore`、`questStates()`；app 已接农场 Elder 交互、`J` 任务日志与任务奖励 | 设计 · 实测 |
 | M24 | Economy / Crafting / Shops | 11 | `EconomyService` + `ShopDatabase`、钱包、买卖原子性、每日限购、季节库存（`ShopEntry::seasons`）、按日确定性价格波动（`price_swing`）、M15 配方加工任务、出货箱次日结算、`restore*` 存档；app 商店显示今日价/余量/季节，橙色出货箱 + 做汤/收取 | 设计 · 实测 |
 | M25 | Game Flow | 10 | `GameFlow`/`IGameFlow`、`AppState` 状态机、新游戏/读档、暂停/对话、日终结算（`EndOfDayHandler`）、自动存档、`saveToSlot(slot)`、睡眠恢复规则（`Sleep.hpp`）、死亡/复活、退出、7400 错误段；app 主菜单/暂停/存档槽 + GameOver 面板（复活/读自动存档/主菜单）+ 床边 `E` 任意时间睡觉 + 门口换地图；`GameState` 持有跨场景农田/背包/叙事/玩家状态；读档固定重建场景后应用叙事/AI/世界对象/生命段 | 设计 · 实测 |
-| M26 | Editor Tools | 12 | `MapEditor` + `EditorHistory` + `EditorOverlay`、Brush/Rect/Fill/Erase/Picker、命令差分 undo/redo、M12 `saveTilemapToJson()`、M09 状态面板、F2/1–5/`[`/`]`/Z/Y/S/L 快捷键；可视化编辑器的 `瓦片/对象/传送门` scope（NPC 与传送区域可放置，保存写回地图 JSON + `entities.json`）；Release 不链接 | 设计 · 实测 |
+| M26 | Editor Tools | 12 | `MapEditor` + `EditorHistory` + `EditorOverlay`、Brush/Rect/Fill/Erase/Picker、命令差分 undo/redo、M12 `saveTilemapToJson()`、M09 状态面板、F2/1–5/`[`/`]`/Z/Y/S/L 快捷键；可视化编辑器的 `瓦片/对象/传送门` scope（NPC 与传送区域可放置，保存写回地图 JSON + `entities.json`）、地图浏览器（扫描 `data/maps/`，文件名即地图 id，可选图编辑/新建/删除）；Release 不链接 | 设计 · 实测 |
 | M27 | Debug Tools | 11 | `DebugConsole` 命令/引号/历史、`CVarRegistry` 四种类型与 save/load、`DebugLogSink` 环形日志、`DebugStats`（含角色相机、玩家世界/格子坐标与 AI 锁定目标）、实体快照、`UiContext` 覆盖层、M13 `DebugShape` 适配、F3/F4/F5/控制台事件路由；Release 不链接 | 设计 · 实测 |
 
 实际落地顺序是 M01 → M02 → M04 → M03 → M07 → M06 → M05 → M11 → M13 → M12 → M17 → M16 → M15 → M09 → M18 → M08 → M27 → M14 → M10 → M20 → M22 → M19 → M21 → M26 → M23 → M24 → M25，所以上表顺序与时间顺序不同。
@@ -305,7 +307,7 @@ fa_app.exe --frames 60 (Release)
 | 数学 | `Vec2`、`Rect`、`Rng` | `fa/core/` |
 | 窗口 / 文件 / 时钟 | `IPlatform`、`IFileSystem`、`IGlContext` | `fa/platform/` |
 | 音频设备 | `IAudioDevice`、`AudioCallback`（`platform.audio()`） | `fa/platform/AudioDevice.hpp` |
-| 音频片段 | `AudioClip`（PCM16、`frameCount`/`durationSeconds`）、`makeTone`/`makeSilence` | `fa/audio/AudioClip.hpp` |
+| 音频片段 | `AudioClip`（PCM16、`frameCount`/`durationSeconds`）、`makeTone`/`makeSilence`/`decodeWav` | `fa/audio/AudioClip.hpp` |
 | 软件混音 | `AudioMixer`（`add`/`stop`/`setBusVolume`/`setListener`/`mix`/`stats`） | `fa/audio/AudioMixer.hpp` |
 | 音频引擎 | `AudioEngine`（`initialize`/`shutdown`/`play`/`stop`/`setBusVolume`/`setListener`/`update`/`stats`） | `fa/audio/AudioEngine.hpp` |
 | 音频参数 | `AudioBus`、`SoundDesc`、`SoundHandle`、`AudioStats`、`kMaxVoices` | `fa/audio/AudioTypes.hpp` |
@@ -401,7 +403,7 @@ fa_app.exe --frames 60 (Release)
 | 无重量/容量/分类限制 | 任何物品可进任何容器；Tool 槽可以放食物 | M18 / M19 |
 | `ContentDatabase` 生命周期 | 容器存借用指针，内容库先销毁会让 `maxStackFor`/use 悬空 | M18 |
 | 背包事件只记录不发布 | M03 接线由组装根决定；UI 需要自己清事件 | M18 / M03 |
-| 无音频解码器 | 现在放一个 WAV/OGG 进去也读不出来；只有代码生成的 PCM | M05 注册 `IAudioDecoder` 后接 `AudioClip` |
+| 音频只支持 PCM WAV | `decodeWav` 解 PCM8/16 单/立体声并重采样到目标率；OGG/压缩 WAV 读不了；app 直读文件字节，未走 M05 资产缓存与 `IAudioDecoder` | M08 / M05 扩展点 |
 | 音频整段常驻 / 无流式 | 长音乐全部占内存，切换曲目有加载尖峰 | M08（后续 `MusicStream`） |
 | 固定 48 kHz / 1–2 声道 | 其他设备格式依赖 SDL 流转换；多声道不做 | M08（需要时扩展 `IAudioDevice`） |
 | `play()` 句柄早于执行 | 返回非零不代表 voice 一定存活；淘汰/队列满只计数 | M08（需要反馈时加事件） |
@@ -525,7 +527,7 @@ fa_app.exe --frames 60 (Release)
 |---|---|---|
 | 流程打磨 | 菜单键盘焦点、场景切换过渡、死亡面板的读档槽选择 | 输入上下文与暂停状态 |
 | 战斗打磨 | 玩家与敌人攻击动画（`hit` 帧事件生成命中盒）、受击闪烁/伤害数字、SFX 已完成；还需敌人专属招式与受击硬直 | M10/M20 反馈与敌人表现 |
-| 真实素材与手感 | 美术已完成（31 张真实贴图 + 中文像素字体图集）；音频仍是程序化 PCM，还需补敌人招式、分帧动画与数值平衡 | M08 / M10 / M20 |
+| 真实素材与手感 | 美术已完成（31 张真实贴图 + 中文像素字体图集）；音频已接 WAV 解码与首支真实素材（`music_day`/`sfx_harvest`），还需流式播放、更多 SFX、敌人招式、分帧动画与数值平衡 | M08 / M10 / M20 |
 | 工程收尾 | 已完成：迁移、CI 配置与 **GitHub Actions 首次实跑**、格式化基线、1000 精灵基线、真实 30 分钟 soak；剩余：128×128 地图基准、CRC/压缩 | 无 GPU 的 runner 只能跳过 GL 冒烟，像素级验证仍需本机 |
 
 **种植、战斗、睡眠/存档、菜单/背包、出货箱/商店（季节库存+价格波动）、任务日志、林地传送、敌人反击、死亡菜单/读档、Elder 对话/任务、武器/食物/加工与体力已可用 `--play` 手动验证；独立地图与 `SceneStack::replace` 已接通。叙事/AI/世界对象/玩家生命存档已由组装根接线，读档固定重建场景后再应用。存档自带 v1→v2 迁移；CI 跑 Debug/Release 的测试、scripted/play smoke、20 秒模拟 soak 与 1080p 启动检查。**

@@ -150,16 +150,17 @@ NPC 不再硬编码：地图上有没有可对话对象、它说什么对话图�
 | `stock[].seasons` | 否 | 上架季节；不在当前季节显示 `OUT OF SEASON` 且不可购买 |
 | `stock[].price_swing` | 否 | `0..1` 的每日波动幅度；价格 = 基础价 × 倍率 × `[1-swing, 1+swing]`，按 `(item, day)` 确定性生成 |
 
-## 4. `audio.json`（程序化音频）
+## 4. `audio.json`（音频表）
 
-v1 没有解码器，音频是“音色参数 → PCM”生成；同一份 JSON 可在以后替换为真实文件表。
+每条 clip 优先按 `path` 指向的 WAV 文件解码（`decodeWav`，PCM8/16、单/立体声，线性重采样到
+引擎 48 kHz）；没有 `path` 或解码失败时回落到“音色参数 → PCM”的程序化生成。
 
 ```json
 {"schema_version": 1, "clips": [
   {"id": "sfx.hit", "bus": "sfx", "frequency_hz": 140, "duration": 0.07,
    "amplitude": 0.3, "volume": 0.6, "loop": false},
   {"id": "music.day", "bus": "music", "frequency_hz": 196, "duration": 3.0,
-   "amplitude": 0.12, "volume": 0.2, "loop": true}
+   "amplitude": 0.12, "volume": 0.2, "loop": true, "path": "audio/music_day.wav"}
 ]}
 ```
 
@@ -172,6 +173,7 @@ v1 没有解码器，音频是“音色参数 → PCM”生成；同一份 JSON 
 | `amplitude` | 否 | 0..1，波形峰值 |
 | `volume` | 否 | 0..1，播放音量 |
 | `loop` | 否 | 循环播放；第一条 `bus=music` 且 `loop=true` 作为背景音乐 |
+| `path` | 否 | 相对 `assets/` 的 WAV 路径（形如 `audio/<名字>.wav`）；解码成功后以文件时长为准，程序化参数仅作回落 |
 
 ## 5. `catalog.json`（M05 纹理目录）
 

@@ -634,7 +634,7 @@ classDiagram
 |---|---|
 | `AudioEngine` | `initialize`、`shutdown`、`isInitialized`、`play`、`stop`、`setBusVolume`、`setListener`、`update`、`stats` |
 | `AudioMixer` | `setFormat`、`sampleRate`、`channels`、`add`、`stop`、`setBusVolume`、`busVolume`、`setListener`、`mix`、`reset`、`stats` |
-| `AudioClip` | `isValid`、`frameCount`、`durationSeconds`；`makeTone`、`makeSilence` |
+| `AudioClip` | `isValid`、`frameCount`、`durationSeconds`；`makeTone`、`makeSilence`、`decodeWav`（WAV PCM8/16 解码 + 线性重采样到目标率） |
 | `SoundDesc` / `AudioStats` | 播放参数（音量/pan/loop/fade/pitch）、运行统计 |
 | `SpscQueue<T, Capacity>` | `tryPush`、`tryPop`、`size`、`empty`、`dropped`、`capacity` |
 
