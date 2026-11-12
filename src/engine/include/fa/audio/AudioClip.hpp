@@ -1,8 +1,11 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
+#include <span>
 #include <vector>
 
+#include <fa/core/Result.hpp>
 namespace fa::audio {
 
 /// \brief Resident PCM16 audio. Samples are interleaved by channel.
@@ -33,5 +36,13 @@ makeTone(float frequencyHz, float durationSeconds, int sampleRate = 48000, int c
 
 /// \brief Generates a silent clip of the requested duration.
 [[nodiscard]] AudioClip makeSilence(float durationSeconds, int sampleRate = 48000, int channels = 2);
+
+/// \brief Decodes a RIFF/WAVE buffer into a mixer-ready clip.
+///
+/// Supports PCM8/PCM16 in mono or stereo; any sample rate is linearly resampled
+/// to \p targetRate. `data` chunks shorter than `fmt ` promises, floating-point
+/// payloads and odd channel counts are rejected with an error so the caller can
+/// fall back to a procedural tone.
+[[nodiscard]] core::Result<AudioClip> decodeWav(std::span<const std::uint8_t> bytes, int targetRate = 48000);
 
 }  // namespace fa::audio

@@ -23,7 +23,7 @@
       "id": "sfx.plant",
       "bus": "sfx",
       "frequency_hz": 330,
-      "duration": 0.10,
+      "duration": 0.1,
       "amplitude": 0.22,
       "volume": 0.5,
       "loop": false
@@ -35,7 +35,8 @@
       "duration": 0.14,
       "amplitude": 0.25,
       "volume": 0.55,
-      "loop": false
+      "loop": false,
+      "path": "audio/sfx_harvest.wav"
     },
     {
       "id": "sfx.pickup",
@@ -68,7 +69,7 @@
       "id": "sfx.buy",
       "bus": "sfx",
       "frequency_hz": 990,
-      "duration": 0.10,
+      "duration": 0.1,
       "amplitude": 0.22,
       "volume": 0.5,
       "loop": false
@@ -80,7 +81,8 @@
       "duration": 3.0,
       "amplitude": 0.12,
       "volume": 0.2,
-      "loop": true
+      "loop": true,
+      "path": "audio/music_day.wav"
     }
   ]
 }

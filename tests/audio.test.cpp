@@ -7,6 +7,7 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -132,6 +133,52 @@ TEST_CASE("AudioClip validates PCM layout and generates clips", "[audio]") {
     for (const std::int16_t value : silence.samples) {
         CHECK(value == 0);
     }
+}
+
+TEST_CASE("decodeWav parses PCM WAV and resamples to the engine rate", "[audio]") {
+    // A tiny hand-built 8000 Hz mono PCM16 sine: 8 frames.
+    auto appendU16 = [](std::vector<std::uint8_t>& v, std::uint16_t value) {
+        v.push_back(static_cast<std::uint8_t>(value & 0xFF));
+        v.push_back(static_cast<std::uint8_t>(value >> 8));
+    };
+    auto appendU32 = [&appendU16](std::vector<std::uint8_t>& v, std::uint32_t value) {
+        appendU16(v, static_cast<std::uint16_t>(value & 0xFFFF));
+        appendU16(v, static_cast<std::uint16_t>(value >> 16));
+    };
+    std::vector<std::uint8_t> bytes;
+    bytes.insert(bytes.end(), {'R', 'I', 'F', 'F'});
+    appendU32(bytes, 36 + 16);  // file size - 8
+    bytes.insert(bytes.end(), {'W', 'A', 'V', 'E'});
+    bytes.insert(bytes.end(), {'f', 'm', 't', ' '});
+    appendU32(bytes, 16);
+    appendU16(bytes, 1);      // PCM
+    appendU16(bytes, 1);      // mono
+    appendU32(bytes, 8000);   // rate
+    appendU32(bytes, 16000);  // byte rate
+    appendU16(bytes, 2);      // block align
+    appendU16(bytes, 16);     // bits
+    bytes.insert(bytes.end(), {'d', 'a', 't', 'a'});
+    appendU32(bytes, 16);  // 8 frames * 2 bytes
+    for (int frame = 0; frame < 8; ++frame) {
+        const double value = std::sin(2.0 * 3.14159265358979 * 440.0 * frame / 8000.0);
+        appendU16(bytes, static_cast<std::uint16_t>(static_cast<int>(value * 12000.0)));
+    }
+
+    const auto decoded = fa::audio::decodeWav(bytes, 48000);
+    REQUIRE(decoded.isOk());
+    const AudioClip& clip = decoded.value();
+    CHECK(clip.channels == 1);
+    CHECK(clip.sampleRate == 48000);
+    CHECK(clip.frameCount() == 48);  // 8 frames * 48000/8000
+    CHECK(clip.isValid());
+
+    // Garbage and unsupported layouts are rejected, not trusted.
+    CHECK(fa::audio::decodeWav(std::span<const std::uint8_t>{}, 48000).isError());
+    const std::array<std::uint8_t, 4> nonsense{'N', 'I', 'C', 'E'};
+    CHECK(fa::audio::decodeWav(nonsense, 48000).isError());
+    std::vector<std::uint8_t> truncated = bytes;
+    truncated.resize(20);
+    CHECK(fa::audio::decodeWav(truncated, 48000).isError());
 }
 
 TEST_CASE("AudioMixer outputs silence with no voices", "[audio]") {
