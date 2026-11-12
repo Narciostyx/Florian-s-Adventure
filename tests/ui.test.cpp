@@ -338,6 +338,92 @@ TEST_CASE("button cancels when the release happens outside", "[ui]") {
     CHECK(result.pressed);
 }
 
+TEST_CASE("button keyboard focus navigates in submission order and activates", "[ui]") {
+    const FontAtlas font = testFont();
+    UiContext ui(font, TextureHandle{kWhiteTexture});
+    const UiId first = UiId::fromName("nav.first");
+    const UiId second = UiId::fromName("nav.second");
+    const Rect a{0.0f, 0.0f, 40.0f, 12.0f};
+    const Rect b{0.0f, 20.0f, 40.0f, 12.0f};
+
+    UiInputState input;
+    // Frame 1 records both buttons without any navigation.
+    ui.beginFrame(input);
+    static_cast<void>(ui.button(first, "A", a));
+    static_cast<void>(ui.button(second, "B", b));
+
+    // The first Down focuses the first recorded button.
+    input.downPressed = true;
+    ui.beginFrame(input);
+    static_cast<void>(ui.button(first, "A", a));
+    static_cast<void>(ui.button(second, "B", b));
+    input.downPressed = false;
+    CHECK(ui.focus() == first);
+
+    // Enter presses the focused button only.
+    input.activatePressed = true;
+    ui.beginFrame(input);
+    CHECK(ui.button(first, "A", a).pressed);
+    CHECK_FALSE(ui.button(second, "B", b).pressed);
+    input.activatePressed = false;
+
+    // Down moves to the second button, Enter presses it.
+    input.downPressed = true;
+    ui.beginFrame(input);
+    static_cast<void>(ui.button(first, "A", a));
+    static_cast<void>(ui.button(second, "B", b));
+    input.downPressed = false;
+    CHECK(ui.focus() == second);
+    input.activatePressed = true;
+    ui.beginFrame(input);
+    CHECK_FALSE(ui.button(first, "A", a).pressed);
+    CHECK(ui.button(second, "B", b).pressed);
+    input.activatePressed = false;
+
+    // Up wraps back to the first button.
+    input.upPressed = true;
+    ui.beginFrame(input);
+    static_cast<void>(ui.button(first, "A", a));
+    static_cast<void>(ui.button(second, "B", b));
+    CHECK(ui.focus() == first);
+}
+
+TEST_CASE("mouse clicks take focus and leave keyboard mode", "[ui]") {
+    const FontAtlas font = testFont();
+    UiContext ui(font, TextureHandle{kWhiteTexture});
+    const UiId first = UiId::fromName("focusmouse.a");
+    const UiId second = UiId::fromName("focusmouse.b");
+    const Rect a{0.0f, 0.0f, 40.0f, 12.0f};
+    const Rect b{0.0f, 20.0f, 40.0f, 12.0f};
+
+    UiInputState input;
+    ui.beginFrame(input);
+    static_cast<void>(ui.button(first, "A", a));
+    static_cast<void>(ui.button(second, "B", b));
+
+    // Keyboard navigation focuses the first button.
+    input.downPressed = true;
+    ui.beginFrame(input);
+    static_cast<void>(ui.button(first, "A", a));
+    static_cast<void>(ui.button(second, "B", b));
+    input.downPressed = false;
+    CHECK(ui.focus() == first);
+
+    // A click on the second button takes focus and ends keyboard mode: Enter
+    // must not fire the frame after the release.
+    ui.beginFrame(mouseAt(Vec2{5.0f, 25.0f}, true, true));
+    static_cast<void>(ui.button(first, "A", a));
+    static_cast<void>(ui.button(second, "B", b));
+    ui.beginFrame(mouseAt(Vec2{5.0f, 25.0f}, false, false, true));
+    CHECK(ui.button(second, "B", b).pressed);
+    CHECK(ui.focus() == second);
+
+    input.activatePressed = true;
+    ui.beginFrame(input);
+    CHECK_FALSE(ui.button(first, "A", a).pressed);
+    CHECK_FALSE(ui.button(second, "B", b).pressed);
+}
+
 TEST_CASE("checkbox toggles once per completed click", "[ui]") {
     const FontAtlas font = testFont();
     UiContext ui(font, TextureHandle{kWhiteTexture});

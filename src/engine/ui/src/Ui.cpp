@@ -1,5 +1,7 @@
 #include "fa/ui/Ui.hpp"
 
+#include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <string_view>
 
@@ -42,6 +44,41 @@ void UiContext::beginFrame(const UiInputState& input) noexcept {
     if (m_active != 0u && !m_input.mouseDown && !m_input.mouseReleased) {
         m_active = 0u;
     }
+
+    // Keyboard focus chain. Widgets recorded this frame populate `m_navCur`;
+    // navigation walks `m_navPrev` (last frame's submitted buttons).
+    m_navPrev.swap(m_navCur);
+    m_navCur.clear();
+    m_navActivate = false;
+    if (m_focus != 0u && std::find(m_navPrev.begin(), m_navPrev.end(), m_focus) == m_navPrev.end()) {
+        m_focus = 0u;
+    }
+    if (input.upPressed || input.downPressed) {
+        m_navKeyboard = true;
+        if (!m_navPrev.empty()) {
+            if (m_focus == 0u) {
+                m_focus = m_navPrev.front();
+            } else {
+                const auto found = std::find(m_navPrev.begin(), m_navPrev.end(), m_focus);
+                std::size_t index = static_cast<std::size_t>(found - m_navPrev.begin());
+                const std::size_t count = m_navPrev.size();
+                if (input.downPressed) {
+                    index = (index + 1u) % count;
+                } else {
+                    index = (index + count - 1u) % count;
+                }
+                m_focus = m_navPrev[index];
+            }
+        }
+    }
+    if (input.activatePressed && m_focus != 0u && m_navKeyboard) {
+        m_navActivate = true;
+    }
+}
+
+void UiContext::setFocus(UiId id) noexcept {
+    m_focus = id.value;
+    m_navKeyboard = id.value != 0u;
 }
 
 void UiContext::panel(core::Rect rect, core::Color color) {
@@ -95,12 +132,22 @@ UiResult UiContext::button(UiId id, std::string_view label, core::Rect rect, ren
     UiResult result;
     result.hovered = hovered(rect);
 
+    if (std::find(m_navCur.begin(), m_navCur.end(), id.value) == m_navCur.end()) {
+        m_navCur.push_back(id.value);
+    }
+
     if (m_input.mousePressed && result.hovered) {
         m_active = id.value;
+        // A click owns the focus until the keyboard moves it again.
+        m_focus = id.value;
+        m_navKeyboard = false;
     }
     if (m_input.mouseReleased && m_active == id.value) {
         result.pressed = result.hovered;
         m_active = 0u;
+    }
+    if (m_navActivate && id.value == m_focus) {
+        result.pressed = true;
     }
 
     const bool held = m_active == id.value;
@@ -117,6 +164,9 @@ UiResult UiContext::button(UiId id, std::string_view label, core::Rect rect, ren
         const core::Color fill = held ? m_theme.buttonPressed : (result.hovered ? m_theme.buttonHover : m_theme.button);
         quad(offset(rect), fill);
         border(rect, m_theme.panelBorder);
+    }
+    if (m_navKeyboard && id.value == m_focus) {
+        border(core::makeRect(rect.x - 1.0f, rect.y - 1.0f, rect.w + 2.0f, rect.h + 2.0f), m_theme.accent, 1.0f);
     }
 
     const TextStyle style = widgetTextStyle(m_theme, TextAlign::Center);

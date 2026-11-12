@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <string_view>
+#include <vector>
 
 #include "fa/core/Math.hpp"
 #include "fa/render/RenderQueue.hpp"
@@ -19,8 +20,9 @@ namespace fa::ui {
 /// per-frame input snapshot, calls widgets, then `submit()`s the queued draw items
 /// into the world render queue. `RenderLayer::UI` makes them draw last.
 ///
-/// v1 is mouse-only and uses explicit rectangles; keyboard/gamepad focus chains,
-/// layout groups and text fields are follow-ups.
+/// Buttons carry a keyboard focus chain (`up`/`down` navigate, `activate` presses
+/// the focused button); mouse clicks take focus and leave keyboard mode. Layout
+/// groups, scrolling panels and text fields remain follow-ups.
 
 /// \brief Stable widget identity for press/drag state.
 struct UiId {
@@ -37,7 +39,8 @@ struct UiInputState {
     bool mouseDown = false;
     bool mousePressed = false;
     bool mouseReleased = false;
-    /// \brief Reserved for keyboard/gamepad navigation; unused in v1.
+    /// \brief Keyboard focus navigation: `up`/`down` move the focus, `activate`
+    /// presses the focused button. Edge-triggered (one press = one frame true).
     bool upPressed = false;
     bool downPressed = false;
     bool activatePressed = false;
@@ -87,6 +90,12 @@ public:
     /// \brief Marks the frame complete. Kept explicit for the M09 begin/end contract.
     void endFrame() noexcept {}
 
+    /// \brief Moves the keyboard focus to \p id (`UiId{0}` clears it) and enters
+    /// keyboard mode, so the next `activate` presses the new focus.
+    void setFocus(UiId id) noexcept;
+    /// \brief The focused widget id; `UiId{0}` when nothing has focus.
+    [[nodiscard]] UiId focus() const noexcept { return UiId{m_focus}; }
+
     /// \brief Filled rectangle on the UI layer; the panel background.
     void panel(core::Rect rect, core::Color color);
     /// \brief Draws \p texture over \p rect on the UI layer.
@@ -135,6 +144,15 @@ private:
     std::uint32_t m_active = 0;
     std::uint32_t m_nextEntityId = 1;
     render::RenderQueue m_queue;
+    /// \brief Focusable ids in last-submitted order (previous frame) and the
+    /// widget list currently being recorded.
+    std::vector<std::uint32_t> m_navPrev;
+    std::vector<std::uint32_t> m_navCur;
+    std::uint32_t m_focus = 0;
+    /// \brief False while a mouse click owns the focus, so the ring and Enter
+    /// only apply to keyboard navigation.
+    bool m_navKeyboard = false;
+    bool m_navActivate = false;
 };
 
 }  // namespace fa::ui
