@@ -968,6 +968,8 @@ struct FloatingDamage {
 
 inline constexpr float kHitFlashSeconds = 0.12f;
 inline constexpr float kDamageTextSeconds = 0.7f;
+/// \brief Fade-in duration after a scene swap (`switchMap`), in seconds.
+inline constexpr float kMapFadeSeconds = 0.4f;
 inline constexpr std::size_t kMaxDamageTexts = 32;
 
 /// \brief One procedural clip from `data/audio.json`.
@@ -3981,6 +3983,14 @@ public:
     float shopMessageTimer = 0.0f;
     /// \brief Debounces a portal until the player has stepped off it.
     float portalCooldown = 0.0f;
+    /// \brief Remaining seconds of the full-screen fade-in after a scene swap.
+    /// `switchMap` sets it; the fixed step decays it; `buildHud` draws the quad.
+    float fadeTimer = 0.0f;
+    /// \brief Keyboard menu focus requests (M09 nav), produced by the event pass
+    /// and consumed once per frame by `buildHud`.
+    bool uiNavUp = false;
+    bool uiNavDown = false;
+    bool uiNavActivate = false;
     /// \brief Debounces thorn damage while standing on brambles.
     float hazardCooldown = 0.0f;
     /// \brief True while the backpack panel owns input.
@@ -4146,6 +4156,7 @@ public:
         }
         gameScene = raw;
         clearCombatFeedback();
+        fadeTimer = kMapFadeSeconds;
         if (playerInventory != nullptr) {
             gameScene->setFarmingInventory(playerInventory->hotbar().inventory());
             gameScene->setNarrativeInventory(playerInventory->hotbar().inventory());
@@ -6038,6 +6049,24 @@ public:
             return true;
         }
         return flow->state() == fa::flow::AppState::Playing;
+    }
+
+    /// \brief True while keyboard menu focus may own the arrow/Tab/Enter keys:
+    /// a flow menu, the slot panel, or nothing at all during gameplay. The map
+    /// browser and the dialogue system keep their own key handling.
+    [[nodiscard]] bool menuFocusKeysAllowed() const {
+        if (!playMode || flow == nullptr) {
+            return false;
+        }
+#if defined(FA_ENABLE_EDITOR)
+        if (editorBrowserOpen || editorWindowOpen) {
+            return false;
+        }
+#endif
+        if (gameScene != nullptr && gameScene->narrative().dialogueActive()) {
+            return false;
+        }
+        return flow->state() != fa::flow::AppState::Playing || slotsOpen;
     }
 
     /// \brief Refreshes the cached save-slot metadata for the menu.
@@ -8849,6 +8878,33 @@ public:
             }
         }
 
+        // Keyboard menu focus (M09): arrows/Tab move the focus, Enter/Space
+        // press it. Only while a menu-like panel is up, so gameplay keeps its
+        // key meanings; the flags are consumed once in `buildHud`.
+        if (menuFocusKeysAllowed()) {
+            for (const fa::platform::PlatformEvent& event : events) {
+                if (event.type != fa::platform::PlatformEventType::KeyDown || event.repeat) {
+                    continue;
+                }
+                switch (event.scancode) {
+                    case fa::platform::Scancode::Up:
+                        uiNavUp = true;
+                        break;
+                    case fa::platform::Scancode::Down:
+                    case fa::platform::Scancode::Tab:
+                        uiNavDown = true;
+                        break;
+                    case fa::platform::Scancode::Enter:
+                    case fa::platform::Scancode::KeypadEnter:
+                    case fa::platform::Scancode::Space:
+                        uiNavActivate = true;
+                        break;
+                    default:
+                        break;
+                }
+            }
+        }
+
         // I opens the backpack panel; like the shop, it pauses via Dialogue.
         if (playMode && flow != nullptr && !editorActive && !dialogueOpen && !shopOpen && !inventoryOpen &&
             !questLogOpen && !consoleGrab && flow->state() == fa::flow::AppState::Playing) {
@@ -8941,6 +8997,11 @@ public:
                 const fa::core::Vec2 scripted = (axis.x == 0.0f && axis.y == 0.0f) ? fa::core::Vec2{0.35f, 0.2f} : axis;
                 gameScene->setScriptedMove(scripted);
             }
+        }
+        if (fadeTimer > 0.0f) {
+            // The fade runs outside the gameplay gate: it also covers the frames
+            // right after a menu-driven load, where the state may not be Playing.
+            fadeTimer = std::max(0.0f, fadeTimer - static_cast<float>(context.fixedDeltaSeconds));
         }
         if (gameplayActive()) {
             if (portalCooldown > 0.0f) {
@@ -9967,13 +10028,18 @@ private:
             if (press("death.respawn", "在床边复活", buttonX, panel.y + 68.0f, buttonWidth, 20.0f)) {
                 static_cast<void>(respawnFromDeath());
             }
-            if (press("death.load", "读取自动存档", buttonX, panel.y + 94.0f, buttonWidth, 20.0f)) {
+            if (press("death.load", "读取自动存档", buttonX, panel.y + 92.0f, buttonWidth, 20.0f)) {
                 static_cast<void>(loadFromDeath());
             }
-            if (press("death.menu", "主菜单", buttonX, panel.y + 120.0f, buttonWidth, 20.0f)) {
+            if (press("death.slots", "读取存档槽", buttonX, panel.y + 116.0f, buttonWidth, 20.0f)) {
+                refreshSlots();
+                slotsOpen = true;
+                slotDeleteArm = -1;
+            }
+            if (press("death.menu", "主菜单", buttonX, panel.y + 140.0f, buttonWidth, 20.0f)) {
                 static_cast<void>(mainMenuFromDeath());
             }
-            ui->text("选择如何继续", fa::core::makeRect(panel.x + 8.0f, panel.y + 154.0f, panel.w - 16.0f, 8.0f), dim);
+            ui->text("选择如何继续", fa::core::makeRect(panel.x + 8.0f, panel.y + 174.0f, panel.w - 16.0f, 8.0f), dim);
         }
 
         if (slotsOpen) {
@@ -9987,6 +10053,9 @@ private:
                 } else {
                     ui->panel(full, fa::core::Color{0.07f, 0.09f, 0.12f, 1.0f});
                 }
+            } else if (showGameOver) {
+                // Death keeps the frozen world behind a dark veil instead of the menu art.
+                ui->panel(fa::core::makeRect(0.0f, 0.0f, 640.0f, 360.0f), fa::core::Color{0.02f, 0.02f, 0.04f, 0.82f});
             }
             const fa::core::Rect panel = centeredRect(480.0f, 240.0f);
             ui->panel(panel, theme.panel);
@@ -9999,7 +10068,7 @@ private:
                 names.push_back(fa::flow::manualSlotName(index));
             }
 
-            const bool canSave = !showMainMenu;
+            const bool canSave = !showMainMenu && !showGameOver;
             float y = panel.y + 42.0f;
             for (std::size_t index = 0; index < names.size(); ++index) {
                 const std::string& name = names[index];
@@ -10194,6 +10263,14 @@ private:
             state.mousePressed = mouse->pressed(fa::platform::MouseButton::Left);
             state.mouseReleased = mouse->released(fa::platform::MouseButton::Left);
         }
+        // Keyboard menu focus navigation, consumed exactly once per frame.
+        const bool navAllowed = menuFocusKeysAllowed();
+        state.upPressed = navAllowed && uiNavUp;
+        state.downPressed = navAllowed && uiNavDown;
+        state.activatePressed = navAllowed && uiNavActivate;
+        uiNavUp = false;
+        uiNavDown = false;
+        uiNavActivate = false;
         const fa::core::Rect visible = camera.visibleRect();
         ui->setOrigin(fa::core::Vec2{visible.x, visible.y});
         ui->beginFrame(state);
@@ -10512,6 +10589,12 @@ private:
         buildShopPanel(theme);
         buildQuestLogPanel(theme);
         buildFlowMenus(theme, menuState);
+        if (fadeTimer > 0.0f) {
+            // Fade-in after a scene swap: UI-layer quads keep submission order,
+            // so this last panel covers everything above it.
+            const float alpha = fa::core::clampf(fadeTimer / kMapFadeSeconds, 0.0f, 1.0f);
+            ui->panel(fa::core::makeRect(0.0f, 0.0f, 640.0f, 360.0f), fa::core::Color{0.0f, 0.0f, 0.0f, alpha});
+        }
         uiItems = ui->itemCount();
         ui->submit(renderQueue);
     }
