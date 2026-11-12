@@ -68,7 +68,7 @@
 | M06 | Rendering | 42 | `IRenderer` + `RenderQueue` + `Camera2D`（边界夹取 + 死区/平滑/限速跟随）+ `Viewport`、自研 42 项 GL 函数表、精灵批处理、调试绘制 | 设计 · 实测 |
 | M07 | Input | 36 | `ActionId` + `Binding` + 每上下文 `ActionMap`、上下文栈、`IInput` 窄接口、JSON 键位持久化 | 设计 · 实测 |
 | M08 | Audio | 13 | `AudioClip` PCM16、`decodeWav` WAV(PCM8/16) 解码+线性重采样、32 voice 软件混音、Master/SFX/Music/Ambience 总线、pan/loop/fade/pitch、距离衰减、无锁 SPSC 命令队列、SDL3 `IAudioDevice` 回调、原子统计 | 设计 · 实测 |
-| M09 | UI & Text | 24 | 内置 3×5 ASCII 位图字体 + UTF-8 解码与离线烘焙的 10 px 中文图集（`extended` 二分查表、逐字形 `bearingY`、`fitToCodepoints`）、字形回退、测量/换行/对齐、投影/描边、立即模式面板/按钮/复选框/滑条/进度条、`RenderLayer::UI` 与主题 | 设计 · 实测 |
+| M09 | UI & Text | 26 | 内置 3×5 ASCII 位图字体 + UTF-8 解码与离线烘焙的 10 px 中文图集（`extended` 二分查表、逐字形 `bearingY`、`fitToCodepoints`）、字形回退、测量/换行/对齐、投影/描边、立即模式面板/按钮/复选框/滑条/进度条、按钮键盘焦点链（`up`/`down` 导航、`activate` 激活、焦点环、鼠标点击接管）、`RenderLayer::UI` 与主题 | 设计 · 实测 |
 | M10 | Animation | 4 | `AnimationClip` 帧/时长/事件、`Animator` 纯数据、`AnimationService` 循环/完成/跨帧事件、四向 `Direction`、`AnimationStateMachine` 条件转换与方向变体 | 设计 · 实测 |
 | M11 | Scene / World & ECS | 78 | `World` + `EntityId` 代际句柄 + `SparseSet` + `CommandBuffer`、`SystemPipeline` 三钩子调度、`SceneStack` 栈式场景、`SpriteExtractor` 纯数据提取；app 用 `replace()` 在农场/林地之间换场景 | 设计 · 实测 |
 | M12 | Tilemap & World | 17 | `Tilemap` + `TileId`/`TileCoord`/`TileBounds` + 多图层 + 瓦片属性、`worldToGrid`/`gridToWorld`/`queryArea`/`portalAt`、JSON 地图加载、4 邻接自动瓦片、`extractTiles` 视锥裁剪、`TilemapSolids` 物理适配器；app 从 `data/maps/*.json` 载入农场/林地，缺文件回落内置布局 | 设计 · 实测 |
@@ -84,7 +84,7 @@
 | M22 | Calendar / Weather / Lighting | 22 | `Season`/`Weather`/`GameDate`/`WorldClock`、0–24 时刻与跨日/季/年、`HourChanged`/`DayChanged`/`SeasonChanged`/`WeatherChanged`、按季节权重随机天气与 RNG 状态保存、自动浇水/生长倍率、环境光曲线与室内外、`LightSet` 点光与线性衰减采样 | 设计 · 实测 |
 | M23 | NPC / Dialogue / Quests | 10 | `NarrativeDatabase` + `NarrativeService`、NPC/对话图/任务 JSON、白名单条件与动作、每日好感/送礼、事件驱动任务进度与物品奖励、底部对话框与 Digit1–3 选择、`NarrativeSnapshot`/`snapshot`/`restore`、`questStates()`；app 已接农场 Elder 交互、`J` 任务日志与任务奖励 | 设计 · 实测 |
 | M24 | Economy / Crafting / Shops | 11 | `EconomyService` + `ShopDatabase`、钱包、买卖原子性、每日限购、季节库存（`ShopEntry::seasons`）、按日确定性价格波动（`price_swing`）、M15 配方加工任务、出货箱次日结算、`restore*` 存档；app 商店显示今日价/余量/季节，橙色出货箱 + 做汤/收取 | 设计 · 实测 |
-| M25 | Game Flow | 10 | `GameFlow`/`IGameFlow`、`AppState` 状态机、新游戏/读档、暂停/对话、日终结算（`EndOfDayHandler`）、自动存档、`saveToSlot(slot)`、睡眠恢复规则（`Sleep.hpp`）、死亡/复活、退出、7400 错误段；app 主菜单/暂停/存档槽 + GameOver 面板（复活/读自动存档/主菜单）+ 床边 `E` 任意时间睡觉 + 门口换地图；`GameState` 持有跨场景农田/背包/叙事/玩家状态；读档固定重建场景后应用叙事/AI/世界对象/生命段 | 设计 · 实测 |
+| M25 | Game Flow | 10 | `GameFlow`/`IGameFlow`、`AppState` 状态机、新游戏/读档、暂停/对话、日终结算（`EndOfDayHandler`）、自动存档、`saveToSlot(slot)`、睡眠恢复规则（`Sleep.hpp`）、死亡/复活、退出、7400 错误段；app 主菜单/暂停/存档槽 + GameOver 面板（复活/读自动存档/读存档槽/主菜单）+ 菜单键盘焦点 + `switchMap` 后 0.4 秒淡入过渡 + 床边 `E` 任意时间睡觉 + 门口换地图；`GameState` 持有跨场景农田/背包/叙事/玩家状态；读档固定重建场景后应用叙事/AI/世界对象/生命段 | 设计 · 实测 |
 | M26 | Editor Tools | 12 | `MapEditor` + `EditorHistory` + `EditorOverlay`、Brush/Rect/Fill/Erase/Picker、命令差分 undo/redo、M12 `saveTilemapToJson()`、M09 状态面板、F2/1–5/`[`/`]`/Z/Y/S/L 快捷键；可视化编辑器的 `瓦片/对象/传送门` scope（NPC 与传送区域可放置，保存写回地图 JSON + `entities.json`）、地图浏览器（扫描 `data/maps/`，文件名即地图 id，可选图编辑/新建/删除）；Release 不链接 | 设计 · 实测 |
 | M27 | Debug Tools | 11 | `DebugConsole` 命令/引号/历史、`CVarRegistry` 四种类型与 save/load、`DebugLogSink` 环形日志、`DebugStats`（含角色相机、玩家世界/格子坐标与 AI 锁定目标）、实体快照、`UiContext` 覆盖层、M13 `DebugShape` 适配、F3/F4/F5/控制台事件路由；Release 不链接 | 设计 · 实测 |
 
@@ -392,7 +392,7 @@ fa_app.exe --frames 60 (Release)
 | 旋转精灵破坏像素风 | `DrawItem::rotation` 只靠注释限制 90° 倍数 | M06（接受） |
 | 文字只支持 ASCII | 多字节 UTF-8 会拆成多个 `?`；CJK 需要解码 + 动态图集 | M09 |
 | 内置 3×5 字体可读性有限 | 已由离线烘焙的 10 px 中文图集解决；运行时 TTF 解析与动态图集仍未做（改文案要重新烘焙） | M09 |
-| UI 仅鼠标 | 键盘/手柄焦点链、Tab 顺序、文本输入未实现 | M09 / M25 |
+| UI 焦点链只覆盖按钮 | 菜单按钮已有键盘焦点（方向键/Tab/Enter/空格）；复选框/滑条未入链，手柄与暂停面板滚动仍缺 | M09 / M25 |
 | UI 按 `sortY` 排序 | 重叠窗口的绘制顺序由屏幕 y 决定，不是提交顺序 | M09 |
 | UI 无布局组/裁剪/滚动 | 复杂面板要手算矩形，超出面板仍会绘制；字号由 `ui.scale` 放大，极端比例可能溢出 | M09 / M18 / M26 |
 | 窗口只限制最小尺寸 | 允许放大，最小 1280×720；非 16:9 时视口/相机的适配仍依赖现有逻辑 | M02 / M06 |
@@ -478,7 +478,7 @@ fa_app.exe --frames 60 (Release)
 | `Velocity` 是否进存档未定 | 速度是意图还是状态，会影响 M14 的格式 | M14 |
 | 系统注册顺序是隐式耦合 | 顺序错了得到难查的 bug | 各玩法模块 + M27 |
 | 场景与世界按 role 存档 | `world.objects` 用稳定 role（dummy1/2、ai.agent、ai.decoy、placed）恢复敌人/杂物/放置物；`world.ai` 用同一 role 数组保存 agent；新增动态对象需先分配 role | M14 / M21 / M25 |
-| 无场景过渡效果 | 切场景是硬切 | M25 |
+| 场景过渡只有淡入 | `switchMap` 成功后 0.4 秒全屏淡入，读档/新游戏/传送都被遮掩；没有淡出与转场样式 | M25 |
 | 无实体原型 → 世界规模 | 单场景 1e3 量级；10 万实体缓存局部性差 | M15 已实现；prefab 落地后再评估 |
 | 睡眠没有强制起床 | 任意时间可睡并按 8 h 上限衰减恢复；没有晕倒、强制打断或睡眠惩罚 | M25 / M16 |
 | 天气只有日粒度 | 没有连续天气/预报准确率/区域差异 | M22 后续 |
@@ -525,12 +525,12 @@ fa_app.exe --frames 60 (Release)
 
 | 方向 | 理由 | 主要风险 |
 |---|---|---|
-| 流程打磨 | 菜单键盘焦点、场景切换过渡、死亡面板的读档槽选择 | 输入上下文与暂停状态 |
+| 流程打磨 | 已完成：菜单键盘焦点（方向键/Tab 移动、Enter/空格激活）、`switchMap` 淡入过渡、死亡面板读档槽选择；剩余：输入上下文自动屏蔽、淡出式转场 | 输入上下文与暂停状态 |
 | 战斗打磨 | 玩家与敌人攻击动画（`hit` 帧事件生成命中盒）、受击闪烁/伤害数字、SFX 已完成；还需敌人专属招式与受击硬直 | M10/M20 反馈与敌人表现 |
 | 真实素材与手感 | 美术已完成（31 张真实贴图 + 中文像素字体图集）；音频已接 WAV 解码与首支真实素材（`music_day`/`sfx_harvest`），还需流式播放、更多 SFX、敌人招式、分帧动画与数值平衡 | M08 / M10 / M20 |
 | 工程收尾 | 已完成：迁移、CI 配置与 **GitHub Actions 首次实跑**、格式化基线、1000 精灵基线、真实 30 分钟 soak；剩余：128×128 地图基准、CRC/压缩 | 无 GPU 的 runner 只能跳过 GL 冒烟，像素级验证仍需本机 |
 
-**种植、战斗、睡眠/存档、菜单/背包、出货箱/商店（季节库存+价格波动）、任务日志、林地传送、敌人反击、死亡菜单/读档、Elder 对话/任务、武器/食物/加工与体力已可用 `--play` 手动验证；独立地图与 `SceneStack::replace` 已接通。叙事/AI/世界对象/玩家生命存档已由组装根接线，读档固定重建场景后再应用。存档自带 v1→v2 迁移；CI 跑 Debug/Release 的测试、scripted/play smoke、20 秒模拟 soak 与 1080p 启动检查。**
+**种植、战斗、睡眠/存档、菜单/背包、出货箱/商店（季节库存+价格波动）、任务日志、林地传送、敌人反击、死亡菜单/读档、Elder 对话/任务、武器/食物/加工与体力已可用 `--play` 手动验证；独立地图与 `SceneStack::replace` 已接通。叙事/AI/世界对象/玩家生命存档已由组装根接线，读档固定重建场景后再应用。菜单键盘焦点、换图淡入过渡与死亡面板读档槽选择已可用 `--play` 手动验证。存档自带 v1→v2 迁移；CI 跑 Debug/Release 的测试、scripted/play smoke、20 秒模拟 soak 与 1080p 启动检查。**
 后续每项改动仍按既有节奏推进：
 **设计/确认 → 实现 → 测试 → app 集成 → 三配置验证 → 全新克隆验证 → 回写文档 → 更新本文件 → 提交**。
 
