@@ -57,6 +57,10 @@
       "attack_cooldown": 1.2000000476837158,
       "attack_damage": 6,
       "attack_range": 22.0,
+      "cell": {
+        "x": 20.0,
+        "y": 8.0
+      },
       "health": 25,
       "id": "forest_slime_a",
       "kind": "enemy",
@@ -64,10 +68,6 @@
       "map": "forest",
       "move_speed": 42.0,
       "payload": 0,
-      "position": {
-        "x": 320.0,
-        "y": 128.0
-      },
       "sight_radius": 150.0,
       "texture": "tex.enemy.slime",
       "tint": "#ffffff"
@@ -76,6 +76,10 @@
       "attack_cooldown": 1.2000000476837158,
       "attack_damage": 6,
       "attack_range": 22.0,
+      "cell": {
+        "x": 25.0,
+        "y": 14.0
+      },
       "health": 20,
       "id": "forest_slime_b",
       "kind": "enemy",
@@ -83,10 +87,6 @@
       "map": "forest",
       "move_speed": 42.0,
       "payload": 0,
-      "position": {
-        "x": 400.0,
-        "y": 224.0
-      },
       "sight_radius": 150.0,
       "texture": "tex.enemy.slime",
       "tint": "#ffffff"
@@ -95,6 +95,10 @@
       "attack_cooldown": 0.800000011920929,
       "attack_damage": 7,
       "attack_range": 24.0,
+      "cell": {
+        "x": 22.0,
+        "y": 10.0
+      },
       "health": 18,
       "id": "forest_bat",
       "kind": "enemy",
@@ -102,10 +106,6 @@
       "map": "forest",
       "move_speed": 90.0,
       "payload": 0,
-      "position": {
-        "x": 360.0,
-        "y": 168.0
-      },
       "sight_radius": 190.0,
       "texture": "tex.enemy.bat",
       "tint": "#c8b4ff"

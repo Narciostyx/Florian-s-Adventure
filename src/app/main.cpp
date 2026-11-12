@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cctype>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -121,6 +122,7 @@
 #include <fa/tilemap/Tilemap.hpp>
 #include <fa/tilemap/TilemapExtract.hpp>
 #include <fa/tilemap/TilemapLoader.hpp>
+#include <fa/tilemap/TilemapWriter.hpp>
 #include <fa/time/FrameContext.hpp>
 #include <fa/time/FrameLoop.hpp>
 #include <fa/ui/Font.hpp>
@@ -969,9 +971,14 @@ inline constexpr float kDamageTextSeconds = 0.7f;
 inline constexpr std::size_t kMaxDamageTexts = 32;
 
 /// \brief One procedural clip from `data/audio.json`.
+///
+/// With `path` set the clip PCM comes from that WAV file under `assets/`
+/// (decoded by `fa::audio::decodeWav`); the tone fields are the fallback when
+/// the file is missing or unsupported, so a bare checkout still plays sound.
 struct AudioClipDef {
     std::string id;
     fa::audio::AudioBus bus = fa::audio::AudioBus::SFX;
+    std::string path;
     float frequency = 440.0f;
     float duration = 0.2f;
     float amplitude = 0.25f;
@@ -1387,6 +1394,35 @@ public:
 
     /// \brief M26 edits the same map the runtime extracts.
     [[nodiscard]] fa::tilemap::Tilemap& editableMap() noexcept { return m_map; }
+
+    /// \brief Binds catalog textures to the defs loaded from the map JSON.
+    /// Public because the editor's save path re-binds a freshly copied live map.
+    void bindMapTextures() {
+        for (const fa::tilemap::TileDef& def : m_map.tileDefs()) {
+            static_cast<void>(m_map.setTileTexture(def.id, textureForName(def.textureName), def.source));
+        }
+        // Collision zones resolve their texture by name too; an unnamed zone is
+        // collision-only and simply never draws.
+        for (fa::tilemap::MapBlocker& blocker : m_map.mutableBlockers()) {
+            if (!blocker.textureName.empty()) {
+                blocker.texture = textureForName(blocker.textureName);
+            }
+        }
+    }
+
+    /// \brief Adopts the editor's map after a save (live map only).
+    ///
+    /// Replaces the tilemap, resizes the placement grid when the editor resized the
+    /// map (occupancy claims reset; props re-claim on the next scene rebuild), and
+    /// re-binds textures so the world draws the new content immediately.
+    void adoptEditedMap(const fa::tilemap::Tilemap& map) {
+        const bool resized = map.width() != m_map.width() || map.height() != m_map.height();
+        m_map = map;
+        if (resized) {
+            static_cast<void>(m_placement.resize(m_map.width(), m_map.height()));
+        }
+        bindMapTextures();
+    }
     [[nodiscard]] fa::core::Rect mapTileRect(fa::tilemap::TileCoord cell) const noexcept {
         return m_map.tileRect(cell);
     }
@@ -2235,20 +2271,6 @@ private:
             out = transform->position;
         }
         return true;
-    }
-
-    /// \brief Binds catalog textures to the defs loaded from the map JSON.
-    void bindMapTextures() {
-        for (const fa::tilemap::TileDef& def : m_map.tileDefs()) {
-            static_cast<void>(m_map.setTileTexture(def.id, textureForName(def.textureName), def.source));
-        }
-        // Collision zones resolve their texture by name too; an unnamed zone is
-        // collision-only and simply never draws.
-        for (fa::tilemap::MapBlocker& blocker : m_map.mutableBlockers()) {
-            if (!blocker.textureName.empty()) {
-                blocker.texture = textureForName(blocker.textureName);
-            }
-        }
     }
 
     void buildWorld() {
@@ -4131,8 +4153,8 @@ public:
         }
 #if defined(FA_ENABLE_EDITOR)
         editor = std::make_unique<fa::editor::EditorOverlay>(gameScene->editableMap());
-        // The visual editor borrowed the destroyed scene's map; force a rebind
-        // on the next open instead of editing freed memory.
+        // The visual editor works on the app-owned copy, but dropping it on a
+        // scene switch keeps its state scoped to one explicit open.
         visualEditor.reset();
 #endif
         return true;
@@ -4291,19 +4313,15 @@ public:
                                       static_cast<int>(std::floor(position.y / static_cast<float>(size)))};
     }
 
-    /// \brief Loads the rows the editor authors from the spawn table, for this map only.
+    /// \brief Loads the rows the editor authors from the spawn table, for one map only.
     ///
     /// The editor works in cells; a shipped row may carry a sub-tile world position, which is
     /// converted for display and written back as a cell. That is deliberate: map authoring is
     /// cell-granular, and only rows the editor touched lose the fractional offset.
-    void buildEditorPlacements() {
+    void buildEditorPlacements(std::string_view mapId) {
         editorPlacements.clear();
-        editorMapId.clear();
-        if (gameScene == nullptr) {
-            return;
-        }
-        editorMapId = std::string{gameScene->mapId()};
-        const int tileSize = gameScene->editableMap().tileSize();
+        editorMapId = std::string{mapId};
+        const int tileSize = editorMap.tileSize() > 0 ? editorMap.tileSize() : fa::render::kTileSize;
         for (const EntitySpawn& row : entitySpawns) {
             if (!row.map.empty() && row.map != editorMapId) {
                 continue;
@@ -4318,14 +4336,10 @@ public:
     }
 
     /// \brief Read-only view model for the editor's entity list scope: one row per
-    /// spawn belonging to the map currently open, with the JSON field names as keys.
-    [[nodiscard]] std::vector<fa::editor::EntityInfoRow> buildEditorEntityInfos() const {
+    /// spawn belonging to the map being edited, with the JSON field names as keys.
+    [[nodiscard]] std::vector<fa::editor::EntityInfoRow> buildEditorEntityInfos(std::string_view mapId) const {
         std::vector<fa::editor::EntityInfoRow> rows;
-        if (gameScene == nullptr) {
-            return rows;
-        }
-        const std::string mapId{gameScene->mapId()};
-        const int tileSize = gameScene->editableMap().tileSize();
+        const int tileSize = editorMap.tileSize() > 0 ? editorMap.tileSize() : fa::render::kTileSize;
         const auto num = [](double value) {
             char buffer[32]{};
             std::snprintf(buffer, sizeof(buffer), "%g", value);
@@ -4403,10 +4417,50 @@ public:
         };
     }
 
-    /// \brief Maps a portal may lead to. `play/*` ids exist so a portal authored in the
-    /// player world can point at it once the map files are wired up.
-    [[nodiscard]] static std::vector<std::string> editorPortalTargets() {
-        return {"farm", "forest", "play/farm", "play/forest"};
+    /// \brief Maps a portal may lead to: every map discovered under `data/maps/`.
+    [[nodiscard]] std::vector<std::string> editorPortalTargets() const { return listMapIds(); }
+
+    /// \brief Map ids discovered under `data/maps/`: every `*.json` file, keyed by its
+    /// path relative to that folder without the extension ("farm", "play/farm").
+    /// The file name is the map id; the map set is never hard-coded.
+    [[nodiscard]] std::vector<std::string> listMapIds() const {
+        std::vector<std::string> ids;
+        if (fileSystem == nullptr) {
+            return ids;
+        }
+        const auto collect = [this, &ids](const std::string& dir, std::string_view prefix) {
+            const fa::core::Result<std::vector<std::string>> entries = fileSystem->listDirectory(dir);
+            if (entries.isError()) {
+                return;
+            }
+            for (const std::string& name : entries.value()) {
+                if (name.size() <= 5 || name.compare(name.size() - 5, 5, ".json") != 0) {
+                    continue;
+                }
+                ids.emplace_back(std::string{prefix} + name.substr(0, name.size() - 5));
+            }
+        };
+        collect(config.paths.data + "/maps", "");
+        if (fileSystem->isDirectory(config.paths.data + "/maps/play")) {
+            collect(config.paths.data + "/maps/play", "play/");
+        }
+        std::sort(ids.begin(), ids.end());
+        return ids;
+    }
+
+    /// \brief Map id the live scene was built from, matching a `data/maps/` file name.
+    [[nodiscard]] std::string liveMapId() const {
+        if (gameScene != nullptr && !gameScene->mapId().empty()) {
+            return std::string{gameScene->mapId()};
+        }
+        std::string file = currentMapFile;
+        if (file.rfind("maps/", 0) == 0) {
+            file.erase(0, 5);
+        }
+        if (file.size() > 5 && file.compare(file.size() - 5, 5, ".json") == 0) {
+            file.erase(file.size() - 5);
+        }
+        return file;
     }
 
     /// \brief Merges the editor's rows back into the spawn table and writes entities.json.
@@ -4496,36 +4550,173 @@ public:
         return fileSystem->writeTextAtomic(config.paths.data + "/entities.json", document.dump());
     }
 
-    /// \brief Opens the visual editor on the map the running game scene owns.
-    void openVisualEditor() {
-        if (gameScene == nullptr) {
+    /// \brief Opens the map browser: pick an existing map to edit, or create a new one.
+    /// The main menu's 地图编辑器 lands here; the editor itself opens only after a choice.
+    void openEditorBrowser() {
+        mapIds = listMapIds();
+        editorNameBuffer.clear();
+        editorNameFocused = true;
+        editorShiftDown = false;
+        editorSelectedMap = -1;
+        newMapWidth = 40;
+        newMapHeight = 23;
+        mapDeleteArm = -1;
+        editorBrowserOpen = true;
+        slotsOpen = false;
+    }
+
+    /// \brief Creates `data/maps/<name>.json` with a grass field, the starter tile defs
+    /// and an empty decor layer, then opens it in the editor.
+    void createNewMap() {
+        if (fileSystem == nullptr) {
             return;
         }
-        // The editor borrows the scene's tilemap. A new game or a map switch
-        // destroys the old scene, so a leftover editor would dangle on freed
-        // memory and the next session died with exit code 3 (abort). Rebind
-        // whenever the live map object changed.
-        if (visualEditor == nullptr || &visualEditor->map() != &gameScene->editableMap()) {
-            visualEditor = std::make_unique<fa::editor::VisualEditor>(gameScene->editableMap());
+        if (editorNameBuffer.empty() || editorNameBuffer.size() > 32) {
+            return;
         }
-        buildEditorPlacements();
+        for (const char c : editorNameBuffer) {
+            const bool ok = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' ||
+                            c == '-' || c == '/';
+            if (!ok) {
+                return;
+            }
+        }
+        // Nested ids are one folder deep at most, and no empty segment.
+        if (editorNameBuffer.front() == '/' || editorNameBuffer.back() == '/' ||
+            editorNameBuffer.find("//") != std::string::npos) {
+            return;
+        }
+        const std::string path = config.paths.data + "/maps/" + editorNameBuffer + ".json";
+        if (fileSystem->exists(path)) {
+            return;
+        }
+        const int width = std::clamp(newMapWidth, 8, 512);
+        const int height = std::clamp(newMapHeight, 8, 512);
+
+        fa::tilemap::Tilemap map(width, height, fa::render::kTileSize);
+        // The starter set mirrors the id table in docs/guide/adding-map-components.md so
+        // a brand-new map already has ground tiles and components to paint with.
+        struct Seed {
+            std::uint16_t id;
+            const char* name;
+            const char* texture;
+            const char* tag;
+            bool solid;
+            bool tillable;
+            bool water;
+            int renderHeight;
+        };
+        const Seed seeds[] = {
+            {1, "grass", "tex.ground.grass", "ground", false, false, false, 1},
+            {2, "wall", "tex.ground.wall", "wall", true, false, false, 1},
+            {3, "soil", "tex.ground.soil", "farmland", false, true, false, 1},
+            {5, "water", "tex.ground.water", "water", true, false, true, 1},
+            {6, "flower", "tex.ground.flower", "decor", false, false, false, 1},
+            {7, "tree", "tex.ground.tree", "obstacle", true, false, false, 3},
+            {8, "stone", "tex.ground.stone", "obstacle", true, false, false, 1},
+            {9, "grass_tuft", "tex.ground.grass_tuft", "decor", false, false, false, 1},
+        };
+        for (const Seed& seed : seeds) {
+            fa::tilemap::TileDef def;
+            def.id = fa::tilemap::TileId{seed.id};
+            def.name = seed.name;
+            def.textureName = seed.texture;
+            def.tag = seed.tag;
+            def.solid = seed.solid;
+            def.walkable = !seed.solid;
+            def.tillable = seed.tillable;
+            def.water = seed.water;
+            def.renderHeight = seed.renderHeight;
+            static_cast<void>(map.addTileDef(std::move(def)));
+        }
+        fa::tilemap::TileLayer ground;
+        ground.name = "ground";
+        ground.renderLayer = fa::render::RenderLayer::Ground;
+        ground.tiles.assign(map.cellCount(), fa::tilemap::TileId{1});
+        static_cast<void>(map.addLayer(std::move(ground)));
+        fa::tilemap::TileLayer decor;
+        decor.name = "decor";
+        decor.renderLayer = fa::render::RenderLayer::GroundDetail;
+        decor.zOrder = 1;
+        decor.tiles.assign(map.cellCount(), fa::tilemap::TileId{});
+        static_cast<void>(map.addLayer(std::move(decor)));
+
+        static_cast<void>(fileSystem->createDirectories(config.paths.data + "/maps"));
+        if (editorNameBuffer.find('/') != std::string::npos) {
+            static_cast<void>(fileSystem->createDirectories(
+                config.paths.data + "/maps/" + editorNameBuffer.substr(0, editorNameBuffer.find_last_of('/'))));
+        }
+        const fa::core::Status saved = fileSystem->writeTextAtomic(path, fa::tilemap::saveTilemapToJson(map));
+        if (saved.isError()) {
+            std::printf("editor: create map %s failed (%s)\n", editorNameBuffer.c_str(), saved.error().message.c_str());
+            return;
+        }
+        std::printf("editor: created map %s (%dx%d)\n", editorNameBuffer.c_str(), width, height);
+        std::fflush(stdout);
+        mapIds = listMapIds();
+        openVisualEditorForMap(editorNameBuffer);
+    }
+
+    /// \brief Deletes one map file (two-click confirm lives in the browser panel).
+    /// The map the live scene is standing on cannot be deleted.
+    void deleteEditorMap(std::string_view mapId) {
+        if (fileSystem == nullptr || mapId == liveMapId()) {
+            return;
+        }
+        static_cast<void>(fileSystem->remove(config.paths.data + "/maps/" + std::string{mapId} + ".json"));
+        mapIds = listMapIds();
+        mapDeleteArm = -1;
+    }
+
+    /// \brief Opens the visual editor on one map file. The editor works on the
+    /// app-owned `editorMap` copy loaded from `data/maps/<id>.json`; the live scene
+    /// only sees the result when the editor saves.
+    void openVisualEditorForMap(std::string_view mapId) {
+        if (fileSystem == nullptr || gameScene == nullptr || mapId.empty()) {
+            return;
+        }
+        const std::string path = config.paths.data + "/maps/" + std::string{mapId} + ".json";
+        const fa::core::Result<std::string> text = fileSystem->readText(path);
+        if (text.isError()) {
+            std::printf("editor: map %s unreadable, nothing to edit\n", path.c_str());
+            std::fflush(stdout);
+            return;
+        }
+        fa::core::Result<fa::tilemap::Tilemap> loaded = fa::tilemap::loadTilemapFromJson(text.value());
+        if (loaded.isError()) {
+            std::printf("editor: map %s failed to load (%s)\n", path.c_str(), loaded.error().message.c_str());
+            std::fflush(stdout);
+            return;
+        }
+        editorMap = std::move(loaded).take();
+        for (const fa::tilemap::TileDef& def : editorMap.tileDefs()) {
+            static_cast<void>(editorMap.setTileTexture(def.id, gameScene->textureForName(def.textureName), def.source));
+        }
+        for (fa::tilemap::MapBlocker& blocker : editorMap.mutableBlockers()) {
+            blocker.texture = blocker.textureName.empty() ? fa::render::TextureHandle{}
+                                                          : gameScene->textureForName(blocker.textureName);
+        }
+
+        // Recreated per map so brush/selection/undo start clean; the reference
+        // target is the app-owned copy, so scene switches can never dangle it.
+        visualEditor = std::make_unique<fa::editor::VisualEditor>(editorMap);
+        buildEditorPlacements(mapId);
         visualEditor->setPlacements(&editorPlacements, editorPlacementKinds());
         // The 组件 palette also offers the interactive furniture and hazards: placing
         // one writes a spawn row (over grass, like every component), so the real
         // entity - sleepable bed, shipping chest, damaging thorns - appears in game.
         visualEditor->setComponentKinds({{"bed", "床", {}}, {"shipping", "箱子", {}}, { "hazard", "荆棘", {} }});
         visualEditor->setPortalTargets(editorPortalTargets());
-        visualEditor->setEntityInfos(buildEditorEntityInfos());
+        visualEditor->setEntityInfos(buildEditorEntityInfos(mapId));
         visualEditor->setPlacementSave(
             [this](const std::vector<fa::editor::MapPlacement>& rows) { return saveEntitySpawns(rows); });
         visualEditor->setActive(true);
         visualEditor->clearCloseRequest();
+        editorBrowserOpen = false;
         editorWindowOpen = true;
         slotsOpen = false;
-        std::printf("editor: visual open (%dx%d, map %s)\n",
-                    visualEditor->map().width(),
-                    visualEditor->map().height(),
-                    editorMapId.c_str());
+        std::printf(
+            "editor: visual open (%dx%d, map %s)\n", editorMap.width(), editorMap.height(), editorMapId.c_str());
         std::fflush(stdout);
     }
 
@@ -4539,19 +4730,23 @@ public:
         std::fflush(stdout);
     }
 
-    /// \brief Writes the edited map back to the file the runtime loads.
+    /// \brief Writes the edited map back to `data/maps/<id>.json`.
+    ///
+    /// When the edited map is the one the live scene is standing on, the scene's
+    /// copy is replaced too, so closing the editor shows the new layout at once.
     [[nodiscard]] fa::core::Status saveVisualEditorMap() {
         if (fileSystem == nullptr || visualEditor == nullptr) {
             return fa::core::Status::err(
                 fa::core::makeError(fa::core::error_code::kInvalidArgument, std::string{"editor unavailable"}));
         }
-        // Saving must land on the map that is actually open: the editor can be launched on
-        // the forest or the player world, and hard-coding the farm path silently destroyed it.
-        const std::string path = config.paths.data + "/" + currentMapFile;
+        // Saving must land on the map that is actually open: the browser can launch
+        // the editor on any file, and hard-coding a path silently destroyed the others.
+        const std::string path = config.paths.data + "/maps/" + editorMapId + ".json";
         const fa::core::Status saved = fileSystem->writeTextAtomic(path, visualEditor->mapText());
         if (saved.isOk()) {
-            // Repaint with the freshly chosen texture names so the live map keeps
-            // drawing correctly after the editor closes.
+            // Repaint with the freshly chosen texture names so the editor keeps
+            // drawing correctly, then hand the same content to the live scene when
+            // this is the map the player is standing on.
             fa::tilemap::Tilemap& map = visualEditor->map();
             for (const fa::tilemap::TileDef& def : map.tileDefs()) {
                 static_cast<void>(map.setTileTexture(def.id, gameScene->textureForName(def.textureName), def.source));
@@ -4559,6 +4754,9 @@ public:
             for (fa::tilemap::MapBlocker& blocker : map.mutableBlockers()) {
                 blocker.texture = blocker.textureName.empty() ? fa::render::TextureHandle{}
                                                               : gameScene->textureForName(blocker.textureName);
+            }
+            if (gameScene != nullptr && editorMapId == liveMapId()) {
+                gameScene->adoptEditedMap(map);
             }
         }
         return saved;
@@ -4629,7 +4827,7 @@ public:
         if (fileSystem == nullptr || gameScene == nullptr) {
             return false;
         }
-        openVisualEditor();
+        openVisualEditorForMap(liveMapId());
         if (visualEditor == nullptr) {
             return false;
         }
@@ -5952,6 +6150,10 @@ public:
         }
         audioClipDefs.clear();
         audioClips.clear();
+        if (fileSystem == nullptr) {
+            return false;
+        }
+        fa::platform::IFileSystem& files = *fileSystem;
         for (std::size_t index = 0; index < clips.size(); ++index) {
             const fa::save::SaveArchive entry = clips.at(index);
             AudioClipDef def;
@@ -5968,6 +6170,7 @@ public:
                     def.bus = fa::audio::AudioBus::Master;
                 }
             }
+            static_cast<void>(entry.getString("path", def.path));
             static_cast<void>(entry.getFloat("frequency_hz", def.frequency));
             static_cast<void>(entry.getFloat("duration", def.duration));
             static_cast<void>(entry.getFloat("amplitude", def.amplitude));
@@ -5980,8 +6183,35 @@ public:
             def.amplitude = fa::core::clampf(def.amplitude, 0.0f, 1.0f);
             def.volume = fa::core::clampf(def.volume, 0.0f, 1.0f);
             audioClipDefs[def.id] = def;
-            audioClips[def.id] = std::make_shared<fa::audio::AudioClip>(
-                fa::audio::makeTone(def.frequency, def.duration, 48000, 2, def.amplitude));
+
+            // Real audio first: a `path` entry loads a PCM WAV from assets and is
+            // resampled by the decoder. A missing or unsupported file warns and
+            // falls back to the procedural tone, keeping bare checkouts audible.
+            std::shared_ptr<fa::audio::AudioClip> clip;
+            if (!def.path.empty()) {
+                const fa::core::Result<std::string> bytes = files.readBinary(config.paths.assets + "/" + def.path);
+                if (bytes.isOk()) {
+                    const std::size_t size = bytes.value().size();
+                    const auto* raw = reinterpret_cast<const std::uint8_t*>(bytes.value().data());
+                    fa::core::Result<fa::audio::AudioClip> decoded =
+                        fa::audio::decodeWav({raw, size}, fa::audio::AudioEngine::kSampleRate);
+                    if (decoded.isOk()) {
+                        clip = std::make_shared<fa::audio::AudioClip>(std::move(decoded).take());
+                    } else {
+                        std::printf("audio: %s (%s) not decodable (%s), using tone\n",
+                                    def.id.c_str(),
+                                    def.path.c_str(),
+                                    decoded.error().message.c_str());
+                    }
+                } else {
+                    std::printf("audio: %s (%s) unreadable, using tone\n", def.id.c_str(), def.path.c_str());
+                }
+            }
+            if (clip == nullptr) {
+                clip = std::make_shared<fa::audio::AudioClip>(
+                    fa::audio::makeTone(def.frequency, def.duration, 48000, 2, def.amplitude));
+            }
+            audioClips[def.id] = std::move(clip);
         }
         return !audioClips.empty();
     }
@@ -8482,6 +8712,65 @@ public:
 #endif
         const bool dialogueWasOpen = gameScene != nullptr && gameScene->narrative().dialogueActive();
 #if defined(FA_ENABLE_EDITOR)
+        if (editorBrowserOpen && !consoleGrab) {
+            // The browser's name field is typed at app level (like the debug console):
+            // M09 has no text widget. Characters come from KeyDown scancodes rather
+            // than TextInput, because an active Chinese IME swallows TextInput while
+            // physical keys still arrive - the same fallback the console relies on.
+            for (const fa::platform::PlatformEvent& event : events) {
+                if (event.type == fa::platform::PlatformEventType::KeyUp) {
+                    if (event.scancode == fa::platform::Scancode::LeftShift ||
+                        event.scancode == fa::platform::Scancode::RightShift) {
+                        editorShiftDown = false;
+                    }
+                    continue;
+                }
+                if (event.type != fa::platform::PlatformEventType::KeyDown) {
+                    continue;
+                }
+                if (event.scancode == fa::platform::Scancode::LeftShift ||
+                    event.scancode == fa::platform::Scancode::RightShift) {
+                    editorShiftDown = true;
+                }
+                if (event.scancode == fa::platform::Scancode::Escape) {
+                    editorBrowserOpen = false;
+                    editorNameBuffer.clear();
+                    mapDeleteArm = -1;
+                    break;
+                }
+                if (event.repeat || !editorNameFocused) {
+                    continue;
+                }
+                if (event.scancode == fa::platform::Scancode::Enter) {
+                    createNewMap();
+                    break;
+                }
+                if (event.scancode == fa::platform::Scancode::Backspace) {
+                    if (!editorNameBuffer.empty()) {
+                        editorNameBuffer.pop_back();
+                    }
+                    continue;
+                }
+                char ch = 0;
+                const auto code = event.scancode;
+                if (code >= fa::platform::Scancode::A && code <= fa::platform::Scancode::Z) {
+                    ch =
+                        static_cast<char>('a' + (static_cast<int>(code) - static_cast<int>(fa::platform::Scancode::A)));
+                } else if (code >= fa::platform::Scancode::Digit1 && code <= fa::platform::Scancode::Digit9) {
+                    ch = static_cast<char>('1' +
+                                           (static_cast<int>(code) - static_cast<int>(fa::platform::Scancode::Digit1)));
+                } else if (code == fa::platform::Scancode::Digit0) {
+                    ch = '0';
+                } else if (code == fa::platform::Scancode::Minus) {
+                    ch = editorShiftDown ? '_' : '-';
+                } else if (code == fa::platform::Scancode::Slash) {
+                    ch = '/';
+                }
+                if (ch != 0 && editorNameBuffer.size() < 32) {
+                    editorNameBuffer.push_back(ch);
+                }
+            }
+        }
         if (editorWindowOpen && !consoleGrab) {
             for (const fa::platform::PlatformEvent& event : events) {
                 if (event.type == fa::platform::PlatformEventType::KeyDown &&
@@ -8520,10 +8809,16 @@ public:
         }
 
         // Escape opens/closes the pause overlay; the browser-style slot panel
-        // consumes it first so it never resumes gameplay by accident.
+        // consumes it first so it never resumes gameplay by accident. The map
+        // browser likewise owns Escape while it is open.
         const bool dialogueOpen = gameScene != nullptr && gameScene->narrative().dialogueActive();
-        if (playMode && flow != nullptr && !editorActive && !editorWindowOpen && !dialogueOpen && !dialogueWasOpen &&
-            !consoleGrab) {
+#if defined(FA_ENABLE_EDITOR)
+        const bool browserBlocksEscape = editorBrowserOpen;
+#else
+        const bool browserBlocksEscape = false;
+#endif
+        if (playMode && flow != nullptr && !editorActive && !editorWindowOpen && !browserBlocksEscape &&
+            !dialogueOpen && !dialogueWasOpen && !consoleGrab) {
             for (const fa::platform::PlatformEvent& event : events) {
                 if (event.type != fa::platform::PlatformEventType::KeyDown ||
                     event.scancode != fa::platform::Scancode::Escape) {
@@ -8831,9 +9126,33 @@ public:
     std::vector<fa::editor::MapPlacement> editorPlacements;
     /// \brief Map file id the editor session belongs to; scopes the rows it may rewrite.
     std::string editorMapId;
+    /// \brief The map the editor edits: an app-owned copy loaded from
+    /// `data/maps/<editorMapId>.json`. The VisualEditor reference therefore never
+    /// dangles when scenes are destroyed by a new game or map switch, and edits
+    /// reach the live scene only when the editor saves.
+    fa::tilemap::Tilemap editorMap;
+    /// \brief True while the map browser (create new / edit existing) is open.
+    bool editorBrowserOpen = false;
+    /// \brief Buffered name for a new map; typed through KeyDown scancodes so a
+    /// Chinese IME (which swallows TextInput) cannot block authoring.
+    std::string editorNameBuffer;
+    /// \brief True while the name field owns the keyboard; the field is focused on
+    /// open and by clicking it, and unfocused by clicking a map row.
+    bool editorNameFocused = true;
+    /// \brief Shift state tracked from raw events for the name field ('_' on Shift+Minus).
+    bool editorShiftDown = false;
+    /// \brief Browser row selected by a name click; -1 = none. Purely visual.
+    int editorSelectedMap = -1;
+    int newMapWidth = 40;
+    int newMapHeight = 23;
+    /// \brief Browser row whose 删除 is armed (first click); -1 when nothing is armed.
+    int mapDeleteArm = -1;
+    /// \brief Map ids scanned from `data/maps/`, refreshed when the browser opens.
+    std::vector<std::string> mapIds;
     EditorRunStats editorStats;
 #endif
-    /// \brief Map file the live scene was loaded from, so the editor saves back to it.
+    /// \brief Map file the live scene was loaded from; `liveMapId()` derives the scene's
+    /// map id from it when the scene itself carries none.
     /// Declared outside the editor guard because `makeGameScene` records it in every build.
     std::string currentMapFile = "maps/farm.json";
     /// \brief True while the M26 visual editor owns the frame; always false without it.
@@ -9496,10 +9815,15 @@ private:
         if (!playMode || flow == nullptr || ui == nullptr) {
             return;
         }
+#if defined(FA_ENABLE_EDITOR)
+        const bool browserOpen = editorBrowserOpen;
+#else
+        const bool browserOpen = false;
+#endif
         const bool showMainMenu = state == fa::flow::AppState::MainMenu;
         const bool showPause = state == fa::flow::AppState::Paused;
         const bool showGameOver = state == fa::flow::AppState::GameOver;
-        if (!showMainMenu && !showPause && !showGameOver && !slotsOpen) {
+        if (!showMainMenu && !showPause && !showGameOver && !slotsOpen && !browserOpen) {
             return;
         }
 
@@ -9532,7 +9856,7 @@ private:
             return nullptr;
         };
 
-        if (showMainMenu && !slotsOpen) {
+        if (showMainMenu && !slotsOpen && !browserOpen) {
             // Main menu: generated art (swap `textures/ui/menu_bg.png` /
             // `menu_button.png` to retheme) + centred title + horizontal buttons.
             const fa::render::TextureHandle bg = uiTexture("tex.ui.menu_bg");
@@ -9586,7 +9910,7 @@ private:
             buttonX += kButtonW + kButtonGap;
 #if defined(FA_ENABLE_EDITOR)
             if (menuButton("menu.editor", "地图编辑器", buttonX)) {
-                openVisualEditor();
+                openEditorBrowser();
             }
             buttonX += kButtonW + kButtonGap;
 #endif
@@ -9653,6 +9977,17 @@ private:
         }
 
         if (slotsOpen) {
+            // Opened from the main menu, the browser-style slot list is a menu, not an
+            // in-game overlay: hide the world behind the same full-screen backdrop.
+            if (showMainMenu) {
+                const fa::render::TextureHandle menuBg = uiTexture("tex.ui.menu_bg");
+                const fa::core::Rect full = fa::core::makeRect(0.0f, 0.0f, 640.0f, 360.0f);
+                if (menuBg.isValid()) {
+                    ui->icon(full, menuBg);
+                } else {
+                    ui->panel(full, fa::core::Color{0.07f, 0.09f, 0.12f, 1.0f});
+                }
+            }
             const fa::core::Rect panel = centeredRect(480.0f, 240.0f);
             ui->panel(panel, theme.panel);
             ui->border(panel, theme.panelBorder);
@@ -9717,6 +10052,133 @@ private:
                 slotDeleteArm = -1;
             }
         }
+
+#if defined(FA_ENABLE_EDITOR)
+        if (browserOpen) {
+            // Map browser: the map set is scanned from `data/maps/`, so every file is
+            // one row and nothing about the shipped maps is hard-coded here.
+            // Full-screen backdrop first: this is a menu, not an in-game overlay, so
+            // the live world must not show through behind the panel.
+            const fa::render::TextureHandle menuBg = uiTexture("tex.ui.menu_bg");
+            const fa::core::Rect full = fa::core::makeRect(0.0f, 0.0f, 640.0f, 360.0f);
+            if (menuBg.isValid()) {
+                ui->icon(full, menuBg);
+            } else {
+                ui->panel(full, fa::core::Color{0.07f, 0.09f, 0.12f, 1.0f});
+            }
+            const fa::core::Rect panel = centeredRect(600.0f, 300.0f);
+            ui->panel(panel, theme.panel);
+            ui->border(panel, theme.panelBorder);
+            ui->text("地图编辑器", fa::core::makeRect(panel.x, panel.y + 8.0f, panel.w, 16.0f), title);
+
+            // Left column: the existing maps. Clicking a name selects the row; the
+            // buttons edit or delete it. Everything stays inside the panel rect.
+            const float listX = panel.x + 14.0f;
+            const float listW = 290.0f;
+            ui->text("选择地图", fa::core::makeRect(listX, panel.y + 30.0f, listW, 10.0f), label);
+            float y = panel.y + 44.0f;
+            if (mapIds.empty()) {
+                ui->text("maps/ 下没有地图文件", fa::core::makeRect(listX, y, listW, 10.0f), dim);
+            }
+            std::size_t index = 0;
+            for (; index < mapIds.size() && y + 22.0f < panel.y + panel.h - 34.0f; ++index) {
+                const std::string& id = mapIds[index];
+                const bool live = id == liveMapId();
+                char line[64]{};
+                std::snprintf(line, sizeof(line), "%s%s", id.c_str(), live ? "  (使用中)" : "");
+                char pickId[32]{};
+                std::snprintf(pickId, sizeof(pickId), "map.pick.%zu", index);
+                const fa::core::Rect nameRect = fa::core::makeRect(listX, y, 140.0f, 18.0f);
+                // 24 codepoints: `farm-scripted  (使用中)` is 20; the old 18 cut the
+                // closing paren. Box is 140 px, so 24 ASCII glyphs still fit.
+                if (ui->button(fa::ui::UiId::fromName(pickId), fa::ui::fitToCodepoints(line, 24), nameRect).pressed) {
+                    ++uiPresses;
+                    editorSelectedMap = static_cast<int>(index);
+                    editorNameFocused = false;
+                }
+                if (editorSelectedMap == static_cast<int>(index)) {
+                    ui->border(nameRect, theme.accent, 1.0f);
+                }
+                char editId[32]{};
+                std::snprintf(editId, sizeof(editId), "map.edit.%zu", index);
+                if (press(editId, "编辑", listX + 150.0f, y, 56.0f, 18.0f)) {
+                    openVisualEditorForMap(id);
+                    return;
+                }
+                char delId[32]{};
+                std::snprintf(delId, sizeof(delId), "map.delete.%zu", index);
+                if (!live) {
+                    // Two clicks like the save slots: arm, then confirm.
+                    const bool armed = mapDeleteArm == static_cast<int>(index);
+                    if (press(delId, armed ? "确认" : "删除", listX + 212.0f, y, 56.0f, 18.0f)) {
+                        if (armed) {
+                            deleteEditorMap(id);
+                        } else {
+                            mapDeleteArm = static_cast<int>(index);
+                        }
+                    }
+                }
+                y += 22.0f;
+            }
+            if (index < mapIds.size()) {
+                ui->text("...", fa::core::makeRect(listX, y + 2.0f, listW, 10.0f), dim);
+            }
+
+            // Right column: create a new map. Column width is panel.w - 344 so the
+            // four size buttons and the create button all fit inside the panel.
+            const float newX = panel.x + 330.0f;
+            const float newW = panel.w - 344.0f;
+            ui->text("新建地图", fa::core::makeRect(newX, panel.y + 30.0f, newW, 10.0f), label);
+
+            char nameLine[80]{};
+            std::snprintf(
+                nameLine, sizeof(nameLine), "名称 %s%s", editorNameBuffer.c_str(), editorNameFocused ? "|" : "");
+            const fa::core::Rect nameField = fa::core::makeRect(newX, panel.y + 44.0f, newW, 18.0f);
+            // 48 codepoints: names accept up to 32 ASCII chars, and the field is
+            // 256 px wide; the old 24 hid the tail of long names while typing.
+            if (ui->button(fa::ui::UiId::fromName("map.name.field"), fa::ui::fitToCodepoints(nameLine, 48), nameField)
+                    .pressed) {
+                ++uiPresses;
+                editorNameFocused = true;
+                editorSelectedMap = -1;
+            }
+            if (editorNameFocused) {
+                ui->border(nameField, theme.accent, 1.0f);
+            }
+            ui->text("字母数字 _ - /，回车创建", fa::core::makeRect(newX, panel.y + 66.0f, newW, 10.0f), dim);
+
+            char sizeLine[48]{};
+            std::snprintf(sizeLine, sizeof(sizeLine), "尺寸 %dx%d", newMapWidth, newMapHeight);
+            ui->text(sizeLine, fa::core::makeRect(newX, panel.y + 84.0f, newW, 10.0f), label);
+            constexpr float kStepW = 56.0f;
+            constexpr float kStepGap = 6.0f;
+            const float stepY = panel.y + 98.0f;
+            if (press("map.new.w-", "宽-", newX, stepY, kStepW, 16.0f)) {
+                newMapWidth = std::max(8, newMapWidth - 1);
+            }
+            if (press("map.new.w+", "宽+", newX + (kStepW + kStepGap), stepY, kStepW, 16.0f)) {
+                newMapWidth = std::min(512, newMapWidth + 1);
+            }
+            if (press("map.new.h-", "高-", newX + 2.0f * (kStepW + kStepGap), stepY, kStepW, 16.0f)) {
+                newMapHeight = std::max(8, newMapHeight - 1);
+            }
+            if (press("map.new.h+", "高+", newX + 3.0f * (kStepW + kStepGap), stepY, kStepW, 16.0f)) {
+                newMapHeight = std::min(512, newMapHeight + 1);
+            }
+
+            if (press("map.create", "创建并编辑", newX, panel.y + 122.0f, 120.0f, 20.0f)) {
+                createNewMap();
+                return;
+            }
+
+            if (press("map.back", "返回", panel.x + 12.0f, panel.y + panel.h - 28.0f, 70.0f, 20.0f)) {
+                editorBrowserOpen = false;
+                editorNameBuffer.clear();
+                mapDeleteArm = -1;
+            }
+            ui->text("Esc 返回", fa::core::makeRect(panel.x, panel.y + panel.h - 24.0f, panel.w, 10.0f), dim);
+        }
+#endif
     }
 
     /// \brief Builds the M09 HUD and the widget row, then appends their draw items.
@@ -10005,7 +10467,13 @@ private:
         }
 
 #if defined(FA_ENABLE_DEBUG_TOOLS)
-        if (debugTools != nullptr) {
+        // The map browser owns the screen: stats/log overlays must not float above it.
+#if defined(FA_ENABLE_EDITOR)
+        const bool browserOwnsScreen = editorBrowserOpen;
+#else
+        const bool browserOwnsScreen = false;
+#endif
+        if (debugTools != nullptr && !browserOwnsScreen) {
             debugTools->draw(*ui, camera.visibleRect());
         }
 #endif
@@ -10295,8 +10763,15 @@ private:
 #if defined(FA_ENABLE_DEBUG_TOOLS)
         /// F3 (stats) also shows each AI agent and the target it has locked: a dim
         /// box on the agent, a line to the target, and an orange target box while
-        /// the target is visible through M21's line of sight.
-        if (debugTools != nullptr && debugTools->statsVisible()) {
+        /// the target is visible through M21's line of sight. The map browser owns
+        /// the screen: its full-screen backdrop must not have world debug shapes
+        /// (the cyan camera-follow box) drawn over it.
+#if defined(FA_ENABLE_EDITOR)
+        const bool browserHidesWorldDebug = editorBrowserOpen || editorWindowOpen;
+#else
+        const bool browserHidesWorldDebug = false;
+#endif
+        if (debugTools != nullptr && debugTools->statsVisible() && !browserHidesWorldDebug) {
             // Cyan marks the camera's follow target and the offset from the view
             // centre, which makes the deadzone visible while walking.
             if (gameScene != nullptr && debugTools->stats().camera.following) {
@@ -10329,7 +10804,7 @@ private:
 
         /// F5 toggles collision boxes. M13 produces the shapes, M27 adapts them to
         /// M06's debug draw calls; the renderer still owns the actual quads.
-        if (debugTools != nullptr && debugTools->physicsVisible() && gameScene != nullptr) {
+        if (debugTools != nullptr && debugTools->physicsVisible() && gameScene != nullptr && !browserHidesWorldDebug) {
             const std::vector<fa::physics::DebugShape> shapes = gameScene->physicsDebugShapes();
             fa::debug::drawPhysicsShapes(*renderer, shapes);
         }

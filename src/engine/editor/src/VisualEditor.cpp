@@ -17,6 +17,11 @@ using fa::core::Vec2;
 
 constexpr float kTileSize = 16.0f;
 
+/// \brief Bottom band of the inspector reserved for the footer (保存 button plus
+/// the status line). Inspector content must stop above `props.y + props.h - kFooterH`
+/// or it draws under the button.
+constexpr float kFooterH = 30.0f;
+
 fa::ui::TextStyle labelStyle(const fa::ui::UiTheme& theme, float factor = 1.0f) {
     fa::ui::TextStyle style;
     style.color = theme.text;
@@ -503,7 +508,7 @@ void VisualEditor::drawPalette(ui::UiContext& ui, Rect screen, std::span<const s
         std::snprintf(line, sizeof(line), "%s  #%u", def.name.c_str(), def.id.value);
         const bool selected = def.id == m_editor.brush();
         const Rect rect = makeRect(palette.x + 6.0f, y, palette.w - 12.0f, 13.0f);
-        if (ui.button(ui::UiId::fromName(id), line, rect).pressed) {
+        if (ui.button(ui::UiId::fromName(id), fa::ui::fitToCodepoints(line, 30), rect).pressed) {
             m_selectedTile = def.id;
             m_editor.setBrush(def.id);
             m_hasInspected = false;
@@ -600,7 +605,7 @@ void VisualEditor::drawProperties(ui::UiContext& ui,
             .pressed) {
         map.setAmbient(ambient);
     }
-    y += rowH + 5.0f;
+    y += rowH + 3.0f;
 
     // The inspector shows the single-clicked tile; the palette brush is the fallback.
     const tilemap::TileId shownTile = m_hasInspected ? m_inspectedTile : m_editor.brush();
@@ -869,7 +874,7 @@ void VisualEditor::saveObjects() {
     }
     const core::Status saved = m_placementSave(*m_placements);
     if (saved.isError()) {
-        m_status = "对象保存失败：" + saved.error().message;
+        m_status = "对象保存失败：" + std::string(fa::ui::fitToCodepoints(saved.error().message, 22));
     }
 }
 
@@ -1132,26 +1137,42 @@ void VisualEditor::drawObjectProperties(ui::UiContext& ui, Rect props) {
         m_selectedPlacement = static_cast<int>(m_placements->size()) - 1;
     }
 
+    // Fixed two-zone layout: the selected row's detail block (title + step
+    // buttons + optional 目标 row + 删除) always occupies the bottom of the
+    // inspector, above the footer band; the list gets the space above it. When
+    // rows overflow, the list reserves one line for "..." - clicking an entity
+    // on the map still selects hidden rows.
+    const float detailTop = props.y + props.h - kFooterH - 4.0f * rowPitch;
+    float listEnd = detailTop;
+    if (y + static_cast<float>(m_placements->size()) * rowPitch > detailTop) {
+        listEnd -= 9.0f;
+    }
+    std::size_t shown = 0;
     for (std::size_t index = 0; index < m_placements->size(); ++index) {
-        if (y + rowPitch > props.y + props.h - 14.0f) {
+        if (y + rowPitch > listEnd) {
             break;
         }
         const MapPlacement& row = (*m_placements)[index];
         std::snprintf(id, sizeof(id), "ve.pick.%zu", index);
         std::snprintf(line, sizeof(line), "%s %d,%d", row.id.c_str(), row.cell.x, row.cell.y);
         const Rect rect = makeRect(props.x + 6.0f, y, props.w - 12.0f, 11.0f);
-        if (ui.button(ui::UiId::fromName(id), line, rect).pressed) {
+        if (ui.button(ui::UiId::fromName(id), fa::ui::fitToCodepoints(line, 30), rect).pressed) {
             m_selectedPlacement = static_cast<int>(index);
         }
         if (m_selectedPlacement == static_cast<int>(index)) {
             ui.border(rect, theme.accent, 1.0f);
         }
         y += rowPitch;
+        ++shown;
+    }
+    if (shown < m_placements->size()) {
+        ui.text("...", makeRect(props.x + 6.0f, y, props.w - 12.0f, 8.0f), dimStyle(theme));
     }
 
     if (m_selectedPlacement < 0) {
         return;
     }
+    y = detailTop;
     MapPlacement& selected = (*m_placements)[static_cast<std::size_t>(m_selectedPlacement)];
     const PlacementKind* kind = nullptr;
     for (const PlacementKind& option : m_kinds) {
@@ -1185,21 +1206,23 @@ void VisualEditor::drawObjectProperties(ui::UiContext& ui, Rect props) {
         ++selected.cell.x;
         m_history.markDirty();
     }
+    y += rowPitch;
     if (kind != nullptr && !kind->targets.empty()) {
         const auto found = std::find(kind->targets.begin(), kind->targets.end(), selected.target);
         const std::size_t next =
             found == kind->targets.end()
                 ? 0
                 : (static_cast<std::size_t>(found - kind->targets.begin()) + 1) % kind->targets.size();
+        // Own full-width row: dialogue ids like `dialogue.elder` do not fit in the
+        // leftover next to the step buttons and used to wrap onto the 删除 row.
         std::snprintf(line, sizeof(line), "目标 < %s >", selected.target.empty() ? "-" : selected.target.c_str());
-        if (ui.button(
-                  ui::UiId::fromName("ve.place.target"), line, makeRect(props.x + 96.0f, y, props.w - 102.0f, 11.0f))
+        if (ui.button(ui::UiId::fromName("ve.place.target"), line, makeRect(props.x + 6.0f, y, props.w - 12.0f, 11.0f))
                 .pressed) {
             selected.target = kind->targets[next];
             m_history.markDirty();
         }
+        y += rowPitch;
     }
-    y += rowPitch;
 
     std::snprintf(id, sizeof(id), "ve.place.delete.%d", m_selectedPlacement);
     if (ui.button(ui::UiId::fromName(id), "删除", makeRect(props.x + 6.0f, y, props.w - 12.0f, 11.0f)).pressed) {
@@ -1226,7 +1249,7 @@ void VisualEditor::drawFooter(ui::UiContext& ui, Rect screen, const SaveHandler&
             // Runs last: its failure message must not be overwritten.
             saveObjects();
         } else {
-            m_status = "保存失败：" + saved.error().message;
+            m_status = "保存失败：" + std::string(fa::ui::fitToCodepoints(saved.error().message, 24));
         }
     }
 
@@ -1257,7 +1280,7 @@ void VisualEditor::drawEntityPalette(ui::UiContext& ui, Rect palette) {
         char line[80]{};
         std::snprintf(line, sizeof(line), "%s  %s", row.id.c_str(), row.kind.c_str());
         const Rect rect = makeRect(palette.x + 6.0f, y, palette.w - 12.0f, 13.0f);
-        if (ui.button(ui::UiId::fromName(id), line, rect).pressed) {
+        if (ui.button(ui::UiId::fromName(id), fa::ui::fitToCodepoints(line, 30), rect).pressed) {
             m_selectedEntity = static_cast<int>(index);
         }
         if (m_selectedEntity == static_cast<int>(index)) {
@@ -1280,7 +1303,7 @@ void VisualEditor::drawEntityProperties(ui::UiContext& ui, Rect props) {
     ui.text(line, makeRect(props.x + 6.0f, y, props.w - 12.0f, 8.0f), labelStyle(theme));
     y += 12.0f;
     for (const auto& [key, value] : row.properties) {
-        if (y + 9.0f > props.y + props.h - 14.0f) {
+        if (y + 9.0f > props.y + props.h - kFooterH) {
             ui.text("...", makeRect(props.x + 6.0f, y, props.w - 12.0f, 8.0f), dimStyle(theme));
             break;
         }
@@ -1535,7 +1558,7 @@ void VisualEditor::drawDecorPalette(ui::UiContext& ui, Rect palette) {
         char line[64]{};
         std::snprintf(line, sizeof(line), "%s  #%u", def.name.c_str(), def.id.value);
         const Rect rect = makeRect(palette.x + 6.0f, y, palette.w - 12.0f, 13.0f);
-        if (ui.button(ui::UiId::fromName(id), line, rect).pressed) {
+        if (ui.button(ui::UiId::fromName(id), fa::ui::fitToCodepoints(line, 30), rect).pressed) {
             m_decorBrush = def.id;
             m_activeComponentKind = -1;
             m_status = "组件 " + def.name;
